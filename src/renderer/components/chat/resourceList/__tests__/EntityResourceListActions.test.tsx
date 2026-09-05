@@ -56,7 +56,8 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const resourceEntityRailMocks = vi.hoisted(() => ({
-  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
+  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]',
+  showEntitiesWithoutResources: undefined as boolean | undefined
 }))
 
 const tabsContextMocks = vi.hoisted(() => ({
@@ -141,17 +142,22 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
   useResourceEntityRail: ({
     activeEntityId,
-    entities
+    entities,
+    showEntitiesWithoutResources
   }: {
     activeEntityId?: string | null
     entities: ResourceEntityRailItem[]
-  }) => ({
-    handleReorder: vi.fn(),
-    handleSelect: vi.fn(),
-    items: entities,
-    listStatus: 'idle',
-    selectedId: activeEntityId ?? null
-  })
+    showEntitiesWithoutResources?: boolean
+  }) => {
+    resourceEntityRailMocks.showEntitiesWithoutResources = showEntitiesWithoutResources
+    return {
+      handleReorder: vi.fn(),
+      handleSelect: vi.fn(),
+      items: entities,
+      listStatus: 'idle',
+      selectedId: activeEntityId ?? null
+    }
+  }
 }))
 
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
@@ -416,6 +422,7 @@ describe('classic layout entity resource list actions', () => {
     preferenceMocks.values.clear()
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
+    resourceEntityRailMocks.showEntitiesWithoutResources = undefined
     assistantDataMocks.topics = [
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
       { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
@@ -499,6 +506,20 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
 
     expect(onCreateTopic).toHaveBeenCalledWith('assistant-1')
+  })
+
+  it('keeps agents without sessions eligible for the classic rail', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ sessions: [] })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(resourceEntityRailMocks.showEntitiesWithoutResources).toBe(true)
   })
 
   it('clears assistant topics from the classic layout assistant context menu', async () => {

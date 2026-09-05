@@ -189,6 +189,7 @@ export function AgentResourceList({
     entities,
     resources: sessionItems,
     getResourceParentId: getSessionAgentId,
+    showEntitiesWithoutResources: true,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),

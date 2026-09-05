@@ -12,11 +12,13 @@ import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>
 
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
-  /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
+  /** Every entity, already mapped to a rail item. */
   entities: readonly TEntity[]
-  /** Every resource for the current scope; an entity is only visible while it owns at least one. */
+  /** Every resource for the current scope. */
   resources: readonly TResource[]
   getResourceParentId: (resource: TResource) => string | null | undefined
+  /** Show entities that do not own a resource yet. Defaults to the assistant-compatible hidden behavior. */
+  showEntitiesWithoutResources?: boolean
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
@@ -39,15 +41,15 @@ type UseResourceEntityRailResult<TEntity> = {
 }
 
 /**
- * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
- * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * latest resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
- * pins, deletion, and context menus stay in the per-variant component.
+ * Shared behavior for the classic-layout entity rail (assistants / agents): entities are optionally
+ * filtered by resource ownership, ordered by `orderKey` with optimistic drag reordering, and activate
+ * their latest resource (or create one). Variant components own data, pins, deletion, and context menus.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
   entities,
   resources,
   getResourceParentId,
+  showEntitiesWithoutResources = false,
   activeEntityId,
   isLoading,
   isError,
@@ -87,7 +89,9 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   }, [orderSignature])
 
   const items = useMemo<TEntity[]>(() => {
-    const filtered = entities.filter((entity) => entityIdsWithResources.has(entity.id))
+    const filtered = showEntitiesWithoutResources
+      ? entities
+      : entities.filter((entity) => entityIdsWithResources.has(entity.id))
     const ordered = [...filtered].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
     let base = ordered
     if (optimisticOrderIds) {
@@ -104,10 +108,10 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     const pinned = base.filter((entity) => entity.pinned)
     if (pinned.length === 0) return base
     return [...pinned, ...base.filter((entity) => !entity.pinned)]
-  }, [entities, entityIdsWithResources, optimisticOrderIds])
+  }, [entities, entityIdsWithResources, optimisticOrderIds, showEntitiesWithoutResources])
 
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
-  const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
+  const selectedId = activeEntityId && items.some((item) => item.id === activeEntityId) ? activeEntityId : null
 
   const handleReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {

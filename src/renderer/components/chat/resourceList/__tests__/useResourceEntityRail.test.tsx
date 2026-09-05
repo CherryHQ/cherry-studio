@@ -115,6 +115,18 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
   })
 
+  it('shows and selects an entity without resources when the owner list opts in', () => {
+    const { result } = renderRail({
+      activeEntityId: 'assistant-c',
+      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
+      resources: RESOURCES,
+      showEntitiesWithoutResources: true
+    })
+
+    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b', 'assistant-c'])
+    expect(result.current.selectedId).toBe('assistant-c')
+  })
+
   it('updates selection while keeping the list mounted during loading', () => {
     const { result, rerender } = renderRail({ isLoading: true, activeEntityId: 'assistant-a' })
 
