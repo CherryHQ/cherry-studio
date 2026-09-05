@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { popupService } from '@renderer/services/popup'
-import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent } from 'react'
@@ -82,6 +82,38 @@ import { PopupHost } from '@renderer/components/PopupHost'
 
 import DoctorPopup from '../DoctorPopup'
 
+function completedDoctorState(
+  results: readonly DoctorCheckResult[] = [{ id: 'install-version-channel', status: 'pass', durationMs: 1 }],
+  expiresAt = new Date(Date.now() + 60_000).toISOString()
+): DoctorState {
+  const now = Date.now()
+  return {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      runId: 'completed-quick',
+      tier: 'quick',
+      startedAt: new Date(now - 1_000).toISOString(),
+      finishedAt: new Date(now).toISOString(),
+      expiresAt,
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false,
+        userDataPath: '/Users/local/CherryStudio'
+      },
+      results,
+      summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
 afterEach(async () => {
   cleanup()
   vi.useFakeTimers()
@@ -141,6 +173,82 @@ describe('DoctorPopup', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'settings.about.debug.title' })).toBeVisible()
+  })
+
+  it('hides the quick basic action while a result is current', async () => {
+    mocks.doctorState = completedDoctorState()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    expect(await screen.findByRole('button', { name: 'settings.doctor.actions.run_network' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'settings.doctor.actions.run_basic' })).not.toBeInTheDocument()
+  })
+
+  it('runs quick checks from the expired-result alert', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState(undefined, new Date(Date.now() - 1_000).toISOString())
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    await screen.findByText('settings.doctor.stale.description')
+    const staleAlert = screen
+      .getAllByRole('status')
+      .find((alert) => within(alert).queryByText('settings.doctor.stale.description'))
+    expect(staleAlert).toBeDefined()
+
+    await user.click(
+      within(staleAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.run_basic' })
+    )
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+  })
+
+  it('offers a quick recovery after full checks are canceled', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = { status: 'canceled', runId: 'canceled-live' }
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    await screen.findByText('settings.doctor.empty.canceled_title')
+    const canceledAlert = screen
+      .getAllByRole('status')
+      .find((alert) => within(alert).queryByText('settings.doctor.empty.canceled_title'))
+    expect(canceledAlert).toBeDefined()
+
+    await user.click(
+      within(canceledAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.rerun' })
+    )
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+  })
+
+  it('keeps full checks cancelable while they are running', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'running-live',
+      tier: 'live',
+      startedAt: new Date().toISOString(),
+      results: []
+    }
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.cancel_run' }))
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'running-live' })
   })
 
   it('keeps the editable report draft while navigating panels', async () => {
