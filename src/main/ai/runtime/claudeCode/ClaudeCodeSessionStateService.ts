@@ -181,6 +181,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     if (!origins) return undefined
     const original = origins.get(toolUseId)
     origins.delete(toolUseId)
+    if (origins.size === 0) this.bashRewriteOrigins.delete(sessionId)
     return original
   }
 
