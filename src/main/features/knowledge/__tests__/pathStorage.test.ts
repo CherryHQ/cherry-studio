@@ -107,6 +107,29 @@ describe('pathStorage relative-path safety', () => {
     it('reduces a source path to its basename', () => {
       expect(getKnowledgeSourceRelativePath('/some/dir/report.pdf')).toBe('report.pdf')
     })
+
+    // Each of these is an ordinary POSIX filename, so nothing downstream rejects it — the
+    // damage only shows up on backup/restore, which is why it has to be caught at the
+    // point the slot name is chosen.
+    it.each([
+      ['a backslash archiver would fold into a separator', 'a\\b.txt', 'a_b.txt'],
+      ['a Windows-reserved device name', 'CON.txt', '_.txt'],
+      ['a Windows-illegal character', 'a<b.txt', 'a_b.txt'],
+      ['a trailing dot Windows silently strips', 'name.', 'name'],
+      ['a trailing space Windows silently strips', 'name ', 'name']
+    ])('sanitizes %s', (_label, fileName, expected) => {
+      expect(getKnowledgeSourceRelativePath(`/some/dir/${fileName}`)).toBe(expected)
+    })
+
+    it('shortens a name past the filesystem limit without dropping its extension', () => {
+      // Length alone is not the contract. Every downstream decision — whether the file
+      // processor runs, which reader is picked, whether an `.md` slot is reserved — reads
+      // the extension off this stored path, so a truncation that ate `.pdf` would index a
+      // PDF as plain text and still report the item completed.
+      const stored = getKnowledgeSourceRelativePath(`/some/dir/${'x'.repeat(300)}.pdf`)
+      expect(stored.length).toBeLessThanOrEqual(255)
+      expect(stored.endsWith('.pdf')).toBe(true)
+    })
   })
 
   describe('getProcessedMarkdownRelativePath', () => {
@@ -158,6 +181,27 @@ describe('pathStorage relative-path safety', () => {
       expect(reserved.has('report_1.pdf')).toBe(true)
       expect(reserved.has('report_1.md')).toBe(true)
       expect(reserved.has('report.md')).toBe(true)
+    })
+
+    it('treats a name differing only in case as taken, keeping the original capitalization', () => {
+      // Case-sensitive here, one file on APFS/NTFS — so the second row would serve the
+      // first row's bytes after a restore. The stored name keeps the user's capitalization;
+      // only the occupancy test folds.
+      const reserved = new Set<string>(['Report.pdf'])
+      expect(reserveImportedFileRelativePath('report.pdf', false, reserved)).toBe('report_1.pdf')
+    })
+
+    it('treats a name differing only in Unicode normalization as taken', () => {
+      // macOS hands back NFD from readdir where Linux stores NFC; both are the same file.
+      const reserved = new Set<string>(['café.pdf'.normalize('NFC')])
+      expect(reserveImportedFileRelativePath('café.pdf'.normalize('NFD'), false, reserved)).toBe(
+        `${'café'.normalize('NFD')}_1.pdf`
+      )
+    })
+
+    it('folds the processed-markdown sibling too', () => {
+      const reserved = new Set<string>(['Brief.md'])
+      expect(reserveImportedFileRelativePath('brief.pdf', true, reserved)).toBe('brief_1.pdf')
     })
   })
 

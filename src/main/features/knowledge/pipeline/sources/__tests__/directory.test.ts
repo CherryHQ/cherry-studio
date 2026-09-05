@@ -106,16 +106,25 @@ describe('chooseDirectoryPathPrefix', () => {
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('C:\\'), new Set())).toBe('C')
   })
 
-  it('keeps a Windows-illegal character the local filesystem accepts', () => {
-    // Native expansion reads a folder that exists here, so its name is legal here — no
-    // `sanitizeFilename`. Migration cannot make that assumption (a v1 row may carry a path from
-    // another OS) and does sanitize, so the same folder is `a_b` when migrated and `a<b` after a
-    // container reindex. Pinned on both sides: `KnowledgeMappings.test.ts` holds the counterpart.
+  it('sanitizes a Windows-illegal character the local filesystem accepts', () => {
+    // Legal here is not enough: the prefix is the first segment of every child's stored path,
+    // and a backup made here has to restore on Windows. Matches what migration produces for the
+    // same folder, so a container reindex no longer moves it (`KnowledgeMappings.test.ts`).
     vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
     vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
     vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
 
-    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a<b')
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a_b')
+  })
+
+  it('dedupes against a reserved namespace differing only in case', () => {
+    // `reservedTopLevelNames` holds folded keys, so `Docs` and `docs` are one namespace —
+    // claiming the second would bury the first once the base lands on APFS or NTFS.
+    vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
+    vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
+    vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
+
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/Docs'), new Set(['docs']))).toBe('Docs_1')
   })
 
   it('rejects the reserved .cherry prefix before it can be persisted', () => {
@@ -174,6 +183,137 @@ describe('expandDirectoryOwnerToTree', () => {
         ]
       }
     ])
+  })
+
+  it('sanitizes every stored segment while leaving the on-disk source untouched', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'a<b')
+    const nestedDir = path.join(rootDir, 'CON')
+    realFs.mkdirSync(nestedDir, { recursive: true })
+    const sourceFile = path.join(nestedDir, 'x|y.md')
+    realFs.writeFileSync(sourceFile, '# x')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    // `source` still points at the real file — only the `raw/` slot is renamed, so the
+    // original is still reachable for reindex.
+    expect(children).toContainEqual(
+      expect.objectContaining({
+        type: 'directory',
+        children: [
+          expect.objectContaining({
+            type: 'file',
+            data: { source: sourceFile, relativePath: 'a_b/_/x_y.md' }
+          })
+        ]
+      })
+    )
+  })
+
+  it('keeps both files when sanitizing maps two scanned names onto one slot', async () => {
+    // Not reachable through a case-only pair (`a.md`/`A.md`): a case-insensitive dev machine
+    // cannot create both, so the collision is provoked the platform-independent way. The copy
+    // overwrites, so before dedup the second file simply replaced the first.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a<b.md'), '# first')
+    realFs.writeFileSync(path.join(rootDir, 'a>b.md'), '# second')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = children.map((child) => (child.type === 'file' ? child.data.relativePath : null))
+    expect(stored).toHaveLength(2)
+    expect(new Set(stored)).toEqual(new Set(['notes/a_b.md', 'notes/a_b_1.md']))
+  })
+
+  it('keeps a folder and a file apart when sanitizing gives them the same name', async () => {
+    // They share one namespace on disk: whichever lands second would either write a file
+    // over a directory or mkdir over a file, aborting the whole import.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(path.join(rootDir, 'a<b.md'), { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a<b.md', 'inner.md'), '# inner')
+    realFs.writeFileSync(path.join(rootDir, 'a>b.md'), '# leaf')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = JSON.stringify(children)
+    expect(stored).toContain('notes/a_b.md/inner.md')
+    expect(stored).toContain('notes/a_b_1.md')
+  })
+
+  it('keeps a filename that contains a backslash as one segment on POSIX', async () => {
+    // The scan reports the entry name verbatim instead of a precomputed relative path, so
+    // there is no `\` → `/` fold left to invent a directory level here (#17429).
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a\\b.md'), '# one file')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    expect(children).toEqual([
+      expect.objectContaining({ type: 'file', data: expect.objectContaining({ relativePath: 'notes/a_b.md' }) })
+    ])
+  })
+
+  it('treats two spellings of the same Unicode name as one slot', async () => {
+    // ext4 keeps NFC and NFD apart; macOS `readdir` hands back NFD for what Linux wrote as
+    // NFC. Either way they are one file once the base is restored, so both must be stored.
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, `${'café'.normalize('NFC')}.md`), '# nfc')
+    const nfdName = `${'café'.normalize('NFD')}.md`
+    if (!realFs.existsSync(path.join(rootDir, nfdName))) {
+      realFs.writeFileSync(path.join(rootDir, nfdName), '# nfd')
+    }
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    const stored = children.map((child) => (child.type === 'file' ? child.data.relativePath : null))
+    // One file on a normalization-insensitive volume, two on ext4 — and where there are two,
+    // the second must not have claimed the first one's slot.
+    expect(new Set(stored).size).toBe(stored.length)
+    if (stored.length === 2) {
+      expect(stored.some((value) => value?.endsWith('_1.md'))).toBe(true)
+    }
   })
 
   it('skips empty nested directories while preserving non-empty directory hierarchy', async () => {

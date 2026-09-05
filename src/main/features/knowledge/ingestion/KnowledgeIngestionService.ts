@@ -655,6 +655,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   ): void {
     const items = knowledgeItemService.getItemsByBaseId(baseId)
     const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
+    // Compared literally, unlike the reservation paths. This guard runs against a base that
+    // already exists, and folding it would newly reject a Linux base holding both `Source.md`
+    // and a `source.pdf` whose artifact is `source.md` — a pairing that works there today and
+    // has no in-app remedy. Local clobbering is already prevented by the `lstat` in
+    // `assertTargetAvailable`, which reads the host's own rules; portability of NEW names is
+    // handled where they are chosen, by renaming rather than failing.
     if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }

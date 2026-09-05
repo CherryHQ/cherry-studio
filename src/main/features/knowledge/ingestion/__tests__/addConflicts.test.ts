@@ -44,6 +44,40 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.keptInputs).toEqual(inputs)
   })
 
+  it('matches an unportable add-input against the sanitized slot it will be stored under', () => {
+    // The storage layer renames `CON.txt` to `_.txt` before writing it, so keying the
+    // add-input off its raw basename would miss the item already sitting in that slot
+    // and silently add a second copy as `__1.txt`.
+    const inputs = [fileInput('/a/CON.txt')]
+    const existing = [
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/CON.txt', relativePath: '_.txt' as PosixRelativeFilePath }
+      })
+    ]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflictingExistingRootIds).toEqual(['e1'])
+  })
+
+  it('matches a backslash name against its slot, reading the separator the host way', () => {
+    // POSIX-only: `a\b.txt` is one filename here, so storage keeps it as one segment and
+    // sanitizes it to `a_b.txt`. A key derived by splitting on `\` regardless of platform
+    // would reduce the input to `b.txt` and miss the duplicate entirely.
+    const inputs = [fileInput('/a/a\\b.txt')]
+    const existing = [
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/a\\b.txt', relativePath: 'a_b.txt' as PosixRelativeFilePath }
+      })
+    ]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflictingExistingRootIds).toEqual(['e1'])
+  })
+
   it('detects a collision against an existing root and reports the existing display title', () => {
     const inputs = [fileInput('/folderA/report.pdf')]
     const existing = [
