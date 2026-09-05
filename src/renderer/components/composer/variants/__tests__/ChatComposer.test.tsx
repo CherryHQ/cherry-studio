@@ -936,10 +936,49 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater({ reasoning_effort_by_model: { 'other::model': 'low' } })).toEqual({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
+    })
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('remembers the explicit selection per model without discarding other models', async () => {
+    mocks.assistant = {
+      id: 'assistant-1',
+      name: 'Assistant 1',
+      emoji: 'A',
+      modelId: model.id,
+      settings: { enableWebSearch: false, reasoning_effort_by_model: { 'other::model': 'low' } },
+      knowledgeBaseIds: []
+    }
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater(mocks.assistant.settings)).toEqual({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
+    })
   })
 
   it('persists and snapshots a newly selected service tier before its Assistant PATCH finishes', async () => {

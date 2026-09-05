@@ -915,7 +915,15 @@ const ChatComposerInner = ({
         value: option,
         version
       })
-      void updateAssistantSettings({ reasoning_effort: option })
+      // Explicit selections are remembered per model so model switches can restore them;
+      // the scalar field stays for consumers predating the map. The updater form reads
+      // selections still in flight instead of this render's stale snapshot.
+      void updateAssistantSettings((latest) => ({
+        reasoning_effort: option,
+        ...(effectiveSubmittedModel && {
+          reasoning_effort_by_model: { ...latest.reasoning_effort_by_model, [effectiveSubmittedModel.id]: option }
+        })
+      }))
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })

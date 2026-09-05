@@ -1,6 +1,7 @@
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { type Model, MODEL_CAPABILITY, type RuntimeReasoning } from '@shared/data/types/model'
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useAssistants } from '../useAssistant'
@@ -14,6 +15,36 @@ function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
     refetch: vi.fn().mockResolvedValue(data),
     mutate: vi.fn().mockResolvedValue(data)
   } as never
+}
+
+function createModel(
+  id: string,
+  name: string,
+  capabilities: Model['capabilities'],
+  reasoning?: RuntimeReasoning
+): Model {
+  return {
+    id,
+    providerId: 'provider',
+    apiModelId: id.split('::')[1],
+    name,
+    capabilities,
+    ...(reasoning ? { reasoning } : {}),
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } as Model
+}
+
+function assistantFixture(settings: Record<string, unknown>) {
+  return {
+    id: 'assistant-1',
+    name: 'Assistant 1',
+    modelId: 'provider::model-a',
+    settings,
+    mcpServerIds: [],
+    knowledgeBaseIds: []
+  }
 }
 
 function resetQueryMock() {
@@ -202,5 +233,113 @@ describe('useAssistant', () => {
     expect(result.current.setModel).toBe(firstSetModel)
     expect(result.current.updateAssistant).toBe(firstUpdateAssistant)
     expect(result.current.updateAssistantSettings).toBe(firstUpdateAssistantSettings)
+  })
+})
+
+/**
+ * Regression coverage for the stale-snapshot race: AssistantService shallow-merges
+ * `settings`, so a PATCH built from an unrefreshed snapshot would overwrite keys an
+ * in-flight PATCH just wrote (e.g. selecting a reasoning effort, then switching
+ * models before the cache refreshes).
+ */
+describe('useAssistant pending-settings staging', () => {
+  const EFFORT_MODEL_A = createModel('provider::model-a', 'Model A', [MODEL_CAPABILITY.REASONING], {
+    controls: [{ kind: 'effort', values: ['low', 'high'] }],
+    selectableEfforts: ['low', 'high']
+  })
+  const EFFORT_MODEL_B = createModel('provider::model-b', 'Model B', [MODEL_CAPABILITY.REASONING], {
+    controls: [{ kind: 'effort', values: ['low', 'high'] }],
+    selectableEfforts: ['low', 'high']
+  })
+
+  const SEED_SETTINGS = { enableWebSearch: false, reasoning_effort: 'default', reasoning_effort_by_model: {} }
+
+  function setupWithTrigger(trigger: ReturnType<typeof vi.fn>, settings: Record<string, unknown> = SEED_SETTINGS) {
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/assistants/:id') return queryResult(assistantFixture(settings))
+      if (String(path).startsWith('/models/')) return queryResult(undefined)
+      return queryResult()
+    })
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/assistants/:id', trigger)
+
+    return renderHook(() => useAssistant('assistant-1'))
+  }
+
+  function patchBody(trigger: ReturnType<typeof vi.fn>, callIndex: number) {
+    return (trigger.mock.calls[callIndex]?.[0] as { body?: Record<string, unknown> } | undefined)?.body ?? {}
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetQueryMock()
+    MockUsePreferenceUtils.resetMocks()
+  })
+
+  it('switching models while a selection PATCH is in flight sends no settings, so the fresh map survives', () => {
+    let resolvePatch: (() => void) | undefined
+    const trigger = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePatch = () => resolve({ id: 'assistant-1' })
+        })
+    )
+    const { result } = setupWithTrigger(trigger)
+
+    act(() => {
+      void result.current.updateAssistantSettings({
+        reasoning_effort: 'high',
+        reasoning_effort_by_model: { [EFFORT_MODEL_A.id]: 'high' }
+      })
+    })
+    act(() => {
+      void result.current.setModel(EFFORT_MODEL_B)
+    })
+    resolvePatch?.()
+
+    expect(patchBody(trigger, 0)).toEqual({
+      settings: { reasoning_effort: 'high', reasoning_effort_by_model: { [EFFORT_MODEL_A.id]: 'high' } }
+    })
+    // Delta-only PATCH: resending the stale snapshot here would shallow-merge over
+    // the map entry the first PATCH just wrote.
+    expect(patchBody(trigger, 1)).toEqual({ modelId: EFFORT_MODEL_B.id })
+  })
+
+  it('feeds selections that are still in flight into a later updater so rapid selections merge', async () => {
+    const trigger = vi.fn().mockResolvedValue({ id: 'assistant-1' })
+    const { result } = setupWithTrigger(trigger)
+
+    await act(async () => {
+      await result.current.updateAssistantSettings({
+        reasoning_effort: 'high',
+        reasoning_effort_by_model: { [EFFORT_MODEL_A.id]: 'high' }
+      })
+    })
+    await act(async () => {
+      await result.current.updateAssistantSettings((latest) => ({
+        reasoning_effort_by_model: { ...latest.reasoning_effort_by_model, [EFFORT_MODEL_B.id]: 'low' }
+      }))
+    })
+
+    expect(patchBody(trigger, 1)).toEqual({
+      settings: { reasoning_effort_by_model: { [EFFORT_MODEL_A.id]: 'high', [EFFORT_MODEL_B.id]: 'low' } }
+    })
+  })
+
+  it('rolls staged settings back when their PATCH fails so later reads see server state', async () => {
+    const trigger = vi.fn<() => Promise<unknown>>()
+    trigger.mockRejectedValueOnce(new Error('write failed')).mockResolvedValue({ id: 'assistant-1' })
+    const { result } = setupWithTrigger(trigger)
+
+    let seenLatest: Record<string, unknown> | undefined
+    await act(async () => {
+      await result.current.updateAssistantSettings({ reasoning_effort: 'high' }).catch(() => undefined)
+      await result.current.updateAssistantSettings((latest) => {
+        seenLatest = latest as Record<string, unknown>
+        return { service_tier: 'flex' }
+      })
+    })
+
+    expect(seenLatest?.reasoning_effort).toBe('default')
   })
 })
