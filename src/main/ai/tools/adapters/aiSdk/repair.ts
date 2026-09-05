@@ -1,3 +1,4 @@
+import { asSchema, safeValidateTypes } from '@ai-sdk/provider-utils'
 import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
@@ -9,6 +10,7 @@ import {
   type ToolCallRepairFunction,
   type ToolSet
 } from 'ai'
+import * as z from 'zod'
 
 import type { AppProviderSettingsMap } from '../../../types'
 
@@ -28,7 +30,7 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
 }
 
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
-  return async ({ toolCall, error, inputSchema }) => {
+  return async ({ toolCall, tools, error, inputSchema }) => {
     if (!InvalidToolInputError.isInstance(error)) return null
 
     let schemaJson: JSONSchema7
@@ -77,10 +79,40 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       return null
     }
 
+    let schema = asSchema(tools[toolCall.toolName].inputSchema)
+    if (!schema.validate) {
+      try {
+        schema = asSchema(z.fromJSONSchema(schemaJson as Parameters<typeof z.fromJSONSchema>[0]))
+      } catch (err) {
+        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
+          toolName: toolCall.toolName,
+          toolCallId: toolCall.toolCallId
+        })
+        return null
+      }
+    }
+    let validated = await safeValidateTypes({ value: repaired, schema })
+    if (
+      !validated.success &&
+      typeof repaired === 'object' &&
+      !Array.isArray(repaired) &&
+      Object.keys(repaired).length === 1 &&
+      'arguments' in repaired
+    ) {
+      validated = await safeValidateTypes({ value: repaired.arguments, schema })
+    }
+    if (!validated.success) {
+      logger.warn('AI repair returned invalid structured output', {
+        toolName: toolCall.toolName,
+        toolCallId: toolCall.toolCallId
+      })
+      return null
+    }
+
     logger.info('Repaired tool call via AI', {
       toolName: toolCall.toolName,
       toolCallId: toolCall.toolCallId
     })
-    return { ...toolCall, input: JSON.stringify(repaired) }
+    return { ...toolCall, input: JSON.stringify(validated.value) }
   }
 }
