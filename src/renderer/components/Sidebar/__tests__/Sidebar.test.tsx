@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, ReactElement, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -351,6 +351,37 @@ describe('Sidebar resize handle', () => {
     await user.click(headerAction)
 
     expect(onHeaderClick).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false, anchorsHeaderRow: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false, anchorsHeaderRow: true },
+    { name: 'floating', width: 0, isFloating: true, anchorsHeaderRow: true }
+  ])('anchors the account panel to the correct $name header boundary', ({ width, isFloating, anchorsHeaderRow }) => {
+    render(
+      <Sidebar
+        width={width}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        title="User"
+        logo={<span>avatar</span>}
+        onHeaderClick={vi.fn()}
+        isFloating={isFloating}
+        renderHeaderAnchor={(anchor: ReactElement) => <div data-testid="header-anchor">{anchor}</div>}
+      />
+    )
+
+    const anchor = screen.getByTestId('header-anchor')
+    const headerAction = screen.getByRole('button', { name: /User$/ })
+
+    if (anchorsHeaderRow) {
+      expect(anchor.firstElementChild).toContainElement(headerAction)
+      expect(anchor.firstElementChild).toHaveClass('px-2')
+    } else {
+      expect(anchor.firstElementChild).toBe(headerAction)
+      expect(anchor.parentElement).toHaveClass('justify-center')
+    }
   })
 
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
