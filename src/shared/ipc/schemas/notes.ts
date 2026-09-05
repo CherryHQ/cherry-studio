@@ -1,8 +1,8 @@
 import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
-import { validateNotesSearchTree } from '@shared/utils/notesSearch'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+import { validateNotesSearchTree } from './notesSearchValidation'
 
 const MAX_SEARCH_NODES = 100_000
 const MAX_SEARCH_KEYWORD_LENGTH = 1_000

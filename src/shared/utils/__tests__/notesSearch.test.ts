@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { validateNotesSearchTree } from '../notesSearch'
+import { validateNotesSearchTree } from '../../ipc/schemas/notesSearchValidation'
 
 interface TestNode {
   children?: TestNode[]

@@ -119,7 +119,7 @@ export async function readChunk(
     while (totalBytesRead < length) {
       signal?.throwIfAborted()
       const readOperation = fileHandle.read(buffer, totalBytesRead, length - totalBytesRead, offset + totalBytesRead)
-      const { bytesRead } = await waitForFileRead(readOperation, signal)
+      const { bytesRead } = await waitForAbort(readOperation, signal)
       signal?.throwIfAborted()
       if (bytesRead === 0) break
       totalBytesRead += bytesRead
@@ -128,7 +128,7 @@ export async function readChunk(
   } catch (error) {
     // FileHandle.close() waits for in-flight reads. Do not make an aborted caller wait for a
     // filesystem operation that the Node FileHandle API itself cannot cancel; close the handle
-    // as soon as that operation settles instead. waitForFileRead always observes the read promise,
+    // as soon as that operation settles instead. waitForAbort always observes the read promise,
     // so neither a late read failure nor a close failure becomes an unhandled rejection.
     if (signal?.aborted) {
       closeInBackground = true
@@ -144,7 +144,8 @@ export async function readChunk(
   }
 }
 
-function waitForFileRead<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+/** Await an operation without pinning a cancelled caller; the operation is still observed for cleanup. */
+function waitForAbort<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return operation
   if (signal.aborted) {
     void operation.catch(() => undefined)
@@ -451,14 +452,14 @@ export async function readTextFileWithinRoots(
   }
   signal?.throwIfAborted()
 
-  const resolvedBefore = AbsoluteFilePathSchema.parse(await fsRealpath(target))
+  const resolvedBefore = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
   if (!roots.some((root) => isSameOrInsideResolved(resolvedBefore, root))) return null
 
   const source = await openReadableFileSnapshot(resolvedBefore)
   try {
     if (source.size > maxBytes) return null
 
-    const resolvedAfter = AbsoluteFilePathSchema.parse(await fsRealpath(target))
+    const resolvedAfter = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
     if (!roots.some((root) => isSameOrInsideResolved(resolvedAfter, root))) return null
 
     const verifier = await openReadableFileSnapshot(resolvedAfter)
