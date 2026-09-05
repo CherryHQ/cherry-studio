@@ -1,3 +1,4 @@
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,7 +42,10 @@ export function resolveCanonicalEndpoint(
     Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType => {
     if (!isAllowed(endpointType)) return false
-    return Boolean(provider.endpointConfigs?.[endpointType])
+    // Cherry Cloud models are provisioned by the authenticated cloud service.
+    // Their provider intentionally has no local endpointConfigs/base URL; the
+    // dedicated builder supplies the origin and transport after selection.
+    return Boolean(provider.endpointConfigs?.[endpointType]) || isManagedCherryCloudModel(provider.id)
   }
   const endpointBackedCapabilities = new Set(
     Object.values(ENDPOINT_TYPE)

@@ -182,11 +182,7 @@ describe('resolveCanonicalEndpoint', () => {
       id: CHERRY_CLOUD_PROVIDER_ID,
       presetProviderId: CHERRYAI_PROVIDER_ID,
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      // The cloud builder supplies the authenticated origin at request time;
-      // the shared resolver only needs the registry-owned endpoint metadata.
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
-      }
+      endpointConfigs: undefined
     })
     const cloudModel = model({
       id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-go`,
