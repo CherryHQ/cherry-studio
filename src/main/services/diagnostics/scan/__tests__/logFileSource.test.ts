@@ -2,8 +2,11 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { openReadableFileSnapshot } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readRawLines } from '../../sourceCollector'
 import type { DiagnosticTimeRange } from '../../types'
 import { collectErrorLogRecords, MAX_SCAN_RECORDS } from '../logFileSource'
 
@@ -37,6 +40,46 @@ describe('collectErrorLogRecords', () => {
 
   afterEach(async () => {
     await rm(logsDir, { recursive: true, force: true })
+  })
+
+  it('closes an active file stream when log reading is canceled', async () => {
+    const filePath = path.join(logsDir, logFileName(now))
+    await writeFile(filePath, 'first\n' + 'remaining\n'.repeat(50_000))
+    const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(filePath))
+    const create = snapshot.createReadStream.bind(snapshot)
+    const streams: ReturnType<typeof create>[] = []
+    vi.spyOn(snapshot, 'createReadStream').mockImplementation((bytes) => {
+      const stream = create(bytes)
+      streams.push(stream)
+      return stream
+    })
+    const controller = new AbortController()
+    const reader = readRawLines(snapshot, snapshot.size, controller.signal)
+    try {
+      expect((await reader.next()).value).toMatchObject({ data: Buffer.from('first\n') })
+      controller.abort()
+      await expect(reader.next()).rejects.toThrow()
+      expect(streams[0].destroyed).toBe(true)
+    } finally {
+      await reader.return(undefined)
+      await snapshot.close()
+    }
+  })
+
+  it('does not turn a canceled scan into an empty successful result', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(collectErrorLogRecords(logsDir, range, controller.signal)).rejects.toThrow()
+  })
+
+  it('reports incomplete coverage when bounded parsing truncates matching text', async () => {
+    await writeFile(
+      path.join(logsDir, logFileName(now)),
+      logLine({ timestamp: localTimestamp(now), level: 'error', message: 'x'.repeat(5000) + ' ENOSPC' })
+    )
+    const scan = await collectErrorLogRecords(logsDir, range)
+    expect(scan.truncated).toBe(true)
+    expect(scan.records[0].message).not.toContain('ENOSPC')
   })
 
   it('maps new-format and pre-fix lines, counting unparsed ones', async () => {

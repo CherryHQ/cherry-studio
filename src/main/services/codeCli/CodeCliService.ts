@@ -89,6 +89,7 @@ export class CodeCliService extends BaseService {
     timestamp: number
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private loginQuery: { controller: AbortController; promise: Promise<boolean>; users: number } | null = null
 
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
@@ -177,15 +178,47 @@ export class CodeCliService extends BaseService {
    * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
    * this is a best-effort "is the user signed in" hint for the settings UI.
    */
-  public async checkClaudeLogin(): Promise<boolean> {
+  public async checkClaudeLogin(signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    if (!this.loginQuery || this.loginQuery.controller.signal.aborted) {
+      const controller = new AbortController()
+      const query = { controller, users: 0, promise: this.probeClaudeLogin(controller.signal) }
+      this.loginQuery = query
+      void query.promise
+        .finally(() => {
+          if (this.loginQuery === query) this.loginQuery = null
+        })
+        .catch(() => undefined)
+    }
+    const query = this.loginQuery
+    query.users += 1
+    let onAbort: (() => void) | undefined
+    try {
+      return await new Promise<boolean>((resolve, reject) => {
+        onAbort = () => reject(signal?.reason)
+        signal?.addEventListener('abort', onAbort, { once: true })
+        query.promise.then(resolve, reject)
+      })
+    } finally {
+      if (onAbort) signal?.removeEventListener('abort', onAbort)
+      query.users -= 1
+      if (query.users === 0) query.controller.abort()
+    }
+  }
+
+  private async probeClaudeLogin(signal: AbortSignal): Promise<boolean> {
     if (isMac) {
       try {
-        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        await execFileAsync('security', ['find-generic-password', '-s', 'Claude Code-credentials'], {
+          timeout: 3000,
+          signal,
+          killSignal: 'SIGKILL'
+        })
         return true
-      } catch {
-        // `security` exits non-zero when the keychain item is absent — the
-        // normal "not signed in" signal, so this path stays silent.
-        return false
+      } catch (error) {
+        signal.throwIfAborted()
+        if ((error as { code?: unknown }).code === 44) return false
+        throw error
       }
     }
     try {
@@ -193,23 +226,23 @@ export class CodeCliService extends BaseService {
       // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
       // process does not inherit rc-exported vars, so probing process.env alone
       // falsely reports "not signed in".
-      const shellEnv = await getShellEnv()
+      const shellEnv = await getShellEnv(signal)
       const configDir =
         shellEnv.CLAUDE_CONFIG_DIR ||
         process.env.CLAUDE_CONFIG_DIR ||
         path.join(application.getPath('sys.home'), '.claude')
-      return fs.existsSync(path.join(configDir, '.credentials.json'))
+      await fs.promises.access(path.join(configDir, '.credentials.json'))
+      signal.throwIfAborted()
+      return true
     } catch (error) {
-      // A probe failure here (e.g. login-shell env resolution throwing on a
-      // broken rc file) is NOT "not signed in" — log it so a genuinely
-      // signed-in user's stuck "not signed in" card is diagnosable instead of
-      // silently swallowed.
-      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
-      return false
+      signal.throwIfAborted()
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
     }
   }
 
   protected async onStop(): Promise<void> {
+    this.loginQuery?.controller.abort()
     this.terminalsCache = null
   }
 

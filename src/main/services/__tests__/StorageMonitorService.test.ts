@@ -58,6 +58,15 @@ const { StorageMonitorService, intervalForFree } = await import('../StorageMonit
 const MINUTE = 1000 * 60
 const GB = 1024 ** 3
 
+it('does not return cached healthy disk data after a refresh fails', async () => {
+  const service = new StorageMonitorService()
+  statfsMock.mockResolvedValueOnce({ bsize: 4096, bavail: 3_000_000, blocks: 4_000_000 })
+  const healthy = await service.refreshHealth()
+  expect(healthy.freeBytes).toBe(4096 * 3_000_000)
+  statfsMock.mockRejectedValueOnce(new Error('EIO'))
+  await expect(service.refreshHealth()).rejects.toThrow('EIO')
+})
+
 /** Queue one statfs result. bsize=1 so freeBytes === bavail for readable assertions. */
 function queueDisk(freeBytes: number, totalBytes = 500 * GB) {
   statfsMock.mockResolvedValueOnce({ bsize: 1, bavail: freeBytes, blocks: totalBytes })
@@ -72,6 +81,7 @@ type ServiceInternals = {
     disposable: { dispose: ReturnType<typeof vi.fn> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
+  refreshHealth: () => Promise<{ level: string; freeBytes: number; totalBytes: number; checkedAt: number }>
 }
 
 function createService() {
@@ -215,5 +225,14 @@ describe('StorageMonitorService', () => {
     const handler = ipcHandle.mock.calls.find((c) => c[0] === IpcChannel.StorageMonitor_GetHealth)?.[1]
     expect(handler).toBeDefined()
     expect(handler()).toEqual(expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB }))
+  })
+
+  it('refreshes disk health on demand for main-process diagnostics', async () => {
+    const svc = createService()
+    queueDisk(3 * GB)
+
+    await expect(svc.refreshHealth()).resolves.toEqual(
+      expect.objectContaining({ level: 'ok', freeBytes: 3 * GB, totalBytes: 500 * GB })
+    )
   })
 })

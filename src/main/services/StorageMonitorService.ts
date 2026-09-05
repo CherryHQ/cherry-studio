@@ -60,12 +60,15 @@ export class StorageMonitorService extends BaseService {
     void this.check()
   }
 
+  public async refreshHealth(): Promise<StorageHealth> {
+    const stats = await statfs(application.getPath('app.userdata'))
+    this.applyHealth(stats.bsize * stats.bavail, stats.bsize * stats.blocks)
+    return this.health
+  }
+
   private async check(): Promise<void> {
     try {
-      const stats = await statfs(application.getPath('app.userdata'))
-      // bavail = blocks available to a non-privileged process (the bytes we can
-      // actually write); @types/node's StatsFs has no frsize, so use bsize.
-      this.applyHealth(stats.bsize * stats.bavail, stats.bsize * stats.blocks)
+      await this.refreshHealth()
     } catch (error) {
       // A transient statfs failure must not flip the warning state; keep the
       // last-known health and simply retry on the next tick.

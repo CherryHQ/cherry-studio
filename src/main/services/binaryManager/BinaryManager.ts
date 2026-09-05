@@ -444,8 +444,8 @@ export class BinaryManager extends BaseService {
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
   }
 
-  private async listMiseInstalls(): Promise<Record<string, MiseInstallEntry[]>> {
-    const { stdout } = await this.runMise(['ls', '--json'])
+  private async listMiseInstalls(signal?: AbortSignal): Promise<Record<string, MiseInstallEntry[]>> {
+    const { stdout } = await this.runMise(['ls', '--json'], { signal })
     const parsed: unknown = JSON.parse(stdout)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('mise ls --json returned a non-object shape')
@@ -656,7 +656,8 @@ export class BinaryManager extends BaseService {
    * per-tool `mise which` verification. One `mise ls` and one shims listing are
    * sufficient for this read-only managed-tool surface.
    */
-  public async getToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
+  public async getToolInventory(signal?: AbortSignal): Promise<readonly ManagedCliInventoryEntry[]> {
+    signal?.throwIfAborted()
     const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
     const bundledNames = new Set(BUNDLED_TOOLS.filter((tool) => !tool.internal).flatMap((tool) => tool.binaries))
     const definitions = new Map<string, CustomToolDefinition | FixedToolDefinition>([
@@ -668,8 +669,9 @@ export class BinaryManager extends BaseService {
     let queryFailed = false
     if (this.miseBin) {
       try {
-        Object.assign(installed, await this.listMiseInstalls())
+        Object.assign(installed, await this.listMiseInstalls(signal))
       } catch (err) {
+        signal?.throwIfAborted()
         queryFailed = true
         logger.warn('Failed to query CLI inventory via mise ls', {
           error: err instanceof Error ? err.message : String(err)
@@ -692,9 +694,10 @@ export class BinaryManager extends BaseService {
         if (isWin && !['.exe', '.cmd', '.bat'].includes(path.extname(entry.name).toLowerCase())) continue
         shimNames.set(toShimStem(entry.name), path.join(shimsDir, entry.name))
       }
-    } catch {
-      // A fresh profile has no shims directory until its first managed install.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+    signal?.throwIfAborted()
 
     const bundled = this.probeBundled()
     const installedFor = (tool: string): MiseInstallEntry[] | undefined => {
@@ -721,11 +724,17 @@ export class BinaryManager extends BaseService {
         installedFor(tool)?.some((entry) => entry.active) === true
       )
     })
+    const unobservable = new Set<string>()
     const exposedNames = new Set(
       (
         await Promise.all(
           shimlessTools.map(async (name) => {
-            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool)
+            signal?.throwIfAborted()
+            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool, signal)
+            if (bins === null) {
+              unobservable.add(name)
+              return null
+            }
             const shims = bins.flatMap((bin) => {
               const shimPath = shimNames.get(toShimStem(bin))
               return shimPath ? [shimPath] : []
@@ -751,8 +760,9 @@ export class BinaryManager extends BaseService {
         [operation?.status === 'installing', 'installing'],
         [operation?.status === 'removing', 'removing'],
         [operation?.status === 'failed', 'failed'],
+        [queryFailed || unobservable.has(name), 'unknown'],
         [runnable, 'ready'],
-        [!this.miseBin || queryFailed, 'unknown'],
+        [!this.miseBin, 'unknown'],
         [Boolean(installs?.length), 'failed']
       ]
       const status = statusRules.find(([matches]) => matches)?.[1] ?? 'not_installed'
@@ -765,6 +775,7 @@ export class BinaryManager extends BaseService {
       }
     })
 
+    signal?.throwIfAborted()
     return entries.sort((left, right) => left.name.localeCompare(right.name))
   }
 
@@ -861,7 +872,7 @@ export class BinaryManager extends BaseService {
   // private registry auth tokens are not passed through.
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
-  private async buildIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
+  private async buildIsolatedEnv(signal?: AbortSignal): Promise<IsolatedEnvSnapshot> {
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -911,7 +922,12 @@ export class BinaryManager extends BaseService {
       env['MISE_AQUA_GITHUB_ATTESTATIONS'] = 'false'
     }
 
-    const inChina = await regionService.isInChina().catch(() => false)
+    const inChina = await regionService.isInChina(signal).catch((error) => {
+      signal?.throwIfAborted()
+      logger.debug('Region lookup unavailable for managed tools', { error })
+      return false
+    })
+    signal?.throwIfAborted()
     let usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
@@ -960,10 +976,12 @@ export class BinaryManager extends BaseService {
    * failed build is not cached, so a later call can retry once a transient cause
    * (e.g. mkdir failure) clears.
    */
-  private getIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
+  private getIsolatedEnv(signal?: AbortSignal): Promise<IsolatedEnvSnapshot> {
+    signal?.throwIfAborted()
     if (this.isolatedEnv) {
       return Promise.resolve(this.isolatedEnv)
     }
+    if (signal) return this.buildIsolatedEnv(signal)
     if (!this.isolatedEnvPromise) {
       const building = this.buildIsolatedEnv().then(
         (snapshot) => {
@@ -983,6 +1001,7 @@ export class BinaryManager extends BaseService {
   private async runMise(
     args: string[],
     opts?: {
+      signal?: AbortSignal
       timeoutMs?: number
       includePrerelease?: boolean
       shellOutNpm?: boolean
@@ -1001,7 +1020,8 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv())).env
+    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv(opts?.signal))).env
+    opts?.signal?.throwIfAborted()
     let env = isolatedEnv
     if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath || opts?.env) {
       env = { ...isolatedEnv }
@@ -1029,7 +1049,12 @@ export class BinaryManager extends BaseService {
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
     try {
-      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: timeoutMs })
+      return await execFileAsync(this.miseBin, args, {
+        cwd: os.tmpdir(),
+        env,
+        timeout: timeoutMs,
+        ...(opts?.signal ? { signal: opts.signal, killSignal: 'SIGKILL' as const } : {})
+      })
     } catch (error) {
       if (error instanceof Error) {
         // A timeout kill leaves stderr at whatever progress line mise printed
@@ -1074,16 +1099,17 @@ export class BinaryManager extends BaseService {
    * `mise which` reports a successful install as unusable. An uninstalled recipe
    * yields none.
    */
-  private async resolveToolBinNames(tool: string): Promise<string[]> {
+  private async resolveToolBinNames(tool: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
-      const { stdout } = await this.runMise(['bin-paths', tool, '--json'])
+      const { stdout } = await this.runMise(['bin-paths', tool, '--json'], { signal })
       const parsed: unknown = JSON.parse(stdout)
-      if (!Array.isArray(parsed)) return []
+      if (!Array.isArray(parsed)) return null
       return parsed.flatMap((entry) =>
         entry && typeof (entry as { name?: unknown }).name === 'string' ? [(entry as { name: string }).name] : []
       )
     } catch {
-      return []
+      signal?.throwIfAborted()
+      return null
     }
   }
 
@@ -1111,7 +1137,7 @@ export class BinaryManager extends BaseService {
       // A fresh profile has no shims directory until its first managed install.
       return null
     }
-    for (const binary of await this.resolveToolBinNames(tool)) {
+    for (const binary of (await this.resolveToolBinNames(tool)) ?? []) {
       const shimPath = shims.get(toShimStem(binary))
       // A shim file that is present but not executable is not a runnable path,
       // exactly as for the tool's own name.

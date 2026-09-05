@@ -30,7 +30,7 @@ const PAYLOAD_KEYS = new Set(['requestBodyValues', 'response'])
  * (status codes, error codes) that a bundled `errors` array would otherwise push past the cap.
  * The result is a reordered, possibly-trimmed haystack — never parse it back.
  */
-function serializeDetail(rest: Record<string, unknown>): string | undefined {
+function serializeDetail(rest: Record<string, unknown>): { text: string; truncated: boolean } | undefined {
   const fields: string[] = []
   for (const [key, value] of Object.entries(rest)) {
     try {
@@ -42,7 +42,8 @@ function serializeDetail(rest: Record<string, unknown>): string | undefined {
   if (fields.length === 0) return undefined
 
   fields.sort((left, right) => left.length - right.length)
-  return `{${fields.join(',')}}`.slice(0, MAX_DETAIL_CHARS)
+  const text = `{${fields.join(',')}}`
+  return { text: text.slice(0, MAX_DETAIL_CHARS), truncated: text.length > MAX_DETAIL_CHARS }
 }
 
 /**
@@ -82,7 +83,10 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
     ...((value.process === 'main' || value.process === 'renderer') && { process: value.process }),
     ...(typeof value.window === 'string' && { window: value.window }),
     ...(typeof value.stack === 'string' && { stack: value.stack.slice(0, MAX_TEXT_CHARS) }),
-    ...(detail !== undefined && { detail })
+    ...(detail !== undefined && { detail: detail.text }),
+    ...((value.message.length > MAX_TEXT_CHARS ||
+      (typeof value.stack === 'string' && value.stack.length > MAX_TEXT_CHARS) ||
+      detail?.truncated) && { truncated: true as const })
   }
 }
 
@@ -101,7 +105,12 @@ function shardKey(fileName: string): readonly [string, number] {
  * `logsDir` is injected (rather than resolved via `@application`) so tests can
  * point it at a temporary directory.
  */
-export async function collectErrorLogRecords(logsDir: string, range: DiagnosticTimeRange): Promise<ErrorLogScan> {
+export async function collectErrorLogRecords(
+  logsDir: string,
+  range: DiagnosticTimeRange,
+  signal?: AbortSignal
+): Promise<ErrorLogScan> {
+  signal?.throwIfAborted()
   // Ring buffer over the newest records: overflow must drop the oldest, because the errors
   // worth diagnosing are the ones the user just hit, not the ones that opened the window.
   const ring: LogRecord[] = []
@@ -123,6 +132,7 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
   // Deliberately not caught: an unreadable logs directory is a scan outage, and swallowing it
   // would ship a bundle whose manifest claims a clean scan with zero findings.
   const entries = await readdir(logsDir, { withFileTypes: true })
+  signal?.throwIfAborted()
 
   const fileNames = entries
     .filter(
@@ -142,6 +152,7 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
     })
 
   for (const fileName of fileNames) {
+    signal?.throwIfAborted()
     let snapshot
     try {
       snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(path.join(logsDir, fileName)))
@@ -151,7 +162,7 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
     }
     try {
       let lineNumber = 0
-      for await (const line of readRawLines(snapshot)) {
+      for await (const line of readRawLines(snapshot, snapshot.size, signal)) {
         lineNumber += 1
         if (line.tooLarge || !line.data) {
           unparsedLineCount += 1
@@ -165,9 +176,11 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
           continue
         }
         if (!isInRange(record.timestampMs, range)) continue
+        if (record.truncated) truncated = true
         keep({ ...record, source: { file: fileName, line: lineNumber } })
       }
     } catch {
+      signal?.throwIfAborted()
       skippedFileCount += 1
     } finally {
       await snapshot.close().catch(() => undefined)
@@ -175,5 +188,6 @@ export async function collectErrorLogRecords(logsDir: string, range: DiagnosticT
   }
 
   const records = truncated ? [...ring.slice(oldest), ...ring.slice(0, oldest)] : ring
+  signal?.throwIfAborted()
   return { records, unparsedLineCount, skippedFileCount, truncated }
 }

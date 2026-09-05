@@ -141,7 +141,8 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
  * @returns {Promise<Object>} A promise that resolves with an object containing
  * the environment variables, or rejects with an error.
  */
-function getLoginShellEnvironment(): Promise<Record<string, string>> {
+function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
@@ -207,6 +208,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     const child = spawn(shellPath, commandArgs, {
+      signal,
+      killSignal: 'SIGKILL',
       cwd: homeDirectory, // Run the command in the user's home directory
       detached: false, // Stay attached so we can clean up reliably
       stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
@@ -222,7 +225,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         ' '
       )}. CWD: ${homeDirectory}`
       logger.error(errorMessage)
-      child.kill()
+      child.kill('SIGKILL')
       rejectOnce(new Error(errorMessage))
     }, SHELL_ENV_TIMEOUT_MS)
 
@@ -335,13 +338,17 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getRawShellEnv(): Promise<Record<string, string>> {
-  const env = cachedEnv ?? (await loadShellEnv())
+export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
+  // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
+  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
+  signal?.throwIfAborted()
+  cachedEnv ??= env
   return { ...env }
 }
 
-export async function getShellEnv(): Promise<Record<string, string>> {
-  const env = await getRawShellEnv()
+export async function getShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  const env = await getRawShellEnv(signal)
   appendCherryToolDirsToPath(env)
   applyBinaryExecutionEnv(env)
   return env

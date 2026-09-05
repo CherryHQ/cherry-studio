@@ -3,7 +3,7 @@ import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
-const screenCapturePermissionStatusSchema = z.enum(['authorized', 'not-determined', 'denied'])
+const screenCapturePermissionStatusSchema = z.enum(['authorized', 'not-determined', 'denied', 'restricted'])
 
 /**
  * System IPC schemas — host-environment queries, a caller-window devtools toggle, and

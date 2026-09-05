@@ -3842,6 +3842,42 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
+    it('cancels the owned mise query and does not proceed to shim traversal', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      let started!: () => void
+      const ready = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      mockExecFileAsync.mockImplementation((_file: string, _args: string[], options: { signal: AbortSignal }) => {
+        const result = new Promise((_resolve, reject) =>
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        )
+        started()
+        return result
+      })
+      const controller = new AbortController()
+      const pending = service.getToolInventory(controller.signal)
+      await ready
+      const rejected = expect(pending).rejects.toThrow()
+      controller.abort()
+      await rejected
+      expect(mockFsp.readdir).not.toHaveBeenCalled()
+    })
+
+    it.each([undefined, new AbortController().signal])(
+      'reports query failure as unknown regardless of cancellation support (%s)',
+      async (signal) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        mockExecFileAsync.mockRejectedValue(new Error('mise read failed'))
+        const inventory = await service.getToolInventory(signal)
+        expect(inventory.length).toBeGreaterThan(0)
+        expect(inventory.every((entry) => entry.status === 'unknown')).toBe(true)
+      }
+    )
     it('aggregates bundled, fixed, custom, and runtime tools without `mise which` or exposed paths', async () => {
       manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
       const service = new BinaryManager()
