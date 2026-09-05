@@ -79,6 +79,12 @@ describe('api gateway model listing', () => {
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
   })
 
+  it('guides clients using the reserved CherryAI alias to the advertised model list', () => {
+    expect(() => resolveGatewayModelAddress(`${CHERRYAI_PROVIDER_ID}:${CHERRYAI_DEFAULT_MODEL_ID}`)).toThrow(
+      'Model "cherryai:qwen" is a reserved managed alias and is not available through the API gateway. Select an enabled gateway model from /v1/models.'
+    )
+  })
+
   it('surfaces the resolved model record for provider-option translation', () => {
     const resolvedModel = {
       id: 'openai::gpt-4o',

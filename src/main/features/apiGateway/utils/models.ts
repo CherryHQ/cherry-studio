@@ -41,6 +41,12 @@ export interface ResolvedGatewayModelAddress {
   model: Model
 }
 
+function unavailableModelError(modelAddress: string, providerId: string, apiModelId: string): Error {
+  return new Error(
+    `Model "${modelAddress}" is not available through the API gateway. Check that provider "${providerId}" and model "${apiModelId}" are enabled and gateway-routable.`
+  )
+}
+
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
 function getAvailableProviders(): Provider[] {
   try {
@@ -95,20 +101,22 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
   const providerId = modelAddress.slice(0, sepIdx)
   const apiModelId = modelAddress.slice(sepIdx + 1)
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
+    throw new Error(
+      `Model "${modelAddress}" is a reserved managed alias and is not available through the API gateway. Select an enabled gateway model from /v1/models.`
+    )
   }
 
   let provider: Provider
   try {
     provider = providerService.getByProviderId(providerId)
   } catch {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw unavailableModelError(modelAddress, providerId, apiModelId)
   }
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw unavailableModelError(modelAddress, providerId, apiModelId)
   }
   if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw unavailableModelError(modelAddress, providerId, apiModelId)
   }
 
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
@@ -117,7 +125,7 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
     return candidateApiModelId === apiModelId
   })
   if (!model) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw unavailableModelError(modelAddress, providerId, apiModelId)
   }
 
   return { providerId, apiModelId, uniqueModelId: model.id, provider, model }

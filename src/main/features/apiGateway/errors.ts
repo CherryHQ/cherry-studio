@@ -2,13 +2,29 @@ import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiError } from '@shared/data/api/errors'
+import type { SerializedError } from '@shared/types/error'
 import type { ErrorHandler } from 'elysia'
 
 import type { OutputFormat } from './adapters'
 
 const logger = loggerService.withContext('ApiGatewayErrors')
+const GATEWAY_PROVIDER_ERROR_KIND = 'upstream_provider'
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
+
+export function withGatewayProviderContext(
+  error: SerializedError,
+  providerId: string,
+  modelId: string
+): SerializedError {
+  if (typeof error.statusCode !== 'number') return error
+  return {
+    ...error,
+    gatewayErrorKind: GATEWAY_PROVIDER_ERROR_KIND,
+    requestedProviderId: providerId,
+    requestedModelId: modelId
+  }
+}
 
 const messageOf = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback
@@ -77,20 +93,27 @@ function googleStatusName(status: number): string {
 }
 
 /**
- * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
- * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
- * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
- * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
- * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
- * are intentionally ignored so they never reach the client.
+ * Best-effort status, message, type, and gateway provider context from any thrown
+ * value. AI-SDK `APICallError` extras (`stack`, `url`, request/response bodies and
+ * headers) are intentionally ignored so they never reach the client.
  */
-function extractError(error: unknown): { status?: number; message?: string; type?: string } {
-  if (error === null || typeof error !== 'object') return {}
+function extractError(error: unknown): {
+  status?: number
+  message?: string
+  type?: string
+  requestedProviderId?: string
+  requestedModelId?: string
+  isGatewayProviderError: boolean
+} {
+  if (error === null || typeof error !== 'object') return { isGatewayProviderError: false }
   const e = error as {
     status?: unknown
     statusCode?: unknown
     message?: unknown
     error?: { type?: unknown; message?: unknown }
+    gatewayErrorKind?: unknown
+    requestedProviderId?: unknown
+    requestedModelId?: unknown
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
   const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
@@ -98,18 +121,55 @@ function extractError(error: unknown): { status?: number; message?: string; type
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
-  return { status, message, type }
+  const requestedProviderId =
+    typeof e.requestedProviderId === 'string' && e.requestedProviderId.length > 0 ? e.requestedProviderId : undefined
+  const requestedModelId =
+    typeof e.requestedModelId === 'string' && e.requestedModelId.length > 0 ? e.requestedModelId : undefined
+  return {
+    status,
+    message,
+    type,
+    requestedProviderId,
+    requestedModelId,
+    isGatewayProviderError: e.gatewayErrorKind === GATEWAY_PROVIDER_ERROR_KIND
+  }
+}
+
+function gatewayProviderMessage(status: number, requestedProviderId: string, requestedModelId: string): string {
+  const requestedAddress = `${requestedProviderId}:${requestedModelId}`
+  let summary: string
+  if (status === 401) {
+    summary = `Gateway request for "${requestedAddress}" received an upstream authentication failure. Check the requested route, any configured fallback, and account access.`
+  } else if (status === 403) {
+    summary = `Gateway request for "${requestedAddress}" received an upstream access denial. Check the requested route, any configured fallback, and model permissions.`
+  } else if (status === 429) {
+    summary = `Gateway request for "${requestedAddress}" received an upstream rate limit. Check the requested route, any configured fallback, and provider quota before retrying.`
+  } else {
+    summary = `Gateway request for "${requestedAddress}" failed upstream (HTTP ${status}). Check the requested route, any configured fallback, and model access.`
+  }
+  return summary
 }
 
 /**
- * Resolve the client-facing message. Provider errors (those carrying a real HTTP
- * status) surface their own message — that's the v1 passthrough behaviour, and the
- * message is not the leak this guards against (the AI-SDK extras are, and those are
- * dropped in `extractError`). Unexpected internal errors (no status) are gated
- * behind `isDev` so internal detail never ships to clients in production.
+ * Resolve the client-facing message. Tagged gateway provider failures use only
+ * status and gateway-owned context because upstream text may echo private request
+ * content. Untagged status errors keep the compatibility passthrough; unexpected
+ * internal errors are gated behind `isDev`.
  */
-function safeMessage(status: number | undefined, message: string | undefined): string {
+function safeMessage(
+  status: number | undefined,
+  message: string | undefined,
+  context?: { isGatewayProviderError: boolean; requestedProviderId?: string; requestedModelId?: string }
+): string {
   const fallback = 'Internal server error'
+  if (
+    status !== undefined &&
+    context?.isGatewayProviderError &&
+    context.requestedProviderId &&
+    context.requestedModelId
+  ) {
+    return gatewayProviderMessage(status, context.requestedProviderId, context.requestedModelId)
+  }
   if (status !== undefined) return message && message.length > 0 ? message : fallback
   return isDev && message && message.length > 0 ? message : fallback
 }
@@ -133,7 +193,7 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { status, message, type } = extractError(error)
+  const { status, message, type, ...context } = extractError(error)
   const statusCode = status ?? 500
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const requestId =
@@ -142,7 +202,10 @@ function transformAnthropicError(error: unknown): {
       : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message: safeMessage(status, message), requestId } }
+    errorResponse: {
+      type: 'error',
+      error: { type: errorType, message: safeMessage(status, message, context), requestId }
+    }
   }
 }
 
@@ -166,10 +229,10 @@ function transformOpenAiError(error: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string } }
 } {
-  const { status, message } = extractError(error)
+  const { status, message, ...context } = extractError(error)
   const statusCode = status ?? 500
   const { type, code } = openaiTypeAndCodeForStatus(statusCode)
-  return { statusCode, errorResponse: { error: { message: safeMessage(status, message), type, code } } }
+  return { statusCode, errorResponse: { error: { message: safeMessage(status, message, context), type, code } } }
 }
 
 /**
@@ -182,9 +245,9 @@ function transformGoogleError(error: unknown): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { status, message } = extractError(error)
+  const { status, message, ...context } = extractError(error)
   const statusCode = status ?? 500
-  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message)) }
+  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message, context)) }
 }
 
 /**

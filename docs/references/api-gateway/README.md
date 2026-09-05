@@ -341,10 +341,12 @@ Built-in Elysia `VALIDATION` / `NOT_FOUND` / `PARSE` codes map to 400/404/400
 (422 for REST validation). Unknown provider/runtime errors are shaped by
 `transformAnthropicError` / `transformOpenAiError` — **status-driven**: they read
 `statusCode` off the AI-SDK `SerializedError`, so a provider 401/429/… keeps its
-real status and message instead of flattening to 500. Internal-error messages are
-gated behind `isDev`, and the AI-SDK error extras (`stack` / `url` /
-request+response bodies) are dropped — for both the JSON handlers and the
-streaming `buildStreamErrorFrame`.
+real status instead of flattening to 500. Gateway-originated provider errors also
+identify the provider/model and give status-specific recovery guidance; local
+missing, disabled, or unroutable models remain 400 address-resolution failures.
+Internal-error messages are gated behind `isDev`, and the AI-SDK error extras
+(`stack` / `url` / request+response bodies) are dropped — for both the JSON
+handlers and the streaming `buildStreamErrorFrame`.
 
 ## Key invariants
 
