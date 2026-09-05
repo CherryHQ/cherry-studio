@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { popupService } from '@renderer/services/popup'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  diagnosisModuleEvaluated: vi.fn(),
-  showPopup: vi.fn()
+  diagnosisModuleEvaluated: vi.fn()
 }))
 
-vi.mock('@renderer/components/popups/ContentPopup', () => ({
-  default: { show: mocks.showPopup }
-}))
+vi.unmock('@cherrystudio/ui')
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
+vi.mock('../ErrorDiagnosticsPanel', () => ({ ErrorDiagnosticsPanel: () => null }))
 
 vi.mock('@renderer/utils/errorDiagnosis', () => {
   mocks.diagnosisModuleEvaluated()
@@ -22,12 +24,22 @@ describe('ErrorDetailModal lazy dependencies', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    cleanup()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, undefined)
+    }
+  })
+
   it('opens error details without loading the AI diagnosis implementation', () => {
     expect(diagnosisEvaluationsWhenDetailLoaded).toBe(0)
+    render(<PopupHost />)
 
-    showErrorDetailPopup({ error: { name: 'ProviderError', message: 'unavailable', stack: null } })
+    act(() => {
+      showErrorDetailPopup({ error: { name: 'ProviderError', message: 'unavailable', stack: null } })
+    })
 
-    expect(mocks.showPopup).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(mocks.diagnosisModuleEvaluated).not.toHaveBeenCalled()
   })
 })

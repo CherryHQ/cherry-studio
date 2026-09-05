@@ -1,17 +1,4 @@
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Scrollbar,
-  SegmentedControl,
-  Switch,
-  Textarea
-} from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DialogFooter, Scrollbar, SegmentedControl, Switch, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -26,10 +13,10 @@ import {
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
 import type { FormEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('DiagnosticUploadDialog')
+const logger = loggerService.withContext('DiagnosticUploadPanel')
 const RANGE_OPTIONS = [
   { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
   { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
@@ -37,35 +24,38 @@ const RANGE_OPTIONS = [
 ] as const
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
-type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
+type UploadResult = OutputFor<'diagnostics.bundle.upload'>
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
-type OperationStatus = 'idle' | 'saving' | 'submitting'
+type OperationStatus = 'discarding' | 'idle' | 'saving' | 'submitting'
 
 function discardRetainedUpload(bundleId: string) {
   return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
 }
 
-interface DiagnosticUploadDialogProps {
-  readonly fixedRange?: DiagnosticRange
-  readonly initialDescription?: string
-  readonly onOpenChange: (open: boolean) => void
-  readonly open: boolean
+interface DiagnosticUploadPanelProps {
+  readonly description: string
+  readonly onBusyChange?: (busy: boolean) => void
+  readonly onClose: () => void
+  readonly onDescriptionChange: (description: string) => void
 }
 
-export function DiagnosticUploadDialog({
-  fixedRange,
-  initialDescription,
-  onOpenChange,
-  open
-}: DiagnosticUploadDialogProps) {
+export interface DiagnosticUploadPanelHandle {
+  readonly requestClose: () => Promise<boolean>
+}
+
+export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
+  ref,
+  description,
+  onBusyChange,
+  onClose,
+  onDescriptionChange
+}: DiagnosticUploadPanelProps & { ref?: React.RefObject<DiagnosticUploadPanelHandle | null> }) {
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
-  const effectiveRange = fixedRange ?? selectedRange
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
   const [includeChatRecords, setIncludeChatRecords] = useState(false)
-  const [description, setDescription] = useState(initialDescription ?? '')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
@@ -74,6 +64,7 @@ export function DiagnosticUploadDialog({
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
+  const [retainedBundleId, setRetainedBundleId] = useState<string | null>(null)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
@@ -92,12 +83,11 @@ export function DiagnosticUploadDialog({
   }, [])
 
   useEffect(() => {
-    if (!open) return
     let active = true
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
-      .request('diagnostics.bundle.inspect', { range: effectiveRange })
+      .request('diagnostics.bundle.inspect', { range: selectedRange })
       .then((inspection) => {
         if (active) setInspectResult(inspection)
       })
@@ -113,15 +103,11 @@ export function DiagnosticUploadDialog({
     return () => {
       active = false
     }
-  }, [effectiveRange, open])
+  }, [selectedRange])
 
   useEffect(() => {
     if (result) primaryActionRef.current?.focus()
   }, [result])
-
-  useEffect(() => {
-    if (!open) setHasAttemptedSubmit(false)
-  }, [open])
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
@@ -129,7 +115,7 @@ export function DiagnosticUploadDialog({
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
   const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
-  const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
+  const isInspectionPending = !inspectError && (isInspecting || inspectResult === null)
   const normalizedDescription = description.trim()
   const descriptionValid =
     normalizedDescription.length > 0 &&
@@ -139,23 +125,43 @@ export function DiagnosticUploadDialog({
   const canAttemptUpload =
     inspectResult !== null && !isInspectionPending && !inspectError && operationStatus === 'idle' && acknowledged
 
-  const handleOpenChange = async (nextOpen: boolean) => {
-    if (!nextOpen && isBusy) return
-    if (!nextOpen && result && result.status !== 'uploaded') {
+  useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
+
+  useEffect(
+    () => () => {
+      onBusyChange?.(false)
+    },
+    [onBusyChange]
+  )
+
+  const changeDescription = (nextDescription: string) => {
+    onDescriptionChange(nextDescription)
+  }
+
+  const requestClose = useCallback(async () => {
+    if (isBusy) return false
+    if (retainedBundleId) {
+      setOperationStatus('discarding')
       try {
-        const discardResult = await discardRetainedUpload(result.bundleId)
+        const discardResult = await discardRetainedUpload(retainedBundleId)
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
-          return
+          return false
         }
         retainedBundleIdRef.current = null
+        setRetainedBundleId(null)
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
-        return
+        return false
+      } finally {
+        if (mountedRef.current) setOperationStatus('idle')
       }
     }
-    onOpenChange(nextOpen)
-  }
+    onClose()
+    return true
+  }, [isBusy, onClose, retainedBundleId, t])
+
+  useImperativeHandle(ref, () => ({ requestClose }), [requestClose])
 
   const openManualForm = async () => {
     try {
@@ -185,11 +191,11 @@ export function DiagnosticUploadDialog({
       }
       return
     }
-    if (uploadResult.status === 'busy') {
-      toast.error(t('settings.about.diagnostics.errors.busy'))
-      return
+    if (uploadResult.status !== 'busy') {
+      const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
+      retainedBundleIdRef.current = nextBundleId
+      setRetainedBundleId(nextBundleId)
     }
-    retainedBundleIdRef.current = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
     setResult(uploadResult)
   }
 
@@ -202,7 +208,7 @@ export function DiagnosticUploadDialog({
         includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range: effectiveRange
+        range: selectedRange
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
@@ -222,9 +228,13 @@ export function DiagnosticUploadDialog({
 
   const retryUpload = async () => {
     if (!result || result.status === 'uploaded' || isBusy) return
+    if (!retainedBundleId) {
+      await uploadBundle()
+      return
+    }
     setOperationStatus('submitting')
     try {
-      const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: result.bundleId })
+      const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: retainedBundleId })
       acceptSubmissionResult(retryResult)
     } catch (error) {
       logger.error('Failed to retry diagnostic upload', error as Error)
@@ -235,10 +245,10 @@ export function DiagnosticUploadDialog({
   }
 
   const saveUpload = async () => {
-    if (!result || result.status === 'uploaded' || savedUpload || isBusy) return
+    if (!retainedBundleId || savedUpload || isBusy) return
     setOperationStatus('saving')
     try {
-      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: result.bundleId })
+      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: retainedBundleId })
       if (saveResult.status === 'busy') {
         toast.error(t('settings.about.diagnostics.errors.busy'))
       } else if (saveResult.status === 'saved') {
@@ -258,182 +268,163 @@ export function DiagnosticUploadDialog({
   }))
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent
-          size="xl"
-          className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
-          closeOnOverlayClick={!isBusy}
-          showCloseButton={!isBusy}
-          onEscapeKeyDown={(event) => {
-            if (isBusy) event.preventDefault()
-          }}>
-          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-            <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
-          </DialogHeader>
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
+      <Scrollbar className="min-h-0 px-6 py-2">
+        <span className="sr-only" role="status" aria-live="polite">
+          {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+        </span>
+        {result ? (
+          <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
+        ) : (
+          <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
+            <section className="space-y-2">
+              <label htmlFor="diagnostic-description" className="block font-medium text-sm">
+                {t('settings.about.diagnostics.report.description_label')}
+              </label>
+              <Textarea.Input
+                id="diagnostic-description"
+                value={description}
+                onValueChange={changeDescription}
+                placeholder={t('settings.about.diagnostics.report.description_placeholder')}
+                rows={4}
+                disabled={isBusy}
+                hasError={showDescriptionError}
+                aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
+              />
+              {showDescriptionError ? (
+                <p id="diagnostic-description-error" className="text-error text-xs">
+                  {t(
+                    normalizedDescription.length === 0
+                      ? 'settings.about.diagnostics.report.description_required'
+                      : 'settings.about.diagnostics.report.description_too_long'
+                  )}
+                </p>
+              ) : null}
+            </section>
 
-          <Scrollbar className="min-h-0 px-6 py-2">
-            <span className="sr-only" role="status" aria-live="polite">
-              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
-            </span>
-            {result ? (
-              <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
-            ) : (
-              <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
-                <section className="space-y-2">
-                  <label htmlFor="diagnostic-description" className="block font-medium text-sm">
-                    {t('settings.about.diagnostics.report.description_label')}
-                  </label>
-                  <Textarea.Input
-                    id="diagnostic-description"
-                    value={description}
-                    onValueChange={setDescription}
-                    placeholder={t('settings.about.diagnostics.report.description_placeholder')}
-                    rows={4}
-                    disabled={isBusy}
-                    hasError={showDescriptionError}
-                    aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
-                  />
-                  {showDescriptionError ? (
-                    <p id="diagnostic-description-error" className="text-error text-xs">
-                      {t(
-                        normalizedDescription.length === 0
-                          ? 'settings.about.diagnostics.report.description_required'
-                          : 'settings.about.diagnostics.report.description_too_long'
-                      )}
-                    </p>
-                  ) : null}
-                </section>
+            <section className="space-y-2">
+              <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+              <SegmentedControl<DiagnosticRange>
+                value={selectedRange}
+                onValueChange={(nextRange) => {
+                  setSelectedRange(nextRange)
+                  setInspectResult(null)
+                  setAcknowledged(false)
+                }}
+                options={rangeOptions}
+                disabled={isBusy}
+              />
+            </section>
 
-                {fixedRange === undefined ? (
-                  <section className="space-y-2">
-                    <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                    <SegmentedControl<DiagnosticRange>
-                      value={selectedRange}
-                      onValueChange={(nextRange) => {
-                        setSelectedRange(nextRange)
-                        setInspectResult(null)
-                        setAcknowledged(false)
-                      }}
-                      options={rangeOptions}
-                      disabled={isBusy}
-                    />
-                  </section>
-                ) : null}
+            <section className="divide-y divide-border rounded-xl border border-border">
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.system.title')}
+                description={t('settings.about.diagnostics.sources.system.description', {
+                  crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                })}
+                checked
+                disabled
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.logs.title')}
+                description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                checked={effectiveIncludeLogs}
+                disabled={isBusy || isInspectionPending || !logsAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeLogs(checked)
+                  setAcknowledged(false)
+                }}
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.traces.title')}
+                description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                checked={effectiveIncludeTraces}
+                disabled={isBusy || isInspectionPending || !tracesAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeTraces(checked)
+                  setAcknowledged(false)
+                }}
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.chat_records.title')}
+                description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
+                checked={effectiveIncludeChatRecords}
+                disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeChatRecords(checked)
+                  setAcknowledged(false)
+                }}
+              />
+            </section>
 
-                <section className="divide-y divide-border rounded-xl border border-border">
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.system.title')}
-                    description={t('settings.about.diagnostics.sources.system.description', {
-                      crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                    })}
-                    checked
-                    disabled
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                    checked={effectiveIncludeLogs}
-                    disabled={isBusy || isInspectionPending || !logsAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeLogs(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                    checked={effectiveIncludeTraces}
-                    disabled={isBusy || isInspectionPending || !tracesAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeTraces(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.chat_records.title')}
-                    description={describeDiagnosticChatSource(
-                      t,
-                      inspectResult?.sources.chatRecords,
-                      isInspectionPending
-                    )}
-                    checked={effectiveIncludeChatRecords}
-                    disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeChatRecords(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                </section>
+            {inspectError ? (
+              <p className="text-error text-sm" role="alert">
+                {t('settings.about.diagnostics.errors.inspect_failed')}
+              </p>
+            ) : null}
+            {inspectResult?.hasWarnings ? (
+              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
+            ) : null}
+            <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+              <Checkbox
+                id="diagnostic-acknowledgement"
+                checked={acknowledged}
+                disabled={isBusy}
+                onCheckedChange={(checked) => setAcknowledged(checked === true)}
+              />
+              <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+            </label>
+          </form>
+        )}
+      </Scrollbar>
 
-                {inspectError ? (
-                  <p className="text-error text-sm" role="alert">
-                    {t('settings.about.diagnostics.errors.inspect_failed')}
-                  </p>
-                ) : null}
-                {inspectResult?.hasWarnings ? (
-                  <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-                ) : null}
-                <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
-                  <Checkbox
-                    id="diagnostic-acknowledgement"
-                    checked={acknowledged}
-                    disabled={isBusy}
-                    onCheckedChange={(checked) => setAcknowledged(checked === true)}
-                  />
-                  <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
-                </label>
-              </form>
+      <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+        {isBusy ? (
+          <Button variant={operationStatus === 'discarding' ? 'destructive' : 'emphasis'} loading disabled>
+            {t(
+              operationStatus === 'discarding'
+                ? 'common.loading'
+                : operationStatus === 'saving'
+                  ? 'settings.about.diagnostics.report.saving'
+                  : 'settings.about.diagnostics.report.submitting'
             )}
-          </Scrollbar>
-
-          <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-            {isBusy ? (
-              <Button variant="emphasis" loading disabled>
-                {t(
-                  operationStatus === 'saving'
-                    ? 'settings.about.diagnostics.report.saving'
-                    : 'settings.about.diagnostics.report.submitting'
-                )}
+          </Button>
+        ) : result ? (
+          <>
+            <Button
+              ref={result.status === 'uploaded' ? primaryActionRef : undefined}
+              variant={retainedBundleId && !savedUpload ? 'destructive' : 'outline'}
+              onClick={() => void requestClose()}>
+              {t(retainedBundleId && !savedUpload ? 'common.delete' : 'settings.about.diagnostics.actions.close')}
+            </Button>
+            {result.status !== 'uploaded' && retainedBundleId ? (
+              <Button variant="outline" onClick={() => void openManualForm()}>
+                {t('settings.about.diagnostics.report.open_manual_form')}
               </Button>
-            ) : result ? (
-              <>
-                <Button
-                  ref={result.status === 'uploaded' ? primaryActionRef : undefined}
-                  variant="outline"
-                  onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.close')}
-                </Button>
-                {result.status !== 'uploaded' ? (
-                  <Button variant="outline" onClick={() => void openManualForm()}>
-                    {t('settings.about.diagnostics.report.open_manual_form')}
-                  </Button>
-                ) : null}
-                {result.status !== 'uploaded' && !savedUpload ? (
-                  <Button variant="outline" onClick={() => void saveUpload()}>
-                    {t('settings.about.diagnostics.report.save_locally')}
-                  </Button>
-                ) : null}
-                {result.status !== 'uploaded' ? (
-                  <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
-                    {t('settings.about.diagnostics.report.retry')}
-                  </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.cancel')}
-                </Button>
-                <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
-                  {t('settings.about.diagnostics.upload.actions.consent_upload')}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            ) : null}
+            {result.status !== 'uploaded' && retainedBundleId && !savedUpload ? (
+              <Button variant="outline" onClick={() => void saveUpload()}>
+                {t('settings.about.diagnostics.report.save_locally')}
+              </Button>
+            ) : null}
+            {result.status !== 'uploaded' ? (
+              <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
+                {t('settings.about.diagnostics.report.retry')}
+              </Button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Button variant="outline" onClick={() => void requestClose()}>
+              {t('settings.about.diagnostics.actions.cancel')}
+            </Button>
+            <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
+              {t('settings.about.diagnostics.upload.actions.consent_upload')}
+            </Button>
+          </>
+        )}
+      </DialogFooter>
+    </div>
   )
 }
 
@@ -447,6 +438,9 @@ function UploadResultContent({
   readonly onReveal: () => Promise<void>
 }) {
   const { t } = useTranslation()
+  if (result.status === 'busy') {
+    return <Alert type="warning" showIcon role="alert" description={t('settings.about.diagnostics.errors.busy')} />
+  }
   if (result.status === 'uploaded') {
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
@@ -530,4 +524,4 @@ function SourceRow({
   )
 }
 
-export default DiagnosticUploadDialog
+export default DiagnosticUploadPanel

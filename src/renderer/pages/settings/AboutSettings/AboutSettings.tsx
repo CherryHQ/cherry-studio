@@ -10,7 +10,8 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
+import { DoctorPopup } from '@renderer/components/doctor'
+import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
@@ -30,24 +31,13 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/types/doctor'
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  FileArchive,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -56,13 +46,37 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const search = useSearch({ strict: false }) as { doctor?: DoctorPanel }
+  const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+
+  useEffect(() => {
+    const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
+    if (!initialPanel) {
+      consumedDoctorPanelRef.current = undefined
+      return
+    }
+    if (consumedDoctorPanelRef.current === initialPanel) return
+    consumedDoctorPanelRef.current = initialPanel
+
+    void navigate({
+      to: location.pathname,
+      search: (previous: Record<string, unknown>) => {
+        const remaining = { ...previous }
+        delete remaining[DOCTOR_OPEN_QUERY_PARAM]
+        return remaining
+      },
+      replace: true
+    })
+    void DoctorPopup.show({ initialPanel })
+  }, [location.pathname, navigate, search])
 
   const onCheckUpdate = debounce(
     async () => {
@@ -101,10 +115,6 @@ const AboutSettings: FC = () => {
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
-  }
-
-  const debug = async () => {
-    await ipcApi.request('system.toggle_dev_tools')
   }
 
   const showEnterprise = async () => {
@@ -373,28 +383,7 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
         />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-diagnostics"
-          icon={<FileArchive className="size-4.5" />}
-          title={t('settings.about.diagnostics.entry.title')}
-          actionLabel={t('settings.about.diagnostics.entry.button')}
-          onAction={() => setIsDiagnosticDialogOpen(true)}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-debug-tools"
-          icon={<Bug className="size-4.5" />}
-          title={t('settings.about.debug.title')}
-          actionLabel={t('settings.about.debug.open')}
-          onAction={debug}
-        />
       </SettingGroup>
-      <DiagnosticBundleDialog
-        appVersion={version}
-        open={isDiagnosticDialogOpen}
-        onOpenChange={setIsDiagnosticDialogOpen}
-      />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )

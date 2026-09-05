@@ -35,16 +35,10 @@ export type DoctorAttribution = 'user-fixable' | 'app-bug' | 'transient'
  */
 export type DoctorDataClass = 'public' | 'local_only' | 'consent_required'
 
-/**
- * `low` runs on click and is idempotent + reversible; irreversible cleanup uses `confirm`.
- * Destructive recovery flows are not fixes and navigate to their own guarded UI.
- */
-export type DoctorFixRisk = 'low' | 'confirm'
-
 export interface DoctorFixMeta {
   readonly id: string
   readonly targeted?: true
-  readonly risk: DoctorFixRisk
+  readonly risk: 'low'
   readonly reversible: boolean
   /** The fix only takes effect after `app.relaunch`. */
   readonly relaunch: boolean
