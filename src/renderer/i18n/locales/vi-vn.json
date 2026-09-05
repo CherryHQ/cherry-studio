@@ -4011,6 +4011,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "Máy chủ đã tồn tại: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "Vui lòng chọn một tệp DXT",
   "settings.mcp.addServer.importFrom.noMcpbFile": "Vui lòng chọn một tệp MCPB",
+  "settings.mcp.addServer.importFrom.packageEmpty": "Gói MCP đã chọn đang trống",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "Gói MCP đã chọn vượt quá giới hạn kích thước 50 MiB",
   "settings.mcp.addServer.importFrom.placeholder": "Dán cấu hình JSON máy chủ MCP",
   "settings.mcp.addServer.importFrom.selectDxtFile": "Chọn tệp DXT",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "Chọn tệp MCPB",

@@ -4011,6 +4011,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "Ο διακομιστής υπάρχει ήδη: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "Παρακαλώ επιλέξτε ένα αρχείο DXT",
   "settings.mcp.addServer.importFrom.noMcpbFile": "Παρακαλώ επιλέξτε ένα αρχείο MCPB",
+  "settings.mcp.addServer.importFrom.packageEmpty": "Το επιλεγμένο πακέτο MCP είναι κενό",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "Το επιλεγμένο πακέτο MCP υπερβαίνει το όριο μεγέθους των 50 MiB",
   "settings.mcp.addServer.importFrom.placeholder": "Επικολλήστε τη διαμόρφωση JSON του διακομιστή MCP",
   "settings.mcp.addServer.importFrom.selectDxtFile": "Επιλέξτε Αρχείο DXT",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "Επιλέξτε αρχείο MCPB",

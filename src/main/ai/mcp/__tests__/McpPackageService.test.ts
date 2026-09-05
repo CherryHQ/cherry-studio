@@ -1,3 +1,5 @@
+import { BaseService } from '@main/core/lifecycle'
+import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -12,11 +14,12 @@ const { application } = await import('@application')
 
 const {
   buildResolvedEnv,
+  copyPackageWithinLimit,
   ensurePathWithin,
   McpPackageService,
   validateArgs,
   validateCommand,
-  validatePackageUploadPayload
+  validatePackageUploadSource
 } = await import('../McpPackageService')
 
 describe('ensurePathWithin', () => {
@@ -288,27 +291,73 @@ describe('buildResolvedEnv', () => {
   })
 })
 
-describe('validatePackageUploadPayload', () => {
-  it('accepts a matching package extension and returns a buffer', () => {
-    const data = new Uint8Array([1, 2, 3])
-
-    const buffer = validatePackageUploadPayload(data, 'server.mcpb', 'mcpb')
-
-    expect(Buffer.isBuffer(buffer)).toBe(true)
-    expect([...buffer]).toEqual([1, 2, 3])
+describe('validatePackageUploadSource', () => {
+  it('accepts a package exactly at the main-process byte limit', () => {
+    expect(validatePackageUploadSource(path.resolve('server.mcpb'), MAX_MCP_PACKAGE_BYTES, 'mcpb')).toBe('server.mcpb')
   })
 
-  it('rejects path-like file names before temp file creation', () => {
-    const data = new Uint8Array([1])
-
-    expect(() => validatePackageUploadPayload(data, '../server.dxt', 'dxt')).toThrow('path separators')
-    expect(() => validatePackageUploadPayload(data, 'nested/server.dxt', 'dxt')).toThrow('path separators')
+  it('rejects the first byte beyond the main-process limit', () => {
+    expect(() => validatePackageUploadSource(path.resolve('server.dxt'), MAX_MCP_PACKAGE_BYTES + 1, 'dxt')).toThrow(
+      'size limit'
+    )
   })
 
-  it('rejects wrong extensions, empty names, and empty payloads', () => {
-    expect(() => validatePackageUploadPayload(new Uint8Array([1]), 'server.zip', 'dxt')).toThrow('expected a .dxt')
-    expect(() => validatePackageUploadPayload(new Uint8Array([1]), '', 'dxt')).toThrow('cannot be empty')
-    expect(() => validatePackageUploadPayload(new Uint8Array(), 'server.dxt', 'dxt')).toThrow('cannot be empty')
+  it('rejects relative paths, wrong extensions, and empty files', () => {
+    expect(() => validatePackageUploadSource('server.dxt', 1, 'dxt')).toThrow('absolute file path')
+    expect(() => validatePackageUploadSource(path.resolve('server.zip'), 1, 'dxt')).toThrow('expected a .dxt')
+    expect(() => validatePackageUploadSource(path.resolve('server.dxt'), 0, 'dxt')).toThrow('cannot be empty')
+  })
+})
+
+describe('copyPackageWithinLimit', () => {
+  it('copies a package without buffering it and rejects the first byte beyond the limit', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-package-copy-'))
+    const source = path.join(root, 'source.dxt')
+    const accepted = path.join(root, 'accepted.dxt')
+    const rejected = path.join(root, 'rejected.dxt')
+    fs.writeFileSync(source, Buffer.from([1, 2, 3, 4]))
+
+    try {
+      await copyPackageWithinLimit(source, accepted, 4)
+      expect(fs.readFileSync(accepted)).toEqual(Buffer.from([1, 2, 3, 4]))
+
+      await expect(copyPackageWithinLimit(source, rejected, 3)).rejects.toThrow('size limit')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('McpPackageService package upload staging', () => {
+  it('returns the structured upload result when staging cleanup fails', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-package-upload-'))
+    const source = path.join(root, 'server.dxt')
+    fs.writeFileSync(source, 'package')
+    const getPath = vi.mocked(application.getPath)
+    const defaultGetPath = (key: string, filename?: string): string =>
+      filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    getPath.mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.dxt.uploads.temp') {
+        return filename ? path.join(root, 'uploads', filename) : path.join(root, 'uploads')
+      }
+      return defaultGetPath(key, filename)
+    })
+
+    const service = new McpPackageService()
+    const expected = { success: false, error: 'invalid manifest' }
+    const uploadPackage = vi.spyOn(service as any, 'uploadPackage').mockResolvedValue(expected)
+    const remove = vi.spyOn(fs.promises, 'rm').mockRejectedValueOnce(new Error('cleanup denied'))
+
+    try {
+      await expect(service.uploadDxt(source)).resolves.toEqual(expected)
+      expect(uploadPackage).toHaveBeenCalledWith(expect.stringMatching(/temp_file_.*_server\.dxt$/), 'dxt')
+    } finally {
+      remove.mockRestore()
+      uploadPackage.mockRestore()
+      BaseService.resetInstances()
+      getPath.mockImplementation(defaultGetPath)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
