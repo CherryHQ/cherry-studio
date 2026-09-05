@@ -38,6 +38,7 @@ const hookMocks = vi.hoisted(() => ({
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useCache: vi.fn(),
+  useCacheSelector: vi.fn(() => false),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
@@ -115,7 +116,8 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: hookMocks.useCache
+  useCache: hookMocks.useCache,
+  useCacheSelector: hookMocks.useCacheSelector
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({

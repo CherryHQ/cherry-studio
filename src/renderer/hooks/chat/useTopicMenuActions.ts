@@ -156,7 +156,7 @@ export async function runTopicMenuAction(
   await executeTopicMenuAction(action, actionContext)
 }
 
-export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'onStartRename'>>
+export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'isRenaming' | 'onStartRename'>>
 
 export interface TopicMenuPreset<TItem> {
   getActions: (item: TItem, contextOverride?: TopicMenuActionContextOverride) => readonly ResolvedAction[]
