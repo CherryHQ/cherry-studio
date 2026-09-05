@@ -257,6 +257,32 @@ type InfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & 
 
 type InfiniteCacheValue<TResponse> = Parameters<SWRInfiniteKeyedMutator<TResponse[]>>[0]
 
+type InfiniteQueryKey = [string, Record<string, unknown>]
+type InfiniteQueryKeyGetter = (
+  pageIndex: number,
+  previousPageData: CursorPaginationResponse<unknown> | null
+) => InfiniteQueryKey | null
+
+function createInfiniteQueryKeyGetter(
+  resolvedPath: string,
+  query: unknown,
+  limit: number,
+  enabled = true
+): InfiniteQueryKeyGetter {
+  return (_pageIndex, previousPageData) => {
+    if (!enabled || (previousPageData && !previousPageData.nextCursor)) return null
+
+    return [
+      resolvedPath,
+      {
+        ...(query as Record<string, unknown> | undefined),
+        limit,
+        ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
+      }
+    ]
+  }
+}
+
 /**
  * usePaginatedQuery result type (offset-based pagination)
  * @property items - Items on the current page (read-only — copy before sorting/mutating)
@@ -852,23 +878,8 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   // value so identity changes propagate to SWR cache keys.
   const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
 
-  const getKey = useCallback(
-    (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
-      if (!enabled) return null
-
-      // Stop if previous page has no nextCursor
-      if (previousPageData && !previousPageData.nextCursor) {
-        return null
-      }
-
-      const paginationQuery = {
-        ...options?.query,
-        limit,
-        ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
-      }
-
-      return [resolvedPath, paginationQuery] as [string, typeof paginationQuery]
-    },
+  const getKey = useMemo(
+    () => createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit, enabled),
     [resolvedPath, options?.query, limit, enabled]
   )
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
@@ -930,15 +941,8 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   const { mutate } = useSWRConfig()
   const limit = options?.limit ?? 10
   const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
-  const getKey = useCallback(
-    (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
-      const paginationQuery = {
-        ...options?.query,
-        limit,
-        ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
-      }
-      return [resolvedPath, paginationQuery] as [string, typeof paginationQuery]
-    },
+  const getKey = useMemo(
+    () => createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit),
     [resolvedPath, options?.query, limit]
   )
   const infiniteCacheKey = useMemo(() => unstable_serialize_infinite(getKey), [getKey])

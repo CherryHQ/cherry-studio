@@ -856,7 +856,7 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
-  it('keeps a captured cache-only writer scoped to its query and synchronizes page caches', async () => {
+  it('keeps a captured cache-only writer scoped to the reader key and synchronizes page caches', async () => {
     spyGet().mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
       const topicId = path.includes('/t1/') ? 't1' : 't2'
       const isOlderPage = opts.query?.cursor === 'older-page'
@@ -870,8 +870,16 @@ describe('useInfiniteQuery integration', () => {
     const { Wrapper, cache } = makeWrapper()
     const { result, rerender } = renderHook(
       ({ topicId }) => ({
-        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
-        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId } })
+        query: useInfiniteQuery('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        })
       }),
       { wrapper: Wrapper, initialProps: { topicId: 't1' } }
     )
@@ -889,7 +897,10 @@ describe('useInfiniteQuery integration', () => {
     })
 
     expect(result.current.query.pages[0]?.activeNodeId).toBe('t2-newest')
-    const topicOneOlderPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'older-page' }])
+    const topicOneOlderPageKey = unstable_serialize([
+      '/topics/t1/messages',
+      { includeSiblings: true, limit: 37, cursor: 'older-page' }
+    ])
     expect((cache.get(topicOneOlderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
       't1-updated'
     )
