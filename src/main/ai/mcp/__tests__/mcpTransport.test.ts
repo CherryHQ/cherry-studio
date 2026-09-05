@@ -82,6 +82,21 @@ describe('createTransport', () => {
     )
   })
 
+  it('preserves structured details from a failed in-process start', async () => {
+    inMemoryServerMock.connect.mockRejectedValueOnce(
+      Object.assign(new Error('Unresolved placeholder'), {
+        code: 'MCP_UNRESOLVED_PLACEHOLDER',
+        path: '${MEMORY_FILE_PATH}'
+      })
+    )
+
+    await expect(create({ type: 'inMemory', name: '@cherry/memory' })).rejects.toMatchObject({
+      message: 'Failed to start in-memory server: Unresolved placeholder',
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: '${MEMORY_FILE_PATH}'
+    })
+  })
+
   it('sends the app headers plus the server’s own on both URL transports', async () => {
     const config = { type: 'streamableHttp' as const, baseUrl: 'https://mcp.example/mcp', headers: { APP: 'x' } }
 

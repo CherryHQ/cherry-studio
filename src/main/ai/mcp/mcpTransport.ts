@@ -114,7 +114,10 @@ async function createInMemory({ sdk, server, args, logger }: CreateTransportInpu
     logger.debug(`In-memory server started`)
   } catch (error: any) {
     logger.error(`Error starting in-memory server`, error as Error)
-    throw new Error(`Failed to start in-memory server: ${error.message}`)
+    throw Object.assign(new Error(`Failed to start in-memory server: ${error.message}`), {
+      code: error.code,
+      path: error.path
+    })
   }
   return clientTransport
 }
