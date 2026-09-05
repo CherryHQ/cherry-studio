@@ -915,6 +915,49 @@ describe('useInfiniteQuery integration', () => {
     expect(olderPageCalls()).toBe(callsBeforeMutation + 1)
   })
 
+  it('preserves page-scoped revalidation for a captured mutator after the query changes', async () => {
+    let topicOneOlderVersion = 0
+    const getSpy = spyGet()
+    getSpy.mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const topicId = path.includes('/t1/') ? 't1' : 't2'
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [],
+        nextCursor: isOlderPage ? undefined : 'older-page',
+        activeNodeId:
+          topicId === 't1' && isOlderPage
+            ? `t1-older-${++topicOneOlderVersion}`
+            : `${topicId}-${isOlderPage ? 'older' : 'newest'}`
+      }
+    }) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ topicId }) => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
+      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
+    )
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1-newest'))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages[1]?.activeNodeId).toBe('t1-older-1'))
+    const mutateTopicOne = result.current.mutate
+
+    rerender({ topicId: 't2' })
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest'))
+    await act(async () => {
+      await mutateTopicOne(
+        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
+        { revalidate: (page) => page.activeNodeId === 't1-older-1' }
+      )
+    })
+
+    const topicOneOlderPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'older-page' }])
+    expect(topicOneOlderVersion).toBe(2)
+    expect((cache.get(topicOneOlderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      't1-older-2'
+    )
+    expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest')
+  })
+
   it('updates page caches for explicit non-revalidated mutations', async () => {
     spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
       const isOlderPage = opts.query?.cursor === 'older-page'
@@ -951,6 +994,36 @@ describe('useInfiniteQuery integration', () => {
     ])
     const olderPage = cache.get(olderPageKey)?.data as { items: Array<{ id: string }> } | undefined
     expect(olderPage?.items.map((item) => item.id)).toEqual([])
+  })
+
+  it('does not update aggregate or page caches when populateCache is false', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [],
+        nextCursor: isOlderPage ? undefined : 'older-page',
+        activeNodeId: isOlderPage ? 'older' : 'newest'
+      }
+    }) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.mutate(
+        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
+        { populateCache: false, revalidate: false }
+      )
+    })
+
+    const olderPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'older-page' }])
+    expect(result.current.pages[1]?.activeNodeId).toBe('older')
+    expect((cache.get(olderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe('older')
   })
 
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {
