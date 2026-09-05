@@ -46,6 +46,7 @@ import {
   NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
+import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import { fileTypeFromBuffer } from 'file-type'
 import * as z from 'zod'
 
@@ -93,6 +94,23 @@ const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
+const SVG_MEDIA_TYPE = 'image/svg+xml'
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+const svgParser = new XMLParser({ ignoreAttributes: false, processEntities: false })
+
+function isValidSvgImage(data: Buffer): boolean {
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(data)
+    if (/<!DOCTYPE\b/i.test(source) || XMLValidator.validate(source) !== true) return false
+
+    const document = svgParser.parse(source)
+    const roots = Object.keys(document).filter((key) => key !== '?xml')
+    const root = roots.length === 1 && roots[0] === 'svg' ? document.svg : undefined
+    return typeof root === 'object' && root !== null && root['@_xmlns'] === SVG_NAMESPACE
+  } catch {
+    return false
+  }
+}
 
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
@@ -881,11 +899,17 @@ export class AiService extends BaseService {
         rejected.push({ index, reason: 'invalid_image_data' })
       } else {
         try {
-          const detectedType = await fileTypeFromBuffer(Buffer.from(image.base64, 'base64'))
-          if (!detectedType?.mime.startsWith('image/')) {
+          const imageBytes = Buffer.from(image.base64, 'base64')
+          const detectedType = await fileTypeFromBuffer(imageBytes)
+          const detectedMediaType = detectedType?.mime.startsWith('image/')
+            ? detectedType.mime
+            : mediaType === SVG_MEDIA_TYPE && isValidSvgImage(imageBytes)
+              ? SVG_MEDIA_TYPE
+              : undefined
+          if (!detectedMediaType) {
             rejected.push({ index, reason: 'invalid_image_data' })
           } else {
-            dataUrls.push(`data:${detectedType.mime};base64,${image.base64}`)
+            dataUrls.push(`data:${detectedMediaType};base64,${image.base64}`)
           }
         } catch {
           rejected.push({ index, reason: 'invalid_image_data' })

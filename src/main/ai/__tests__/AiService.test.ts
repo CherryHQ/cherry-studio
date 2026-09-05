@@ -50,6 +50,9 @@ const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
 const mockFileTypeFromBuffer = vi.fn()
 const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const TINY_SVG_BASE64 = Buffer.from(
+  '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+).toString('base64')
 
 vi.mock('@application', () => ({
   application: {
@@ -704,6 +707,57 @@ describe('AiService', () => {
         }
       })
       expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('persists a valid SVG while rejecting non-SVG XML payloads', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      const textBase64 = Buffer.from('not an image').toString('base64')
+      const htmlBase64 = Buffer.from('<html><svg xmlns="http://www.w3.org/2000/svg"/></html>').toString('base64')
+      const dtdBase64 = Buffer.from(
+        '<!DOCTYPE svg [<!ENTITY payload "unsafe">]><svg xmlns="http://www.w3.org/2000/svg"><text>&payload;</text></svg>'
+      ).toString('base64')
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: TINY_SVG_BASE64, mediaType: 'image/svg+xml' },
+          { base64: textBase64, mediaType: 'image/svg+xml' },
+          { base64: htmlBase64, mediaType: 'image/svg+xml' },
+          { base64: dtdBase64, mediaType: 'image/svg+xml' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'svg', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a vector icon',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 4,
+          rejected: [
+            { index: 1, reason: 'invalid_image_data' },
+            { index: 2, reason: 'invalid_image_data' },
+            { index: 3, reason: 'invalid_image_data' }
+          ]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledOnce()
+      expect(createInternalEntry).toHaveBeenCalledWith({
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${TINY_SVG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     })
 
     it('isolates image type detection failures to the invalid output', async () => {
