@@ -2413,7 +2413,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       execution.kind === 'steer-transition' ||
       execution.kind === 'autonomous-turn' ||
-      (execution.kind === 'turn' && turn !== undefined && this.isTurnLive(entry, turn))
+      (execution.kind === 'turn' &&
+        turn !== undefined &&
+        isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
+        this.isTurnLive(entry, turn))
     ) {
       this.applyRuntimeStateEvent(entry, {
         type: 'runtime-terminal',

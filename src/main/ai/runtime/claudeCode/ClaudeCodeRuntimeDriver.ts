@@ -125,6 +125,10 @@ function isTurnScopedSystemMessage(message: SDKMessage): boolean {
   )
 }
 
+function isDetachedBackgroundMessage(message: SDKMessage): boolean {
+  return 'parent_tool_use_id' in message && message.parent_tool_use_id != null
+}
+
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
   const baselineFacts = baseline.rebuildFactFingerprints
   const freshFacts = fresh.rebuildFactFingerprints
@@ -737,6 +741,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.pendingInputClaims > 0 &&
           this.adapter?.isTurnActive !== true &&
           (message.type !== 'system' || isTurnScopedSystemMessage(message)) &&
+          !isDetachedBackgroundMessage(message) &&
           !recoverableResumeResult
         ) {
           if (message.type === 'result') {

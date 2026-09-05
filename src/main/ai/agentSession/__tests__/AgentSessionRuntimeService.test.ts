@@ -1986,6 +1986,63 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('does not terminalize a fresh turn when its stale warm connection fails during reconcile', async () => {
+      const reconcile = createDeferred<string>()
+      const staleEvent = createDeferred<IteratorResult<any>>()
+      const staleConnection = {
+        events: {
+          [Symbol.asyncIterator]() {
+            return { next: () => staleEvent.promise }
+          }
+        },
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn(() => reconcile.promise)
+      }
+      const replacementConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValueOnce(staleConnection).mockResolvedValueOnce(replacementConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(staleConnection.reconcile).toHaveBeenCalledOnce())
+
+      staleEvent.reject(new Error('stale resumed failure'))
+      await vi.waitFor(() => expect(staleConnection.close).toHaveBeenCalledOnce())
+      reconcile.resolve('current')
+
+      await vi.waitFor(() =>
+        expect(replacementConnection.send).toHaveBeenCalledWith(
+          expect.objectContaining({ message: userMessage('user-1') })
+        )
+      )
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', admission: 'admitted' })
+
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('waits for background work to release before rebuilding for a fresh turn', async () => {
       const firstConnection = {
         events: createAsyncQueue<any>().iterable,

@@ -3249,6 +3249,40 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('preserves detached background content while resumed input awaits SDK consumption', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-with-background-work'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    connection.reserveInput?.()
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: 'background-agent-tool',
+      event: { type: 'message_start' },
+      session_id: 'resume-with-background-work'
+    })
+    queryQueue.push({
+      type: 'system',
+      subtype: 'commands_changed',
+      session_id: 'resume-with-background-work',
+      commands: ['/help']
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'supported-commands')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen).toContainEqual({ type: 'chunk', chunk: { type: 'text-delta', id: 'text-1', delta: 'hello' } })
+    void connection.close()
+  })
+
   it('tears down a turn-less API failure instead of retaining the warm query', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
