@@ -2879,6 +2879,71 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
+  it('recomputes the remaining composer budget when a Session reference pointer settles', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') {
+        return {
+          items: [
+            {
+              id: 'm1',
+              sessionId: 's1',
+              role: 'user',
+              status: 'success',
+              data: { parts: [{ type: 'text', text: 'y'.repeat(3000) }] }
+            }
+          ],
+          nextCursor: undefined
+        }
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const { editor, transaction } = buildComposerEditorMock()
+    let editorSerializationCount = 0
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockImplementation((value) => {
+      if (value !== editor) return { text: '', tokens: [] }
+      editorSerializationCount += 1
+      return editorSerializationCount === 1
+        ? // Insertion sees enough space for a useful reference (including the separator).
+          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 1001), tokens: [] }
+        : // The user adds more text while the transcript is loading.
+          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 500), tokens: [] }
+    })
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    const promptText = transaction.setNodeMarkup.mock.calls[0]?.[2]?.promptText as string
+    expect(promptText).toBeTruthy()
+    expect(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 500 + promptText.length).toBeLessThanOrEqual(
+      ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH
+    )
+    expect(promptText).toContain('session_read')
+    expect(JSON.parse(promptText.split('\n').at(-1)!)).toMatchObject({ sessionId: 's1', title: 'Session One' })
+  })
+
   it('drops the reference chip when its transcript fails to load', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
