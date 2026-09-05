@@ -37,9 +37,9 @@ const RANGE_OPTIONS = [
 ] as const
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
-type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
+type UploadResult = OutputFor<'diagnostics.bundle.upload'>
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
-type OperationStatus = 'idle' | 'saving' | 'submitting'
+type OperationStatus = 'discarding' | 'idle' | 'saving' | 'submitting'
 
 function discardRetainedUpload(bundleId: string) {
   return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
@@ -88,6 +88,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
+  const [retainedBundleId, setRetainedBundleId] = useState<string | null>(null)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
@@ -162,22 +163,26 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
 
   const requestClose = useCallback(async () => {
     if (isBusy) return false
-    if (result && result.status !== 'uploaded') {
+    if (retainedBundleId) {
+      setOperationStatus('discarding')
       try {
-        const discardResult = await discardRetainedUpload(result.bundleId)
+        const discardResult = await discardRetainedUpload(retainedBundleId)
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
           return false
         }
         retainedBundleIdRef.current = null
+        setRetainedBundleId(null)
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
         return false
+      } finally {
+        if (mountedRef.current) setOperationStatus('idle')
       }
     }
     onOpenChange(false)
     return true
-  }, [isBusy, onOpenChange, result, t])
+  }, [isBusy, onOpenChange, retainedBundleId, t])
 
   useImperativeHandle(ref, () => ({ requestClose }), [requestClose])
 
@@ -213,11 +218,11 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
       }
       return
     }
-    if (uploadResult.status === 'busy') {
-      toast.error(t('settings.about.diagnostics.errors.busy'))
-      return
+    if (uploadResult.status !== 'busy') {
+      const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
+      retainedBundleIdRef.current = nextBundleId
+      setRetainedBundleId(nextBundleId)
     }
-    retainedBundleIdRef.current = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
     setResult(uploadResult)
   }
 
@@ -250,9 +255,13 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
 
   const retryUpload = async () => {
     if (!result || result.status === 'uploaded' || isBusy) return
+    if (!retainedBundleId) {
+      await uploadBundle()
+      return
+    }
     setOperationStatus('submitting')
     try {
-      const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: result.bundleId })
+      const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: retainedBundleId })
       acceptSubmissionResult(retryResult)
     } catch (error) {
       logger.error('Failed to retry diagnostic upload', error as Error)
@@ -263,10 +272,10 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
   }
 
   const saveUpload = async () => {
-    if (!result || result.status === 'uploaded' || savedUpload || isBusy) return
+    if (!retainedBundleId || savedUpload || isBusy) return
     setOperationStatus('saving')
     try {
-      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: result.bundleId })
+      const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: retainedBundleId })
       if (saveResult.status === 'busy') {
         toast.error(t('settings.about.diagnostics.errors.busy'))
       } else if (saveResult.status === 'saved') {
@@ -417,27 +426,29 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
 
       <DialogFooter className="mt-4 border-border border-t px-6 py-4">
         {isBusy ? (
-          <Button variant="emphasis" loading disabled>
+          <Button variant={operationStatus === 'discarding' ? 'destructive' : 'emphasis'} loading disabled>
             {t(
-              operationStatus === 'saving'
-                ? 'settings.about.diagnostics.report.saving'
-                : 'settings.about.diagnostics.report.submitting'
+              operationStatus === 'discarding'
+                ? 'common.loading'
+                : operationStatus === 'saving'
+                  ? 'settings.about.diagnostics.report.saving'
+                  : 'settings.about.diagnostics.report.submitting'
             )}
           </Button>
         ) : result ? (
           <>
             <Button
               ref={result.status === 'uploaded' ? primaryActionRef : undefined}
-              variant="outline"
+              variant={retainedBundleId ? 'destructive' : 'outline'}
               onClick={() => handleOpenChange(false)}>
-              {t('settings.about.diagnostics.actions.close')}
+              {t(retainedBundleId ? 'common.delete' : 'settings.about.diagnostics.actions.close')}
             </Button>
-            {result.status !== 'uploaded' ? (
+            {result.status !== 'uploaded' && retainedBundleId ? (
               <Button variant="outline" onClick={() => void openManualForm()}>
                 {t('settings.about.diagnostics.report.open_manual_form')}
               </Button>
             ) : null}
-            {result.status !== 'uploaded' && !savedUpload ? (
+            {result.status !== 'uploaded' && retainedBundleId && !savedUpload ? (
               <Button variant="outline" onClick={() => void saveUpload()}>
                 {t('settings.about.diagnostics.report.save_locally')}
               </Button>
@@ -505,6 +516,9 @@ function UploadResultContent({
   readonly onReveal: () => Promise<void>
 }) {
   const { t } = useTranslation()
+  if (result.status === 'busy') {
+    return <Alert type="warning" showIcon role="alert" description={t('settings.about.diagnostics.errors.busy')} />
+  }
   if (result.status === 'uploaded') {
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">

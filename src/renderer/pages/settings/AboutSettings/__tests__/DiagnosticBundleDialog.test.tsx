@@ -108,9 +108,12 @@ describe('DiagnosticBundleDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.about.diagnostics.privacy.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.about.diagnostics.privacy.title')).toHaveFocus()
     expect(screen.getByRole('checkbox')).not.toBeChecked()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.cancel' }))
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toHaveFocus()
   })
 
   it('shows sensitive data confirmation only after export is requested', async () => {
