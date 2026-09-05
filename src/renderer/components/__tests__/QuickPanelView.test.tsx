@@ -435,17 +435,28 @@ describe('QuickPanelView', () => {
       expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item1' }))
     })
 
-    it('runs a pinned footer action in a read-only panel while ignoring regular rows', () => {
+    it('runs a footer action in a read-only panel while ignoring regular rows', () => {
       const statusAction = vi.fn()
       const footerAction = vi.fn()
       const list: QuickPanelListItem[] = [
-        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
-        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction }
       ]
 
       renderOpenPanel({
         list,
-        panelOptions: { readOnly: true },
+        panelOptions: {
+          readOnly: true,
+          footerActions: [
+            {
+              id: 'footer',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'x',
+              action: footerAction
+            }
+          ]
+        },
         triggerInfo: { type: 'button', position: 0 }
       })
 
@@ -453,22 +464,32 @@ describe('QuickPanelView', () => {
       fireEvent.click(screen.getByText('Server 1'))
       expect(statusAction).not.toHaveBeenCalled()
 
-      // The pinned footer keeps its action.
-      fireEvent.click(screen.getByText('Configure'))
+      fireEvent.click(screen.getByRole('button', { name: 'Configure MCP servers' }))
       expect(footerAction).toHaveBeenCalledTimes(1)
     })
 
-    it('lets keyboard reach the pinned footer action in a read-only panel', () => {
+    it('lets keyboard reach the footer action in a read-only panel', () => {
       const statusAction = vi.fn()
       const footerAction = vi.fn()
       const list: QuickPanelListItem[] = [
-        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
-        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction }
       ]
 
       renderOpenPanel({
         list,
-        panelOptions: { readOnly: true },
+        panelOptions: {
+          readOnly: true,
+          footerActions: [
+            {
+              id: 'footer',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'x',
+              action: footerAction
+            }
+          ]
+        },
         triggerInfo: { type: 'button', position: 0 }
       })
 

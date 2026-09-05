@@ -449,16 +449,12 @@
     }
   ],
   "providers": {
-    "version": "5ed8c37fe6d183bb",
+    "version": "ec8673d7b68fe472",
     "count": 61,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -531,6 +527,10 @@
       {
         "id": "ollama",
         "name": "Ollama"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
       },
       {
         "id": "new-api",

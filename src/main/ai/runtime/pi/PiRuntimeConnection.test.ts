@@ -2,6 +2,7 @@ import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,6 +104,10 @@ vi.mock('node:fs', async (importOriginal) => ({
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => ({
+  ...(await importOriginal<typeof UserDataSqliteGuard>()),
+  evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
 vi.mock('@application', () => ({
   application: {

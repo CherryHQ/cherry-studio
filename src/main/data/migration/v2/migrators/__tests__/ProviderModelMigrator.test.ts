@@ -167,12 +167,12 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
-    it('skips providers whose upstream services have retired', async () => {
+    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
-            makeProvider('github', [{ id: 'openai/gpt-4o' }]),
-            { ...makeProvider('github-copy'), presetProviderId: 'github' },
+            makeProvider(providerId, [{ id: 'legacy-model' }]),
+            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
             makeProvider('openai')
           ]
         }

@@ -25,7 +25,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { createContext, memo, use, useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -172,7 +172,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
       if (!cache.has(toolKey)) {
         cache.set(toolKey, {
-          registerLaunchers: (entries) => toolsRegistry.registerLaunchers(toolKey, entries)
+          registerLaunchers: (entries, footerActions) =>
+            toolsRegistry.registerLaunchers(toolKey, entries, footerActions)
         })
       }
 
@@ -205,6 +206,25 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
 export { ComposerToolDerivedStateProvider }
+
+export const ComposerToolFooterActionsSync = () => {
+  const { getFooterActions, version } = useComposerToolProviderLaunchers()
+  const quickPanel = useQuickPanel()
+  const { symbol, updateFooterActions } = quickPanel
+
+  useLayoutEffect(() => {
+    if (!symbol) {
+      updateFooterActions([])
+      return
+    }
+
+    updateFooterActions(getFooterActions(symbol))
+
+    return () => updateFooterActions([])
+  }, [getFooterActions, symbol, updateFooterActions, version])
+
+  return null
+}
 
 const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
 
