@@ -92,6 +92,8 @@ export function WebviewAnnotationControls({
 
   const disabled = !isWebviewReady || !isHostActive || !ready
   const annotationLabel = enabled ? t('webview.annotation.disable_mode') : t('webview.annotation.enable_mode')
+  const annotationToggleLabel =
+    count > 0 ? `${annotationLabel}, ${t('webview.annotation.count', { count })}` : annotationLabel
   const editorAnchorRect = editor?.anchor
   const editorAnchor = useMemo<RefObject<{ getBoundingClientRect: () => DOMRect }> | null>(() => {
     if (!editorAnchorRect) return null
@@ -127,14 +129,14 @@ export function WebviewAnnotationControls({
               disabled={disabled}
               onClick={() => void toggle()}
               className={cn(controlButtonClassName(enabled), count > 0 && 'h-7 w-auto gap-1 px-1.5')}
-              aria-label={annotationLabel}
+              aria-label={annotationToggleLabel}
               aria-pressed={enabled}>
               <MousePointer2 size={14} />
               {count > 0 && (
                 <Badge
                   variant="secondary"
                   className="pointer-events-none h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
-                  aria-label={t('webview.annotation.count', { count })}>
+                  aria-hidden>
                   {count}
                 </Badge>
               )}

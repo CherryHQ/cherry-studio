@@ -161,6 +161,15 @@ describe('WebviewAnnotationControls', () => {
     expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('includes the annotation count in the toggle accessible name', () => {
+    const webview = createWebview()
+    renderControls(webview)
+    act(() => stateChanged(webview, false, 2))
+
+    expect(screen.getByRole('button', { name: /标注页面.*2 条标注/ })).toBeInTheDocument()
+    expect(screen.queryByLabelText('2 条标注')).not.toBeInTheDocument()
+  })
+
   it('collects annotation text in the trusted host UI and saves it to the guest', async () => {
     const user = userEvent.setup()
     const webview = createWebview()
@@ -207,7 +216,6 @@ describe('WebviewAnnotationControls', () => {
     renderControls(webview)
     act(() => stateChanged(webview, false, 2))
 
-    expect(screen.getByLabelText('2 条标注')).toBeInTheDocument()
     const copy = screen.getByRole('button', { name: '复制标注 Markdown' })
     await user.click(copy)
     expect(copy).toBeDisabled()
@@ -245,7 +253,7 @@ describe('WebviewAnnotationControls', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
 
     expect(dialog).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('2 条标注')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '标注页面' })).toBeInTheDocument()
     expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId })
   })
 
@@ -260,7 +268,7 @@ describe('WebviewAnnotationControls', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
 
     expect(screen.getByRole('dialog', { name: '清空全部标注？' })).toBeInTheDocument()
-    expect(screen.getByLabelText('2 条标注')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /标注页面.*2 条标注/ })).toBeInTheDocument()
   })
 
   it('closes a delivered clear confirmation when navigation retires its session', async () => {
@@ -333,8 +341,7 @@ describe('WebviewAnnotationControls', () => {
     renderControls(webview, false)
     act(() => stateChanged(webview, true, 1))
 
-    expect(screen.getByLabelText('1 条标注')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '标注页面' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /标注页面.*1 条标注/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: '复制标注 Markdown' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '清空标注' })).toBeDisabled()
   })
