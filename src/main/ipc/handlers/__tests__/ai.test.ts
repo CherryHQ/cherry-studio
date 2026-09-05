@@ -13,7 +13,7 @@ const {
   createBuiltinSupportSession
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionMessageService: { getSessionMessage: vi.fn(), clearSessionMessages: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
@@ -354,11 +354,27 @@ describe('aiHandlers — streaming', () => {
     await Promise.resolve()
 
     expect(settled).toBe(false)
-    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledExactlyOnceWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
 
     finishDrain()
     await expect(aborting).resolves.toBeUndefined()
+  })
+
+  it('clears an Agent Session only after its stream drains and before the dispatch lock releases', async () => {
+    aiStreamManager.abortAndDrain.mockImplementationOnce(async (_topicId, _reason, afterDrain) => {
+      expect(agentSessionMessageService.clearSessionMessages).not.toHaveBeenCalled()
+      afterDrain()
+    })
+
+    await aiHandlers['ai.agent.session.messages.clear']({ sessionId: 's1' }, { senderId: null })
+
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith(
+      'agent-session:s1',
+      'user-requested',
+      expect.any(Function)
+    )
+    expect(agentSessionMessageService.clearSessionMessages).toHaveBeenCalledExactlyOnceWith('s1')
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

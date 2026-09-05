@@ -1660,6 +1660,39 @@ describe('AiStreamManager', () => {
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
     })
+
+    it('holds admission through post-drain work so a queued run cannot enter before cleanup', async () => {
+      vi.useRealTimers()
+      const events: string[] = []
+      let releaseRuntimeClose!: () => void
+      mockCloseSession.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRuntimeClose = resolve
+          })
+      )
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('l:agent')]
+      })
+
+      const clearing = mgr.abortAndDrain('agent-session:session-1', 'user-requested', () => {
+        events.push('post-drain')
+      })
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        events.push('next-turn')
+      })
+
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      expect(events).toEqual([])
+
+      releaseRuntimeClose()
+      await expect(clearing).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(events).toEqual(['post-drain', 'next-turn'])
+    })
   })
 
   // ── listener management ─────────────────────────────────────────

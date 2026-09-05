@@ -119,6 +119,10 @@ describe('agentSessionMessageHandlers', () => {
         } as never)
       ).resolves.toBe(response)
     })
+
+    it('does not expose collection DELETE; abort-and-drain owns bulk clear', () => {
+      expect(Object.keys(agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'])).toEqual(['GET'])
+    })
   })
 
   describe('/agent-sessions/:sessionId/messages/:messageId', () => {
