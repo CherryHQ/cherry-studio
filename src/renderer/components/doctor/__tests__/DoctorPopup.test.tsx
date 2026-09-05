@@ -154,6 +154,11 @@ describe('DoctorPopup', () => {
         },
         results: [
           {
+            id: 'install-version-channel',
+            status: 'pass',
+            durationMs: 1
+          },
+          {
             id: 'storage-disk-space',
             status: 'fail',
             durationMs: 1,
@@ -180,7 +185,7 @@ describe('DoctorPopup', () => {
             message: 'secret backend failure'
           }
         ],
-        summary: { pass: 0, warn: 0, fail: 1, skip: 0, error: 1 }
+        summary: { pass: 1, warn: 0, fail: 1, skip: 0, error: 1 }
       }
     }
     mocks.request.mockResolvedValue({
@@ -192,6 +197,15 @@ describe('DoctorPopup', () => {
     act(() => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
+
+    expect(await screen.findByRole('button', { name: /settings\.doctor\.domains\.storage/ })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    const healthyGroup = screen.getByRole('button', { name: /settings\.doctor\.domains\.install/ })
+    expect(healthyGroup).toHaveAttribute('aria-expanded', 'false')
+    await user.click(healthyGroup)
+    expect(screen.getByText('settings.doctor.checks.install-version-channel.title')).toBeVisible()
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
