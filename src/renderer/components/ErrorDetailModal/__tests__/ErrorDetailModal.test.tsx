@@ -32,16 +32,6 @@ const passingVersionResult: DoctorCheckResult = {
   durationMs: 1
 }
 
-const lowDiskResult: DoctorCheckResult = {
-  id: 'storage-disk-space',
-  status: 'warn',
-  durationMs: 1,
-  attribution: 'user-fixable',
-  detail: { variant: 'low' },
-  evidence: [{ key: 'reclaimableBytes', value: 1024, dataClass: 'public' }],
-  actions: [{ kind: 'fix', fixId: 'cleanup' }]
-}
-
 const mocks = vi.hoisted(() => ({
   diagnoseError: vi.fn(),
   doctorState: { status: 'idle' } as DoctorState,
@@ -76,10 +66,7 @@ const translations: Record<string, string> = {
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
-  'settings.doctor.confirm_fix.title': 'Continue with this action?',
   'settings.doctor.domains.install': 'Installation',
-  'settings.doctor.domains.storage': 'Storage',
-  'settings.doctor.fixes.cleanup_storage': 'Clean up storage',
   'settings.doctor.status.pass': 'Passed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
@@ -262,6 +249,7 @@ describe('ErrorDetailContent diagnostics', () => {
       showErrorDetailPopup({ error: providerError })
     })
 
+    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
     await user.click(screen.getByRole('button', { name: 'View Details' }))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' })).toBeInTheDocument()
@@ -274,9 +262,6 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' }))
 
     expect(await screen.findByText(aiDiagnosis.explanation)).toBeInTheDocument()
-    const installGroup = screen.getByRole('button', { name: /Installation/ })
-    await user.click(installGroup)
-    expect(screen.getByText('Version and release channel')).toBeVisible()
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
   })
 
@@ -292,6 +277,15 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(disclosure)
 
     expect(screen.getByText(aiDiagnosis.explanation)).toBeVisible()
+  })
+
+  it('shows Doctor checks directly without domain accordions', () => {
+    mocks.doctorState = completedDoctorState([passingVersionResult])
+
+    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+
+    expect(screen.getByText('Version and release channel')).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Installation/ })).not.toBeInTheDocument()
   })
 
   it('offers a basic rerun directly from an expired-result warning', async () => {
@@ -311,33 +305,16 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
   })
 
-  it('opens destructive confirmation as a child dialog without replacing the error overview', async () => {
+  it('starts Doctor diagnostics immediately but waits for an explicit AI diagnosis request', async () => {
     const user = userEvent.setup()
-    mocks.doctorState = runningDoctorState('quick')
-    const view = render(<PopupHost />)
-
-    act(() => {
-      showErrorDetailPopup({ error: providerError })
-    })
-    mocks.doctorState = completedDoctorState([lowDiskResult])
-    view.rerender(<PopupHost />)
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Storage/ })).toHaveAttribute('aria-expanded', 'true')
-    )
-    await user.click(await screen.findByRole('button', { name: 'Clean up storage' }))
-
-    const dialogs = screen.getAllByRole('dialog')
-    expect(dialogs).toHaveLength(2)
-    expect(screen.getByText('Basic information')).toBeVisible()
-    expect(within(dialogs[1]).getByRole('status')).toHaveTextContent('Continue with this action?')
-  })
-
-  it('starts uncached AI and basic Doctor diagnostics together', async () => {
     renderErrorDetailContent({ error: providerError })
 
-    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
+
+    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
   })
 
   it('runs a full check from the diagnostics header', async () => {
@@ -385,6 +362,7 @@ describe('ErrorDetailContent diagnostics', () => {
       onOpenDiagnosticReport
     })
 
+    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
     expect(await screen.findByText('private AI diagnosis')).toBeInTheDocument()
     const footer = screen.getByRole('group', { name: 'Error Details' })
     expect(

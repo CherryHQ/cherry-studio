@@ -5,8 +5,8 @@ import { createDoctorSession, doctorSessionReducer } from '../doctorSessionReduc
 
 const fixRequest: DoctorFixRequest = {
   runId: 'run-1',
-  checkId: 'storage-disk-space',
-  fixId: 'cleanup'
+  checkId: 'permission-screen-capture',
+  fixId: 'request'
 }
 
 describe('doctorSessionReducer', () => {
@@ -20,11 +20,8 @@ describe('doctorSessionReducer', () => {
     expect(state.descriptionDraft).toBe('reviewed draft')
   })
 
-  it('represents confirmation and execution as a mutually exclusive interaction', () => {
+  it('finishes only the matching execution interaction', () => {
     let state = createDoctorSession({ initialPanel: 'checks' })
-
-    state = doctorSessionReducer(state, { type: 'confirm-fix', request: fixRequest })
-    expect(state.interaction).toEqual({ kind: 'confirm-fix', request: fixRequest })
 
     state = doctorSessionReducer(state, {
       type: 'start-interaction',

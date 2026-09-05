@@ -12,7 +12,7 @@ function result(
   status: DoctorCheckResult['status'],
   actions?: readonly DoctorAction[]
 ): DoctorCheckResult {
-  if (status === 'pass') return { id, status, durationMs: 1, actions } as DoctorCheckResult
+  if (status === 'pass') return { id, status, durationMs: 1 } as DoctorCheckResult
   if (status === 'skip') return { id, status, durationMs: 1, skippedBy: 'network-online' } as DoctorCheckResult
   if (status === 'error') return { id, status, durationMs: 1, message: 'private backend error' } as DoctorCheckResult
   return {
@@ -96,22 +96,15 @@ describe('buildDoctorViewModel', () => {
     expect(buildDoctorViewModel(state, NOW).canCancel).toBe(true)
   })
 
-  it('preserves actions returned on pass and never synthesizes actions for findings', () => {
-    const passAction: DoctorAction<'permission-screen-capture'> = {
-      kind: 'navigate',
-      target: '/settings/general'
-    }
+  it('never synthesizes actions for findings', () => {
     const state: DoctorState = {
       status: 'completed',
-      report: report([
-        result('permission-screen-capture', 'pass', [passAction]),
-        result('permission-accessibility', 'fail')
-      ])
+      report: report([result('permission-screen-capture', 'pass'), result('permission-accessibility', 'fail')])
     }
 
     const viewModel = buildDoctorViewModel(state, NOW)
 
-    expect(viewModel.rows[0]?.actions).toEqual([passAction])
+    expect(viewModel.rows[0]?.actions).toEqual([])
     expect(viewModel.rows[1]?.actions).toEqual([])
     expect(viewModel.problemCount).toBe(1)
   })
@@ -156,15 +149,11 @@ describe('buildDoctorViewModel', () => {
   })
 
   it('normalizes completed results to catalog order and classifies every summary item once', () => {
-    const optionalAction: DoctorAction<'config-hardware-acceleration'> = {
-      kind: 'fix',
-      fixId: 'enable'
-    }
     const state: DoctorState = {
       status: 'completed',
       report: report([
         result('logs-recent-findings', 'error'),
-        result('config-hardware-acceleration', 'pass', [optionalAction]),
+        result('config-hardware-acceleration', 'pass'),
         result('permission-accessibility', 'warn'),
         result('network-online', 'skip')
       ])
@@ -183,9 +172,8 @@ describe('buildDoctorViewModel', () => {
       appBug: 0,
       transient: 0,
       error: 1,
-      skip: 1,
-      optional: 1
+      skip: 1
     })
-    expect(defaultExpandedDoctorDomains(viewModel.groups)).toEqual(['permission', 'config', 'network', 'logs'])
+    expect(defaultExpandedDoctorDomains(viewModel.groups)).toEqual(['permission', 'network', 'logs'])
   })
 })

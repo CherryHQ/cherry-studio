@@ -14,7 +14,6 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
-import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
 import {
   DOCTOR_CHECK_CONTENT,
   DOCTOR_DOMAIN_LABEL_KEYS,
@@ -26,19 +25,6 @@ import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest }
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const CONFIRM_FIX_CONTENT = {
-  'storage-diagnostic-data-size': {
-    evidenceKey: 'bytes',
-    scopeKey: 'settings.doctor.confirm_fix.diagnostic_data_scope'
-  },
-  'storage-disk-space': {
-    evidenceKey: 'reclaimableBytes',
-    scopeKey: 'settings.doctor.confirm_fix.storage_disk_space_scope'
-  }
-} as const
-
-type ConfirmFixCheckId = keyof typeof CONFIRM_FIX_CONTENT
 
 export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
@@ -91,27 +77,6 @@ export function DoctorConfirmationView({
   const { t } = useTranslation()
   const { interaction } = controller.session
 
-  if (interaction.kind === 'confirm-fix') {
-    const { checkId } = interaction.request
-    const affectedResult = controller.viewModel.rows.find((row) => row.id === checkId)?.result
-    return (
-      <ConfirmationPanel
-        title={t('settings.doctor.confirm_fix.title')}
-        description={<FixConfirmationDescription checkId={checkId} result={affectedResult} />}
-        confirmLabel={fixLabel(t, interaction.request, controller.mcpServerName(interaction.request.target))}
-        destructive
-        onCancel={() => {
-          onResolve(checkId)
-          controller.cancelFixConfirmation()
-        }}
-        onConfirm={() => {
-          onResolve(checkId)
-          void controller.confirmFix()
-        }}
-      />
-    )
-  }
-
   if (interaction.kind === 'confirm-evidence') {
     const { checkId } = interaction
     return (
@@ -121,7 +86,7 @@ export function DoctorConfirmationView({
         confirmLabel={t('settings.doctor.actions.show_details')}
         onCancel={() => {
           onResolve(checkId)
-          controller.cancelFixConfirmation()
+          controller.cancelConfirmation()
         }}
         onConfirm={controller.confirmEvidence}
       />
@@ -226,11 +191,7 @@ function DoctorCheckRow({
                 {row.actions.slice(1).map((action, index) => (
                   <DropdownMenuItem
                     key={`${action.kind}-${index}`}
-                    disabled={
-                      row.actionsDisabled ||
-                      controller.isInteracting ||
-                      (action.kind === 'install_update' && !controller.appUpdateState.downloaded)
-                    }
+                    disabled={row.actionsDisabled || controller.isInteracting}
                     onSelect={() => void controller.executeAction(row.id, action, runId)}>
                     {actionLabel(t, controller, row.id, action)}
                   </DropdownMenuItem>
@@ -258,10 +219,7 @@ function DoctorActionButton({
   readonly runId?: string
 }) {
   const { t } = useTranslation()
-  const disabled =
-    row.actionsDisabled ||
-    controller.isInteracting ||
-    (action.kind === 'install_update' && !controller.appUpdateState.downloaded)
+  const disabled = row.actionsDisabled || controller.isInteracting
   const loading =
     (controller.session.interaction.kind === 'fixing' && controller.session.interaction.request.checkId === row.id) ||
     (controller.session.interaction.kind === 'action' && controller.session.interaction.checkId === row.id)
@@ -303,51 +261,6 @@ function CheckDescription({
   return <p className={className}>{t(details[result.detail.variant], result.detail.params)}</p>
 }
 
-function FixConfirmationDescription({
-  checkId,
-  result
-}: {
-  readonly checkId: DoctorFixRequest['checkId']
-  readonly result?: DoctorCheckResult
-}) {
-  const { t } = useTranslation()
-  if (!isConfirmFixCheckId(checkId)) {
-    throw new Error(`Missing confirmation content for Doctor fix: ${checkId}`)
-  }
-  const content = CONFIRM_FIX_CONTENT[checkId]
-  const evidence = result?.evidence?.find(
-    (item) => item.key === content.evidenceKey && item.dataClass === 'public' && typeof item.value === 'number'
-  )
-  const estimatedBytes =
-    typeof evidence?.value === 'number' && Number.isFinite(evidence.value) && evidence.value >= 0
-      ? evidence.value
-      : undefined
-
-  return (
-    <div className="space-y-3">
-      <dl className="grid gap-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
-        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.scope')}</dt>
-        <dd>{t(content.scopeKey)}</dd>
-        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.reclaimable_label')}</dt>
-        <dd>
-          {estimatedBytes === undefined
-            ? t('settings.doctor.confirm_fix.reclaimable_unavailable')
-            : t('settings.doctor.confirm_fix.reclaimable', { size: formatDiagnosticBytes(estimatedBytes) })}
-        </dd>
-        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.irreversible_label')}</dt>
-        <dd>{t('settings.doctor.confirm_fix.irreversible')}</dd>
-        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.duration_label')}</dt>
-        <dd>{t('settings.doctor.confirm_fix.duration')}</dd>
-      </dl>
-      <CheckDescription result={result} />
-    </div>
-  )
-}
-
-function isConfirmFixCheckId(checkId: DoctorFixRequest['checkId']): checkId is ConfirmFixCheckId {
-  return Object.hasOwn(CONFIRM_FIX_CONTENT, checkId)
-}
-
 function Evidence({ name, value }: { readonly name: string; readonly value: string }) {
   return (
     <>
@@ -360,14 +273,12 @@ function Evidence({ name, value }: { readonly name: string; readonly value: stri
 function ConfirmationPanel({
   confirmLabel,
   description,
-  destructive = false,
   onCancel,
   onConfirm,
   title
 }: {
   readonly confirmLabel: string
   readonly description: ReactNode
-  readonly destructive?: boolean
   readonly onCancel: () => void
   readonly onConfirm: () => void
   readonly title: string
@@ -386,7 +297,7 @@ function ConfirmationPanel({
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button variant={destructive ? 'destructive' : 'emphasis'} onClick={onConfirm}>
+        <Button variant="emphasis" onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </DialogFooter>
@@ -430,14 +341,6 @@ function actionLabel(
       return t('settings.doctor.actions.open_path')
     case 'open_external':
       return t('settings.doctor.actions.open_link')
-    case 'open_cherry_account':
-      return t('settings.doctor.actions.sign_in')
-    case 'install_update':
-      return controller.appUpdateState.downloading
-        ? t('settings.doctor.actions.downloading_update', {
-            progress: Math.round(controller.appUpdateState.downloadProgress)
-          })
-        : t('settings.doctor.actions.install_update')
     case 'relaunch':
       return t('settings.doctor.actions.relaunch')
     case 'report':
