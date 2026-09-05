@@ -153,13 +153,15 @@ function DoctorCheckRow({
       <div className="flex items-start gap-3">
         <StatusIcon status={row.status} />
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-sm">{t(content.title)}</p>
-            <Badge variant="outline" className="font-normal text-xs">
-              {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
-            </Badge>
+          <div className="grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,45%)] sm:items-start">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="font-medium text-sm">{t(content.title)}</p>
+              <Badge variant="outline" className="font-normal text-xs">
+                {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
+              </Badge>
+            </div>
+            <CheckDescription result={result} align="end" />
           </div>
-          <CheckDescription result={result} />
           {publicEvidence.length > 0 ? (
             <dl className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pt-1 text-xs">
               {publicEvidence.map((item) => (
@@ -271,22 +273,29 @@ function DoctorActionButton({
   )
 }
 
-function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
+function CheckDescription({
+  align = 'start',
+  result
+}: {
+  readonly align?: 'start' | 'end'
+  readonly result?: DoctorCheckResult
+}) {
   const { t } = useTranslation()
-  if (!result) return <p className="text-muted-foreground text-xs">{t('settings.doctor.checks.pending')}</p>
+  const className = `text-muted-foreground text-xs${align === 'end' ? ' sm:text-right' : ''}`
+  if (!result) return <p className={className}>{t('settings.doctor.checks.pending')}</p>
   if (result.status === 'error') {
-    return <p className="text-muted-foreground text-xs">{t('settings.doctor.checks.error')}</p>
+    return <p className={className}>{t('settings.doctor.checks.error')}</p>
   }
   if (result.status === 'skip') {
     return (
-      <p className="text-muted-foreground text-xs">
+      <p className={className}>
         {t('settings.doctor.checks.skipped', { check: t(DOCTOR_CHECK_CONTENT[result.skippedBy].title) })}
       </p>
     )
   }
-  if (!result.detail) return null
+  if (!result.detail) return <p className={className}>{t(DOCTOR_STATUS_LABEL_KEYS[result.status])}</p>
   const details = DOCTOR_CHECK_CONTENT[result.id].details as Readonly<Record<string, string>>
-  return <p className="text-muted-foreground text-xs">{t(details[result.detail.variant], result.detail.params)}</p>
+  return <p className={className}>{t(details[result.detail.variant], result.detail.params)}</p>
 }
 
 function FixConfirmationDescription({

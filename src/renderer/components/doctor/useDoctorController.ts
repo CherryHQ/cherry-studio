@@ -30,6 +30,7 @@ import { buildDoctorViewModel, defaultExpandedDoctorDomains } from './doctorView
 
 const logger = loggerService.withContext('DoctorController')
 const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
+const EMBEDDED_RUN_FEEDBACK_MS = 600
 type DoctorAutoRunPolicy = 'when-idle' | 'when-not-running'
 
 interface UseDoctorControllerOptions {
@@ -104,7 +105,12 @@ export function useDoctorController({
     return () => window.clearTimeout(timer)
   }, [doctorState])
 
-  const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
+  const pendingRunTier =
+    session.interaction.kind === 'run' && now < session.interaction.pendingUntil ? session.interaction.tier : undefined
+  const viewModel = useMemo(
+    () => buildDoctorViewModel(doctorState, now, pendingRunTier),
+    [doctorState, now, pendingRunTier]
+  )
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -120,11 +126,29 @@ export function useDoctorController({
     dispatch({ type: 'set-expanded-domains', domains: defaultExpandedDoctorDomains(viewModel.groups) })
   }, [viewModel.groups, viewModel.report])
 
+  useEffect(() => {
+    if (session.interaction.kind !== 'run') return
+    const remaining = session.interaction.pendingUntil - Date.now()
+    if (remaining <= 0) {
+      setNow(Date.now())
+      return
+    }
+    const timer = window.setTimeout(() => setNow(Date.now()), remaining)
+    return () => window.clearTimeout(timer)
+  }, [session.interaction])
+
   const run = useCallback(
     async (tier: DoctorRunTier) => {
-      dispatch({ type: 'start-interaction', interaction: { kind: 'run', tier } })
+      const feedbackMs = autoRunPolicy === 'when-not-running' ? EMBEDDED_RUN_FEEDBACK_MS : 0
+      dispatch({
+        type: 'start-interaction',
+        interaction: { kind: 'run', tier, pendingUntil: feedbackMs > 0 ? Date.now() + feedbackMs : 0 }
+      })
       try {
-        await ipcApi.request('diagnostics.doctor.run', { tier })
+        await Promise.all([
+          ipcApi.request('diagnostics.doctor.run', { tier }),
+          feedbackMs > 0 ? new Promise((resolve) => window.setTimeout(resolve, feedbackMs)) : Promise.resolve()
+        ])
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -132,7 +156,7 @@ export function useDoctorController({
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
     },
-    [t]
+    [autoRunPolicy, t]
   )
 
   useEffect(() => {

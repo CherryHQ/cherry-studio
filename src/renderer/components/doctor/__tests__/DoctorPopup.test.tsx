@@ -206,6 +206,7 @@ describe('DoctorPopup', () => {
     expect(healthyGroup).toHaveAttribute('aria-expanded', 'false')
     await user.click(healthyGroup)
     expect(screen.getByText('settings.doctor.checks.install-version-channel.title')).toBeVisible()
+    expect(screen.getAllByText('settings.doctor.status.pass')).toHaveLength(2)
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)

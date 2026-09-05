@@ -38,6 +38,16 @@ const passingVersionResult: DoctorCheckResult = {
   durationMs: 1
 }
 
+const lowDiskResult: DoctorCheckResult = {
+  id: 'storage-disk-space',
+  status: 'warn',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'low' },
+  evidence: [{ key: 'reclaimableBytes', value: 1024, dataClass: 'public' }],
+  actions: [{ kind: 'fix', fixId: 'cleanup' }]
+}
+
 const mocks = vi.hoisted(() => ({
   diagnoseError: vi.fn(),
   doctorState: { status: 'idle' } as DoctorState,
@@ -48,6 +58,7 @@ const mocks = vi.hoisted(() => ({
 
 const translations: Record<string, string> = {
   'common.copy': 'Copy',
+  'common.cancel': 'Cancel',
   'common.retry': 'Retry',
   'error.detail': 'Error Details',
   'error.diagnosis.ai_button': 'AI diagnosis',
@@ -67,8 +78,13 @@ const translations: Record<string, string> = {
   'error.statusCode': 'Status code',
   'message.copied': 'Copied',
   'settings.doctor.actions.run_network': 'Network and services check',
+  'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
+  'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
+  'settings.doctor.confirm_fix.title': 'Continue with this action?',
   'settings.doctor.domains.install': 'Installation',
+  'settings.doctor.domains.storage': 'Storage',
+  'settings.doctor.fixes.cleanup_storage': 'Clean up storage',
   'settings.doctor.status.pass': 'Passed',
   'settings.doctor.title': 'System diagnostics'
 }
@@ -243,6 +259,28 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(installGroup)
     expect(screen.getByText('Version and release channel')).toBeVisible()
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
+  })
+
+  it('opens destructive confirmation as a child dialog without replacing the error overview', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = runningDoctorState('quick')
+    const view = render(<PopupHost />)
+
+    act(() => {
+      showErrorDetailPopup({ error: providerError })
+    })
+    mocks.doctorState = completedDoctorState([lowDiskResult])
+    view.rerender(<PopupHost />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Storage/ })).toHaveAttribute('aria-expanded', 'true')
+    )
+    await user.click(await screen.findByRole('button', { name: 'Clean up storage' }))
+
+    const dialogs = screen.getAllByRole('dialog')
+    expect(dialogs).toHaveLength(2)
+    expect(screen.getByText('Basic information')).toBeVisible()
+    expect(within(dialogs[1]).getByRole('alert')).toHaveTextContent('Continue with this action?')
   })
 
   it('starts uncached AI and basic Doctor diagnostics together', async () => {

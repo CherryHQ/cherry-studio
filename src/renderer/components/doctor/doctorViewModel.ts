@@ -101,6 +101,16 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   )
 }
 
+function pendingRowsForTier(tier: DoctorRunTier): readonly DoctorRowViewModel[] {
+  return DOCTOR_CHECK_IDS.filter((id) => tier === 'live' || DOCTOR_CHECK_CATALOG[id].tier === 'quick').map((id) => ({
+    id,
+    domain: DOCTOR_CHECK_CATALOG[id].domain,
+    status: 'pending',
+    actions: [],
+    actionsDisabled: true
+  }))
+}
+
 export function defaultExpandedDoctorDomains(
   groups: readonly DoctorGroupViewModel[]
 ): readonly DisplayedDoctorDomain[] {
@@ -118,10 +128,14 @@ export function defaultExpandedDoctorDomains(
     .map((group) => group.domain)
 }
 
-export function buildDoctorViewModel(state: DoctorState, now = Date.now()): DoctorViewModel {
-  const report = state.status === 'completed' ? state.report : undefined
+export function buildDoctorViewModel(
+  state: DoctorState,
+  now = Date.now(),
+  requestedTier?: DoctorRunTier
+): DoctorViewModel {
+  const report = requestedTier === undefined && state.status === 'completed' ? state.report : undefined
   const isStale = report ? Date.parse(report.expiresAt) <= now : false
-  const rows = rowsForState(state, isStale)
+  const rows = requestedTier ? pendingRowsForTier(requestedTier) : rowsForState(state, isStale)
   const groups = DOMAIN_ORDER.flatMap((domain) => {
     const domainRows = rows.filter((row) => row.domain === domain)
     return domainRows.length > 0 ? [{ domain, status: groupStatus(domainRows), rows: domainRows }] : []
@@ -151,14 +165,14 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
   )
 
   return {
-    status: state.status,
-    tier: state.status === 'running' ? state.tier : report?.tier,
+    status: requestedTier ? 'running' : state.status,
+    tier: requestedTier ?? (state.status === 'running' ? state.tier : report?.tier),
     report,
     rows,
     groups,
     problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail').length,
     summary,
-    canCancel: state.status === 'running' && state.tier === 'live',
+    canCancel: requestedTier === undefined && state.status === 'running' && state.tier === 'live',
     isStale
   }
 }
