@@ -3,9 +3,9 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { cn } from '@renderer/utils/style'
 
 import type { RESOURCE_LIST_RIGHT_PANE_CACHE_KEY } from './paneLayout'
@@ -177,7 +177,7 @@ function useRightPaneResize({
   /** Dragging well past the minimum width closes the pane (mirrors the left list's drag-collapse). */
   onDragClose?: () => void
 }) {
-  const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
+  const [storedWidth, setStoredWidth] = useWindowScopedPersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
   const pendingDragCloseRef = useRef(false)

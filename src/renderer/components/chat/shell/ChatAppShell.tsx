@@ -2,8 +2,8 @@ import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
 
@@ -91,11 +91,11 @@ function useResourceListAutoCollapse({
   rootRef: RefObject<HTMLDivElement | null>
 }) {
   const rightPanelState = useOptionalRightPanelState()
-  const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
+  const [storedListWidth] = useWindowScopedPersistCache('ui.chat.sidebar.width')
   // The prediction must size the pane that is actually presented; a list and an artifact
   // have different widths, and reading the wrong one strands the list collapsed.
   const paneProfile = rightPanelState?.activePaneWidth ?? getRightPaneWidthPolicy()
-  const [storedPaneWidth] = usePersistCache(paneProfile.cacheKey)
+  const [storedPaneWidth] = useWindowScopedPersistCache(paneProfile.cacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
   // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
