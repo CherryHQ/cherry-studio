@@ -13,20 +13,19 @@ import {
   DropdownMenuTrigger,
   Scrollbar
 } from '@cherrystudio/ui'
+import type { DoctorController } from '@renderer/hooks/doctor'
 import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
-import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest } from '@shared/types/doctor'
-import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
-import { type ReactNode, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   DOCTOR_CHECK_CONTENT,
   DOCTOR_DOMAIN_LABEL_KEYS,
   DOCTOR_FIX_LABEL_KEYS,
   DOCTOR_NAVIGATION_LABEL_KEYS,
   DOCTOR_STATUS_LABEL_KEYS
-} from './doctorContent'
-import type { DoctorController } from './useDoctorController'
+} from '@renderer/utils/doctor'
+import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest } from '@shared/types/doctor'
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
+import { type ReactNode, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const CONFIRM_FIX_CONTENT = {
   'storage-diagnostic-data-size': {
@@ -57,6 +56,15 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
             <span className="flex min-w-0 items-center gap-2">
               <StatusIcon status={group.status} />
               <span>{t(DOCTOR_DOMAIN_LABEL_KEYS[group.domain])}</span>
+              <span className="sr-only">
+                {t(
+                  group.status === 'running'
+                    ? DOCTOR_STATUS_LABEL_KEYS.pending
+                    : group.status === 'neutral'
+                      ? DOCTOR_STATUS_LABEL_KEYS.skip
+                      : DOCTOR_STATUS_LABEL_KEYS[group.status]
+                )}
+              </span>
               <Badge variant="outline" className="font-normal text-xs">
                 {group.rows.length}
               </Badge>
@@ -115,10 +123,7 @@ export function DoctorConfirmationView({
           onResolve(checkId)
           controller.cancelFixConfirmation()
         }}
-        onConfirm={() => {
-          onResolve(checkId)
-          controller.confirmEvidence()
-        }}
+        onConfirm={controller.confirmEvidence}
       />
     )
   }
@@ -210,7 +215,7 @@ function DoctorCheckRow({
         <div className="mt-2 flex flex-wrap justify-end gap-2 pl-7">
           <DoctorActionButton controller={controller} row={row} action={primaryAction} primary runId={runId} />
           {row.actions.length > 1 ? (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" disabled={row.actionsDisabled || controller.isInteracting}>
                   {t('settings.doctor.actions.more')}
@@ -454,7 +459,9 @@ function StatusIcon({ status }: { readonly status: string }): ReactNode {
     case 'pending':
     case 'running':
       return (
-        <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin" aria-hidden />
+        <span className="mt-0.5 inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
+          <CircleDashed className="size-4 text-muted-foreground" />
+        </span>
       )
     case 'skip':
     case 'neutral':
