@@ -8,10 +8,14 @@ import {
 import {
   type AgentToolOutput,
   AgentToolsType,
-  isBackgroundAgentOutput
+  getResumedAgentId,
+  isBackgroundAgentOutput,
+  resolveResumedAgent
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
+  getPartLaunchToolCallId,
   getPartParentToolCallId,
+  getPartResumeMarker,
   hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
@@ -247,11 +251,67 @@ function isTerminalToolState(state: string | undefined): boolean {
   return state === 'output-available' || state === 'output-error' || state === 'output-denied' || state === 'cancelled'
 }
 
+/**
+ * Follow a tool-call entry to the flow it represents. A surface that binds a resumed task to the
+ * SendMessage call id (e.g. a cold reconnect replaying resume edges) would otherwise open an empty
+ * flow — everything streaming under the launch root instead.
+ */
+export function resolveFlowToolCallId(
+  toolCallId: string,
+  partsByMessageId: Record<string, CherryMessagePart[]> | null
+): { toolCallId: string; description?: string } | undefined {
+  if (!partsByMessageId) return undefined
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const record = part as { toolCallId?: unknown; output?: unknown }
+      if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
+      // The adapter-stamped launch root resolves even when the launch row itself has been paged
+      // out; the scan below stays as the fallback for unstamped history.
+      const stamped = getPartLaunchToolCallId(part)
+      if (stamped) {
+        const identity = resolveResumedAgent(record.output, partsByMessageId)
+        return { toolCallId: stamped, description: identity?.description }
+      }
+      // Receipt outputs are small inline JSON, so no deferred-envelope resolution is needed here
+      // (unlike launch receipts, whose resolved output the flow view prefers).
+      return resolveResumedAgent(record.output, partsByMessageId)
+    }
+  }
+  return undefined
+}
+
+/**
+ * The agent id a launch receipt reports — the trailer string or a structured field. Prefers the
+ * caller-resolved output so deferred (oversized) receipts still split resume rounds correctly.
+ */
+function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
+  const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
+  if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]{16,})/.exec(output)?.[1]
+  if (isRecord(output)) {
+    const direct = output.agentId ?? output.agent_id
+    return typeof direct === 'string' && direct.length >= 16 ? direct : undefined
+  }
+  return undefined
+}
+
+/** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
+function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
+  const record = part as { toolName?: unknown; output?: unknown }
+  return record.toolName === AgentToolsType.SendMessage && getResumedAgentId(record.output) === launchedAgentId
+}
+
+/** The request to show between rounds — the sent message, falling back to its summary. */
+function getResumeReceiptPromptText(part: CherryMessagePart): string | undefined {
+  const input = (part as { input?: unknown }).input
+  const prompt = isRecord(input) ? (input.message ?? input.summary) : undefined
+  return typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
+}
+
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
   selectedToolCallId?: string,
-  selectedToolOutput?: unknown
+  resolvedSelectedOutput?: unknown
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -316,11 +376,131 @@ export function buildAgentToolFlowProjection(
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
     }
 
-    const assistantParts: CherryMessagePart[] = []
+    // Content is segmented by the resume requests that continued this agent: each SendMessage
+    // receipt resolving to the launch splits the timeline, so its prompt lands between rounds.
+    // The launch receipt's own result text is NOT appended — it duplicates the agent's final
+    // message already present above and goes stale across continuations.
+    const launchedAgentId = extractLaunchedAgentId(selectedToolPart, resolvedSelectedOutput)
+    const isFlowActive = toolNodes.some(
+      (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
+    )
+
+    // Content is split into rounds two ways: runtime-tagged parts (`cherry.resumedViaCallId`,
+    // authoritative and restart-safe — the host row usually predates the receipt row, so position
+    // alone cannot order them), or — for untagged history — the receipt's own walk position.
+    const receiptPrompts = new Map<string, string>()
+    // Markers belonging to sibling agents' continuations must not split this flow, so the set of
+    // this agent's own receipt call ids gates every marker-driven split.
+    const ownReceiptCallIds = new Set<string>()
+    if (launchedAgentId) {
+      for (const { parts } of messageEntries) {
+        for (const part of parts) {
+          const toolCallId = getToolCallId(part)
+          if (!toolCallId || receiptPrompts.has(toolCallId)) continue
+          if (!isToolUIPart(part) || getToolNameFromPart(part) !== AgentToolsType.SendMessage) continue
+          if (!isResumeReceiptFor(part, launchedAgentId)) continue
+          ownReceiptCallIds.add(toolCallId)
+          const prompt = getResumeReceiptPromptText(part)
+          if (prompt) receiptPrompts.set(toolCallId, prompt)
+        }
+      }
+    }
+
+    const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
+    // The result text only fills a flow that has no streamed child parts at all (a runtime whose
+    // foreground calls emit no detachable content); Claude Code streams them even for foreground
+    // runs, so injecting there would duplicate the report and leak its agentId trailer. Background
+    // launch receipts are control metadata and must never surface; an unresolved deferred envelope
+    // has no text to show yet.
+    const hasDetachedFlow = messageEntries.some(({ parts }) =>
+      parts.some((part) => getPartParentToolCallId(part) === selectedToolCallId)
+    )
+    if (!hasDetachedFlow) {
+      const selectedOutput =
+        resolvedSelectedOutput !== undefined
+          ? resolvedSelectedOutput
+          : selectedToolPart
+            ? getToolPartOutput(selectedToolPart)
+            : undefined
+      const selectedOutputText =
+        isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput
+          ? undefined
+          : textFromContent(selectedOutput)
+      const foregroundResultText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+        ? undefined
+        : selectedOutputText
+      if (foregroundResultText) {
+        segments[0].parts.push({ type: 'text', text: foregroundResultText } as CherryMessagePart)
+      }
+    }
+    let segmentIndex = 0
+    let emittedSegments = 0
+    let resumeCount = 0
+    const consumedMarkers = new Set<string>()
+    const emitSegment = (index: number) => {
+      const segment = segments[index]
+      if (segment.parts.length === 0 && !isFlowActive) return
+      const id = `${selectedToolCallId}:agent-flow-assistant${index === 0 ? '' : `-${index}`}`
+      const assistantMessage = {
+        id,
+        role: 'assistant',
+        parts: segment.parts,
+        metadata: {
+          createdAt: selectedCreatedAt,
+          status: isFlowActive ? 'pending' : 'success'
+        }
+      } as CherryUIMessage
+      flowMessages.push(assistantMessage)
+      flowPartsByMessageId[id] = segment.parts
+    }
     for (const { parts } of messageEntries) {
-      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
-        const part = parts[partIndex]
+      for (const part of parts) {
         const toolCallId = getToolCallId(part)
+
+        // Runtime-tagged round boundary: the first marked part opens the new round. The matching
+        // receipt's prompt text (pre-scanned by call id) backfills the user message; when that
+        // receipt is walked later it must not split a second time. The adapter only stamps parts
+        // whose parent is this launch root, but sibling flows sharing the walk order need the
+        // receipt-set check too, so both gates guard against splitting on foreign markers.
+        const marker = launchedAgentId ? getPartResumeMarker(part) : undefined
+
+        // A resume receipt is not itself part of the flow, but for untagged content it marks where
+        // a new round starts. Skip if its call id was already consumed by a runtime marker.
+        const isResumeReceipt =
+          launchedAgentId &&
+          isToolUIPart(part) &&
+          isResumeReceiptFor(part, launchedAgentId) &&
+          !(toolCallId && consumedMarkers.has(toolCallId))
+
+        const markerOwnsThisFlow =
+          marker !== undefined &&
+          !consumedMarkers.has(marker) &&
+          (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
+
+        if (markerOwnsThisFlow || isResumeReceipt) {
+          for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
+          resumeCount += 1
+          if (marker) consumedMarkers.add(marker)
+          // A position-based split must also consume the receipt's call id, or a same-message
+          // tagged part would split a second time and duplicate the prompt message.
+          else if (isResumeReceipt && toolCallId) consumedMarkers.add(toolCallId)
+          segmentIndex += 1
+          segments.push({ parts: [] })
+          const promptText = marker !== undefined ? receiptPrompts.get(marker) : getResumeReceiptPromptText(part)
+          const resumeMessage = createFlowTextMessage(
+            `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
+            'user',
+            promptText,
+            selectedCreatedAt
+          )
+          if (resumeMessage) {
+            flowMessages.push(resumeMessage)
+            flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts as CherryMessagePart[]
+          }
+          if (isResumeReceipt) continue
+          // A tagged part belongs to the new round — fall through to descendant inclusion.
+        }
+
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
         } else {
@@ -328,39 +508,10 @@ export function buildAgentToolFlowProjection(
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
-        assistantParts.push(getPartWithoutParentMetadata(part))
+        segments[segmentIndex].parts.push(getPartWithoutParentMetadata(part))
       }
     }
-
-    const selectedOutput =
-      selectedToolOutput !== undefined
-        ? selectedToolOutput
-        : selectedToolPart
-          ? getToolPartOutput(selectedToolPart)
-          : undefined
-    const selectedOutputText = textFromContent(selectedOutput)
-    // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
-    // actual conversation already arrives through the child flow parts collected above.
-    const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
-      ? undefined
-      : selectedOutputText
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
-    const isFlowActive = toolNodes.some(
-      (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
-    )
-    if (assistantParts.length || isFlowActive) {
-      const assistantMessage = {
-        id: `${selectedToolCallId}:agent-flow-assistant`,
-        role: 'assistant',
-        parts: assistantParts,
-        metadata: {
-          createdAt: selectedCreatedAt,
-          status: isFlowActive ? 'pending' : 'success'
-        }
-      } as CherryUIMessage
-      flowMessages.push(assistantMessage)
-      flowPartsByMessageId[assistantMessage.id] = assistantParts
-    }
+    for (; emittedSegments < segments.length; emittedSegments += 1) emitSegment(emittedSegments)
   }
 
   return {
@@ -502,7 +653,9 @@ function applyAgentTaskEvent(
 
   runTaskMap.set(data.taskId, {
     id: data.taskId,
-    toolUseId: data.toolUseId ?? existing?.toolUseId,
+    // First registration wins: SendMessage-resume edges carry the resuming call's id while
+    // content keeps streaming under the original launch tool-use id.
+    toolUseId: existing?.toolUseId ?? data.toolUseId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
     status,
