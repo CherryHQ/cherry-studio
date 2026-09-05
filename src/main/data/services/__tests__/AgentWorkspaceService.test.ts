@@ -3,6 +3,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { mkdtemp, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -29,6 +30,7 @@ describe('AgentWorkspaceService', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks()
+    MockMainPreferenceServiceUtils.resetMocks()
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
@@ -146,6 +148,19 @@ describe('AgentWorkspaceService', () => {
       expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, '/'))).toEqual([])
     }
   )
+
+  it('localizes the filesystem-root validation error for the current app language', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+
+    expect(captureError(() => agentWorkspaceService.findOrCreateByPath('/'))).toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      details: {
+        fieldErrors: {
+          path: ['文件系统根目录不能用作工作区，请选择一个子文件夹：/']
+        }
+      }
+    })
+  })
 
   it('throws not found for missing workspaces', async () => {
     expect(captureError(() => agentWorkspaceService.getById('missing-workspace'))).toMatchObject({
