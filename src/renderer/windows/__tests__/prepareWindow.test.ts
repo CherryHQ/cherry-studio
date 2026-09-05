@@ -1,4 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { prepareWindow } from '../prepareWindow'
@@ -7,7 +8,9 @@ const { initI18nMock } = vi.hoisted(() => ({ initI18nMock: vi.fn(async () => {})
 vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
-vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+vi.mock('@data/services/dataApiDevtools', () => ({
+  DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock }
+}))
 
 describe('prepareWindow', () => {
   beforeEach(() => {
@@ -30,11 +33,34 @@ describe('prepareWindow', () => {
     expect(initI18nMock).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
-    const pending = prepareWindow({ preference: 'all' })
+  it('waits for the DataApi DevTools control surface before window preparation completes', async () => {
+    let resolveDevtools!: () => void
+    exposeControlSurfaceMock.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveDevtools = resolve)))
+    let settled = false
+    const pending = prepareWindow({ preference: 'all' }).then(() => (settled = true))
 
-    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
-    return pending
+    await vi.waitFor(() => expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveDevtools()
+    await pending
+    expect(settled).toBe(true)
+  })
+
+  it('continues window preparation when development DevTools fail to initialize', async () => {
+    const loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => undefined)
+    exposeControlSurfaceMock.mockRejectedValueOnce(new Error('recorder chunk failed'))
+
+    try {
+      await expect(prepareWindow({ preference: 'all' })).resolves.toBeUndefined()
+
+      expect(initI18nMock).toHaveBeenCalledTimes(1)
+      expect(preferenceService.preloadAll).toHaveBeenCalledTimes(1)
+      expect(loggerWarnSpy).toHaveBeenCalledWith('Failed to initialize DataApi DevTools', expect.any(Error))
+    } finally {
+      loggerWarnSpy.mockRestore()
+    }
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {
