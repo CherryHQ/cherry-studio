@@ -34,6 +34,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -1434,7 +1435,10 @@ export class ClaudeCodeStreamAdapter {
   private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
     // First registration wins: resume edges carry the resuming call's id, not the launch root.
     if (this.backgroundTaskToolCallIds.has(taskId)) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
+    // authoritative and must win over a resume edge that arrives before the launch receipt context.
+    const launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
+    this.backgroundTaskToolCallIds.set(taskId, launchToolCallId ?? toolCallId)
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 

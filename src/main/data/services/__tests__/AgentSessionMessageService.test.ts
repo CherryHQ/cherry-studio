@@ -552,6 +552,70 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  describe('findLaunchToolCallId (fresh-adapter task root recovery)', () => {
+    const ROOT = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d033'
+    const taskEventPart = (taskId: string, toolUseId: string) => ({
+      type: 'data-agent-task-event' as const,
+      data: { taskId, toolUseId, event: 'started' as const, status: 'in_progress' as const }
+    })
+
+    it('returns the launch tool-use id from the earliest task event row', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+
+    it('returns null when no assistant row carries the task id (user rows are ignored)', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT,
+          role: 'user',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBeNull()
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-other')).toBeNull()
+    })
+
+    it('prefers the earliest row when several carry the same task id', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d034'
+      const LATE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d035'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: EARLY,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: LATE,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'resume-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+  })
+
   describe('findFlowHostMessageId (restart anchor recovery)', () => {
     const HOST = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d030'
     const lateHostPart = () => ({
