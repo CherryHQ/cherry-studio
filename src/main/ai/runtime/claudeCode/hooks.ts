@@ -135,12 +135,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
-  // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
-  // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
-  // model can change direction without aborting. If the turn ends with no tool call, the connection
-  // emits `steer-undelivered` and the host queues it as the next turn instead.
-  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+  // Real mid-turn steer (the agent SDK has no native steer API): inject steers stashed via
+  // `redirect()` as `additionalContext` at the next tool boundary — PostToolBatch (guaranteed
+  // before the next model request) or PreToolUse; otherwise the turn-end `steer-undelivered`
+  // fallback queues them. The synchronous splice makes the take once-only across both points.
+  const takePendingSteer = (hookEventName: 'PreToolUse' | 'PostToolBatch'): HookJSONOutput => {
     // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
     // holder the connection wired, not a holder instance captured before this connection existed.
     const holder = sessionState().getSteerHolder(sessionId)
@@ -155,16 +154,27 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       holder.pending.unshift(...taken)
       return {}
     }
-    logger.info('Injecting steer into the running turn via PreToolUse hook', {
+    logger.info('Injecting steer into the running turn', {
       sessionId,
-      count: taken.length
+      count: taken.length,
+      hook: hookEventName
     })
     // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
     holder.onInjected?.(taken)
-    return {
-      continue: true,
-      hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
-    }
+    const additionalContext = wrapSteerReminder(text)
+    return hookEventName === 'PreToolUse'
+      ? { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext } }
+      : { continue: true, hookSpecificOutput: { hookEventName: 'PostToolBatch', additionalContext } }
+  }
+
+  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    return takePendingSteer('PreToolUse')
+  }
+
+  const postToolBatchSteerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PostToolBatch') return {}
+    return takePendingSteer('PostToolBatch')
   }
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
@@ -197,6 +207,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
+    PostToolUseFailure: [{ hooks: [postToolTimingHook] }],
+    PostToolBatch: [{ hooks: [postToolBatchSteerHook] }]
   }
 }
