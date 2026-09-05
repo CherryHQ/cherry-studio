@@ -286,6 +286,8 @@ type AgentSessionRuntimeEntry = {
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
+  /** Flow roots whose host row was already looked up and not found — do not re-query the DB. */
+  checkedFlowHostMisses?: Set<string>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2045,7 +2047,29 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
-    const messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    // A fresh entry (restart or session reopen) has no in-memory anchor. Recover it from the
+    // persisted host row once per root so resumed chunks land on the launch message; the looked-up
+    // rows are already committed, so seeding their accumulator from the DB needs no pending buffer.
+    if (!messageId && !entry.checkedFlowHostMisses?.has(rootToolCallId)) {
+      try {
+        const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
+        if (hostMessageId) {
+          ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
+          ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
+          messageId = hostMessageId
+        } else {
+          // Only a successful miss is cached — a transient query error must stay retryable.
+          ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
+        }
+      } catch (error) {
+        logger.warn('Failed to recover flow host row for detached subagent chunk', {
+          sessionId: entry.sessionId,
+          rootToolCallId,
+          error
+        })
+      }
+    }
     if (!messageId) {
       logger.debug('Ignoring detached subagent flow chunk without a persisted message anchor', {
         sessionId: entry.sessionId,
@@ -2083,6 +2107,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
     const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    if (!accumulator) return
     try {
       accumulator.controller.enqueue(chunk)
     } catch (error) {
@@ -2098,17 +2123,37 @@ export class AgentSessionRuntimeService extends BaseService {
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
     messageId: string
-  ): BackgroundFlowAccumulator {
+  ): BackgroundFlowAccumulator | null {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
     const existing = accumulators.get(messageId)
-    if (existing) return existing
+    // A closed accumulator is mid-drain: reusing it would enqueue into a closed controller and
+    // drop the chunk. Its replacement must be seeded from the predecessor's in-memory overlay —
+    // the persisted row still lags behind it until the pending flush writes, so seeding from the
+    // DB here would drop everything the predecessor drained.
+    if (existing && !existing.closed) return existing
+    const inheritedParts = existing?.latest?.parts as CherryMessagePart[] | undefined
 
-    const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    let persistedParts: CherryMessagePart[] | undefined
+    if (!inheritedParts) {
+      let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
+      try {
+        persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+      } catch (error) {
+        // The row was deleted while its anchors survived a reconnect — the chunk has nowhere to go.
+        logger.warn('Detached subagent flow chunk lost its host message', {
+          sessionId: entry.sessionId,
+          messageId,
+          error
+        })
+        return null
+      }
+      persistedParts = persisted.data.parts ?? []
+    }
     const seed: CherryUIMessage = {
-      id: persisted.id,
+      id: messageId,
       role: 'assistant',
-      parts: structuredClone(persisted.data.parts ?? [])
+      parts: structuredClone(inheritedParts ?? persistedParts ?? [])
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2209,23 +2254,45 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
       .then(() => {
-        const completedMessageIds = new Set<string>()
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
+        // A failed persist keeps its accumulator: its in-memory parts are the only surviving copy
+        // and the next flush (or a successor seed) must be able to retry them.
+        const failedMessageIds = new Set<string>()
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          try {
+            agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          } catch (error) {
+            // One removed row must not abort the rest of the batch.
+            logger.warn('Failed to persist detached subagent flow parts', {
+              sessionId: entry.sessionId,
+              messageId: accumulator.messageId,
+              error
+            })
+            failedMessageIds.add(accumulator.messageId)
+            continue
+          }
           completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
-        entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+        // Only drop the accumulators this flush closed — one created mid-drain belongs to newer
+        // chunks and must survive, or its content leaks silently.
+        for (const accumulator of accumulators) {
+          if (failedMessageIds.has(accumulator.messageId)) continue
+          if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+            entry.backgroundFlowAccumulators.delete(accumulator.messageId)
+          }
         }
+        // Flow anchors are retained on purpose: a SendMessage resume re-streams under the original
+        // tool-call id after these flows have drained, and must still find its host message.
         if (this.isCurrentEntry(entry)) {
           const cacheService = application.get('CacheService')
           for (const { messageId, parts } of completedFlows) {
+            // A successor created mid-drain publishes fresher overlays for the same row; the stale
+            // handoff must not overwrite them.
+            const successor = entry.backgroundFlowAccumulators?.get(messageId)
+            if (successor && successor.latest) continue
             cacheService.setShared(
               AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
               parts,
@@ -2239,6 +2306,17 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       .finally(() => {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        // A replacement created mid-drain is not in this batch — drain it too, or its chunks stay
+        // unpersisted until some unrelated turn boundary happens to fire. Runs after the
+        // single-flight field clears so the recursive call is not short-circuited by it.
+        const survivors = [...(entry.backgroundFlowAccumulators?.values() ?? [])].filter((a) => !a.closed)
+        if (
+          this.isCurrentEntry(entry) &&
+          survivors.length > 0 &&
+          !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+        ) {
+          void this.finishBackgroundFlows(entry)
+        }
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
@@ -2389,8 +2467,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    entry.flowMessageIdsByToolCallId?.clear()
-    entry.persistedFlowMessageIds?.clear()
+    // flowMessageIdsByToolCallId and persistedFlowMessageIds are deliberately kept: both record
+    // session facts (which tool call owns which row, and that the row already exists) that do not
+    // change at a connection boundary. Clearing only the persisted gate would buffer resumed
+    // chunks for an existing row into pendingBackgroundFlowChunks forever.
     entry.pendingBackgroundFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {

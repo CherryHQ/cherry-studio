@@ -16,11 +16,22 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const messageServiceMocks = vi.hoisted(() => ({
+  findLaunchToolCallId: vi.fn()
+}))
+
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
+    findLaunchToolCallId: messageServiceMocks.findLaunchToolCallId
+  }
+}))
+
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  messageServiceMocks.findLaunchToolCallId.mockReturnValue(null)
 })
 
 /**
@@ -1586,6 +1597,86 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    // A SendMessage to a still-running agent returns the queued form (no resumedAgentId, only
+    // pin.id). Its send call id must still tag that agent's subsequent content for round splitting.
+    it('re-tags content of a running agent from a queued-pin SendMessage receipt', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Message queued for delivery to agent-a1b2c3d4e5f6 at its next tool round.',
+                pin: { id: 'agent-a1b2c3d4e5f6', name: 'worker', ref: 'abc' }
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      const receiptChunk = parts.find(
+        (chunk) => chunk.type === 'tool-output-available' && chunk.toolCallId === 'send-use'
+      ) as { providerMetadata?: Record<string, Record<string, unknown>> }
+      expect(receiptChunk.providerMetadata?.cherry?.launchToolCallId).toBe('launch-use')
+
+      adapter.handleMessage({
+        type: 'stream_event',
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID()
+      } as any)
+
+      const textStart = parts.filter((chunk) => chunk.type === 'text-start').at(-1) as {
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }
+      expect(textStart.providerMetadata?.['claude-code']?.parentToolCallId).toBe('launch-use')
+      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+    })
+
     it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
       const { adapter, statusEvents } = createAdapter()
 
@@ -1695,6 +1786,75 @@ describe('ClaudeCodeStreamAdapter', () => {
           ]
         }
       ])
+    })
+
+    // A SendMessage resume re-points lifecycle edges at the resuming call's id; the navigation
+    // anchor must stay on the launch root the content actually streams under.
+    it('keeps the first navigation id for a task when resume edges report a new one', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+
+      const started = {
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        task_id: 'subagent-1',
+        tool_use_id: 'call_launch',
+        description: 'Review the patch',
+        task_type: 'subagent'
+      } as any
+      adapter.handleMessage({ ...started, uuid: crypto.randomUUID() })
+      adapter.handleMessage({
+        ...started,
+        uuid: crypto.randomUUID(),
+        tool_use_id: 'call_resume',
+        description: 'Resumed review'
+      })
+
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it('recovers the launch root from the database when the adapter starts fresh', () => {
+      // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
+      // must land on the persisted launch tool-use id, not the resuming call.
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      expect(messageServiceMocks.findLaunchToolCallId).toHaveBeenCalledWith('session-1', 'subagent-1')
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
     })
 
     it('uses local workflow task starts to enrich navigation without changing authoritative membership', () => {

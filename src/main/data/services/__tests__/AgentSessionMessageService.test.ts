@@ -552,6 +552,135 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  describe('findLaunchToolCallId (fresh-adapter task root recovery)', () => {
+    const ROOT = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d033'
+    const taskEventPart = (taskId: string, toolUseId: string) => ({
+      type: 'data-agent-task-event' as const,
+      data: { taskId, toolUseId, event: 'started' as const, status: 'in_progress' as const }
+    })
+
+    it('returns the launch tool-use id from the earliest task event row', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+
+    it('returns null when no assistant row carries the task id (user rows are ignored)', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT,
+          role: 'user',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBeNull()
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-other')).toBeNull()
+    })
+
+    it('skips task events that carry no tool-use id', async () => {
+      const ROOT2 = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d036'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT2,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              { type: 'data-agent-task-event' as const, data: { taskId: 'task-1', event: 'progress' as const } },
+              taskEventPart('task-1', 'launch-use')
+            ]
+          }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+
+    it('prefers the earliest row when several carry the same task id', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d034'
+      const LATE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d035'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: EARLY,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: LATE,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'resume-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+  })
+
+  describe('findFlowHostMessageId (restart anchor recovery)', () => {
+    const HOST = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d030'
+    const lateHostPart = () => ({
+      type: 'tool-Agent' as const,
+      toolCallId: 'root-1',
+      state: 'input-available' as const,
+      input: { prompt: 'Audit' }
+    })
+
+    it('finds the assistant row whose parts carry the launch tool call id', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: HOST, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBe(HOST)
+    })
+
+    it('returns null when no assistant row carries the id (user rows are not hosts)', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: HOST, role: 'user', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBeNull()
+    })
+
+    it('returns the earliest row when several carry the same id', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d031'
+      const LATE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d032'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: EARLY, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: LATE, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBe(EARLY)
+    })
+  })
+
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     agentSessionMessageService.saveMessage({

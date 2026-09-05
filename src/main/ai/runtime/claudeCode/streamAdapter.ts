@@ -34,6 +34,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -501,6 +502,10 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
+   *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
+   *  turn's result, so clearing would strip markers from the bulk of a continued round. */
+  private readonly resumeMarkers = new Map<string, string>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -1212,6 +1217,26 @@ export class ClaudeCodeStreamAdapter {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
       if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
     }
+    // A SendMessage receipt that resumed a background agent carries the launch root id in its
+    // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
+    // content of that agent for round splitting. Only-overwrite, never clear. A receipt for a
+    // still-running target has no resumedAgentId — its queued form only carries `pin.id`.
+    if (!isError && isRecord(normalizedResult)) {
+      const resumedAgentId =
+        typeof normalizedResult.resumedAgentId === 'string'
+          ? normalizedResult.resumedAgentId
+          : isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+            ? normalizedResult.pin.id
+            : undefined
+      if (resumedAgentId) {
+        const launchToolCallId = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        if (launchToolCallId) {
+          this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+          const cherry = providerMetadata.cherry as Record<string, unknown>
+          cherry.launchToolCallId = launchToolCallId
+        }
+      }
+    }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
       // text stays in the log written by `handlePermissionDeniedSystemMessage`.
@@ -1408,8 +1433,12 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    // First registration wins: resume edges carry the resuming call's id, not the launch root.
+    if (this.backgroundTaskToolCallIds.has(taskId)) return
+    // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
+    // authoritative and must win over a resume edge that arrives before the launch receipt context.
+    const launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
+    this.backgroundTaskToolCallIds.set(taskId, launchToolCallId ?? toolCallId)
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
@@ -1790,17 +1819,20 @@ export class ClaudeCodeStreamAdapter {
 
   private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
+    const resumedViaCallId = this.resumeMarkers.get(sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {})
       }
     }
   }
 
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
+    const resumedViaCallId = state.parentToolCallId ? this.resumeMarkers.get(state.parentToolCallId) : undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
@@ -1812,6 +1844,7 @@ export class ClaudeCodeStreamAdapter {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {}),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),
