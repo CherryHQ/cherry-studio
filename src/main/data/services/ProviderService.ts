@@ -15,7 +15,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
+import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -86,6 +86,22 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
 
 function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
+}
+
+function rowToReasoningProviderContext(
+  row: UserProviderRow,
+  metadata: ProviderDisplayMetadata
+): ReasoningProviderContext {
+  const providerRegistryService = getDataService('ProviderRegistryService')
+
+  return {
+    id: row.providerId,
+    presetProviderId: row.presetProviderId,
+    endpointConfigs:
+      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+      undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? metadata.defaultChatEndpoint
+  }
 }
 
 /**
@@ -387,6 +403,23 @@ class ProviderService {
       .all()
 
     return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+  }
+
+  /** Resolve provider registry contexts inside a caller-owned database transaction. */
+  getReasoningContextsByProviderIdsTx(
+    tx: Pick<DbType, 'select'>,
+    providerIds: Iterable<string>
+  ): Map<string, ReasoningProviderContext> {
+    const ids = [...new Set(providerIds)]
+    if (ids.length === 0) return new Map()
+
+    const rows = tx.select().from(userProviderTable).where(inArray(userProviderTable.providerId, ids)).all()
+    const contexts = new Map<string, ReasoningProviderContext>()
+    for (const row of rows) {
+      const metadata = getAvailableProviderMetadata(row)
+      if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
+    }
+    return contexts
   }
 
   /** Check whether a persisted provider is available to runtime callers in this application edition. */
