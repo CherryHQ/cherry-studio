@@ -21,9 +21,11 @@ import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  lazy,
   type MouseEvent as ReactMouseEvent,
   type MouseEventHandler,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -34,6 +36,8 @@ import { useTranslation } from 'react-i18next'
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { parseComposerLink } from '../linkToken'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
+
+const QuoteTokenEditDialog = lazy(() => import('./QuoteTokenEditDialog'))
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
@@ -71,6 +75,8 @@ export interface ComposerTokenProps {
   children?: ReactNode
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
+  onEdit?: (content: string) => void
+  getEditMaxLength?: () => number
   onRemove?: () => void
   removeLabel?: string
 }
@@ -102,11 +108,13 @@ interface ActiveComposerTokenProps extends ComposerTokenProps {
 function InlineTokenRemoveButton({
   label,
   onRemove,
+  overlay = true,
   className,
   iconClassName
 }: {
   label: string
   onRemove: () => void
+  overlay?: boolean
   className?: string
   iconClassName?: string
 }) {
@@ -122,7 +130,8 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        overlay && 'absolute inset-0',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -941,12 +950,67 @@ export function ReferenceComposerToken(props: ComposerTokenProps) {
 }
 
 export function QuoteComposerToken(props: ComposerTokenProps) {
+  const { t } = useTranslation()
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editDialogLoaded, setEditDialogLoaded] = useState(false)
+  const [editMaxLength, setEditMaxLength] = useState(0)
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
+  const canEdit = !props.readOnly && Boolean(quoteTooltipContent && props.onEdit && props.getEditMaxLength)
+  const editLabel = `${t('common.edit')} ${props.token.label}`
 
-  if (!quoteTooltipContent) return tokenElement
+  const openEditor = () => {
+    if (!canEdit || !props.getEditMaxLength) return
+    setEditMaxLength(props.getEditMaxLength())
+    setEditDialogLoaded(true)
+    setEditDialogOpen(true)
+  }
 
-  return (
+  const handleEditClick: MouseEventHandler<HTMLButtonElement> = (event) => {
+    stopTokenActionEvent(event)
+    openEditor()
+  }
+  const handleEditKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    openEditor()
+  }
+
+  const tokenElement = canEdit ? (
+    <span
+      className={cn(
+        'group/composer-token relative mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] select-none items-baseline align-baseline text-primary leading-[inherit]',
+        props.selected && 'text-primary underline decoration-primary/40 underline-offset-2',
+        props.className
+      )}
+      data-composer-token-kind={props.token.kind}
+      onMouseDown={props.onMouseDown}>
+      <button
+        type="button"
+        className="inline-flex min-w-0 max-w-full cursor-pointer appearance-none items-baseline gap-1 rounded-[4px] border-0 bg-transparent p-0 text-current leading-[inherit] [font:inherit] focus-visible:bg-accent focus-visible:outline-none"
+        aria-label={editLabel}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={handleEditClick}
+        onKeyDown={handleEditKeyDown}>
+        <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit] transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
+          {props.token.icon ? props.token.icon : tokenIconByKind.quote}
+        </span>
+        {props.children ?? <span className="min-w-0 truncate">{props.token.label}</span>}
+      </button>
+      {props.onRemove && (
+        <InlineTokenRemoveButton
+          label={props.removeLabel ?? 'Remove'}
+          onRemove={props.onRemove}
+          overlay={false}
+          className="absolute top-[0.08em] left-0 size-[1em] rounded-[4px]"
+        />
+      )}
+    </span>
+  ) : (
+    renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
+  )
+
+  const previewElement = quoteTooltipContent ? (
     <NormalTooltip
       content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{quoteTooltipContent}</div>}
       side="top"
@@ -957,6 +1021,31 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
       {tokenElement}
     </NormalTooltip>
+  ) : (
+    tokenElement
+  )
+
+  const handleSave = (content: string) => {
+    props.onEdit?.(content)
+    setEditDialogOpen(false)
+  }
+
+  return (
+    <>
+      {previewElement}
+      {editDialogLoaded && quoteTooltipContent !== undefined && (
+        <Suspense fallback={null}>
+          <QuoteTokenEditDialog
+            content={quoteTooltipContent}
+            label={props.token.label}
+            maxLength={editMaxLength}
+            open={editDialogOpen}
+            onCancel={() => setEditDialogOpen(false)}
+            onSave={handleSave}
+          />
+        </Suspense>
+      )}
+    </>
   )
 }
 
