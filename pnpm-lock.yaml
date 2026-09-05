@@ -63,7 +63,7 @@ overrides:
 patchedDependencies:
   '@ai-sdk/anthropic': a6fee9768531a088c004ca35f2889025e90645eabb4aeb2a867d169ed1462b34
   '@ai-sdk/google@3.0.113': 8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874
-  '@ai-sdk/open-responses@1.0.34': 7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648
+  '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.53': 9d370fa143fdb495dc3e197872be775853e61aa51fc2d3b3e1afd8279883e55c
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
@@ -259,7 +259,7 @@ importers:
         version: 3.0.30(zod@4.3.4)
       '@ai-sdk/open-responses':
         specifier: 1.0.34
-        version: 1.0.34(patch_hash=7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648)(zod@4.3.4)
+        version: 1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.3.4)
       '@ai-sdk/openai':
         specifier: ^3.0.53
         version: 3.0.53(patch_hash=9d370fa143fdb495dc3e197872be775853e61aa51fc2d3b3e1afd8279883e55c)(zod@4.3.4)
@@ -16126,7 +16126,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.48(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/open-responses@1.0.34(patch_hash=7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648)(zod@4.3.4)':
+  '@ai-sdk/open-responses@1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.48(zod@4.3.4)
