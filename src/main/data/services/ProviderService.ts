@@ -481,7 +481,8 @@ class ProviderService {
             isEnabled: false
           }
           return insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
+            pkColumn: userProviderTable.providerId,
+            position: 'first'
           }) as UserProviderRow
         }),
       {
