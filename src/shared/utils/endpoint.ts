@@ -27,9 +27,15 @@ export function resolveCanonicalEndpoint(
   allowedEndpointTypes?: readonly EndpointType[]
 ): CanonicalEndpointSelection {
   // Persisted/custom rows created before capabilities became required can still omit the array.
-  // Classify them as ordinary chat models unless another explicit non-chat signal is present.
+  // An endpointTypes entry still carries an unambiguous operation contract, so
+  // preserve its dedicated semantics even for those legacy rows.
   const capabilities = model.capabilities ?? []
-  const nonChat = isNonChatModel({ ...model, capabilities })
+  const hasDeclaredDedicatedEndpoint = model.endpointTypes?.some(
+    (endpointType) => endpointImpliedCapability(endpointType) !== undefined
+  )
+  // A missing image/embedding/etc. configuration must not silently fall through
+  // to a chat endpoint that happens to be configured.
+  const nonChat = isNonChatModel({ ...model, capabilities }) || Boolean(hasDeclaredDedicatedEndpoint)
   const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
     Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
@@ -44,9 +50,6 @@ export function resolveCanonicalEndpoint(
     const impliedCapability = endpointImpliedCapability(endpointType)
     return impliedCapability !== undefined && capabilities.includes(impliedCapability)
   }
-  const hasDeclaredDedicatedEndpoint = model.endpointTypes?.some(
-    (endpointType) => endpointImpliedCapability(endpointType) !== undefined
-  )
   const defaultEndpoint = provider.defaultChatEndpoint
   const preferred =
     !nonChat &&
@@ -71,7 +74,7 @@ export function resolveCanonicalEndpoint(
       if (!hasEndpointConfig(endpointType)) return false
       const impliedCapability = endpointImpliedCapability(endpointType)
       if (!nonChat) return impliedCapability === undefined
-      if (!hasExplicitEndpointCapability) return true
+      if (!hasExplicitEndpointCapability) return !hasDeclaredDedicatedEndpoint || impliedCapability !== undefined
       // General-purpose protocols such as Gemini generateContent can also serve
       // non-chat capabilities. Trust that declaration only when the row does not
       // advertise any dedicated protocol; a missing provider configuration must

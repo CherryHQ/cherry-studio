@@ -100,6 +100,20 @@ describe('resolveCanonicalEndpoint', () => {
     expect(resolveCanonicalEndpoint(chatOnlyProvider, imageModel).endpointType).toBeUndefined()
   })
 
+  it('does not fall back to chat when a legacy row omits capabilities', () => {
+    const chatOnlyProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' }
+      }
+    })
+    const legacyImageModel = model({
+      capabilities: undefined as unknown as Model['capabilities'],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(resolveCanonicalEndpoint(chatOnlyProvider, legacyImageModel).endpointType).toBeUndefined()
+  })
+
   it('does not substitute another dedicated endpoint for an explicit model capability', () => {
     const mismatchedProvider = provider({
       endpointConfigs: {
