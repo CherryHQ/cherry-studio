@@ -2,7 +2,7 @@ import { ConfirmDialog } from '@cherrystudio/ui'
 import { useMandatoryGateOpen } from '@renderer/components/MandatoryGateProvider'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useIpcOn } from '@renderer/ipc'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -37,32 +37,21 @@ function GatewayPrompt({ onOpenChange }: { onOpenChange: (open: boolean) => void
   const { t } = useTranslation()
   const { startApiGateway } = useApiGateway()
   const [enabling, setEnabling] = useState(false)
-  const failed = useRef(false)
 
   const handleConfirm = async () => {
     setEnabling(true)
     try {
       // `startApiGateway` toasts its own failure and returns false (e.g. the port is taken).
-      failed.current = !(await startApiGateway())
+      return await startApiGateway()
     } finally {
       setEnabling(false)
     }
   }
 
-  // `ConfirmDialog` closes unconditionally once `onConfirm` settles. The event that raised this
-  // prompt is transient, so letting a failed start close it would strand the user with no way back.
-  const handleOpenChange = (next: boolean) => {
-    if (!next && failed.current) {
-      failed.current = false
-      return
-    }
-    onOpenChange(next)
-  }
-
   return (
     <ConfirmDialog
       open
-      onOpenChange={handleOpenChange}
+      onOpenChange={onOpenChange}
       title={t('apiGateway.required.title')}
       description={t('apiGateway.required.description')}
       confirmText={t('apiGateway.required.confirm')}

@@ -251,7 +251,7 @@ export class MiniAppRuntimeService extends BaseService {
    *      trip whose only product is a chance to disagree.
    *
    * It is also the ONLY preload a local guest gets: `WebviewService` skips mini-app
-   * partitions, so the keyboard relay in `preload/miniApp.ts` never loads for one and host
+   * partitions, so the keyboard relay in `preload/webview.ts` never loads for one and host
    * shortcuts do not reach the host while a local guest has focus. Known gap; why it cannot
    * simply be composed in is written at that filter.
    */
