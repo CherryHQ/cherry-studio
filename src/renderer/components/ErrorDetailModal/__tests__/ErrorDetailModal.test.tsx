@@ -78,6 +78,7 @@ const translations: Record<string, string> = {
   'error.statusCode': 'Status code',
   'message.copied': 'Copied',
   'settings.doctor.actions.run_network': 'Network and services check',
+  'settings.doctor.actions.run_basic': 'Basic checks',
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
@@ -86,6 +87,7 @@ const translations: Record<string, string> = {
   'settings.doctor.domains.storage': 'Storage',
   'settings.doctor.fixes.cleanup_storage': 'Clean up storage',
   'settings.doctor.status.pass': 'Passed',
+  'settings.doctor.stale.description': 'This result is out of date.',
   'settings.doctor.title': 'System diagnostics'
 }
 
@@ -157,7 +159,10 @@ function runningDoctorState(tier: 'quick' | 'live'): DoctorState {
   }
 }
 
-function completedDoctorState(results: readonly DoctorCheckResult[] = []): DoctorState {
+function completedDoctorState(
+  results: readonly DoctorCheckResult[] = [],
+  expiresAt = new Date(Date.now() + 60_000).toISOString()
+): DoctorState {
   const now = Date.now()
   return {
     status: 'completed',
@@ -167,7 +172,7 @@ function completedDoctorState(results: readonly DoctorCheckResult[] = []): Docto
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + 60_000).toISOString(),
+      expiresAt,
       basics: {
         version: '2.0.0',
         edition: 'global',
@@ -259,6 +264,39 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(installGroup)
     expect(screen.getByText('Version and release channel')).toBeVisible()
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
+  })
+
+  it('collapses a successful AI diagnosis until the user expands it', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = runningDoctorState('quick')
+
+    render(<ErrorDetailContent cachedDiagnosis={aiDiagnosis} error={providerError} />)
+
+    const disclosure = screen.getByLabelText('AI diagnosis')
+    expect(screen.getByText(aiDiagnosis.explanation)).not.toBeVisible()
+
+    await user.click(disclosure)
+
+    expect(screen.getByText(aiDiagnosis.explanation)).toBeVisible()
+  })
+
+  it('offers a basic rerun directly from an expired-result warning', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([], new Date(Date.now() - 1).toISOString())
+    mocks.request.mockRejectedValueOnce(new Error('initial rerun failed'))
+
+    render(<ErrorDetailContent cachedDiagnosis={aiDiagnosis} error={providerError} />)
+
+    await screen.findByText('This result is out of date.')
+    const staleAlert = screen
+      .getAllByRole('alert')
+      .find((alert) => within(alert).queryByText('This result is out of date.'))
+    expect(staleAlert).toBeDefined()
+    const rerun = within(staleAlert as HTMLElement).getByRole('button', { name: 'Basic checks' })
+
+    await user.click(rerun)
+
+    await waitFor(() => expect(screen.queryByText('This result is out of date.')).not.toBeInTheDocument())
   })
 
   it('opens destructive confirmation as a child dialog without replacing the error overview', async () => {

@@ -5,6 +5,7 @@ import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckId, DoctorNavigateTarget } from '@shared/types/doctor'
 import type { UpdateInfo } from 'builder-util-runtime'
+import { RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -119,7 +120,21 @@ export function ErrorDiagnosticsPanel({
         ) : null}
 
         {controller.viewModel.isStale ? (
-          <Alert type="warning" showIcon description={t('settings.doctor.stale.description')} />
+          <Alert
+            type="warning"
+            showIcon
+            description={t('settings.doctor.stale.description')}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={controller.isInteracting}
+                onClick={() => void controller.run('quick')}>
+                <RotateCcw className="size-4" aria-hidden />
+                {t('settings.doctor.actions.run_basic')}
+              </Button>
+            }
+          />
         ) : null}
 
         {controller.session.relaunchRequired ? (
