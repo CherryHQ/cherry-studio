@@ -131,7 +131,8 @@ const formatCitationLines = (citations: Citation[]): string =>
     .join('\n\n')
 
 /**
- * Export / copy view of a message whose citations come from its own tool results.
+ * Export / copy view of a message whose citations come from its own tool results
+ * and, via `priorCitationParts`, those of earlier messages in the conversation.
  *
  * These carry no `providerMetadata.cherry.references`: the model writes `[cite:id]`
  * markers straight into the text (see `./citations`). Both halves therefore have to
@@ -156,6 +157,7 @@ export const getToolCitationExport = (
     return !!references?.length && convertReferencesToCitations(references).length > 0
   })
   if (rendersLegacyCitations) return { content, citation: '' }
-  const { content: exported, cited } = toExportableCitations(content, getParts(message))
+  const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+  const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }
 }

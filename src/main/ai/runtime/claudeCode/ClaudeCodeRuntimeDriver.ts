@@ -19,7 +19,11 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  buildAgentUserContent,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -61,6 +65,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -407,6 +412,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       key: request.key,
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
+      connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
       knowledgeBaseIds: request.knowledgeBaseIds,
@@ -604,6 +610,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
+   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
+   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   */
+  private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
+    const totalTokens =
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
+    if (totalTokens <= 0) return
+    const model = this.adapterModelId ?? this.input.modelId
+    const maxTokens = effectiveContextWindowTokens(model)
+    this.eventQueue.push({
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens,
+        maxTokens,
+        percentage: Math.min(100, (totalTokens / maxTokens) * 100),
+        model
+      }
+    })
+  }
+
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
@@ -667,6 +696,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
+        }
+
+        // A top-level message_start's input usage IS the current context occupancy — forward it so
+        // the ring advances per provider call, not only on the host's post-turn pull.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_start' &&
+          message.parent_tool_use_id == null
+        ) {
+          this.emitLiveContextUsage(message.event.message?.usage)
         }
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
@@ -1238,7 +1277,7 @@ async function materializeUserContent(
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
-  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
+  let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
@@ -1262,18 +1301,6 @@ function appendAttachmentManifest(
     .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
     .join('\n')
   const section = `Attachment manifest:\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
-  if (files.length === 0) return text
-
-  // Managed copies are stored under a UUID filename, so the display name has to travel
-  // with the path — otherwise multiple attachments are indistinguishable to the model.
-  const list = files
-    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
-    .join('\n')
-  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
