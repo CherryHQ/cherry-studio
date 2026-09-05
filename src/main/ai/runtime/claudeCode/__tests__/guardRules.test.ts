@@ -24,7 +24,7 @@ vi.mock('../skillDependencies', () => ({
 
 vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   USER_DATA_SQLITE_GUARD_REASON:
-    'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.',
+    'Access to SQLite files inside Cherry Studio user data is blocked.',
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
@@ -478,7 +478,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           effect: 'deny',
           ruleId: 'user-data-sqlite-write',
           reason:
-            'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.'
+            'Access to SQLite files inside Cherry Studio user data is blocked.'
         })
         expect(mocks.evaluateUserDataSqliteGuard).toHaveBeenCalledWith(
           expect.objectContaining({ runtime: 'claude-code', toolName: 'Write' })

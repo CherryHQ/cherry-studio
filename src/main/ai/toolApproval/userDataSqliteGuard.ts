@@ -38,7 +38,7 @@ const TOOL_BINDINGS = {
 } satisfies Record<AgentType, ToolBinding>
 
 export const USER_DATA_SQLITE_GUARD_REASON =
-  'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.'
+  'Access to SQLite files inside Cherry Studio user data is blocked.'
 
 export interface UserDataSqliteGuardDecision {
   ruleId: 'user-data-sqlite-write'
