@@ -48,7 +48,9 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'settings.doctor.entry.title' ? 'System diagnostics' : key)
+  })
 }))
 
 vi.mock('streamdown', () => ({
@@ -78,24 +80,19 @@ describe('AboutSettings diagnostics entry', () => {
     })
   })
 
-  it('indexes the visible system diagnostics row', async () => {
+  it('does not index the removed system diagnostics row', async () => {
     const { entries } = await import('../about.search')
 
     const diagnosticsEntry = entries.find((entry) => entry.anchorId === 'diagnostics')
-    expect(diagnosticsEntry?.titleKey).toBe('settings.doctor.entry.title')
-    expect(diagnosticsEntry?.aliases).toEqual(expect.arrayContaining(['diagnostics', 'bundle', '诊断', '诊断包']))
+    expect(diagnosticsEntry).toBeUndefined()
     expect(entries.some((entry) => entry.anchorId === 'debug-tools')).toBe(false)
   })
 
-  it('opens system diagnostics without retaining a separate debug entry', async () => {
-    const user = userEvent.setup()
+  it('does not expose system diagnostics or the former debug entry', async () => {
     await renderAboutSettings()
 
-    const diagnostics = screen.getByRole('button', { name: 'settings.doctor.entry.button' })
+    expect(screen.queryByText('System diagnostics')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.about.debug.open' })).not.toBeInTheDocument()
-
-    await user.click(diagnostics)
-    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks' })
   })
 
   it('opens the feedback channel chooser without bypassing it', async () => {

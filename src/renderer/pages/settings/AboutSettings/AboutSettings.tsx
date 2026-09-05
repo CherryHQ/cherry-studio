@@ -10,7 +10,6 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import { DoctorPopup } from '@renderer/components/doctor'
 import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -32,17 +31,7 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Building2,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss,
-  Stethoscope
-} from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -365,14 +354,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-diagnostics"
-          icon={<Stethoscope className="size-4.5" />}
-          title={t('settings.doctor.entry.title')}
-          actionLabel={t('settings.doctor.entry.button')}
-          onAction={() => void DoctorPopup.show({ initialPanel: 'checks' })}
         />
       </SettingGroup>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />

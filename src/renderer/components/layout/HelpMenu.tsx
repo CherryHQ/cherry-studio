@@ -1,15 +1,14 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { DoctorPopup } from '@renderer/components/doctor'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
-import { ipcApi } from '@renderer/ipc'
-import { BookOpen, CircleQuestionMark, Github, MessageSquareText, Sparkles } from 'lucide-react'
+import { BookOpen, CircleQuestionMark, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const GITHUB_REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
 const logger = loggerService.withContext('HelpMenu')
 
 export function HelpMenu({
@@ -66,10 +65,6 @@ export function HelpMenu({
       url,
       logo: AppLogo
     })
-  }
-
-  const openGitHubRepository = () => {
-    return ipcApi.request('system.shell.open_website', GITHUB_REPOSITORY_URL)
   }
 
   const trigger =
@@ -148,9 +143,13 @@ export function HelpMenu({
             <MenuItem
               size="sm"
               className="h-8"
-              icon={<Github size={16} />}
-              label={t('help.star')}
-              onClick={() => runAfterClose(openGitHubRepository)}
+              icon={<Stethoscope size={16} />}
+              label={t('settings.doctor.entry.title')}
+              onClick={() =>
+                runAfterClose(async () => {
+                  await DoctorPopup.show({ initialPanel: 'checks' })
+                })
+              }
             />
           </MenuList>
         </PopoverContent>
