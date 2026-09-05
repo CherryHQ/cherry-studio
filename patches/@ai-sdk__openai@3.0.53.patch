@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9af5b4c95 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..88da4fc8b764e94a2418216cf0ff49b076e8105e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -56,7 +56,7 @@ var openaiFailedResponseHandler = (0, import_provider_utils.createJsonErrorRespo
+ function getOpenAILanguageModelCapabilities(modelId) {
+   const supportsFlexProcessing = modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsPriorityProcessing = modelId.startsWith("gpt-4") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-nano") && !modelId.startsWith("gpt-5-chat") && !modelId.startsWith("gpt-5.4-nano") || modelId.startsWith("o3") || modelId.startsWith("o4-mini");
+-  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
++  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId === "gpt-6-astra" || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsNonReasoningParameters = modelId.startsWith("gpt-5.1") || modelId.startsWith("gpt-5.2") || modelId.startsWith("gpt-5.3") || modelId.startsWith("gpt-5.4");
+   const systemMessageMode = isReasoningModel ? "developer" : "system";
+   return {
 @@ -737,7 +737,7 @@ var OpenAIChatLanguageModel = class {
        // messages:
        messages
@@ -129,7 +138,27 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6105,6 +6130,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -4831,6 +4856,19 @@ var OpenAIResponsesLanguageModel = class {
+           });
+         }
+       }
++      if (this.modelId === "gpt-6-astra") {
++        const includeWithoutLogprobs = baseArgs.include == null ? void 0 : baseArgs.include.filter(
++          (value) => value !== "message.output_text.logprobs"
++        );
++        if (baseArgs.top_logprobs != null || (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) !== (baseArgs.include == null ? void 0 : baseArgs.include.length)) {
++          baseArgs.top_logprobs = void 0;
++          baseArgs.include = (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) === 0 ? void 0 : includeWithoutLogprobs;
++          warnings.push({
++            type: "other",
++            message: "topLogprobs is not supported for GPT-6 Astra"
++          });
++        }
++      }
+     } else {
+       if ((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) != null) {
+         warnings.push({
+@@ -6105,6 +6143,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -148,9 +177,18 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335c1deac09 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..de43315b6eef23af58f527dd69aafb6a31d88777 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -43,7 +43,7 @@ var openaiFailedResponseHandler = createJsonErrorResponseHandler({
+ function getOpenAILanguageModelCapabilities(modelId) {
+   const supportsFlexProcessing = modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsPriorityProcessing = modelId.startsWith("gpt-4") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-nano") && !modelId.startsWith("gpt-5-chat") && !modelId.startsWith("gpt-5.4-nano") || modelId.startsWith("o3") || modelId.startsWith("o4-mini");
+-  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
++  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId === "gpt-6-astra" || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsNonReasoningParameters = modelId.startsWith("gpt-5.1") || modelId.startsWith("gpt-5.2") || modelId.startsWith("gpt-5.3") || modelId.startsWith("gpt-5.4");
+   const systemMessageMode = isReasoningModel ? "developer" : "system";
+   return {
 @@ -728,7 +728,7 @@ var OpenAIChatLanguageModel = class {
        // messages:
        messages
@@ -278,7 +316,27 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6184,6 +6209,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -4910,6 +4935,19 @@ var OpenAIResponsesLanguageModel = class {
+           });
+         }
+       }
++      if (this.modelId === "gpt-6-astra") {
++        const includeWithoutLogprobs = baseArgs.include == null ? void 0 : baseArgs.include.filter(
++          (value) => value !== "message.output_text.logprobs"
++        );
++        if (baseArgs.top_logprobs != null || (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) !== (baseArgs.include == null ? void 0 : baseArgs.include.length)) {
++          baseArgs.top_logprobs = void 0;
++          baseArgs.include = (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) === 0 ? void 0 : includeWithoutLogprobs;
++          warnings.push({
++            type: "other",
++            message: "topLogprobs is not supported for GPT-6 Astra"
++          });
++        }
++      }
+     } else {
+       if ((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) != null) {
+         warnings.push({
+@@ -6184,6 +6222,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -297,9 +355,18 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e613025a06a07 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..d9c8b55e604828927eb9710ee5fc9a679570fbf5 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
+@@ -83,7 +83,7 @@ var openaiFailedResponseHandler = (0, import_provider_utils.createJsonErrorRespo
+ function getOpenAILanguageModelCapabilities(modelId) {
+   const supportsFlexProcessing = modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsPriorityProcessing = modelId.startsWith("gpt-4") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-nano") && !modelId.startsWith("gpt-5-chat") && !modelId.startsWith("gpt-5.4-nano") || modelId.startsWith("o3") || modelId.startsWith("o4-mini");
+-  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
++  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId === "gpt-6-astra" || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsNonReasoningParameters = modelId.startsWith("gpt-5.1") || modelId.startsWith("gpt-5.2") || modelId.startsWith("gpt-5.3") || modelId.startsWith("gpt-5.4");
+   const systemMessageMode = isReasoningModel ? "developer" : "system";
+   return {
 @@ -764,7 +764,7 @@ var OpenAIChatLanguageModel = class {
        // messages:
        messages
@@ -427,7 +494,27 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6366,6 +6391,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -5092,6 +5117,19 @@ var OpenAIResponsesLanguageModel = class {
+           });
+         }
+       }
++      if (this.modelId === "gpt-6-astra") {
++        const includeWithoutLogprobs = baseArgs.include == null ? void 0 : baseArgs.include.filter(
++          (value) => value !== "message.output_text.logprobs"
++        );
++        if (baseArgs.top_logprobs != null || (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) !== (baseArgs.include == null ? void 0 : baseArgs.include.length)) {
++          baseArgs.top_logprobs = void 0;
++          baseArgs.include = (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) === 0 ? void 0 : includeWithoutLogprobs;
++          warnings.push({
++            type: "other",
++            message: "topLogprobs is not supported for GPT-6 Astra"
++          });
++        }
++      }
+     } else {
+       if ((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) != null) {
+         warnings.push({
+@@ -6366,6 +6404,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -446,9 +533,18 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe9cd7493b 100644
+index db50beda01459008c836cd5648e024340fe31e90..d9eca1ed62f55d2ddd5043d4d0de5a4386a7f249 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
+@@ -35,7 +35,7 @@ var openaiFailedResponseHandler = createJsonErrorResponseHandler({
+ function getOpenAILanguageModelCapabilities(modelId) {
+   const supportsFlexProcessing = modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsPriorityProcessing = modelId.startsWith("gpt-4") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-nano") && !modelId.startsWith("gpt-5-chat") && !modelId.startsWith("gpt-5.4-nano") || modelId.startsWith("o3") || modelId.startsWith("o4-mini");
+-  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
++  const isReasoningModel = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4-mini") || modelId === "gpt-6-astra" || modelId.startsWith("gpt-5") && !modelId.startsWith("gpt-5-chat");
+   const supportsNonReasoningParameters = modelId.startsWith("gpt-5.1") || modelId.startsWith("gpt-5.2") || modelId.startsWith("gpt-5.3") || modelId.startsWith("gpt-5.4");
+   const systemMessageMode = isReasoningModel ? "developer" : "system";
+   return {
 @@ -720,7 +720,7 @@ var OpenAIChatLanguageModel = class {
        // messages:
        messages
@@ -576,7 +672,27 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6422,6 +6447,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -5148,6 +5173,19 @@ var OpenAIResponsesLanguageModel = class {
+           });
+         }
+       }
++      if (this.modelId === "gpt-6-astra") {
++        const includeWithoutLogprobs = baseArgs.include == null ? void 0 : baseArgs.include.filter(
++          (value) => value !== "message.output_text.logprobs"
++        );
++        if (baseArgs.top_logprobs != null || (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) !== (baseArgs.include == null ? void 0 : baseArgs.include.length)) {
++          baseArgs.top_logprobs = void 0;
++          baseArgs.include = (includeWithoutLogprobs == null ? void 0 : includeWithoutLogprobs.length) === 0 ? void 0 : includeWithoutLogprobs;
++          warnings.push({
++            type: "other",
++            message: "topLogprobs is not supported for GPT-6 Astra"
++          });
++        }
++      }
+     } else {
+       if ((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) != null) {
+         warnings.push({
+@@ -6422,6 +6460,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -651,6 +767,16 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
        warnings,
        usage:
          response.usage != null
+diff --git a/src/openai-language-model-capabilities.ts b/src/openai-language-model-capabilities.ts
+index 3d926d6cadd52b4efe71e5373020d3767bd49779..5a1a6390e3ca132d654cae6c3c720b39419572b9 100644
+--- a/src/openai-language-model-capabilities.ts
++++ b/src/openai-language-model-capabilities.ts
+@@ -33,4 +33,5 @@ export function getOpenAILanguageModelCapabilities(
+     modelId.startsWith('o1') ||
+     modelId.startsWith('o3') ||
+     modelId.startsWith('o4-mini') ||
++    modelId === 'gpt-6-astra' ||
+     (modelId.startsWith('gpt-5') && !modelId.startsWith('gpt-5-chat'));
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
 index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d774aecbb 100644
 --- a/src/responses/convert-to-openai-responses-input.ts
@@ -722,7 +848,7 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b611
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828b14018cb 100644
+index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..407c02a5bf8f3848b872c12b79261a45bdc5865e 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -358,7 +358,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
@@ -734,7 +860,28 @@ index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828
        // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
-@@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -385,6 +385,20 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+           });
+         }
+       }
++
++      if (this.modelId === 'gpt-6-astra') {
++        const includeWithoutLogprobs = baseArgs.include?.filter(
++          value => value !== 'message.output_text.logprobs',
++        );
++        if (baseArgs.top_logprobs != null || includeWithoutLogprobs?.length !== baseArgs.include?.length) {
++          baseArgs.top_logprobs = undefined;
++          baseArgs.include = includeWithoutLogprobs?.length === 0 ? undefined : includeWithoutLogprobs;
++          warnings.push({
++            type: 'other',
++            message: 'topLogprobs is not supported for GPT-6 Astra',
++          });
++        }
++      }
+     } else {
+       if (openaiOptions?.reasoningEffort != null) {
+         warnings.push({
+@@ -1969,6 +1983,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });
