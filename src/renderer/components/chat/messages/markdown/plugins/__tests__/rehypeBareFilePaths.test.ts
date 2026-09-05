@@ -53,6 +53,14 @@ describe('findBareFilePathMatches', () => {
     expect(paths('Generated /tmp/report.pdf README.md', 'posix')).toEqual(['/tmp/report.pdf'])
   })
 
+  it('does not emit a valid prefix for an unquoted directory path with spaces', () => {
+    expect(paths('Open /Users/lee/My Project now', 'posix')).toEqual([])
+  })
+
+  it('does not join a dotfile with the following filename-like token', () => {
+    expect(paths('Open /tmp/.env README.md', 'posix')).toEqual(['/tmp/.env'])
+  })
+
   it('keeps paths followed by line and tab boundaries', () => {
     expect(paths('/tmp/first.txt\n/tmp/second.txt\t~/third.txt', 'posix')).toEqual([
       '/tmp/first.txt',

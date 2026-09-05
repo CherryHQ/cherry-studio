@@ -226,6 +226,16 @@ function hasClearFileExtension(value: string): boolean {
   return /^[^.].*\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(finalSegment)
 }
 
+function hasFilenameLikeLeaf(value: string): boolean {
+  const finalSegment = value.split(/[\\/]/).at(-1) ?? ''
+  if (hasClearFileExtension(value)) return true
+
+  // A dotfile is already a complete filename. Treating it as a directory
+  // makes the whitespace heuristic incorrectly join the next prose token
+  // (for example `/tmp/.env README.md`).
+  return /^\.[^.]+$/u.test(finalSegment)
+}
+
 export function findBareFilePathMatches(value: string, platform: BareFilePathPlatform): BareFilePathMatch[] {
   const matches: BareFilePathMatch[] = []
   const closingQuotePositions = collectClosingQuotePositions(value)
@@ -262,7 +272,8 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
     )
       end += 1
     let candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
-    while (platform === 'posix' && !hasClearFileExtension(candidate) && looksLikeUnquotedPathContinuation(value, end)) {
+    let continuedAcrossWhitespace = false
+    while (platform === 'posix' && !hasFilenameLikeLeaf(candidate) && looksLikeUnquotedPathContinuation(value, end)) {
       let nextStart = end
       while (value[nextStart] === ' ' || value[nextStart] === '\t') nextStart += 1
       let nextEnd = nextStart
@@ -274,13 +285,20 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
         nextEnd += 1
       end = nextEnd
       candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
+      continuedAcrossWhitespace = true
     }
     const scannedEnd = end
     if (end < value.length && hasControlCharacter(value[end]) && !['\t', '\n', '\r'].includes(value[end])) {
       index = Math.max(index, scannedEnd - 1)
       continue
     }
-    if (!isValidPath(candidate, platform, /\s/u.test(candidate))) {
+    const hasAmbiguousWhitespaceBoundary =
+      platform === 'posix' &&
+      !hasFilenameLikeLeaf(candidate) &&
+      !continuedAcrossWhitespace &&
+      scannedEnd === index + candidate.length &&
+      /\s/u.test(value[scannedEnd] ?? '')
+    if (hasAmbiguousWhitespaceBoundary || !isValidPath(candidate, platform, continuedAcrossWhitespace)) {
       index = Math.max(index, scannedEnd - 1)
       continue
     }
