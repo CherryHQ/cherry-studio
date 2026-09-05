@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
   request: vi.fn(),
+  search: {} as Record<string, unknown>,
   showDoctor: vi.fn()
 }))
 
@@ -15,6 +17,12 @@ vi.mock('@renderer/components/doctor', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useLocation: () => ({ pathname: '/settings/about' }),
+  useNavigate: () => mocks.navigate,
+  useSearch: () => mocks.search
 }))
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
@@ -74,6 +82,7 @@ async function renderAboutSettings() {
 describe('AboutSettings diagnostics entry', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.search = {}
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'app.get_info') return { isPortable: false, version: '2.0.0' }
       return undefined
@@ -95,6 +104,24 @@ describe('AboutSettings diagnostics entry', () => {
     expect(screen.queryByRole('button', { name: 'settings.about.debug.open' })).not.toBeInTheDocument()
   })
 
+  it('opens an externally requested Doctor panel and consumes only that query', async () => {
+    mocks.search = { doctor: 'report', focusId: 'support' }
+
+    await renderAboutSettings()
+
+    await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/settings/about',
+      search: expect.any(Function),
+      replace: true
+    })
+
+    const updateSearch = mocks.navigate.mock.calls[0][0].search as (
+      previous: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(updateSearch({ doctor: 'report', focusId: 'support' })).toEqual({ focusId: 'support' })
+  })
+
   it('opens the feedback channel chooser without bypassing it', async () => {
     const user = userEvent.setup()
     await renderAboutSettings()
@@ -109,6 +136,7 @@ describe('AboutSettings diagnostics entry', () => {
 describe('AboutSettings repository controls accessibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.search = {}
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'app.get_info') return { isPortable: false, version: '2.0.0' }
       return undefined
