@@ -4,7 +4,7 @@ import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCherryCloudModelFilter } from '../useCherryCloudModelAvailability'
+import { useCherryCloudModelAvailability, useCherryCloudModelFilter } from '../useCherryCloudModelAvailability'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn()
@@ -68,5 +68,26 @@ describe('useCherryCloudModelFilter', () => {
     expect(result.current.chat(shared)).toBe(true)
     expect(result.current.translate(shared)).toBe(true)
     expect(result.current.chat(regular)).toBe(true)
+  })
+
+  it('reports an exhausted paid cloud model without classifying it as free', async () => {
+    const paidExhausted = model('cherryai-subscription', 'paid-exhausted')
+    const regular = model('openai', 'gpt-4o')
+    mocks.ipcRequest.mockResolvedValue({
+      entitledModelIds: [paidExhausted.id],
+      freeModelIds: [],
+      availableModelIdsByFeature: {
+        agent: [paidExhausted.id],
+        chat: [],
+        translate: []
+      },
+      quotaExhaustedModelIds: [paidExhausted.id]
+    })
+
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
+
+    await waitFor(() => expect(result.current.isModelQuotaExhausted(paidExhausted)).toBe(true))
+    expect(result.current.getModelFreeQuotaStatus(paidExhausted)).toBeUndefined()
+    expect(result.current.isModelQuotaExhausted(regular)).toBe(false)
   })
 })
