@@ -1,12 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import type { Topic } from '@renderer/types/topic'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
+import { toMessageListItem } from '../../utils/messageListItem'
 import MessageTokens from '../MessageTokens'
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -35,6 +38,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 const translations: Record<string, string> = {
   'chat.message.token_details.cache_read': 'Cache read',
   'chat.message.token_details.cache_write': 'Cache write',
+  'chat.message.token_details.cost': 'Cost',
+  'chat.message.token_details.cost_billed': 'Billed by provider',
+  'chat.message.token_details.cost_estimated': 'Estimated',
   'chat.message.token_details.end_to_end_throughput': 'End-to-end throughput',
   'chat.message.token_details.input': 'Input',
   'chat.message.token_details.input_breakdown': 'Input breakdown',
@@ -177,12 +183,64 @@ describe('MessageTokens', () => {
     renderWithProvider(
       createMessage('assistant', {
         inputTokens: 1234,
-        outputTokens: 2048,
-        totalTokens: 3282
+        outputTokens: 2048
       })
     )
 
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
+  })
+
+  it('shows unavailable instead of a false zero when a completed runtime reports empty token counters', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      })
+    )
+
+    expect(screen.getByRole('button', { name: '— Tokens' })).toHaveClass('message-tokens')
+    expect(screen.queryByRole('button', { name: '0 Tokens' })).not.toBeInTheDocument()
+  })
+
+  it('shows unavailable after reloading an Agent message with cost but no token counts', () => {
+    const row = {
+      id: 'agent-message-1',
+      sessionId: 'agent-session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'Completed' }] },
+      searchableText: 'Completed',
+      status: 'success',
+      modelId: 'claude-code::claude-sonnet-4-5',
+      messageSnapshot: null,
+      stats: {
+        requestCount: 1,
+        costs: [
+          {
+            currency: 'USD',
+            amount: 0.0123,
+            providerReportedRequestCount: 1,
+            computedRequestCount: 0
+          }
+        ],
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      },
+      runtimeResumeToken: 'claude-session-1',
+      delivery: null,
+      createdAt: '2026-09-04T00:00:00.000Z',
+      updatedAt: '2026-09-04T00:00:01.000Z'
+    } as AgentSessionMessageEntity
+    const reloadedMessage = toMessageListItem(toAgentSessionUIMessage(row), { topicId: row.sessionId })
+
+    renderWithProvider(reloadedMessage, 'agent-session')
+
+    openDetails()
+
+    expect(screen.getByRole('button', { name: '— Tokens' })).toHaveClass('message-tokens')
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('Input—')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('Output—')
+    expect(screen.getByTestId('message-cost')).toHaveTextContent('$0.0123')
   })
 
   it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {

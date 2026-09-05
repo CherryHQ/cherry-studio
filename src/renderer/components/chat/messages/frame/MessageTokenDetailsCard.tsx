@@ -12,6 +12,7 @@ import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import {
   buildMessagePerformanceViewModel,
+  getMessageTokenUsage,
   type MessagePerformanceLaneId,
   type MessagePerformanceViewModel
 } from './messagePerformance'
@@ -207,9 +208,8 @@ const MessageTokenDetailsCard = ({
     return null
   }
 
-  const inputTokens = stats.inputTokens ?? 0
-  const outputTokens = stats.outputTokens ?? 0
-  const reasoningTokens = Math.min(Math.max(stats.outputTokenDetails?.reasoningTokens ?? 0, 0), outputTokens)
+  const { inputTokens, outputTokens } = getMessageTokenUsage(stats)
+  const reasoningTokens = Math.min(Math.max(stats.outputTokenDetails?.reasoningTokens ?? 0, 0), outputTokens ?? 0)
   const cacheReadTokens = stats.inputTokenDetails?.cacheReadTokens ?? 0
   const cacheWriteTokens = stats.inputTokenDetails?.cacheWriteTokens ?? 0
   const noCacheTokens = stats.inputTokenDetails?.noCacheTokens ?? 0
@@ -218,6 +218,7 @@ const MessageTokenDetailsCard = ({
   const createdAtLabel = Number.isFinite(createdAt) ? dateFormatter.format(new Date(createdAt)) : undefined
   const formatTokens = (value: number) =>
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
+  const formatOptionalTokens = (value: number | undefined) => (value === undefined ? '—' : formatTokens(value))
   const formatMilliseconds = durationFormatter
   const costLabel = stats.costs
     ?.map((cost) =>
@@ -346,12 +347,12 @@ const MessageTokenDetailsCard = ({
           <PrimaryMetric
             testId="message-metric-input"
             label={t('chat.message.token_details.input')}
-            value={formatTokens(inputTokens)}
+            value={formatOptionalTokens(inputTokens)}
           />
           <PrimaryMetric
             testId="message-metric-output"
             label={t('chat.message.token_details.output')}
-            value={formatTokens(outputTokens)}
+            value={formatOptionalTokens(outputTokens)}
           />
           <PrimaryMetric
             testId="message-metric-speed"
