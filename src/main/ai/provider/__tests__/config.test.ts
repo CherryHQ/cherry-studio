@@ -1243,6 +1243,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(host)
     })
 
+    it('splits a full endpoint URL (no #) into baseURL + endpoint so the SDK does not append /chat/completions twice (REGRESSION #18540)', async () => {
+      // User pastes a complete endpoint URL like
+      //   https://ark.cn-beijing.volces.com/api/v3/chat/completions
+      // as the openai-compatible baseUrl. hasApiVersion must keep formatApiHost from
+      // appending /v1, and routeToEndpoint must split off the endpoint so the SDK
+      // does not also append /chat/completions. Without both, the wire path becomes
+      // /chat/completions/chat/completions and the request 404s.
+      const baseUrl = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
+      const provider = makeProvider({
+        id: 'b2c3d4-uuid',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'openai-compatible' }
+        }
+      })
+      const model = makeModel({ providerId: 'b2c3d4-uuid', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
+      expect(resolved.endpoint).toBe('chat/completions')
+    })
+
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
       const provider = makeProvider({
         id: 'doubao',

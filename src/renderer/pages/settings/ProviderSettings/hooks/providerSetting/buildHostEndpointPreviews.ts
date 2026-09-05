@@ -1,5 +1,10 @@
-import { formatApiHost } from '@renderer/utils/api'
-import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import {
+  formatApiHost,
+  formatOllamaApiHost,
+  formatVertexApiHost,
+  isWithTrailingSharp,
+  routeToEndpoint
+} from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import {
@@ -20,11 +25,12 @@ export function buildHostEndpointPreviews(params: {
   providerAnthropicHost: string
 }) {
   const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
+  const { baseURL: host } = routeToEndpoint(apiHost)
   const appendVersion = !isWithTrailingSharp(apiHost)
   let formattedHost: string
 
   if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-    formattedHost = formatApiHost(anthropicApiHost || apiHost, appendVersion)
+    formattedHost = formatApiHost(anthropicApiHost || host, appendVersion)
   } else if (
     provider.id === 'copilot' ||
     isCherryAIProvider(provider) ||
@@ -32,9 +38,9 @@ export function buildHostEndpointPreviews(params: {
     isNewApiProvider(provider) ||
     isAzureOpenAIProvider(provider)
   ) {
-    formattedHost = formatApiHost(apiHost, false)
+    formattedHost = formatApiHost(host, false)
   } else if (primaryEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) {
-    formattedHost = formatOllamaApiHost(apiHost)
+    formattedHost = formatOllamaApiHost(host)
   } else if (isVertexProvider(provider)) {
     // Ahead of the generic google-generate-content rule, mirroring the request
     // path in `main/ai/provider/config.ts` — Vertex owns its own base URL.
@@ -43,11 +49,11 @@ export function buildHostEndpointPreviews(params: {
     // during onboarding — formatVertexApiHost still produces a usable preview.
     const project = authConfig?.type === 'iam-gcp' ? authConfig.project : ''
     const location = authConfig?.type === 'iam-gcp' ? authConfig.location : ''
-    formattedHost = formatVertexApiHost({ apiHost, project, location })
+    formattedHost = formatVertexApiHost({ apiHost: host, project, location })
   } else if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-    formattedHost = formatApiHost(apiHost, appendVersion, 'v1beta')
+    formattedHost = formatApiHost(host, appendVersion, 'v1beta')
   } else {
-    formattedHost = formatApiHost(apiHost, appendVersion)
+    formattedHost = formatApiHost(host, appendVersion)
   }
 
   const hostPreview = (() => {
