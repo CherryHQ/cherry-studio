@@ -211,9 +211,6 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             <DropdownMenuItem onSelect={() => controller.setPanel('export')}>
               {t('settings.doctor.panels.export')}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => controller.setPanel('report')}>
-              {t('settings.doctor.actions.report_problem')}
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
