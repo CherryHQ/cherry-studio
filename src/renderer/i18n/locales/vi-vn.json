@@ -2978,7 +2978,7 @@
   "provider.cherryin": "CherryIN",
   "provider.claude-code": "Claude Code",
   "provider.copilot": "GitHub Copilot",
-  "provider.dashscope": "Alibaba Cloud",
+  "provider.dashscope": "Qwen AI Platform",
   "provider.deepseek": "DeepSeek",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",
