@@ -17,10 +17,12 @@
 
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import {
   type ImageGenerationMode,
   type ImageGenerationSupport,
@@ -103,6 +105,13 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   if (!uniqueModelId) return null
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  try {
+    modelService.getByKey(providerId, modelId)
+  } catch (error) {
+    if (isDataApiNotFoundError(error)) return null
+    throw error
+  }
+
   return {
     uniqueModelId,
     support: providerRegistryService.getImageGenerationSupport(providerId, modelId)

@@ -3238,6 +3238,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // before trace mode was on can never be reused (and the miss disposes it).
     expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(
       expect.objectContaining({
+        connectionRebuildSignature: 'traced-sig',
         options: expect.objectContaining({
           env: expect.objectContaining({ TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01` })
         })

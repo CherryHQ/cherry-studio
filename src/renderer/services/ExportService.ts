@@ -27,6 +27,9 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
+import type { ContentHash } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
@@ -527,16 +530,83 @@ const buildMarkdownWithImages = async (
   return { markdown: await build(overrides), pendingWrites }
 }
 
-/** Folder mode: write image assets next to the .md; failures warn but keep the .md. */
-const exportImageAssets = async (dirPath: string, pendingWrites: PendingImageWrite[]): Promise<void> => {
-  const failedCount = await writeImageAssets(dirPath, pendingWrites)
-  if (failedCount > 0) {
-    toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failedCount }))
+const escapeAssetName = (fileName: string): string => fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Strips the failed images' assets/ links from the just-written .md; the atomic
+// conditional write refuses when the file changed since expectedVersion (user edits win).
+const repairDanglingImageLinks = async (
+  mdPath: string,
+  markdown: string,
+  failedFileNames: string[],
+  expectedVersion: FileVersion,
+  expectedContentHash: ContentHash | undefined
+): Promise<void> => {
+  let repaired = markdown
+  for (const fileName of failedFileNames) {
+    // 'g' clears every occurrence of a deduped asset name; the alt class excludes
+    // '[' and '\n' so a stray unpaired '![' in user text can never widen the match.
+    repaired = repaired.replace(
+      new RegExp(`!\\[[^\\][\\n]*\\]\\(assets/${escapeAssetName(fileName)}\\)\\n{0,2}`, 'g'),
+      ''
+    )
+  }
+  if (repaired === markdown) {
+    logger.warn('No dangling image links matched during the markdown repair', { mdPath, failedFileNames })
+    return
+  }
+  await ipcApi.request('file.write_if_unchanged', {
+    handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+    data: new TextEncoder().encode(repaired),
+    expectedVersion,
+    expectedContentHash
+  })
+}
+
+// Returns the version+hash pair only while the .md still holds exactly our markdown —
+// an external rewrite voids the repair; the hash closes same-second mtime ambiguity (FAT32/SMB/NFS).
+const readWrittenMarkdownVersion = async (
+  mdPath: string,
+  markdown: string
+): Promise<{ version: FileVersion; contentHash?: ContentHash } | null> => {
+  try {
+    const { content, version, contentHash } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    })
+    return new TextDecoder().decode(content) === markdown ? { version, contentHash } : null
+  } catch {
+    return null
   }
 }
 
-export const exportTopicAsMarkdown = async (
+/** Folder mode: write image assets next to the .md; failed images get their links stripped and warn. */
+const exportImageAssets = async (
+  mdPath: string,
+  markdown: string,
+  pendingWrites: PendingImageWrite[]
+): Promise<void> => {
+  if (pendingWrites.length === 0) return
+  const failed = await writeImageAssets(dirOf(mdPath), pendingWrites)
+  if (failed.length === 0) return
+  // Read back only on failure — the content-equality gate protects external
+  // rewrites, and the all-assets-succeeded path pays no extra IPC.
+  const snapshot = await readWrittenMarkdownVersion(mdPath, markdown)
+  if (snapshot) {
+    try {
+      await repairDanglingImageLinks(mdPath, markdown, failed, snapshot.version, snapshot.contentHash)
+    } catch (error) {
+      logger.warn('Failed to strip dangling image links from the exported markdown', { mdPath, error })
+    }
+  } else {
+    logger.warn('Skipped the dangling-link repair: the exported .md no longer holds this export', { mdPath })
+  }
+  toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failed.length }))
+}
+
+const exportTopicMessagesAsMarkdown = async (
   topic: Topic,
+  fileTitle: string,
+  loadMessages: () => ReturnType<typeof getTopicMessages>,
   exportReasoning?: boolean,
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
@@ -551,8 +621,8 @@ export const exportTopicAsMarkdown = async (
   const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
-      const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const messages = await getTopicMessages(topic.id)
+      const fileName = removeSpecialCharactersForFileName(fileTitle) + '.md'
+      const messages = await loadMessages()
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
@@ -561,7 +631,7 @@ export const exportTopicAsMarkdown = async (
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
-        await exportImageAssets(dirOf(result), built.pendingWrites)
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -573,16 +643,17 @@ export const exportTopicAsMarkdown = async (
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const messages = await getTopicMessages(topic.id)
+      const fileName = removeSpecialCharactersForFileName(fileTitle) + ` ${timestamp}.md`
+      const messages = await loadMessages()
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
         chooseImageMode
       )
       if (!built) return
-      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
-      await exportImageAssets(markdownExportPath, built.pendingWrites)
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -592,6 +663,36 @@ export const exportTopicAsMarkdown = async (
     }
   }
 }
+
+export const exportTopicAsMarkdown = async (
+  topic: Topic,
+  exportReasoning?: boolean,
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
+): Promise<void> =>
+  exportTopicMessagesAsMarkdown(
+    topic,
+    topic.name,
+    () => getTopicMessages(topic.id),
+    exportReasoning,
+    excludeCitations,
+    chooseImageMode
+  )
+
+export const exportTopicBranchAsMarkdown = async (
+  topic: Topic,
+  branch: { nodeId: string; name: string },
+  exportReasoning?: boolean,
+  chooseImageMode?: ImageModeChooser
+): Promise<void> =>
+  exportTopicMessagesAsMarkdown(
+    topic,
+    `${topic.name} - ${branch.name}`,
+    () => getTopicMessages(topic.id, { nodeId: branch.nodeId, includeSiblings: false }),
+    exportReasoning,
+    undefined,
+    chooseImageMode
+  )
 
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,
@@ -622,7 +723,7 @@ export const exportMessageAsMarkdown = async (
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
-        await exportImageAssets(dirOf(result), built.pendingWrites)
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -638,8 +739,9 @@ export const exportMessageAsMarkdown = async (
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
       const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
       if (!built) return
-      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
-      await exportImageAssets(markdownExportPath, built.pendingWrites)
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))

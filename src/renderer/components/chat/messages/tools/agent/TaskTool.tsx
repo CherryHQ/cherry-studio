@@ -1,4 +1,4 @@
-import { Markdown } from '@cherrystudio/ui'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
@@ -92,7 +92,7 @@ function TaskTextOutput({ text, t }: { text: string; t: ReturnType<typeof useTra
     <div>
       <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
       <div className="rounded-md bg-muted/30 p-2">
-        <Markdown id="task-output">{text}</Markdown>
+        <StaticMarkdown>{text}</StaticMarkdown>
       </div>
     </div>
   )
