@@ -118,12 +118,15 @@ async function sendDebuggerCommand<T>(
   debuggerSession: Electron.Debugger,
   method: string,
   params: Record<string, unknown> | undefined,
-  deadline: number
+  deadline: number,
+  signal?: AbortSignal
 ): Promise<T> {
+  signal?.throwIfAborted()
   const remaining = deadline - Date.now()
   if (remaining <= 0) throw new AccessibilityCaptureTimeout('Accessibility capture timed out')
 
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  let rejectAborted: (() => void) | undefined
   try {
     return (await Promise.race([
       debuggerSession.sendCommand(method, params),
@@ -132,10 +135,19 @@ async function sendDebuggerCommand<T>(
           () => reject(new AccessibilityCaptureTimeout('Accessibility capture timed out')),
           remaining
         )
-      })
+      }),
+      ...(signal
+        ? [
+            new Promise<never>((_, reject) => {
+              rejectAborted = () => reject(signal.reason)
+              signal.addEventListener('abort', rejectAborted, { once: true })
+            })
+          ]
+        : [])
     ])) as T
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle)
+    if (signal && rejectAborted) signal.removeEventListener('abort', rejectAborted)
   }
 }
 
@@ -143,9 +155,10 @@ async function sendDebuggerCleanupCommand(
   debuggerSession: Electron.Debugger,
   method: string,
   params: Record<string, unknown> | undefined,
-  deadline: number
+  deadline: number,
+  signal?: AbortSignal
 ): Promise<void> {
-  if (!debuggerSession.isAttached() || Date.now() >= deadline) return
+  if (signal?.aborted || !debuggerSession.isAttached() || Date.now() >= deadline) return
   await sendDebuggerCommand(debuggerSession, method, params, deadline).catch(() => undefined)
 }
 
@@ -154,7 +167,8 @@ async function captureAnnotationAccessibility(
   executionContextId: number,
   annotation: WebviewAnnotation,
   budget: AccessibilityCaptureBudget,
-  deadline: number
+  deadline: number,
+  signal?: AbortSignal
 ): Promise<AccessibilityContext> {
   if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
   if (Date.now() >= deadline) return createAccessibilityContext('timeout')
@@ -171,7 +185,8 @@ async function captureAnnotationAccessibility(
         returnByValue: false,
         silent: true
       },
-      deadline
+      deadline,
+      signal
     )
     if (evaluated.exceptionDetails) throw new Error('Element selector evaluation failed')
     const objectId = evaluated.result?.objectId
@@ -183,7 +198,8 @@ async function captureAnnotationAccessibility(
       debuggerSession,
       'DOM.describeNode',
       { objectId },
-      deadline
+      deadline,
+      signal
     )
     const backendNodeId = described.node?.backendNodeId
     if (!backendNodeId) throw new Error('Selected element has no backend DOM node')
@@ -192,7 +208,8 @@ async function captureAnnotationAccessibility(
       debuggerSession,
       'Accessibility.getAXNodeAndAncestors',
       { backendNodeId },
-      deadline
+      deadline,
+      signal
     )
     const ancestorNodes = ancestorsResult.nodes ?? []
     const selectedNode = ancestorNodes.find((node) => node.backendDOMNodeId === backendNodeId) ?? ancestorNodes[0]
@@ -244,7 +261,8 @@ async function captureAnnotationAccessibility(
             id: node.nodeId,
             ...(node.frameId ? { frameId: node.frameId } : {})
           },
-          deadline
+          deadline,
+          signal
         )
         for (const child of childResult.nodes ?? []) {
           if (selectedFrameId && child.frameId && child.frameId !== selectedFrameId) continue
@@ -270,7 +288,7 @@ async function captureAnnotationAccessibility(
       truncated: pathTruncated || walkState.truncated
     })
   } finally {
-    await sendDebuggerCleanupCommand(debuggerSession, 'Runtime.releaseObjectGroup', { objectGroup }, deadline)
+    await sendDebuggerCleanupCommand(debuggerSession, 'Runtime.releaseObjectGroup', { objectGroup }, deadline, signal)
   }
 }
 
@@ -278,7 +296,8 @@ async function captureDocumentAccessibility(
   guest: Electron.WebContents,
   document: AnnotationDocument,
   budget: AccessibilityCaptureBudget,
-  deadline: number
+  deadline: number,
+  signal?: AbortSignal
 ): Promise<ResolvedAnnotation[]> {
   const withStatus = (status: AccessibilityStatus) =>
     document.annotations.map((annotation) => ({
@@ -308,14 +327,15 @@ async function captureDocumentAccessibility(
 
     let executionContextId: number
     try {
-      await sendDebuggerCommand(debuggerSession, 'Runtime.enable', undefined, deadline)
-      await sendDebuggerCommand(debuggerSession, 'Accessibility.enable', undefined, deadline)
+      await sendDebuggerCommand(debuggerSession, 'Runtime.enable', undefined, deadline, signal)
+      await sendDebuggerCommand(debuggerSession, 'Accessibility.enable', undefined, deadline, signal)
 
       const frameTreeResult = await sendDebuggerCommand<CdpPageGetFrameTreeResult>(
         debuggerSession,
         'Page.getFrameTree',
         undefined,
-        deadline
+        deadline,
+        signal
       )
       const frameId = frameTreeResult.frameTree?.frame?.id
       if (!frameId) throw new Error('Webview main frame is unavailable')
@@ -328,7 +348,8 @@ async function captureDocumentAccessibility(
           worldName: ACCESSIBILITY_WORLD_NAME,
           grantUniveralAccess: false
         },
-        deadline
+        deadline,
+        signal
       )
       if (typeof isolatedWorld.executionContextId !== 'number') {
         throw new Error('Webview isolated world is unavailable')
@@ -369,7 +390,8 @@ async function captureDocumentAccessibility(
             executionContextId,
             annotation,
             budget,
-            deadline
+            deadline,
+            signal
           )
         })
       } catch (error) {
@@ -389,8 +411,8 @@ async function captureDocumentAccessibility(
     return resolved
   } finally {
     if (attached) {
-      await sendDebuggerCleanupCommand(debuggerSession, 'Accessibility.disable', undefined, deadline)
-      await sendDebuggerCleanupCommand(debuggerSession, 'Runtime.disable', undefined, deadline)
+      await sendDebuggerCleanupCommand(debuggerSession, 'Accessibility.disable', undefined, deadline, signal)
+      await sendDebuggerCleanupCommand(debuggerSession, 'Runtime.disable', undefined, deadline, signal)
       if (debuggerSession.isAttached()) {
         try {
           debuggerSession.detach()
@@ -409,13 +431,16 @@ interface ExportAnnotationDocumentInput {
   guest: Electron.WebContents
   target: WebviewAnnotationTarget
   annotations: WebviewAnnotation[]
+  signal?: AbortSignal
 }
 
 export async function exportAnnotationDocument({
   guest,
   target,
-  annotations
+  annotations,
+  signal
 }: ExportAnnotationDocumentInput): Promise<string> {
+  signal?.throwIfAborted()
   if (new Set(annotations.map((annotation) => annotation.id)).size !== annotations.length) {
     throw new Error('Annotation ids must be unique')
   }
@@ -432,7 +457,8 @@ export async function exportAnnotationDocument({
     guest,
     document,
     { remaining: ANNOTATION_EXPORT_LIMITS.accessibilityRequestNodes },
-    Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS
+    Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS,
+    signal
   )
   const copyDocument: ResolvedAnnotationDocument = {
     ...document,

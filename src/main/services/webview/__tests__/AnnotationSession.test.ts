@@ -41,7 +41,7 @@ describe('AnnotationSession', () => {
     expect(session.isCurrent('00000000-0000-4000-8000-000000000001')).toBe(true)
   })
 
-  it('rotates immediately for a new main-frame document and never rolls back after failed load', () => {
+  it('pauses a provisional main-frame navigation and restores the same session when it fails', () => {
     const contents = createContents()
     const session = new AnnotationSession(
       contents as unknown as Electron.WebContents,
@@ -50,12 +50,40 @@ describe('AnnotationSession', () => {
     )
     contents.emit('dom-ready')
 
-    contents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false })
+    contents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false, url: 'https://frame.test' })
     expect(session.isCurrent('00000000-0000-4000-8000-000000000001')).toBe(true)
 
-    contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    contents.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/next'
+    })
     expect(session.isCurrent('00000000-0000-4000-8000-000000000001')).toBe(false)
-    contents.emit('did-fail-load', {})
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://example.com/next', true)
+
+    expect(contents.send).toHaveBeenCalledOnce()
+    expect(session.isCurrent('00000000-0000-4000-8000-000000000001')).toBe(true)
+  })
+
+  it('rotates only after a main-frame navigation commits', () => {
+    const contents = createContents()
+    const session = new AnnotationSession(
+      contents as unknown as Electron.WebContents,
+      vi.fn(),
+      createIds('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002')
+    )
+    contents.emit('dom-ready')
+
+    contents.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/next'
+    })
+    expect(session.isCurrent('00000000-0000-4000-8000-000000000001')).toBe(false)
+    contents.emit('dom-ready')
+    expect(contents.send).toHaveBeenCalledOnce()
+
+    contents.emit('did-navigate', {}, 'https://example.com/next')
     contents.emit('dom-ready')
 
     expect(contents.send).toHaveBeenLastCalledWith('cherry:webview-annotation', {
@@ -63,6 +91,29 @@ describe('AnnotationSession', () => {
       sessionId: '00000000-0000-4000-8000-000000000002'
     })
     expect(session.isCurrent('00000000-0000-4000-8000-000000000002')).toBe(true)
+  })
+
+  it('ignores a failed URL superseded by a redirect while restoring the current failure', () => {
+    const contents = createContents()
+    const sessionId = '00000000-0000-4000-8000-000000000001'
+    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    contents.emit('dom-ready')
+
+    contents.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/start'
+    })
+    contents.emit('did-redirect-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/redirected'
+    })
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://example.com/start', true)
+    expect(session.isCurrent(sessionId)).toBe(false)
+
+    contents.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://example.com/redirected', true)
+    expect(session.isCurrent(sessionId)).toBe(true)
   })
 
   it('keeps a failed announcement unready and rotates when the render process exits', () => {
@@ -92,6 +143,14 @@ describe('AnnotationSession', () => {
     const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
 
     contents.emit('dom-ready')
+    expect(session.isCurrent(sessionId)).toBe(false)
+
+    contents.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/blocked'
+    })
+    contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://example.com/blocked', true)
     expect(session.isCurrent(sessionId)).toBe(false)
 
     contents.emit('dom-ready')
@@ -162,6 +221,32 @@ describe('AnnotationSession', () => {
     expect(task).not.toHaveBeenCalled()
   })
 
+  it('waits for running work and never starts queued work after disposal', async () => {
+    const contents = createContents()
+    const sessionId = '00000000-0000-4000-8000-000000000001'
+    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+    contents.emit('dom-ready')
+    let releaseFirst: (() => void) | undefined
+    const first = session.run(sessionId, async () => {
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+      return 'first'
+    })
+    const queuedTask = vi.fn(async () => 'queued')
+    const second = session.run(sessionId, queuedTask)
+
+    await vi.waitFor(() => expect(releaseFirst).toBeTypeOf('function'))
+    session.dispose()
+    const idle = session.waitForIdle()
+    releaseFirst?.()
+
+    await expect(first).rejects.toThrow('Annotation document session is stale')
+    await expect(second).rejects.toThrow('Annotation document session is stale')
+    await expect(idle).resolves.toBeUndefined()
+    expect(queuedTask).not.toHaveBeenCalled()
+  })
+
   it('disposes symmetrically and reports destruction exactly once', () => {
     const contents = createContents()
     const onDestroyed = vi.fn()
@@ -172,7 +257,15 @@ describe('AnnotationSession', () => {
     )
 
     expect(contents.eventNames()).toEqual(
-      expect.arrayContaining(['did-start-navigation', 'render-process-gone', 'dom-ready', 'destroyed'])
+      expect.arrayContaining([
+        'did-start-navigation',
+        'did-redirect-navigation',
+        'did-navigate',
+        'did-fail-load',
+        'render-process-gone',
+        'dom-ready',
+        'destroyed'
+      ])
     )
     contents.emit('destroyed')
     contents.emit('destroyed')
@@ -181,6 +274,9 @@ describe('AnnotationSession', () => {
     expect(onDestroyed).toHaveBeenCalledOnce()
     expect(contents.send).not.toHaveBeenCalled()
     expect(contents.listenerCount('did-start-navigation')).toBe(0)
+    expect(contents.listenerCount('did-redirect-navigation')).toBe(0)
+    expect(contents.listenerCount('did-navigate')).toBe(0)
+    expect(contents.listenerCount('did-fail-load')).toBe(0)
     expect(contents.listenerCount('render-process-gone')).toBe(0)
     expect(contents.listenerCount('dom-ready')).toBe(0)
     expect(contents.listenerCount('destroyed')).toBe(0)
