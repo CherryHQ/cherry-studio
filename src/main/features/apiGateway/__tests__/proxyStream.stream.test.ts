@@ -814,7 +814,7 @@ describe('processMessage (error & pause)', () => {
   })
 
   it('streaming Agent request preserves a pre-commit upstream 401 with safe provider and model context', async () => {
-    useGatewayModel('deepseek/deepseek-v4-flash-0731', ENDPOINT_TYPE.OPENAI_CHAT, 'openrouter')
+    useGatewayModel('deepseek/deepseek-v4-flash-0731', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openrouter')
     mockIsInternalAgentRequest.mockReturnValue(true)
     const resPromise = processMessage({
       params: {
