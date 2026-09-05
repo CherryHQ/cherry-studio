@@ -1626,13 +1626,13 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
       if (this.currentConnection(entry) === connection) {
-        this.resetConnectionRuntimeState(entry, connection)
-        this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+        this.closeConnectionAsync(entry)
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
         }
+      } else {
+        void this.closeRuntimeConnection(connection, entry.sessionId)
       }
       if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })

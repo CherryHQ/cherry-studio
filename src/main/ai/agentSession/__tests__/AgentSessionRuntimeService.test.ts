@@ -1360,7 +1360,8 @@ describe('AgentSessionRuntimeService', () => {
     const firstConnection = {
       events: firstEvents.iterable,
       send: vi.fn(),
-      close: vi.fn(() => firstClose.promise)
+      close: vi.fn(() => firstClose.promise),
+      reconcile: vi.fn().mockResolvedValue('rebuild')
     }
     const secondConnection = {
       events: secondEvents.iterable,
@@ -1400,6 +1401,7 @@ describe('AgentSessionRuntimeService', () => {
       { model: switchedModelId },
       { id: 'agent-1', model: switchedModelId }
     )
+    expect(firstConnection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
 
     const second = service.beginTurn({
       ...baseTurnInput,
@@ -3924,6 +3926,74 @@ describe('AgentSessionRuntimeService', () => {
     events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 't', delta: 'late' } })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
+  })
+
+  it('waits for a failed runtime connection to close before starting its replacement', async () => {
+    const runtimeFailure = createDeferred<void>()
+    const firstClose = createDeferred<void>()
+    const firstConnection = {
+      events: {
+        async *[Symbol.asyncIterator]() {
+          yield { type: 'resume-token', token: 'resume-after-runtime-failure' }
+          await runtimeFailure.promise
+          throw new Error('runtime loop failed')
+        }
+      },
+      send: vi.fn(),
+      close: vi.fn(() => firstClose.promise)
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-after-runtime-failure' })
+    )
+
+    runtimeFailure.resolve()
+    await expect(firstReader.read()).rejects.toThrow('runtime loop failed')
+    await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
+    terminalListener(first).onError({ status: 'error', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(connect).toHaveBeenCalledOnce()
+    expect(secondConnection.send).not.toHaveBeenCalled()
+
+    firstClose.resolve()
+
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    expect(connect).toHaveBeenLastCalledWith(expect.objectContaining({ resumeToken: 'resume-after-runtime-failure' }))
+    await vi.waitFor(() => expect(secondConnection.send).toHaveBeenCalledOnce())
+    void service.closeSession('session-1')
+    await firstReader.cancel().catch(() => undefined)
+    await secondReader.cancel().catch(() => undefined)
   })
 
   it('passes trace context to the runtime driver and keeps the connection warm across turns', async () => {
