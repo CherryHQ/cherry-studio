@@ -1,8 +1,7 @@
-import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -66,6 +65,7 @@ describe('useMiniApps', () => {
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
+    miniAppMutationService.resetForTesting()
     mockTabs.tabs = []
     mockTabs.hasContext = true
     mockTabs.closeTab.mockClear()
@@ -517,23 +517,22 @@ describe('useMiniApps', () => {
   // === setAppStatusBulk ===
 
   describe('setAppStatusBulk', () => {
-    it('issues exactly one PATCH per requested update', async () => {
+    it('submits every requested status change as one atomic batch', async () => {
       const apps = [createMiniApp('a', { status: 'enabled' }), createMiniApp('b', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
+      const updates = [
+        { appId: 'a', status: 'disabled' as const },
+        { appId: 'b', status: 'enabled' as const }
+      ]
 
       await act(async () => {
-        await result.current.setAppStatusBulk([
-          { appId: 'a', status: 'disabled' },
-          { appId: 'b', status: 'enabled' }
-        ])
+        await result.current.setAppStatusBulk(updates)
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/a', { body: { status: 'disabled' } }])
-      expect(patchCalls).toContainEqual(['/mini-apps/b', { body: { status: 'enabled' } }])
-      expect(patchCalls).toHaveLength(2)
+      expect(trigger).toHaveBeenCalledExactlyOnceWith({ body: { updates } })
     })
 
     it('does not touch rows the caller never names — region-hidden apps stay put', async () => {
@@ -543,9 +542,10 @@ describe('useMiniApps', () => {
       const globalApp = createGlobalApp('globalA', { status: 'enabled' })
       const cnOnly = createCnOnlyApp('cnOnly', { status: 'enabled' })
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([globalApp, cnOnly]))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
 
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
 
       // Hide the only visible Global app — should produce one PATCH for it,
       // never sweep the region-hidden CN app into disabled.
@@ -553,21 +553,36 @@ describe('useMiniApps', () => {
         await result.current.setAppStatusBulk([{ appId: 'globalA', status: 'disabled' }])
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/globalA', { body: { status: 'disabled' } }])
-      expect(patchCalls.find(([path]) => path === '/mini-apps/cnOnly')).toBeUndefined()
+      expect(trigger).toHaveBeenCalledExactlyOnceWith({
+        body: { updates: [{ appId: 'globalA', status: 'disabled' }] }
+      })
     })
 
     it('returns immediately for an empty update list (no PATCH calls)', async () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
 
       await act(async () => {
         await result.current.setAppStatusBulk([])
       })
 
-      expect(MockDataApiUtils.getCalls('patch')).toHaveLength(0)
+      expect(trigger).not.toHaveBeenCalled()
+    })
+
+    it('refreshes the mini-app list after a rejected batch', async () => {
+      const trigger = vi.fn().mockRejectedValue(new Error('batch failed'))
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
+      MockUseDataApi.useInvalidateCache.mockReturnValueOnce(invalidate)
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.setAppStatusBulk([{ appId: 'app1', status: 'enabled' }])).rejects.toThrow()
+      })
+
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
     })
   })
 
@@ -593,6 +608,84 @@ describe('useMiniApps', () => {
       })
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+    })
+
+    it('should pass target placement with the status update', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({ success: true })
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateAppStatus('app1', 'enabled', { before: 'anchor' })
+      })
+
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { appId: 'app1' },
+        body: { status: 'enabled', order: { before: 'anchor' } }
+      })
+    })
+
+    it('resolves queued target placement against the refreshed cache at execution time', async () => {
+      const firstRequest = Promise.withResolvers<void>()
+      const mockTrigger = vi
+        .fn()
+        .mockImplementationOnce(() => firstRequest.promise)
+        .mockResolvedValueOnce(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const appA = createMiniApp('a', { status: 'disabled', orderKey: 'a0' })
+      const appB = createMiniApp('b', { status: 'disabled', orderKey: 'a1' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([appA, appB]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([appA, appB]))
+      const { result } = renderHook(() => useMiniApps())
+      const resolveOrder = vi.fn((apps: readonly MiniApp[]) =>
+        apps.some((app) => app.appId === 'a' && app.status === 'enabled')
+          ? ({ before: 'a' } as const)
+          : ({ position: 'last' } as const)
+      )
+
+      let firstWrite!: Promise<unknown>
+      let secondWrite!: Promise<unknown>
+      act(() => {
+        firstWrite = result.current.updateAppStatus('a', 'enabled')
+        secondWrite = result.current.updateAppStatus('b', 'enabled', resolveOrder)
+      })
+
+      expect(mockTrigger).toHaveBeenCalledTimes(1)
+      expect(resolveOrder).not.toHaveBeenCalled()
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([{ ...appA, status: 'enabled' }, appB]))
+      firstRequest.resolve()
+      await act(async () => Promise.all([firstWrite, secondWrite]))
+
+      expect(resolveOrder).toHaveBeenCalledWith([{ ...appA, status: 'enabled' }, appB])
+      expect(mockTrigger).toHaveBeenNthCalledWith(2, {
+        params: { appId: 'b' },
+        body: { status: 'enabled', order: { before: 'a' } }
+      })
+    })
+
+    it('refreshes the mini-app list after a rejected status update', async () => {
+      const trigger = vi.fn().mockRejectedValue(new Error('update failed'))
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      MockUseDataApi.useInvalidateCache.mockReturnValueOnce(invalidate)
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.updateAppStatus('app1', 'disabled')).rejects.toThrow()
+      })
+
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
     })
 
     it('hides an app and closes a split pane that was showing it', async () => {
@@ -673,6 +766,159 @@ describe('useMiniApps', () => {
 
       expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'pinned' }, body: { position: 'first' } })
       expect(patchBatchTrigger).not.toHaveBeenCalled()
+    })
+
+    it('reorders against post-refresh cache membership, not the stale render snapshot', async () => {
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/order:batch') {
+          return { trigger: patchBatchTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const chatgptDisabled = createMiniApp('chatgpt', { status: 'disabled', orderKey: 'a0' })
+      const claude = createMiniApp('claude', { status: 'enabled', orderKey: 'a1' })
+      const chatgptEnabledTail = createMiniApp('chatgpt', { status: 'enabled', orderKey: 'a2' })
+
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([chatgptDisabled, claude]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([chatgptDisabled, claude]))
+
+      const { result } = renderHook(() => useMiniApps())
+      expect(result.current.allApps.find((app) => app.appId === 'chatgpt')?.status).toBe('disabled')
+
+      // Status PATCH + refresh already wrote SWR; React has not re-rendered.
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([claude, chatgptEnabledTail]))
+
+      await act(async () => {
+        await result.current.reorderMiniAppsByStatus('visible', [chatgptEnabledTail, claude])
+      })
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'chatgpt' }, body: { position: 'first' } })
+      expect(patchBatchTrigger).not.toHaveBeenCalled()
+    })
+
+    it('serializes overlapping partition reorders and reads the refreshed baseline for the second request', async () => {
+      const firstRequest = Promise.withResolvers<void>()
+      const patchOrderTrigger = vi
+        .fn()
+        .mockImplementationOnce(() => firstRequest.promise)
+        .mockResolvedValueOnce(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'disabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'disabled', orderKey: 'a1' })
+      const c = createMiniApp('c', { status: 'disabled', orderKey: 'a2' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b, c]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b, c]))
+      const { result } = renderHook(() => useMiniApps())
+
+      let firstReorder!: Promise<void>
+      let secondReorder!: Promise<void>
+      act(() => {
+        firstReorder = result.current.reorderMiniAppsByStatus('disabled', [c, a, b])
+        secondReorder = result.current.reorderMiniAppsByStatus('disabled', [b, c, a])
+      })
+
+      await vi.waitFor(() => expect(patchOrderTrigger).toHaveBeenCalledTimes(1))
+      expect(patchOrderTrigger).toHaveBeenNthCalledWith(1, { params: { id: 'c' }, body: { position: 'first' } })
+
+      MockUseDataApiUtils.seedCache(
+        '/mini-apps',
+        paginated([
+          { ...c, orderKey: 'a0' },
+          { ...a, orderKey: 'a1' },
+          { ...b, orderKey: 'a2' }
+        ])
+      )
+      firstRequest.resolve()
+      await act(async () => Promise.all([firstReorder, secondReorder]))
+
+      expect(patchOrderTrigger).toHaveBeenCalledTimes(2)
+      expect(patchOrderTrigger).toHaveBeenNthCalledWith(2, { params: { id: 'b' }, body: { position: 'first' } })
+    })
+
+    it('serializes status and reorder writes across hook instances', async () => {
+      const statusRequest = Promise.withResolvers<void>()
+      const patchStatusTrigger = vi.fn(() => statusRequest.promise)
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: patchStatusTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'enabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'enabled', orderKey: 'a1' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b]))
+      const first = renderHook(() => useMiniApps())
+      const second = renderHook(() => useMiniApps())
+
+      let statusWrite!: Promise<unknown>
+      let reorderWrite!: Promise<void>
+      act(() => {
+        statusWrite = first.result.current.updateAppStatus('a', 'disabled')
+        reorderWrite = second.result.current.reorderMiniAppsByStatus('visible', [b, a])
+      })
+
+      expect(patchStatusTrigger).toHaveBeenCalledTimes(1)
+      expect(patchOrderTrigger).not.toHaveBeenCalled()
+
+      statusRequest.resolve()
+      await act(async () => Promise.all([statusWrite, reorderWrite]))
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { position: 'first' } })
+    })
+
+    it('persists the remaining reorder when a queued status change removes a requested row', async () => {
+      const statusRequest = Promise.withResolvers<void>()
+      const patchStatusTrigger = vi.fn(() => statusRequest.promise)
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: patchStatusTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'enabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'enabled', orderKey: 'a1' })
+      const c = createMiniApp('c', { status: 'enabled', orderKey: 'a2' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b, c]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b, c]))
+      const { result } = renderHook(() => useMiniApps())
+
+      let statusWrite!: Promise<unknown>
+      let reorderWrite!: Promise<void>
+      act(() => {
+        statusWrite = result.current.updateAppStatus('a', 'disabled')
+        reorderWrite = result.current.reorderMiniAppsByStatus('visible', [c, b, a])
+      })
+
+      expect(patchStatusTrigger).toHaveBeenCalledTimes(1)
+      expect(patchOrderTrigger).not.toHaveBeenCalled()
+
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([{ ...a, status: 'disabled' }, b, c]))
+      statusRequest.resolve()
+      await act(async () => Promise.all([statusWrite, reorderWrite]))
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'c' }, body: { position: 'first' } })
     })
   })
 
@@ -775,18 +1021,12 @@ describe('useMiniApps', () => {
     })
   })
 
-  // === setAppStatusBulk partial-failure ===
-
-  describe('setAppStatusBulk partial-failure', () => {
-    it('throws when one of the PATCHes fails and invalidates the cache', async () => {
+  describe('setAppStatusBulk failure', () => {
+    it('surfaces a rejected atomic batch', async () => {
       const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-
-      vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
-        if (path === '/mini-apps/app1') return { success: true } as never
-        if (path === '/mini-apps/app2') throw new Error('Server error')
-        return undefined as never
-      })
+      const trigger = vi.fn().mockRejectedValue(new Error('Server error'))
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
 
       const { result } = renderHook(() => useMiniApps())
 

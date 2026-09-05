@@ -342,6 +342,64 @@ describe('MiniAppService', () => {
       expect(result.orderKey > 'a5').toBe(true)
     })
 
+    it('should commit a status change and target placement together', async () => {
+      await seedCustom({ appId: 'first', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a2' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a0' })
+
+      const result = miniAppService.update('mover', {
+        status: 'enabled',
+        order: { before: 'anchor' }
+      })
+
+      expect(result.status).toBe('enabled')
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'mover', 'anchor'])
+    })
+
+    it('should replay an ordered status update after the first request committed', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a5' })
+      const update = { status: 'enabled' as const, order: { before: 'anchor' as const } }
+
+      miniAppService.update('mover', update)
+      const replayed = miniAppService.update('mover', update)
+
+      expect(replayed.status).toBe('enabled')
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['mover', 'anchor'])
+    })
+
+    it('should reject an ordered status update that changes an existing status partition', async () => {
+      await seedCustom({ appId: 'first', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a2' })
+
+      expect(() =>
+        miniAppService.update('stay', {
+          status: 'enabled',
+          order: { before: 'first' }
+        })
+      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'stay'])
+    })
+
+    it('should roll back the status change when the target placement is invalid', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a5' })
+
+      let error: unknown
+      try {
+        miniAppService.update('mover', {
+          status: 'enabled',
+          order: { before: 'missing-anchor' }
+        })
+      } catch (caught) {
+        error = caught
+      }
+
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      const stored = miniAppService.getByAppId('mover')
+      expect(stored).toMatchObject({ status: 'disabled', orderKey: 'a5' })
+    })
+
     it('should keep the existing orderKey when status is unchanged', async () => {
       await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a5' })
 
@@ -357,6 +415,49 @@ describe('MiniAppService', () => {
 
       expect(result.status).toBe('pinned')
       expect(result.orderKey).toBe('a5')
+    })
+  })
+
+  describe('updateStatusBatch', () => {
+    it('rolls back every status and order change when one anchor is invalid', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'first', status: 'disabled', orderKey: 'b0' })
+      await seedCustom({ appId: 'second', status: 'disabled', orderKey: 'b1' })
+
+      expect(() =>
+        miniAppService.updateStatusBatch([
+          { appId: 'first', status: 'enabled', order: { before: 'anchor' } },
+          { appId: 'second', status: 'enabled', order: { before: 'missing-anchor' } }
+        ])
+      ).toThrow(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+
+      expect(miniAppService.getByAppId('first')).toMatchObject({ status: 'disabled', orderKey: 'b0' })
+      expect(miniAppService.getByAppId('second')).toMatchObject({ status: 'disabled', orderKey: 'b1' })
+    })
+
+    it('replays an ordered status batch after the first request committed', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'first', status: 'disabled', orderKey: 'b0' })
+      await seedCustom({ appId: 'second', status: 'disabled', orderKey: 'b1' })
+      const updates = [
+        { appId: 'first', status: 'enabled' as const, order: { before: 'anchor' as const } },
+        { appId: 'second', status: 'enabled' as const, order: { before: 'anchor' as const } }
+      ]
+
+      miniAppService.updateStatusBatch(updates)
+      miniAppService.updateStatusBatch(updates)
+
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'second', 'anchor'])
+    })
+
+    it('rejects an ordered status batch that changes an existing status partition', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a5' })
+
+      expect(() =>
+        miniAppService.updateStatusBatch([{ appId: 'mover', status: 'enabled', order: { before: 'anchor' as const } }])
+      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['anchor', 'mover'])
     })
   })
 

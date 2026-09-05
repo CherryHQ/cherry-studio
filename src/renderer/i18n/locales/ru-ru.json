@@ -2513,7 +2513,6 @@
   "miniApp.split.open": "Разделить экран",
   "miniApp.title": "Встроенные приложения",
   "miniApp.unpin_failed": "Не удалось открепить мини-приложение",
-  "miniApp.update_partial_failure": "{{failed}} из {{total}} обновлений не удались",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

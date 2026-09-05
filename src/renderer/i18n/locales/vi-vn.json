@@ -2513,7 +2513,6 @@
   "miniApp.split.open": "Chia đôi màn hình",
   "miniApp.title": "Mini-app",
   "miniApp.unpin_failed": "Không thể gỡ ghim ứng dụng mini",
-  "miniApp.update_partial_failure": "{{failed}} trong tổng số {{total}} bản cập nhật không thành công",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

@@ -2513,7 +2513,6 @@
   "miniApp.split.open": "分屏",
   "miniApp.title": "小程序",
   "miniApp.unpin_failed": "取消固定小程序失败",
-  "miniApp.update_partial_failure": "{{failed}}/{{total}} 项更新失败",
   "miniApps.ant-ling": "蚂蚁百灵",
   "miniApps.baichuan": "百小应",
   "miniApps.baidu-ai-search": "百度AI搜索",

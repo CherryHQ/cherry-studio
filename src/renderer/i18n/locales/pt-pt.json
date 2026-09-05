@@ -2513,7 +2513,6 @@
   "miniApp.split.open": "Visualização dividida",
   "miniApp.title": "Pequena aplicação",
   "miniApp.unpin_failed": "Falha ao desafixar o miniaplicação",
-  "miniApp.update_partial_failure": "{{failed}} de {{total}} atualizações falharam",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",
