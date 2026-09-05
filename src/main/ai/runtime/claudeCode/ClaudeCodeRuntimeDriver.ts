@@ -64,7 +64,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { createTraceGuardedSpawnProcess } from './ClaudeCodeWarmQueryManager'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -394,7 +394,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const options: Options = {
       ...request.options,
       abortController: this.abortController,
-      spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: createTraceGuardedSpawnProcess(request.traceGeneration)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -403,6 +403,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       key: request.key,
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
+      traceGeneration: request.traceGeneration,
       connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,

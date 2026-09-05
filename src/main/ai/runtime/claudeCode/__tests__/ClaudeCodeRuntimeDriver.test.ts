@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   refreshTraceContext: vi.fn(),
+  getTraceGeneration: vi.fn(),
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
@@ -340,7 +341,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
       if (name === 'ClaudeCodeTraceBridgeService')
-        return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
+        return {
+          prepareTrace: mocks.prepareTrace,
+          refreshTraceContext: mocks.refreshTraceContext,
+          getTraceGeneration: mocks.getTraceGeneration
+        }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
@@ -350,6 +355,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
     mocks.probeReadable.mockResolvedValue('readable')
     mocks.prepareTrace.mockResolvedValue(undefined)
+    mocks.getTraceGeneration.mockReturnValue(null)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
@@ -537,6 +543,36 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
     void connection.close()
+  })
+
+  it('guards a cold traced spawn against a collector generation change', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getTraceGeneration.mockReturnValue(1)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-traced',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      traceGeneration: 1
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const spawn = mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+
+    mocks.getTraceGeneration.mockReturnValue(2)
+    expect(() => spawn({})).toThrow('trace generation is no longer admitted')
+    await connection.close()
   })
 
   it('waits for the SDK query cleanup promise when closing a connection', async () => {

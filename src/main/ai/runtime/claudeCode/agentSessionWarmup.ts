@@ -391,8 +391,9 @@ async function deriveConnectionConfigFromSnapshot(
     language: getAppLanguage(),
     // Claude Code receives telemetry variables only when the subprocess is spawned. Prefer the
     // exact materialized result; pure reconciles use the bridge's synchronous admission snapshot.
-    developerTracingGeneration:
-      materialized?.developerTracingGeneration ?? application.get('ClaudeCodeTraceBridgeService').getTraceGeneration(),
+    developerTracingGeneration: materialized
+      ? materialized.developerTracingGeneration
+      : application.get('ClaudeCodeTraceBridgeService').getTraceGeneration(),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -591,6 +592,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     notificationContext,
+    traceGeneration: preparedTrace?.generation,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
@@ -950,6 +952,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    traceGeneration: request.traceGeneration,
     connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,

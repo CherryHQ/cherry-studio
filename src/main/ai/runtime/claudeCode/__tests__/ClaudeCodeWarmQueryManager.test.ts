@@ -514,15 +514,41 @@ describe('ClaudeCodeWarmQueryManager', () => {
     )
 
     // What the driver asks with for a traced turn: same options, trace env merged.
+    getTraceGenerationMock.mockReturnValue(1)
     const consumed = await manager.consume({
       key: 'session-1',
       options: {
         model: 'sonnet',
         resume: 'sdk-1',
         env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
-      } as any
+      } as any,
+      traceGeneration: 1
     })
     expect(consumed?.warmQuery).toBe(warm)
+  })
+
+  it('does not adopt a warm process after its trace generation changes', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    getTraceGenerationMock.mockReturnValue(1)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    getTraceGenerationMock.mockReturnValue(2)
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
   })
 
   it('rejects a warm process when its trace generation is no longer admitted at spawn time', async () => {

@@ -290,6 +290,32 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('does not promote a rejected trace materialization to the active generation', async () => {
+    mocks.getTraceGeneration.mockReturnValue(7)
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-rejected'
+    }
+
+    const rejected = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+    const untraced = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(rejected?.traceGeneration).toBeUndefined()
+    expect(rejected?.connectionConfig.rebuildSignature).toBe(untraced?.connectionConfig.rebuildSignature)
+  })
+
   it('passes the connection rebuild signature into the warm query request', async () => {
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
