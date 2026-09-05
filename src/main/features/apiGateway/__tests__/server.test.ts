@@ -149,6 +149,29 @@ describe('ApiGateway server lifecycle', () => {
     expect(mocks.port).toBe(userSelectedPort)
   })
 
+  it('retries a newer configured port instead of leaving the listener on a stale fallback', async () => {
+    const firstExternal = createServer((_request, response) => response.end('first external'))
+    const secondExternal = createServer((_request, response) => response.end('second external'))
+    occupiedServers.push(firstExternal, secondExternal)
+    const firstOccupiedPort = await listen(firstExternal)
+    const secondOccupiedPort = await listen(secondExternal)
+    mocks.port = firstOccupiedPort
+    mocks.onBuildApp = (port) => {
+      if (port === 0 && mocks.port === firstOccupiedPort) mocks.port = secondOccupiedPort
+    }
+    mocks.setPreference.mockImplementationOnce(async (_key, value) => {
+      mocks.port = value as number
+    })
+    gateway = new ApiGateway()
+
+    const address = await gateway.start()
+
+    expect(mocks.setPreference).toHaveBeenCalledOnce()
+    expect(address.port).toBe(mocks.port)
+    expect(portOf(gateway)).toBe(mocks.port)
+    await expect(fetch(`http://127.0.0.1:${mocks.port}/health`).then((response) => response.text())).resolves.toBe('ok')
+  })
+
   it('does not reuse a gateway owned by another instance', async () => {
     gateway = new ApiGateway()
     await gateway.start()

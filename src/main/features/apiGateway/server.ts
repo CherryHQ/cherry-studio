@@ -84,15 +84,21 @@ export class ApiGateway {
 
       logger.warn('Configured API gateway port is occupied; selecting an available port', { host, port })
       const fallbackPort = await this.listen(host, 0)
-      const address = this.setRuntimeAddress(host, fallbackPort)
-      if (
-        preferenceService.get('feature.api_gateway.host') === host &&
-        preferenceService.get('feature.api_gateway.port') === port
-      ) {
-        await preferenceService.set('feature.api_gateway.port', fallbackPort)
-        logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
+      const currentHost = preferenceService.get('feature.api_gateway.host')
+      const currentPort = preferenceService.get('feature.api_gateway.port')
+      if (currentHost !== host || currentPort !== port) {
+        logger.info('API gateway config changed during fallback; retrying with the latest address', {
+          host: currentHost,
+          port: currentPort
+        })
+        await this.closeHttpServer()
+        this.cleanupFailedStart()
+        return this.startInternal()
       }
-      return address
+
+      await preferenceService.set('feature.api_gateway.port', fallbackPort)
+      logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
+      return this.setRuntimeAddress(host, fallbackPort)
     }
   }
 
