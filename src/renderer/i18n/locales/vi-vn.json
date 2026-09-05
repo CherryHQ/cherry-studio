@@ -1409,6 +1409,7 @@
   "files.select_all": "Chọn các tệp hiển thị",
   "files.select_all_short": "Chọn Tất Cả",
   "files.select_file": "Chọn {{name}}",
+  "files.select_file_with_path": "Chọn {{name}} ({{path}})",
   "files.show_in_folder": "Hiển thị trong thư mục",
   "files.size": "Kích thước",
   "files.text": "Văn bản",

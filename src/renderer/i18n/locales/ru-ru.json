@@ -1409,6 +1409,7 @@
   "files.select_all": "Выбрать видимые файлы",
   "files.select_all_short": "Выбрать все",
   "files.select_file": "Выбрать {{name}}",
+  "files.select_file_with_path": "Выбрать {{name}} ({{path}})",
   "files.show_in_folder": "Показать в папке",
   "files.size": "Размер",
   "files.text": "Текст",

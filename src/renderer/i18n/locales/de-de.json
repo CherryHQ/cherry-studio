@@ -1409,6 +1409,7 @@
   "files.select_all": "Sichtbare Dateien auswählen",
   "files.select_all_short": "Alle auswählen",
   "files.select_file": "{{name}} auswählen",
+  "files.select_file_with_path": "{{name}} ({{path}}) auswählen",
   "files.show_in_folder": "Im Ordner anzeigen",
   "files.size": "Größe",
   "files.text": "Text",

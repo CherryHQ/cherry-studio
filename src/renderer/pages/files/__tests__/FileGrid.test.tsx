@@ -140,4 +140,24 @@ describe('FileGrid image preview', () => {
     fireEvent.click(screen.getByText('photo.png'))
     expect(props.onOpen).not.toHaveBeenCalled()
   })
+
+  it('exposes distinct source paths for same-name files', () => {
+    const first: FileItem = {
+      ...imageFile,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+    render(<FileGrid {...fileGridProps([first, second])} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+  })
 })
