@@ -6,7 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { resetMainRendererDelivery } from '@main/services/mainWindowNavigation'
+import { clearMainWindowDeliveryState, resetMainRendererDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -91,6 +91,9 @@ export class MainWindowService extends BaseService {
         resetMainRendererDelivery()
       })
     )
+    // The delivery coordinator survives individual window rebuilds so queued commands can be
+    // replayed by the next renderer, but it must not outlive this service's lifecycle.
+    this.registerDisposable(clearMainWindowDeliveryState)
 
     this.registerWindowShortcuts()
     this.registerContextMenu()

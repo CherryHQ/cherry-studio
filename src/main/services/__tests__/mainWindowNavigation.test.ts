@@ -31,6 +31,7 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 import {
   acknowledgeMainWindowNavigation,
+  clearMainWindowDeliveryState,
   isAllowedRoute,
   markMainRendererReadyForDelivery,
   openRouteInMainWindow,
@@ -375,6 +376,16 @@ describe('mainWindowNavigation', () => {
       markMainRendererReadyForDelivery('main-2')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-2', 'tab.attached', tab)
+    })
+
+    it('clears queued deliveries when the coordinator lifecycle ends', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openTabInMainWindow(tab)
+      clearMainWindowDeliveryState()
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
     })
 
     it('rebuilds the main window with tab-attach init data when none exists', () => {

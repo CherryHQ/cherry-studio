@@ -98,6 +98,12 @@ export function resetMainRendererDelivery(): void {
   isMainRendererReadyForDelivery = false
 }
 
+/** Clear readiness and discard commands when the owning service is stopped or destroyed. */
+export function clearMainWindowDeliveryState(): void {
+  resetMainRendererDelivery()
+  pendingMainWindowDeliveries.splice(0)
+}
+
 function flushPendingMainWindowDeliveries(): void {
   if (!isMainRendererReadyForDelivery || pendingMainWindowDeliveries.length === 0) return
   const mainWindowId = resolveLiveMainWindowId()
