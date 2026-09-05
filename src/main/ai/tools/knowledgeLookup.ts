@@ -86,7 +86,7 @@ export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and
 
 Two modes, selected by \`baseId\`:
 - Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching. When the user names a file or topic (e.g. "summarize chapter 1.pdf"), pass both \`baseId\` and \`query\`: the outline is then narrowed to titles containing the query (case-insensitive substring, ancestors kept, and a matching folder comes with its whole contents), so you can locate the document's conceptId directly. Prefer the most distinctive fragment of the name — substring matching is verbatim, so "chapter 1" won't match "chapter_1.pdf".
 
 This tool returns metadata and structure, not retrieved evidence. Do not answer content questions from names or sampleSources; use kb_search for relevant passages or kb_read for a known document.`
 
@@ -410,10 +410,12 @@ function conceptLookupError(
  * Outline a base's organization tree by Concept ID-addressable nodes. Never
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
+ * A `query` narrows the outline to nodes whose titles contain it (case-insensitive
+ * substring), keeping each match's ancestor folders and a matched folder's contents.
  */
 function readTree(
   baseId: string,
-  options: { maxDepth?: number },
+  options: { maxDepth?: number; query?: string },
   allowedIds: readonly string[]
 ): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
@@ -455,7 +457,7 @@ export async function listOrOutlineKnowledge(
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   if (input.baseId) {
-    return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
+    return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined, query: input.query }, allowedIds)
   }
   return listKnowledgeBases(input, allowedIds)
 }
@@ -696,10 +698,20 @@ export function knowledgeListModelOutput(
     return { type: 'json', value: output }
   }
 
-  // Outline mode success: one base's tree.
+  // Outline mode success: one base's tree. An empty outline has two causes — the base is
+  // genuinely empty, or a `query` matched no titles. Only the former may be reported as "no items";
+  // the latter is a filter miss the model can recover from (like the list-mode filtered-empty branch).
   if ('nodes' in output && Array.isArray(output.nodes)) {
     if (output.nodes.length === 0) {
-      return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+      return input?.query
+        ? {
+            type: 'text',
+            value:
+              `No documents in knowledge base "${output.baseId}" have a title matching "${input.query}". ` +
+              'Retry with a shorter or more distinctive fragment, call kb_list with only baseId to see the full ' +
+              'outline, or use kb_search to search document contents.'
+          }
+        : { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
     }
     return { type: 'json', value: output }
   }

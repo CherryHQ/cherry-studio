@@ -2518,6 +2518,176 @@ describe('KnowledgeService', () => {
       // totalItems counts every non-deleting item, even those past the cap.
       expect(tree.totalItems).toBe(KNOWLEDGE_TREE_MAX_NODES + 1)
     })
+
+    it('keeps only nodes whose titles contain the query, with their ancestor folders', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('docs', null, 'completed'),
+        createDirectoryItem('chapters', 'docs', 'completed'),
+        { ...createFileItem('ch1', 'kb-1', '/summarize chapter 1.pdf', 'completed'), groupId: 'chapters' },
+        { ...createFileItem('other', 'kb-1', '/notes.txt', 'completed'), groupId: 'docs' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'summarize chapter 1' })
+
+      // The matched leaf keeps its ancestor folders; unrelated nodes are dropped.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['docs', 'chapters', 'summarize chapter 1.pdf'])
+      expect(tree.totalItems).toBe(4)
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('matches the query case-insensitively', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        { ...createFileItem('ch1', 'kb-1', '/chapter 1.pdf', 'completed') }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'CHAPTER' })
+
+      expect(tree.nodes.map((node) => node.title)).toEqual(['chapter 1.pdf'])
+    })
+
+    it('returns an empty outline when nothing matches', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('docs', null, 'completed'),
+        { ...createFileItem('ch1', 'kb-1', '/chapter 1.pdf', 'completed'), groupId: 'docs' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'nonexistent' })
+
+      expect(tree.nodes).toEqual([])
+      expect(tree.totalItems).toBe(2)
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('caps the MATCHED nodes, not the base size, when a query narrows the tree', async () => {
+      const service = new KnowledgeService()
+      // More items than the cap, but the only match sits behind them: unfiltered
+      // the tree is truncated at the cap, while the query must still surface it.
+      const items = Array.from({ length: KNOWLEDGE_TREE_MAX_NODES + 1 }, (_, idx) =>
+        createFileItem(`f${idx}`, 'kb-1', `/doc-${idx}.pdf`, 'completed')
+      )
+      items.push({ ...createFileItem('needle', 'kb-1', '/needle.pdf', 'completed') })
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue(items)
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'needle' })
+
+      expect(tree.truncated).toBe(false)
+      expect(tree.nodes.map((node) => node.title)).toEqual(['needle.pdf'])
+      expect(tree.totalItems).toBe(KNOWLEDGE_TREE_MAX_NODES + 2)
+    })
+
+    it('ignores query matches beyond maxDepth', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('docs', null, 'completed'),
+        createDirectoryItem('chapters', 'docs', 'completed'),
+        { ...createFileItem('ch1', 'kb-1', '/chapter 1.pdf', 'completed'), groupId: 'chapters' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'chapter 1', maxDepth: 0 })
+
+      // The match lives at depth 2; at maxDepth 0 it is invisible, so even the
+      // ancestor folder is not emitted (nothing within the visible depth matches).
+      expect(tree.nodes).toEqual([])
+      expect(tree.totalItems).toBe(3)
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('keeps a matched folder with its whole contents, not stripped to the folder alone', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('第一章', null, 'completed'),
+        { ...createFileItem('f1', 'kb-1', '/1-1.pdf', 'completed'), groupId: '第一章' },
+        { ...createFileItem('f2', 'kb-1', '/1-2.pdf', 'completed'), groupId: '第一章' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: '第一章' })
+
+      // The folder matched, so its subtree is part of the answer — emitting only the folder would
+      // leave the model with a node kb_read cannot consume (directories carry no conceptId), forcing
+      // a second full-tree call: the token waste issue #16396 complains about.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['第一章', '1-1.pdf', '1-2.pdf'])
+      expect(tree.nodes[0]).toMatchObject({ itemType: 'directory', conceptId: undefined })
+      // Locating a conceptId is the stated purpose of query narrowing; asserting only titles would
+      // let the emit lose it.
+      expect(tree.nodes[1]).toMatchObject({ status: 'completed', itemType: 'file', conceptId: '1-1.pdf' })
+    })
+
+    it('omits conceptId from a query-matched leaf that is not completed', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        { ...createFileItem('f1', 'kb-1', '/chapter 1.pdf', 'processing') }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'chapter 1' })
+
+      expect(tree.nodes).toEqual([expect.objectContaining({ title: 'chapter 1.pdf', status: 'processing' })])
+      expect(tree.nodes[0].conceptId).toBeUndefined()
+    })
+
+    it('drops a non-matching sibling subtree even when a sibling branch holds the match', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('docs', null, 'completed'),
+        createDirectoryItem('matched-branch', 'docs', 'completed'),
+        createDirectoryItem('quiet-branch', 'docs', 'completed'),
+        { ...createFileItem('needle', 'kb-1', '/needle.pdf', 'completed'), groupId: 'matched-branch' },
+        { ...createFileItem('unrelated', 'kb-1', '/unrelated.pdf', 'completed'), groupId: 'quiet-branch' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'needle' })
+
+      // The ancestor check must be keyed to the directory's own id: looking up the parent group
+      // would leak every sibling branch whose parent subtree holds a match.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['docs', 'matched-branch', 'needle.pdf'])
+    })
+
+    it('still finds a query match at the deepest visible depth when maxDepth is set', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createDirectoryItem('docs', null, 'completed'),
+        { ...createFileItem('ch1', 'kb-1', '/chapter 1.pdf', 'completed'), groupId: 'docs' }
+      ])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'chapter 1', maxDepth: 1 })
+
+      // The match sits exactly at the maxDepth boundary; over-pruning the subtree pass
+      // (treating depth >= maxDepth as invisible) would drop the folder and take the match with it.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['docs', 'chapter 1.pdf'])
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('does not flag truncated when the matches exactly fill the cap and a non-match follows', async () => {
+      const service = new KnowledgeService()
+      const items = Array.from({ length: KNOWLEDGE_TREE_MAX_NODES }, (_, idx) =>
+        createFileItem(`m${idx}`, 'kb-1', `/match-${idx}.pdf`, 'completed')
+      )
+      items.push(createFileItem('tail', 'kb-1', '/zzz.pdf', 'completed'))
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue(items)
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'match' })
+
+      // The cap is checked AFTER the query filter: a trailing non-match must not flip truncated,
+      // or the model is told results were withheld when none were.
+      expect(tree.truncated).toBe(false)
+      expect(tree.nodes).toHaveLength(KNOWLEDGE_TREE_MAX_NODES)
+    })
+
+    it('folds Unicode form so a decomposed on-disk title matches a composed query', async () => {
+      const service = new KnowledgeService()
+      // NFD title (e + combining acute), as macOS commonly delivers decomposed filenames.
+      const nfdTitle = 'cafe\u0301.pdf'
+      const item = createFileItem('f1', 'kb-1', '/café.pdf', 'completed')
+      item.data = { source: '/café.pdf', relativePath: nfdTitle as PosixRelativeFilePath }
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([item])
+
+      const tree = service.getOrganizationTree('kb-1', { query: 'café' })
+
+      // Same-form control: a bare (non-normalized) substring compare would silently find nothing.
+      expect(tree.nodes.map((node) => node.title)).toEqual([nfdTitle])
+    })
   })
 
   describe('deleteConcepts', () => {

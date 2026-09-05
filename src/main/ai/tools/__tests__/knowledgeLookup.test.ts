@@ -4,13 +4,16 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock } = vi.hoisted(() => ({
-  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>()
+const { knowledgeSearchMock, getOrganizationTreeMock } = vi.hoisted(() => ({
+  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
+  getOrganizationTreeMock: vi.fn()
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { search: knowledgeSearchMock }
+      if (name === 'KnowledgeService') {
+        return { search: knowledgeSearchMock, getOrganizationTree: getOrganizationTreeMock }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
@@ -21,6 +24,7 @@ import {
   knowledgeListModelOutput,
   knowledgeManageModelOutput,
   knowledgeReadModelOutput,
+  listOrOutlineKnowledge,
   searchKnowledge
 } from '../knowledgeLookup'
 
@@ -61,6 +65,77 @@ describe('searchKnowledge', () => {
       ['base1', 'README.md'],
       ['base2', 'README.md']
     ])
+  })
+})
+
+describe('listOrOutlineKnowledge (outline mode)', () => {
+  it('threads query into getOrganizationTree and maps the narrowed nodes back', async () => {
+    getOrganizationTreeMock.mockReturnValue({
+      baseId: 'kb-1',
+      totalItems: 3,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'chapter 1.pdf', itemType: 'file', status: 'completed', conceptId: 'chapter 1.pdf' }
+      ]
+    })
+
+    const output = await listOrOutlineKnowledge({ baseId: 'kb-1', query: 'chapter 1', limit: 20 }, [])
+
+    // The schema says outline mode accepts query; the call must land with it so a
+    // "summarize file X" request can locate a conceptId without pulling the whole tree.
+    expect(getOrganizationTreeMock).toHaveBeenCalledWith('kb-1', { maxDepth: undefined, query: 'chapter 1' })
+    expect(output).toEqual({
+      baseId: 'kb-1',
+      totalItems: 3,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', type: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'chapter 1.pdf', type: 'file', status: 'completed', conceptId: 'chapter 1.pdf' }
+      ]
+    })
+  })
+
+  it('maps the full unfiltered outline back when query is omitted', async () => {
+    getOrganizationTreeMock.mockReturnValue({
+      baseId: 'kb-1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'notes.txt', itemType: 'file', status: 'completed', conceptId: 'notes.txt' }
+      ]
+    })
+
+    const output = await listOrOutlineKnowledge({ baseId: 'kb-1', limit: 20 }, [])
+
+    expect(getOrganizationTreeMock).toHaveBeenCalledWith('kb-1', { maxDepth: undefined, query: undefined })
+    // A query-less outline passes through unfiltered — the itemType → type rename is what the
+    // model consumes, so the full mapped result is the observable contract, not the call itself.
+    expect(output).toEqual({
+      baseId: 'kb-1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', type: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'notes.txt', type: 'file', status: 'completed', conceptId: 'notes.txt' }
+      ]
+    })
+  })
+
+  it('reports an empty outline with a query as a filter miss, not as an empty base', () => {
+    const output = knowledgeListModelOutput(
+      { baseId: 'kb-1', totalItems: 5, truncated: false, nodes: [] },
+      { query: '第一章', groupId: null, baseId: 'kb-1', cursor: null }
+    )
+
+    expect(output).toEqual({
+      type: 'text',
+      value:
+        'No documents in knowledge base "kb-1" have a title matching "第一章". ' +
+        'Retry with a shorter or more distinctive fragment, call kb_list with only baseId to see the full ' +
+        'outline, or use kb_search to search document contents.'
+    })
   })
 })
 
