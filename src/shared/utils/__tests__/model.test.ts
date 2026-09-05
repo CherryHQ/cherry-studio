@@ -58,6 +58,21 @@ describe('shared model capability helpers', () => {
       ).toBe(true)
     })
 
+    it('does not distinguish a legacy pre-composed snapshot from the authoritative model ID', () => {
+      expect(
+        areDifferentModelIdentities(
+          {
+            modelId: 'provider-a::model-a',
+            modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+          },
+          {
+            modelId: null,
+            modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
+          }
+        )
+      ).toBe(false)
+    })
+
     it('does not classify unresolvable snapshots as different models', () => {
       expect(
         areDifferentModelIdentities(

@@ -31,6 +31,14 @@ export function resolveUniqueModelId(
   }
 }
 
+function matchesLegacyPrecomposedSnapshot(
+  modelId: string | null | undefined,
+  modelSnapshot: { id: string; provider: string } | null | undefined
+): boolean {
+  if (!isUniqueModelId(modelId) || modelSnapshot?.id !== modelId) return false
+  return parseUniqueModelId(modelId).providerId === modelSnapshot.provider
+}
+
 /** Return true only when two persisted references identify distinct models. */
 export function areDifferentModelIdentities(
   left: {
@@ -42,6 +50,13 @@ export function areDifferentModelIdentities(
     modelSnapshot: { id: string; provider: string } | null | undefined
   }
 ): boolean {
+  if (
+    matchesLegacyPrecomposedSnapshot(left.modelId, right.modelSnapshot) ||
+    matchesLegacyPrecomposedSnapshot(right.modelId, left.modelSnapshot)
+  ) {
+    return false
+  }
+
   const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
   const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
   if (leftModelId === undefined || rightModelId === undefined) return false
