@@ -58,8 +58,8 @@ vi.mock('@cherrystudio/ui', () => ({
         <button
           type="button"
           onClick={async () => {
-            await onConfirm?.()
-            onOpenChange?.(false)
+            const result = await onConfirm?.()
+            if (result !== false) onOpenChange?.(false)
           }}>
           Confirm {confirmText}
         </button>
