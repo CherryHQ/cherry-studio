@@ -114,6 +114,7 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
   reasoningFormat('anthropic'),
   reasoningFormat('gemini'),
   reasoningFormat('ollama'),
+  reasoningFormat('self-hosted'),
   reasoningFormat('none')
 ])
 
@@ -123,6 +124,12 @@ export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>[
 export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
   (option) => option.shape.type.value
 ) as [ReasoningFormatType, ...ReasoningFormatType[]]
+
+/** Lean selector persisted in user_provider — only the format discriminator, never the wire. */
+export const ProviderReasoningFormatSelectorSchema = z.object({
+  type: z.enum(REASONING_FORMAT_TYPES)
+})
+export type ProviderReasoningFormatSelector = z.infer<typeof ProviderReasoningFormatSelectorSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Config

@@ -146,6 +146,7 @@ export interface ReasoningProviderContext {
   id: Provider['id']
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
+  /** Merged runtime endpoint configs — carries the user's per-endpoint `reasoningFormat` override and dialect deviations. */
   endpointConfigs?: Provider['endpointConfigs']
 }
 
@@ -848,6 +849,11 @@ class ProviderRegistryService {
         // Dialect merges per key: the row states only the deviations the user found.
         const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }
         if (Object.keys(dialect).length > 0) config.dialect = dialect
+        // `reasoningFormat` is user-owned when set; otherwise the registry's
+        // protocol default (if any) carries through so custom providers can
+        // override it (e.g. `self-hosted` for vLLM/SGLang relays).
+        const reasoningFormat = rowConfig?.reasoningFormat ?? presetConfig?.reasoningFormat
+        if (reasoningFormat !== undefined) config.reasoningFormat = reasoningFormat
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null
@@ -939,7 +945,10 @@ class ProviderRegistryService {
       (inferredControls ? { controls: inferredControls } : undefined)
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
-      format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
+      format: endpointType
+        ? (context.endpointConfigs?.[endpointType]?.reasoningFormat ??
+          profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat)
+        : undefined,
       contract,
       wireDialect: reasoning?.wireDialect,
       reasoningSummary: endpointType ? context.endpointConfigs?.[endpointType]?.dialect?.reasoningSummary : undefined
@@ -1008,7 +1017,10 @@ class ProviderRegistryService {
 
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
-      format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
+      format: effectiveEndpoint
+        ? (provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat ??
+          profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat)
+        : undefined,
       contract,
       wireDialect,
       reasoningSummary: effectiveEndpoint

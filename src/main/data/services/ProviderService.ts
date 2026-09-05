@@ -42,6 +42,7 @@ import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
@@ -246,6 +247,9 @@ function projectEndpointConfigOverrides(
       )
     )
     if (Object.keys(dialect).length > 0) override.dialect = dialect
+    if (config.reasoningFormat !== undefined && !isEqual(config.reasoningFormat, presetConfig?.reasoningFormat)) {
+      override.reasoningFormat = config.reasoningFormat
+    }
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
     }

@@ -5,7 +5,12 @@
 
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
+import type {
+  EndpointDialect,
+  ProviderConfig,
+  ProviderReasoningFormatSelector,
+  RegistryEndpointConfig
+} from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { normalizeModelId } from './utils/normalize'
 
@@ -53,6 +58,8 @@ export interface PersistedEndpointConfig {
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
   dialect?: EndpointDialect
+  /** User-visible reasoning format selector for this endpoint (e.g. `self-hosted` for vLLM/SGLang). Never carries the wire. */
+  reasoningFormat?: ProviderReasoningFormatSelector
 }
 
 function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
@@ -65,8 +72,10 @@ function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
 
 /**
  * Project registry endpoint configs onto the connection facts persisted in
- * user_provider. Main-only reasoning profiles deliberately stay in registry
- * memory and never cross this boundary.
+ * user_provider. `reasoningFormat` is carried through as a lean selector so
+ * read-time merges and the renderer preset can see the registry's protocol
+ * default and let users override it per endpoint (e.g. `self-hosted` for
+ * vLLM/SGLang relays) without freezing the main-only wire.
  */
 export function buildPersistedEndpointConfigs(
   registryConfigs: Record<string, RegistryEndpointConfig> | undefined
@@ -88,6 +97,7 @@ export function buildPersistedEndpointConfigs(
       dialect.reasoningSummary = true
     }
     if (Object.keys(dialect).length > 0) config.dialect = dialect
+    if (regConfig.reasoningFormat) config.reasoningFormat = { type: regConfig.reasoningFormat.type }
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

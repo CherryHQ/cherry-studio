@@ -11,6 +11,9 @@ import type {
   ReasoningWireProfile,
   ReasoningWireTarget
 } from '@cherrystudio/provider-registry'
+
+// Local alias: provider-registry no longer exports a delivery type useful here
+export type ReasoningWireDelivery = 'provider-option' | 'request-body'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
@@ -26,6 +29,7 @@ export type ResolvedReasoningKind = 'omit' | 'off' | 'auto' | 'effort' | 'budget
 export interface ResolvedReasoningEmission {
   target: ReasoningWireTarget
   value: string | number | boolean
+  delivery: ReasoningWireDelivery
 }
 
 export interface ResolvedReasoningInvocation {
@@ -128,7 +132,8 @@ function resolveModeEffort(
 function resolveModeBudget(
   selection: CanonicalReasoningSelection,
   model: Model,
-  policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
+  // The provider-registry union typing can be awkward here; treat as any to keep code straightforward
+  policy: any,
   maxTokens: number | undefined
 ): number | undefined | null {
   let budget = selection === 'auto' ? policy.autoValue : undefined
@@ -177,7 +182,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     return omit("the request's output cap cannot satisfy the wire's budget contract", input.model, selection)
   }
 
-  if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
+  if ('budget' in mode && mode.budget?.missing.type === 'omit-mode' && budgetTokens === undefined) {
     return omit('the wire requires a thinking budget and none could be derived', input.model, selection)
   }
 
@@ -198,7 +203,8 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
         value = input.assistantSummary ?? undefined
         break
     }
-    if (value !== undefined) emissions.push({ target: operation.target, value })
+    if (value !== undefined)
+      emissions.push({ target: operation.target, value, delivery: operation.delivery ?? 'provider-option' })
   }
 
   if (emissions.length === 0) return omit('the mode produced no wire values', input.model, selection)
@@ -235,4 +241,38 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string
 /** Materialize the profile's closed emission operations into a provider-options object. */
 export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
   return encodeEmissions(invocation)
+}
+
+/** Whether a wire emission is delivered via raw request body rather than providerOptions. */
+export function isRequestBodyTarget(_target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
+  return delivery === 'request-body'
+}
+
+function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
+  return emission.delivery === 'request-body'
+}
+
+/** Return a reasoning invocation with body-routed emissions removed (for providerOptions-only paths). */
+export function filterReasoningForProviderOptions(
+  invocation: ResolvedReasoningInvocation
+): ResolvedReasoningInvocation {
+  const kept = invocation.emissions.filter((emission) => !isBodyEmission(emission))
+  return { ...invocation, emissions: kept }
+}
+
+/** Extract body-routed reasoning params as a nested object for fetch injection. */
+export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  for (const emission of invocation.emissions) {
+    if (!isBodyEmission(emission)) continue
+    const path = emission.target.split('.')
+    let cursor = body
+    for (let index = 0; index < path.length - 1; index += 1) {
+      const key = path[index]
+      cursor[key] ??= {}
+      cursor = cursor[key] as Record<string, unknown>
+    }
+    cursor[path[path.length - 1]] = emission.value
+  }
+  return body
 }

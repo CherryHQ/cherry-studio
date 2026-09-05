@@ -19,19 +19,32 @@ type NonBudgetMode = {
   effortMap?: Partial<Record<ReasoningEffort, ReasoningEffort>>
 }
 
-const literal = (target: ReasoningWireTarget, value: string | number | boolean): NonBudgetOperation => ({
+const literal = (
+  target: ReasoningWireTarget,
+  value: string | number | boolean,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'literal', value }
+  value: { source: 'literal', value },
+  delivery
 })
 
-const effort = (target: ReasoningWireTarget): NonBudgetOperation => ({
+const effort = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'effort' }
+  value: { source: 'effort' },
+  delivery
 })
 
-const summary = (target: ReasoningWireTarget): NonBudgetOperation => ({
+const summary = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'assistant-summary' }
+  value: { source: 'assistant-summary' },
+  delivery
 })
 
 const mode = (operations: NonBudgetOperation[], rest: Omit<NonBudgetMode, 'operations'> = {}): NonBudgetMode => ({
@@ -40,9 +53,13 @@ const mode = (operations: NonBudgetOperation[], rest: Omit<NonBudgetMode, 'opera
 })
 
 /** Budget-dialect operation — writes the resolved thinking-token count. */
-const budgetTokens = (target: ReasoningWireTarget): ReasoningWireOperation => ({
+const budgetTokens = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): ReasoningWireOperation => ({
   target,
-  value: { source: 'budget' }
+  value: { source: 'budget' },
+  delivery
 })
 
 /**
@@ -78,6 +95,19 @@ const anthropicBudgetWire: ReasoningWireProfile = {
   off: mode([literal('thinking.type', 'disabled')]),
   auto: anthropicEnabledBudget,
   effort: anthropicEnabledBudget
+}
+
+/**
+ * Self-hosted (vLLM / SGLang) reasoning wire. Chat-template servers gate
+ * thinking through `chat_template_kwargs.enable_thinking` only; different
+ * templates accept different budget fields, so a shared `thinking_budget`
+ * with a 4096 fallback would send invalid or truncating params. Only the
+ * toggle is generic — budget caps belong to a narrower format when needed.
+ */
+const selfHostedWire: ReasoningWireProfile = {
+  off: mode([literal('chat_template_kwargs.enable_thinking', false, 'request-body')]),
+  auto: mode([literal('chat_template_kwargs.enable_thinking', true, 'request-body')]),
+  effort: mode([literal('chat_template_kwargs.enable_thinking', true, 'request-body')])
 }
 
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
@@ -162,6 +192,9 @@ const formatProfiles = {
       auto: mode([literal('think', true)]),
       effort: mode([effort('think')])
     }
+  },
+  'self-hosted': {
+    wire: selfHostedWire
   },
   none: {
     wire: { disabled: true }
