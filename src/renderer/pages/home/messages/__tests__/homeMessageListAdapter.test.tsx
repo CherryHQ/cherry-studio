@@ -543,6 +543,32 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
   })
 
+  it('appends a no-response error part to empty terminal assistant messages for display', () => {
+    const emptyAssistantMessage = {
+      id: 'empty-message',
+      role: 'assistant',
+      metadata: { status: 'success' },
+      parts: [{ type: 'step-start' }]
+    } as CherryUIMessage
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[emptyAssistantMessage]}
+        partsByMessageId={{ 'empty-message': emptyAssistantMessage.parts as CherryMessagePart[] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const displayParts = value?.state.partsByMessageId['empty-message'] ?? []
+    expect(displayParts.some((part) => part.type === 'data-error')).toBe(true)
+    expect(displayParts.find((part) => part.type === 'data-error')).toMatchObject({
+      type: 'data-error',
+      data: { message: 'error.no_response' }
+    })
+  })
+
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
     let value: MessageListProviderValue | undefined
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)

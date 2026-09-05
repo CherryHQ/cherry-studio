@@ -98,7 +98,9 @@ export interface KnowledgeScopePartData {
 }
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
-export type ClearPartData = Record<string, never>
+export type ClearPartData = {
+  dismissedNoResponse?: boolean
+}
 
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>
@@ -362,7 +364,13 @@ export function createClearContextPart(): ClearContextPart {
 
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
+  return (
+    parts?.some(
+      (part) =>
+        part.type === CLEAR_CONTEXT_PART_TYPE &&
+        (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse !== true
+    ) ?? false
+  )
 }
 
 /** Whether persisted message values describe a blank user turn, without making any tree-level claim. */
