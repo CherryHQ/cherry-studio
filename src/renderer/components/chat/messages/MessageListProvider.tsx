@@ -9,7 +9,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Context, ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
-import { PartsProvider } from './blocks/MessagePartsContext'
+import { FullPartsMapProvider, PartsProvider } from './blocks/MessagePartsContext'
 import type {
   MessageListActions,
   MessageListItem,
@@ -193,27 +193,29 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
-        <PartsProvider value={state.partsByMessageId}>
-          <MessageListCitationRegistryContext value={citationRegistry}>
-            <MessageListActionsContext value={actions}>
-              <MessageListMetaContext value={meta}>
-                <MessageListRenderConfigContext value={state.renderConfig}>
-                  <MessageListSelectionContext value={state.selection}>
-                    <MessageListUiStaticContext value={uiStatic}>
-                      <MessageListUiSelectorsContext value={uiSelectors}>
-                        <MessageListActivityContext value={activity}>
-                          <MessageListEditingContext value={state.editingMessageId ?? null}>
-                            {children}
-                          </MessageListEditingContext>
-                        </MessageListActivityContext>
-                      </MessageListUiSelectorsContext>
-                    </MessageListUiStaticContext>
-                  </MessageListSelectionContext>
-                </MessageListRenderConfigContext>
-              </MessageListMetaContext>
-            </MessageListActionsContext>
-          </MessageListCitationRegistryContext>
-        </PartsProvider>
+        <FullPartsMapProvider value={state.partsByMessageId}>
+          <PartsProvider value={state.partsByMessageId}>
+            <MessageListCitationRegistryContext value={citationRegistry}>
+              <MessageListActionsContext value={actions}>
+                <MessageListMetaContext value={meta}>
+                  <MessageListRenderConfigContext value={state.renderConfig}>
+                    <MessageListSelectionContext value={state.selection}>
+                      <MessageListUiStaticContext value={uiStatic}>
+                        <MessageListUiSelectorsContext value={uiSelectors}>
+                          <MessageListActivityContext value={activity}>
+                            <MessageListEditingContext value={state.editingMessageId ?? null}>
+                              {children}
+                            </MessageListEditingContext>
+                          </MessageListActivityContext>
+                        </MessageListUiSelectorsContext>
+                      </MessageListUiStaticContext>
+                    </MessageListSelectionContext>
+                  </MessageListRenderConfigContext>
+                </MessageListMetaContext>
+              </MessageListActionsContext>
+            </MessageListCitationRegistryContext>
+          </PartsProvider>
+        </FullPartsMapProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
   )

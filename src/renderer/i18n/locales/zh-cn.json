@@ -2178,6 +2178,7 @@
   "message.tools.activity.codeFiles": "代码文件",
   "message.tools.activity.codeHostInfo": "远程仓库信息",
   "message.tools.activity.configFiles": "项目说明和配置文件",
+  "message.tools.activity.continueHandle": "继续处理",
   "message.tools.activity.copy": "复制",
   "message.tools.activity.copying": "正在复制",
   "message.tools.activity.create": "新建",

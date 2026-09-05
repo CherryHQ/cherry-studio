@@ -37,7 +37,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    usePartsMap: () => mockPartsMap()
+    usePartsMap: () => mockPartsMap(),
+    useFullPartsMap: () => mockPartsMap()
   }
 })
 
@@ -154,6 +155,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.activity.executingCommand': 'Running task',
     'message.tools.activity.file': 'file',
     'message.tools.activity.handle': 'Handle',
+    'message.tools.activity.continueHandle': 'Continue handling',
     'message.tools.activity.handling': 'Handling',
     'message.tools.activity.installing': 'Installing',
     'message.tools.activity.projectDependencies': 'project requirements',
@@ -688,6 +690,42 @@ describe('AgentToolRenderer', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
+    // A status flip on the same mounted instance must not change the hook count: the resume
+    // lookup's useMemo used to sit after the `waiting` early return and crashed with React #310.
+    it('keeps hook order stable when an approval wait flips to executing', () => {
+      const toolResponse = createToolResponse({ status: 'pending', partialArguments: undefined })
+
+      // First render: approval-requested → effective 'waiting' → early return null.
+      mockPartsMap.mockReturnValue({
+        msg1: [
+          {
+            type: 'tool-Read',
+            toolCallId: toolResponse.toolCallId,
+            state: 'approval-requested',
+            approval: { id: 'approval-1' },
+            input: undefined
+          }
+        ]
+      })
+      const { container, rerender } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(container).toBeEmptyDOMElement()
+
+      // Second render, same mount: approval resolved → execution passes the guard.
+      mockPartsMap.mockReturnValue({
+        msg1: [
+          {
+            type: 'tool-Read',
+            toolCallId: toolResponse.toolCallId,
+            state: 'input-available',
+            approval: { id: 'approval-1' },
+            input: undefined
+          }
+        ]
+      })
+      rerender(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('Invoking')).toBeInTheDocument()
+    })
+
     it('should show pending indicator when no streaming and no permission', () => {
       const toolResponse = createToolResponse({
         status: 'pending',
@@ -1160,6 +1198,105 @@ describe('AgentToolRenderer', () => {
         title: 'Inspect renderer'
       })
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
+    })
+
+    // The resumed agent keeps streaming under its launch tool-call id, so the SendMessage receipt's
+    // entry must open that flow — not an empty SendMessage-rooted one.
+    it('opens the resumed subagent flow from a SendMessage receipt', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      // The entry identifies itself by the resumed agent's own description, not "SendMessage",
+      // and echoes the launch card's verb.
+      expect(screen.queryByText('SendMessage')).toBeNull()
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      // The flow's title is the agent's launch identity, not the resume request's summary — the
+      // same agent must read identically from every entry point.
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-launch',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
+    it('keeps a SendMessage without a resolvable launch root locally clickable only', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', message: 'please continue' },
+        response: { success: true, message: 'queued for delivery at its next tool round.' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('SendMessage').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
+    // A send to a still-running agent queues instead of resuming — its receipt carries only
+    // pin.id, and the entry must still resolve back to the launch flow.
+    it('opens the launch flow from a queued-pin SendMessage receipt', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'flow-marker-reader', summary: 'Continue the review', message: 'please continue' },
+        response: {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'agent-77', name: 'flow-marker-reader', ref: 'abc' }
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.queryByText('SendMessage')).toBeNull()
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-launch',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
     })
 
     it('keeps ordinary tool row clicks local even when the flow action exists', () => {

@@ -2178,6 +2178,7 @@
   "message.tools.activity.codeFiles": "fichiers de code",
   "message.tools.activity.codeHostInfo": "informations sur le dépôt distant",
   "message.tools.activity.configFiles": "documentation et configuration du projet",
+  "message.tools.activity.continueHandle": "Continuer le traitement",
   "message.tools.activity.copy": "Copier",
   "message.tools.activity.copying": "Copie en cours",
   "message.tools.activity.create": "Créer",

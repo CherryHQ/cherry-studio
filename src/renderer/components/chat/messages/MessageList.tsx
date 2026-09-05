@@ -13,7 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
+import { FullPartsMapProvider, PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -122,19 +122,21 @@ function MessageGroupLayer({
 }: MessageGroupLayerProps) {
   void isLive
   return (
-    <PartsProvider value={partsByMessageId ?? null}>
-      <NarrowLayout
-        narrowMode={narrowMode}
-        withSidePadding
-        // The gutter is mirrored on the left so the column stays
-        // centred and both margins match while the rail fades in.
-        style={{
-          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
-        }}>
-        <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
-      </NarrowLayout>
-    </PartsProvider>
+    <FullPartsMapProvider value={partsByMessageId ?? null}>
+      <PartsProvider value={partsByMessageId ?? null}>
+        <NarrowLayout
+          narrowMode={narrowMode}
+          withSidePadding
+          // The gutter is mirrored on the left so the column stays
+          // centred and both margins match while the rail fades in.
+          style={{
+            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          }}>
+          <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
+        </NarrowLayout>
+      </PartsProvider>
+    </FullPartsMapProvider>
   )
 }
 
