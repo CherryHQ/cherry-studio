@@ -25,10 +25,14 @@ import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } f
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const imagePreviewShowMock = vi.hoisted(() => vi.fn())
-const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
+const contentPopupShowMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
+  FilePreview: ({ filePath }: { filePath: string }) => <section aria-label={`File preview: ${filePath}`} />
+}))
+
+vi.mock('@renderer/components/popups/ContentPopup', () => ({
+  default: { show: contentPopupShowMock }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -222,8 +226,8 @@ beforeEach(() => {
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
   imagePreviewShowMock.mockResolvedValue(undefined)
-  openFilePreviewTabMock.mockReset()
-  openFilePreviewTabMock.mockReturnValue('file-preview-tab')
+  contentPopupShowMock.mockReset()
+  contentPopupShowMock.mockResolvedValue(undefined)
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -636,7 +640,7 @@ describe('ComposerToken', () => {
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
 
-  it('opens an editable Markdown attachment in the file preview tab by pointer or keyboard', async () => {
+  it('opens an editable Markdown attachment in a popup by pointer or keyboard', async () => {
     const user = userEvent.setup()
     render(
       <ComposerToken
@@ -658,16 +662,21 @@ describe('ComposerToken', () => {
     const attachment = screen.getByRole('button', { name: 'requirements.md' })
     await user.click(attachment)
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(contentPopupShowMock).toHaveBeenCalledOnce()
+    expect(contentPopupShowMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'requirements.md', width: 700 })
+    )
+    render(contentPopupShowMock.mock.lastCall?.[0].content)
+    expect(screen.getByRole('region', { name: 'File preview: /tmp/managed-file.md' })).toBeInTheDocument()
 
-    openFilePreviewTabMock.mockClear()
+    contentPopupShowMock.mockClear()
     attachment.focus()
     await user.keyboard('{Enter}')
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(contentPopupShowMock).toHaveBeenCalledOnce()
   })
 
-  it('opens a sent Markdown attachment from its managed file URL', async () => {
+  it('opens a sent Markdown attachment from its managed file URL in a popup', async () => {
     const user = userEvent.setup()
     render(
       <FileComposerToken
@@ -690,7 +699,9 @@ describe('ComposerToken', () => {
 
     await user.click(screen.getByRole('button', { name: 'requirements.md' }))
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
+    expect(contentPopupShowMock).toHaveBeenCalledOnce()
+    render(contentPopupShowMock.mock.lastCall?.[0].content)
+    expect(screen.getByRole('region', { name: 'File preview: /tmp/message-files/managed-file.md' })).toBeInTheDocument()
   })
 
   it('renders office file tokens with dedicated variants', () => {
