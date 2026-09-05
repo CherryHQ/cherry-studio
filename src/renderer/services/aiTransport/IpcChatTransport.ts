@@ -1,6 +1,12 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
+import {
+  type AiChatRequestBody,
+  type AiStreamOpenRequest,
+  capAttachReplayChunks,
+  MAX_ATTACH_REPLAY_CHUNKS,
+  type StreamChunkPayload
+} from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
@@ -83,7 +89,12 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
 
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
-    return this.buildListenerStream(topicId, result.bufferedChunks)
+    let replayChunks = result.bufferedChunks
+    if (result.bufferedChunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
+      logger.warn('transport replay capped', { total: result.bufferedChunks.length, topicId })
+      replayChunks = capAttachReplayChunks(result.bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
+    }
+    return this.buildListenerStream(topicId, replayChunks)
   }
 
   private buildListenerStream(
@@ -159,7 +170,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
-          return !data.executionId || !!data.isTopicDone
+          return true
         }
 
         unsubscribers.push(
@@ -173,7 +184,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           ipcApi.on('ai.stream.chunk', (data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
             if (isStreamClosed || !matchesStream(data)) return
             schedulePending(data.chunk)
           })
@@ -191,6 +201,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
             if (!matchesStream(data)) return
+            if (executionId && data.executionId !== executionId) return
+            if (!executionId && isPerExecutionOnly(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
