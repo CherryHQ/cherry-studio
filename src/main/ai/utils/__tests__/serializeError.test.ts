@@ -1,4 +1,4 @@
-import { NoSuchToolError, RetryError } from 'ai'
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../serializeError'
@@ -75,20 +75,29 @@ describe('serializeError', () => {
       expect(serializeError(error).i18nKey).toBe('tool_call_limit_reached')
     })
 
-    it('serializes a RetryError with its discriminant fields', () => {
+    it('preserves nested provider error details in a RetryError', () => {
+      const providerError = new APICallError({
+        message: 'provider rejected the request',
+        url: 'https://api.example.com/chat/completions',
+        requestBodyValues: {},
+        statusCode: 429,
+        isRetryable: true
+      })
       const retryError = new RetryError({
         message: 'retry failed',
         reason: 'maxRetriesExceeded',
-        errors: [new Error('attempt 1'), new Error('attempt 2')]
+        errors: [providerError]
       })
 
       const result = serializeError(retryError)
 
       expect(result.reason).toBe('maxRetriesExceeded')
-      expect(Array.isArray(result.errors)).toBe(true)
-      expect((result.errors as unknown[]).length).toBe(2)
-      // lastError is also carried.
-      expect('lastError' in result).toBe(true)
+      expect(result.lastError).toMatchObject({
+        name: 'AI_APICallError',
+        message: 'provider rejected the request',
+        statusCode: 429
+      })
+      expect(result.errors).toEqual([result.lastError])
     })
 
     it('serializes a NoSuchToolError with its discriminant fields', () => {

@@ -1,6 +1,7 @@
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { APICallError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +12,7 @@ import {
   isAbortError,
   isTimeoutError,
   providerErrorText,
+  serializeError,
   serializeHealthCheckError
 } from '../error'
 
@@ -304,6 +306,23 @@ describe('error', () => {
           errors: []
         })
       ).toBe('concurrency limit reached')
+    })
+
+    it('preserves the provider message when serializing a retry error', () => {
+      const providerError = new APICallError({
+        message: 'account is not authorized for this model',
+        url: 'https://api.example.com/chat/completions',
+        requestBodyValues: {},
+        statusCode: 403,
+        isRetryable: true
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [providerError]
+      })
+
+      expect(providerErrorText(serializeError(retryError))).toBe('account is not authorized for this model')
     })
 
     it('uses the newest retry attempt when lastError is absent', () => {

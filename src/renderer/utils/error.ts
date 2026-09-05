@@ -151,6 +151,9 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
   } satisfies SerializedAiSdkNoSuchToolError
 }
 
+const serializeNestedError = (error: unknown) =>
+  AISDKError.isInstance(error) ? serializeError(error) : safeSerialize(error)
+
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {
@@ -202,8 +205,8 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
   if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
   if ('reason' in error) serializedError.reason = error.reason
-  if ('lastError' in error) serializedError.lastError = safeSerialize(error.lastError)
-  if ('errors' in error) serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
+  if ('lastError' in error) serializedError.lastError = serializeNestedError(error.lastError)
+  if ('errors' in error) serializedError.errors = error.errors.map(serializeNestedError)
   if ('originalError' in error)
     serializedError.originalError = InvalidToolInputError.isInstance(error.originalError)
       ? serializeInvalidToolInputError(error.originalError)

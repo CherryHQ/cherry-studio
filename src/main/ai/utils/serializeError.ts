@@ -23,6 +23,10 @@ function toSerializable(value: unknown): Serializable {
   }
 }
 
+function serializeNestedError(value: unknown): Serializable {
+  return value instanceof Error ? serializeError(value) : toSerializable(value)
+}
+
 /** Serialize any Error to a plain object safe for IPC / JSON.
  *  Detects AI SDK error types and extracts their specific fields
  *  (statusCode, responseBody, etc.) so Renderer can use type guards.
@@ -67,8 +71,8 @@ export function serializeError(error: unknown): SerializedError {
     if ('availableProviders' in e) serialized.availableProviders = e.availableProviders as string[]
     if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
     if ('reason' in e) serialized.reason = e.reason as string
-    if ('lastError' in e) serialized.lastError = toSerializable(e.lastError)
-    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map((err) => toSerializable(err))
+    if ('lastError' in e) serialized.lastError = serializeNestedError(e.lastError)
+    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedError)
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError) as Serializable
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
