@@ -27,6 +27,8 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Trace collector generation admitted when this warm process is materialized. */
+  traceGeneration?: number
   /** Spawn-frozen connection identity used to reject stale warm processes. */
   connectionRebuildSignature?: string
   /**
@@ -197,7 +199,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     })
     if (!preparedTrace) return request
 
-    return { ...request, options: { ...request.options, env: { ...request.options.env, ...preparedTrace.env } } }
+    return {
+      ...request,
+      traceGeneration: preparedTrace.generation,
+      options: { ...request.options, env: { ...request.options.env, ...preparedTrace.env } }
+    }
   }
 
   closeAgentSessionWarm(sessionId: string): void {
@@ -210,7 +216,10 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
-    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
+    const warmOptions = {
+      ...stripWarmQueryOptions(request.options),
+      spawnClaudeCodeProcess: this.createSpawnProcess(request.traceGeneration)
+    }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -311,5 +320,22 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
         logger.debug('Ignoring warm query close after failed startup', { error })
       })
     return entry.closePromise
+  }
+
+  /**
+   * Check trace admission at the SDK's actual child-process boundary. Startup is asynchronous, so
+   * checking only before `startup()` would still allow a prewarm to spawn after tracing is disabled
+   * or after a new collector generation has replaced the old one.
+   */
+  private createSpawnProcess(traceGeneration?: number): typeof spawnClaudeCodeProcess {
+    if (traceGeneration === undefined) return spawnClaudeCodeProcess
+
+    return (options) => {
+      const currentGeneration = application.get('ClaudeCodeTraceBridgeService').getTraceGeneration()
+      if (currentGeneration !== traceGeneration) {
+        throw new Error('Claude warm query trace generation is no longer admitted')
+      }
+      return spawnClaudeCodeProcess(options)
+    }
   }
 }

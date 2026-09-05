@@ -8,14 +8,16 @@ const {
   applicationGetMock,
   traceModeEnabledMock,
   prepareTraceMock,
-  ensureTraceIdMock
+  ensureTraceIdMock,
+  getTraceGenerationMock
 } = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
   prepareTraceMock: vi.fn(),
-  ensureTraceIdMock: vi.fn()
+  ensureTraceIdMock: vi.fn(),
+  getTraceGenerationMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -72,11 +74,16 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.useFakeTimers()
     applicationGetMock.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeTraceBridgeService') {
-        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+        return {
+          isTraceModeEnabled: traceModeEnabledMock,
+          prepareTrace: prepareTraceMock,
+          getTraceGeneration: getTraceGenerationMock
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
     traceModeEnabledMock.mockReturnValue(false)
+    getTraceGenerationMock.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -516,6 +523,28 @@ describe('ClaudeCodeWarmQueryManager', () => {
       } as any
     })
     expect(consumed?.warmQuery).toBe(warm)
+  })
+
+  it('rejects a warm process when its trace generation is no longer admitted at spawn time', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    let spawnProcess: ((options: any) => unknown) | undefined
+    startupMock.mockImplementationOnce(async ({ options }: { options: any }) => {
+      spawnProcess = options.spawnClaudeCodeProcess
+      return warm
+    })
+    getTraceGenerationMock.mockReturnValue(1)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    expect(spawnProcess).toBeDefined()
+    getTraceGenerationMock.mockReturnValue(null)
+    expect(() => spawnProcess?.({})).toThrow('trace generation is no longer admitted')
+    expect(warm.close).not.toHaveBeenCalled()
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
