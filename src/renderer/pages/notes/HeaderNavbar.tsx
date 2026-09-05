@@ -305,6 +305,8 @@ const HeaderNavbar = ({
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              aria-label={t('navbar.hide_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
@@ -314,6 +316,8 @@ const HeaderNavbar = ({
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              aria-label={t('navbar.show_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
@@ -368,23 +372,22 @@ const HeaderNavbar = ({
       <NavbarRight className="pr-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
-            <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
+            <BaseNavbarIcon
+              aria-label={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}
+              aria-pressed={activeNode.isStarred}
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
-            </div>
+            </BaseNavbarIcon>
           </Tooltip>
         )}
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <div>
-              <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground">
-                  <MoreHorizontal size={18} />
-                </BaseNavbarIcon>
-              </Tooltip>
-            </div>
-          </PopoverTrigger>
+          <Tooltip title={t('common.more')} delay={800}>
+            <PopoverTrigger asChild>
+              <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground" aria-label={t('common.more')}>
+                <MoreHorizontal size={18} />
+              </BaseNavbarIcon>
+            </PopoverTrigger>
+          </Tooltip>
           <PopoverContent align="end" className="w-64 p-1.5">
             <MenuList>{menuItems.map(renderMenuItem)}</MenuList>
           </PopoverContent>
