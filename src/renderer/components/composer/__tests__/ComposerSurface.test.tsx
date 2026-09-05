@@ -4442,6 +4442,7 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(mocks.insertContent).not.toHaveBeenCalled()
     expect(onTokensChange).toHaveBeenCalledWith([])
   })
 

@@ -1716,6 +1716,10 @@ export default function ComposerSurfaceRuntime({
         }
       }
 
+      // Some desktop clipboards expose a text flavor alongside a screenshot.
+      // Once a supported image is present, route the whole paste through the
+      // file lifecycle before considering any plain-text insertion; otherwise
+      // a selected managed attachment can survive while the image is appended.
       if (shouldPreferClipboardImage) {
         event.preventDefault()
         void handlePaste(event, filePasteLifecycle)
