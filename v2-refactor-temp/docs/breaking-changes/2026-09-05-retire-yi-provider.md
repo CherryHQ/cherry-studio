@@ -2,7 +2,7 @@
 title: Yi provider is no longer available
 category: removed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: "#20016"
 date: 2026-09-05
 ---
 
