@@ -205,19 +205,25 @@ export function useMiniAppVisibility() {
   }, [enqueueMutation, hidden, visible, setAppStatusBulk])
 
   const reset = useCallback(() => {
-    const newVisible = restoreHiddenMiniApps(visible, hidden, originalVisibleIdsRef.current)
+    const originalVisibleIds = originalVisibleIdsRef.current
+    const newVisible = restoreHiddenMiniApps(visible, hidden, originalVisibleIds)
     const restoringIds = new Set(hidden.map((app) => app.appId))
     setVisible(newVisible)
     setHidden([])
-    const updates = newVisible
-      .filter((app) => restoringIds.has(app.appId))
-      .map((app) => ({
-        appId: app.appId,
-        status: 'enabled' as const,
-        order: restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, allApps, restoringIds)
-      }))
-    enqueueMutation(() => setAppStatusBulk(updates), 'miniApps.update_partial_failure_generic')
-  }, [allApps, enqueueMutation, visible, hidden, setAppStatusBulk])
+    enqueueMutation(
+      () =>
+        setAppStatusBulk((currentApps) =>
+          newVisible
+            .filter((app) => restoringIds.has(app.appId))
+            .map((app) => ({
+              appId: app.appId,
+              status: 'enabled' as const,
+              order: restoredOrderAnchor(app.appId, originalVisibleIds, currentApps, restoringIds)
+            }))
+        ),
+      'miniApps.update_partial_failure_generic'
+    )
+  }, [enqueueMutation, visible, hidden, setAppStatusBulk])
 
   const hide = useCallback(
     (app: MiniApp) => {

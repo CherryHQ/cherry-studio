@@ -50,8 +50,14 @@ vi.mock('@renderer/hooks/useMiniApps', async () => {
       effectiveRegion: mocks.effectiveRegion,
       updateAppStatus: (...args: Parameters<typeof mocks.updateAppStatus>) =>
         miniAppMutationService.enqueue(() => mocks.updateAppStatus(...args)),
-      setAppStatusBulk: (...args: Parameters<typeof mocks.setAppStatusBulk>) =>
-        miniAppMutationService.enqueue(() => mocks.setAppStatusBulk(...args)),
+      setAppStatusBulk: (
+        updates:
+          | Parameters<typeof mocks.setAppStatusBulk>[0]
+          | ((apps: readonly MiniApp[]) => Parameters<typeof mocks.setAppStatusBulk>[0])
+      ) =>
+        miniAppMutationService.enqueue(() =>
+          mocks.setAppStatusBulk(typeof updates === 'function' ? updates(mocks.allApps) : updates)
+        ),
       reorderMiniAppsByStatus: (...args: Parameters<typeof mocks.reorderMiniAppsByStatus>) =>
         miniAppMutationService.enqueue(() => mocks.reorderMiniAppsByStatus(...args))
     })
@@ -309,6 +315,32 @@ describe('useMiniAppVisibility', () => {
 
     act(() => result.current.reset())
     expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('resolves reset anchors after an earlier swap finishes in the shared queue', async () => {
+    const swapRequest = Promise.withResolvers<void>()
+    mocks.setAppStatusBulk.mockImplementationOnce(() => swapRequest.promise).mockResolvedValueOnce(undefined)
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.swap())
+    act(() => result.current.reset())
+
+    expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
+
+    const disabledA = { ...stubApp('a'), status: 'disabled' as const, orderKey: 'a0' }
+    const disabledB = { ...stubApp('b'), status: 'disabled' as const, orderKey: 'a1' }
+    const enabledC = { ...stubApp('c'), status: 'enabled' as const, orderKey: 'a2' }
+    mocks.miniApps = [enabledC]
+    mocks.disabled = [disabledA, disabledB]
+    mocks.allApps = [disabledA, disabledB, enabledC]
+    rerender()
+    swapRequest.resolve()
+
+    await waitFor(() => expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(2))
+    expect(mocks.setAppStatusBulk).toHaveBeenLastCalledWith([
+      { appId: 'a', status: 'enabled', order: { before: 'c' } },
+      { appId: 'b', status: 'enabled', order: { before: 'c' } }
+    ])
   })
 
   it('swap explicitly names every row in the move and keeps pinned rows visible', () => {

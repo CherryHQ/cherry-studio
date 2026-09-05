@@ -65,6 +65,10 @@ function compareOrderKey(a: MiniApp, b: MiniApp): number {
 }
 
 type OrderRequestResolver = OrderRequest | ((apps: readonly MiniApp[]) => OrderRequest)
+type MiniAppStatusUpdate = { appId: string; status: MiniApp['status']; order?: OrderRequest }
+type MiniAppStatusUpdatesResolver =
+  | ReadonlyArray<MiniAppStatusUpdate>
+  | ((apps: readonly MiniApp[]) => ReadonlyArray<MiniAppStatusUpdate>)
 
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
@@ -311,11 +315,14 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * requested destination order, so reset cannot leave a partial result.
    */
   const setAppStatusBulk = useCallback(
-    async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status']; order?: OrderRequest }>) => {
-      if (updates.length === 0) return
+    async (updates: MiniAppStatusUpdatesResolver) => {
+      if (Array.isArray(updates) && updates.length === 0) return
       await miniAppMutationService.enqueue(async () => {
         try {
-          await patchMiniAppStatusBatchTrigger({ body: { updates: [...updates] } })
+          const resolvedUpdates =
+            typeof updates === 'function' ? updates(readCache<MiniApp[]>('/mini-apps') ?? allAppsRef.current) : updates
+          if (resolvedUpdates.length === 0) return
+          await patchMiniAppStatusBatchTrigger({ body: { updates: [...resolvedUpdates] } })
         } catch (error) {
           await invalidate('/mini-apps')
           logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
@@ -323,7 +330,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       })
     },
-    [invalidate, patchMiniAppStatusBatchTrigger]
+    [invalidate, patchMiniAppStatusBatchTrigger, readCache]
   )
 
   const createCustomMiniApp = useCallback(
@@ -502,15 +509,18 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const reorderMiniAppsByStatus = useCallback(
     async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
       const persist = async () => {
-        const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
-        const orderedIds = new Set(orderedPartition.map((app) => app.appId))
-        // Status mutate+refresh writes SWR before React re-renders; peek that membership.
-        const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
-        const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
-        const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
-        if (moves.length === 0) return
-
         try {
+          const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+          const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+          // Status mutate+refresh writes SWR before React re-renders; peek that membership.
+          const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
+          const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+          const currentIds = new Set(currentPartition.map((app) => app.appId))
+          // A queued status write may move requested rows out of this partition; preserve the drag order of survivors.
+          const currentOrderedPartition = orderedPartition.filter((app) => currentIds.has(app.appId))
+          const moves = computeMinimalMoves(currentPartition, currentOrderedPartition, 'appId')
+          if (moves.length === 0) return
+
           if (moves.length === 1) {
             const [move] = moves
             await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })

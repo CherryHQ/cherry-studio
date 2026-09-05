@@ -882,6 +882,44 @@ describe('useMiniApps', () => {
       await act(async () => Promise.all([statusWrite, reorderWrite]))
       expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { position: 'first' } })
     })
+
+    it('persists the remaining reorder when a queued status change removes a requested row', async () => {
+      const statusRequest = Promise.withResolvers<void>()
+      const patchStatusTrigger = vi.fn(() => statusRequest.promise)
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: patchStatusTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'enabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'enabled', orderKey: 'a1' })
+      const c = createMiniApp('c', { status: 'enabled', orderKey: 'a2' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b, c]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b, c]))
+      const { result } = renderHook(() => useMiniApps())
+
+      let statusWrite!: Promise<unknown>
+      let reorderWrite!: Promise<void>
+      act(() => {
+        statusWrite = result.current.updateAppStatus('a', 'disabled')
+        reorderWrite = result.current.reorderMiniAppsByStatus('visible', [c, b, a])
+      })
+
+      expect(patchStatusTrigger).toHaveBeenCalledTimes(1)
+      expect(patchOrderTrigger).not.toHaveBeenCalled()
+
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([{ ...a, status: 'disabled' }, b, c]))
+      statusRequest.resolve()
+      await act(async () => Promise.all([statusWrite, reorderWrite]))
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'c' }, body: { position: 'first' } })
+    })
   })
 
   // === Edge Cases ===
