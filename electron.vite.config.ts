@@ -95,26 +95,27 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+/** Shared with the utility-process entries build, which must resolve identically. */
+export const mainResolveAlias = {
+  '@main': resolve('src/main'),
+  '@application': resolve('src/main/core/application/Application'),
+  '@data': resolve('src/main/data'),
+  '@shared': resolve('src/shared'),
+  '@logger': resolve('src/main/core/logger/LoggerService'),
+  '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+  '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
+  '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+  '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+  '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+  '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+  '@test-mocks': resolve('tests/__mocks__'),
+  '@test-helpers': resolve('tests/helpers')
+}
+
 export default defineConfig({
   main: {
     plugins: [chunkExportGuardPlugin(), miniAppThemeAssetPlugin(), ...visualizerPlugin('main')],
-    resolve: {
-      alias: {
-        '@main': resolve('src/main'),
-        '@application': resolve('src/main/core/application/Application'),
-        '@data': resolve('src/main/data'),
-        '@shared': resolve('src/shared'),
-        '@logger': resolve('src/main/core/logger/LoggerService'),
-        '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
-        '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
-        '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
-        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
-        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-        '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
-        '@test-mocks': resolve('tests/__mocks__'),
-        '@test-helpers': resolve('tests/helpers')
-      }
-    },
+    resolve: { alias: mainResolveAlias },
     build: {
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
