@@ -132,6 +132,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('api key is invalid') ||
     msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
+    msg.includes('not logged in') ||
     msg.includes('unauthorized')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }

@@ -184,6 +184,29 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: 'Not logged in \u00b7 Please run /login',
+          stack: null,
+          cause: null,
+          errors: ['Not logged in \u00b7 Please run /login']
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses injected diagnosis capability for unknown errors', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {
