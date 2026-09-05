@@ -1,9 +1,8 @@
-import { EditableNumber } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -23,40 +22,35 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
-  const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
-
-  useEffect(() => {
-    setKeepAliveMinutes(provider?.settings?.keepAliveTime ?? 0)
-  }, [provider?.settings?.keepAliveTime])
-
-  const handleBlur = async () => {
-    if (keepAliveMinutes === keepAliveTime) return
+  // `onBlur` fires once per edit with the normalized value, so the field needs no
+  // local draft. It is handed back the promise, so it holds the committed value
+  // until the provider query catches up; a failed save falls back to the saved one.
+  const handleCommit = async (value: number | null) => {
+    const next = value ?? 0
+    if (next === keepAliveTime) return
     try {
-      await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
+      await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: next } })
     } catch (error) {
       logger.error('Failed to save GPUStack keep alive time', { providerId, error })
       toast.error(t('settings.provider.save_failed'))
-      setKeepAliveMinutes(keepAliveTime)
     }
   }
 
   return (
     <div>
       <ProviderSettingsSubtitle className="mb-1">{t('gpustack.keep_alive_time.title')}</ProviderSettingsSubtitle>
-      <div className="w-full [&>div]:block [&>div]:w-full">
-        <EditableNumber
-          value={keepAliveMinutes}
+      <InputGroup>
+        <InputGroupInputNumber
+          aria-label={t('gpustack.keep_alive_time.title')}
+          value={keepAliveTime}
           min={0}
           step={5}
-          suffix={t('gpustack.keep_alive_time.placeholder')}
-          align="start"
-          changeOnBlur={false}
-          onChange={(v) => setKeepAliveMinutes(Number(v ?? 0))}
-          onBlur={() => {
-            void handleBlur()
-          }}
+          onBlur={handleCommit}
         />
-      </div>
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{t('gpustack.keep_alive_time.placeholder')}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
       <ProviderHelpTextRow>
         <ProviderHelpText>{t('gpustack.keep_alive_time.description')}</ProviderHelpText>
       </ProviderHelpTextRow>

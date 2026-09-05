@@ -47,6 +47,7 @@ import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -289,6 +290,84 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('matches the Parallel GA search request and normalizes fixture excerpts', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('parallel-response.json')))
+
+    const provider = createProviderDriver(
+      ParallelProvider,
+      createProvider({
+        id: 'parallel',
+        name: 'Parallel',
+        apiKeys: ['parallel-key'],
+        apiHost: 'https://api.parallel.ai'
+      })
+    )
+
+    const abortController = new AbortController()
+    const result = await provider.searchKeywords('latest web research', runtimeConfig, {
+      signal: abortController.signal
+    })
+
+    expect(fetchMock.mock.lastCall?.[1]?.signal).toBe(abortController.signal)
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: {
+        advanced_settings: { max_results: 4 },
+        objective: 'latest web research',
+        search_queries: ['latest web research']
+      },
+      headers: {
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-api-key': 'parallel-key',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.parallel.ai/v1/search'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['latest web research'],
+      providerId: 'parallel',
+      query: 'latest web research',
+      results: [
+        {
+          content: 'First excerpt.\n\nSecond excerpt.',
+          sourceInput: 'latest web research',
+          title: 'Parallel Title',
+          url: 'https://parallel.example/result'
+        }
+      ]
+    })
+  })
+
+  it('supports a custom Parallel API host without forwarding Cherry blacklist match patterns', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('parallel-response.json')))
+
+    const provider = createProviderDriver(
+      ParallelProvider,
+      createProvider({
+        id: 'parallel',
+        name: 'Parallel',
+        apiKeys: ['parallel-key'],
+        apiHost: 'https://parallel-proxy.example'
+      })
+    )
+
+    await provider.searchKeywords('hello', {
+      ...runtimeConfig,
+      excludeDomains: ['*://*.example.com/*', '/blocked\\.example/']
+    })
+
+    const request = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(request.url).toBe('https://parallel-proxy.example/v1/search')
+    expect(request.body).toEqual({
+      advanced_settings: { max_results: 4 },
+      objective: 'hello',
+      search_queries: ['hello']
+    })
   })
 
   it('fetches a URL without API key or API host', async () => {
@@ -839,6 +918,96 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('selects enabled Searxng engines whose categories are general only', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          engines: [
+            { categories: ['general'], enabled: true, name: 'wikipedia' },
+            { categories: ['images'], enabled: true, name: 'google_images' }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]).url).toBe(
+      'https://searx.example/search?q=hello&language=auto&format=json&engines=wikipedia'
+    )
+  })
+
+  it('prefers enabled dual general+web Searxng engines and excludes specialized engines', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          engines: [
+            { categories: ['images'], enabled: true, name: 'google_images' },
+            { categories: ['general'], enabled: true, name: 'wikipedia' },
+            { categories: ['science'], enabled: true, name: 'arxiv' },
+            { categories: ['general', 'web'], enabled: true, name: 'duckduckgo' },
+            { categories: ['general', 'web'], enabled: false, name: 'google' }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]).url).toBe(
+      'https://searx.example/search?q=hello&language=auto&format=json&engines=duckduckgo%2Cwikipedia'
+    )
+  })
+
+  it('throws when Searxng config has no enabled general search engines', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        engines: [
+          { categories: ['images'], enabled: true, name: 'google_images' },
+          { categories: ['science'], enabled: true, name: 'arxiv' },
+          { categories: ['general'], enabled: false, name: 'google' }
+        ]
+      })
+    )
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: []
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+      'No enabled general web search engines found in Searxng configuration'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('filters empty fetched content from Searxng results', async () => {

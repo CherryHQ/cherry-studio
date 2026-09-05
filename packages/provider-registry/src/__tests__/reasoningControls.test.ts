@@ -107,6 +107,15 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['glm-4.6', [{ kind: 'toggle' }]],
+    // Xunfei MaaS (iflytek creator) ids — mirror the canonical family knobs.
+    ['xopdeepseekv32', [{ kind: 'toggle' }]],
+    ['xopdeepseekv4pro', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['xopkimik26', [{ kind: 'toggle' }]],
+    ['xopqwen35397b', [{ kind: 'budget', min: 0, max: 81920 }, { kind: 'toggle' }]],
+    ['xopglmv47flash', [{ kind: 'toggle' }]],
+    ['xopglm52', [{ kind: 'toggle' }]],
+    ['xsparkx2', [{ kind: 'toggle' }]],
+    ['xsparkx2flash', [{ kind: 'toggle' }]],
     ['gemma4:31b', [{ kind: 'toggle' }]],
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
@@ -133,7 +142,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     'acme-reasoner-v1', // unknown family
     'deepseek-r1', // fixed reasoning — no knob
     'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
-    'minimax-m2.1' // no documented knob
+    'ling-3.0-flash', // the on/off wire is serving-provider specific
+    'minimax-m2.1', // no documented knob
+    'xopdeepseekv2pro', // Xunfei MaaS pre-v3 deepseek — no knob
+    'xopglmv42' // Xunfei MaaS glm-4.2 — below the 4.5+ toggle line
   ])('returns undefined for %s', (id) => {
     expect(inferReasoningControls(id)).toBeUndefined()
   })

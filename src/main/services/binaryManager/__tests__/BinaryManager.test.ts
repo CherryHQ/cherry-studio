@@ -318,6 +318,15 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
     })
 
+    it('drops a custom Hermes recipe that aliases the Dashboard-enabled fixed recipe', async () => {
+      setRegistry([{ name: 'my-hermes', tool: 'pipx:hermes-agent' }])
+      const service = new BinaryManager()
+
+      await runAllReadyTasks(service)
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
     it('drops malformed entries and rebuilds an entry with extra fields to the canonical shape', async () => {
       setRegistry([
         { name: 'bad name', tool: 'npm:x' },
@@ -832,6 +841,28 @@ describe('BinaryManager', () => {
       // calling this `applied` would grant Update/Uninstall over another backend's fd.
       expect(snapshots.fd.application).toEqual({ status: 'broken', version: '10.0.0' })
       expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+    })
+
+    it('matches a fixed pipx recipe when mise omits its installation options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'pipx:hermes-agent': [{ version: '0.19.0', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which')
+          return { stdout: '/mock/mise/installs/pipx-hermes-agent/0.19.0/bin/hermes\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const snapshots = await service.getToolSnapshots(['hermes'])
+
+      expect(snapshots.hermes).toEqual({
+        name: 'hermes',
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/hermes', version: '0.19.0' },
+        application: { status: 'applied', version: '0.19.0' }
+      })
     })
 
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
@@ -2013,6 +2044,41 @@ describe('BinaryManager', () => {
       expect(miseArgs).toContainEqual(['use', '-g', 'fd@10.0.0'])
       expect(miseArgs).toContainEqual(['prune', 'fd'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('passes a fixed npm lifecycle allowlist as typed mise tool options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@vendor/native-cli': [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/native-cli\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition(
+          {
+            name: 'native-cli',
+            tool: 'npm:@vendor/native-cli',
+            npmAllowBuilds: ['@vendor/native-cli', 'better-sqlite3']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
+      ])
     })
 
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {

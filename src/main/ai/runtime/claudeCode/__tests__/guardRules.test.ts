@@ -221,6 +221,40 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('bash-repeat-no-progress', () => {
+    const loopingCtx = (run: number | undefined) => ({
+      input: { command: 'curl -s http://localhost/health' },
+      bashNoProgressRun: () => run
+    })
+
+    it('denies a stuck loop at the hard threshold in every mode, bypass included', async () => {
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(makeCtx({ ...loopingCtx(5), permissionMode: mode }))
+        expect(decision?.ruleId).toBe('bash-repeat-no-progress')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('5 times')
+        expect(decision?.reason).toContain('byte-identical')
+      }
+    })
+
+    it('leaves the soft-threshold runs to the hook-plane warning instead of denying', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(3)))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx(loopingCtx(4)))).resolves.toBeUndefined()
+    })
+
+    it('stays silent while the run is still forming or the session has no Bash history', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(undefined)))).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ input: { command: 'curl -s http://localhost/health' } }))
+      ).resolves.toBeUndefined()
+    })
+
+    it('does not gate non-Bash tools or calls without a command', async () => {
+      await expect(evaluate(makeCtx({ toolName: 'Read', bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+    })
+  })
+
   describe('headless-config-mutation', () => {
     const configTool = toCherryBuiltinRuntimeName('config')
 
@@ -371,6 +405,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       )
       expect(decision?.ruleId).toBe('support-bash')
       expect(decision?.effect).toBe('deny')
+    })
+  })
+
+  describe('support-diagnostic-draft', () => {
+    const toolName = 'mcp__assistant__prepare_diagnostic_report'
+
+    it('denies the UI-backed draft tool on headless Support turns in every mode', async () => {
+      for (const permissionMode of ['default', 'bypassPermissions'] as const) {
+        await expect(
+          evaluate(
+            makeCtx({
+              builtinRole: 'support',
+              toolName,
+              permissionMode,
+              interaction: HEADLESS
+            })
+          )
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+      }
+    })
+
+    it('leaves the draft tool auto-approved on interactive Support turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
   })
 

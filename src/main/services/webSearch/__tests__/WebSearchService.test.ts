@@ -9,21 +9,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as WebSearchProviderFactoryModule from '../providers/factory'
 
-const {
-  createWebSearchProviderMock,
-  loggerInfoMock,
-  loggerWarnMock,
-  loggerErrorMock,
-  sanitizeRemoteUrlMock,
-  resolveRemoteFetchUrlMock
-} = vi.hoisted(() => ({
-  createWebSearchProviderMock: vi.fn(),
-  loggerInfoMock: vi.fn(),
-  loggerWarnMock: vi.fn(),
-  loggerErrorMock: vi.fn(),
-  sanitizeRemoteUrlMock: vi.fn(),
-  resolveRemoteFetchUrlMock: vi.fn()
-}))
+const { createWebSearchProviderMock, loggerInfoMock, loggerWarnMock, loggerErrorMock, resolveRemoteFetchUrlMock } =
+  vi.hoisted(() => ({
+    createWebSearchProviderMock: vi.fn(),
+    loggerInfoMock: vi.fn(),
+    loggerWarnMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    resolveRemoteFetchUrlMock: vi.fn()
+  }))
 
 vi.mock('../providers/factory', async (importOriginal) => {
   const actual = await importOriginal<typeof WebSearchProviderFactoryModule>()
@@ -50,7 +43,6 @@ vi.mock('@main/utils/remoteUrlSafety', async (importOriginal) => {
 
   return {
     ...actual,
-    sanitizeRemoteUrl: sanitizeRemoteUrlMock,
     resolveRemoteFetchUrl: resolveRemoteFetchUrlMock
   }
 })
@@ -103,6 +95,19 @@ const providerOverrides: WebSearchProvider[] = [
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: ''
+  },
+  {
+    id: 'querit',
+    name: 'Querit',
+    type: 'api',
+    apiKeys: ['querit-key'],
+    capabilities: [
+      { feature: 'searchKeywords', apiHost: 'https://api.querit.ai' },
+      { feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }
+    ],
+    engines: [],
+    basicAuthUsername: '',
+    basicAuthPassword: ''
   }
 ]
 
@@ -128,6 +133,7 @@ function setWebSearchPreferences(
   values: Partial<{
     defaultSearchKeywordsProvider: WebSearchProvider['id'] | null
     defaultFetchUrlsProvider: WebSearchProvider['id'] | null
+    providerApiKeys: Partial<Record<WebSearchProvider['id'], string[]>>
     runtimeConfig: Partial<WebSearchExecutionConfig>
   }> = {}
 ) {
@@ -145,7 +151,7 @@ function setWebSearchPreferences(
       providerOverrides.map((provider) => [
         provider.id,
         {
-          apiKeys: provider.apiKeys,
+          apiKeys: values.providerApiKeys?.[provider.id] ?? provider.apiKeys,
           capabilities: Object.fromEntries(
             provider.capabilities.map((capability) => [capability.feature, { apiHost: capability.apiHost }])
           ),
@@ -164,7 +170,9 @@ describe('WebSearchService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
-    sanitizeRemoteUrlMock.mockImplementation((input: string) => input)
+    resolveRemoteFetchUrlMock.mockImplementation((input: string) =>
+      Promise.resolve({ url: input, address: { address: '93.184.216.34', family: 4 } })
+    )
     MockMainPreferenceServiceUtils.resetMocks()
     setWebSearchPreferences()
     webSearchService = new WebSearchService()
@@ -248,7 +256,7 @@ describe('WebSearchService', () => {
   })
 
   it('returns partial successes and logs non-abort input failures', async () => {
-    const searchKeywords = vi
+    const tavilySearch = vi
       .fn()
       .mockRejectedValueOnce(new Error('network failed'))
       .mockResolvedValueOnce(
@@ -256,7 +264,10 @@ describe('WebSearchService', () => {
           { title: 'Recovered', content: 'ok', url: 'https://example.com/recovered' }
         ])
       )
-    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+    const exaMcpSearch = vi.fn().mockRejectedValue(new Error('ExaMCP failed'))
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'tavily' ? { searchKeywords: tavilySearch } : { searchKeywords: exaMcpSearch }
+    )
 
     const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
 
@@ -278,22 +289,119 @@ describe('WebSearchService', () => {
       providerId: 'tavily',
       capability: 'searchKeywords',
       input: 'first',
-      error: 'network failed'
+      error: 'Web search failed after fallback: network failed; ExaMCP failed'
     })
+  })
+
+  it('skips an unconfigured keyword provider and runs every input through ExaMCP', async () => {
+    setWebSearchPreferences({ providerApiKeys: { tavily: [] } })
+    const tavilySearch = vi.fn()
+    const exaMcpSearch = vi.fn((input: string) =>
+      Promise.resolve(
+        response('exa-mcp', 'searchKeywords', input, [
+          { title: `Fallback ${input}`, content: 'exa', url: `https://exa.test/${input}` }
+        ])
+      )
+    )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'tavily' ? { searchKeywords: tavilySearch } : { searchKeywords: exaMcpSearch }
+    )
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
+
+    expect(tavilySearch).not.toHaveBeenCalled()
+    expect(exaMcpSearch).toHaveBeenCalledTimes(2)
+    expect(result.providerId).toBe('exa-mcp')
+    expect(result.results.map(({ title }) => title)).toEqual(['Fallback first', 'Fallback second'])
+  })
+
+  it('surfaces the selected provider configuration error when fallback is disabled', async () => {
+    setWebSearchPreferences({ providerApiKeys: { tavily: [] } })
+    const searchKeywords = vi.fn()
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+
+    await expect(
+      webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] }, undefined, { fallback: false })
+    ).rejects.toMatchObject({ name: 'WebSearchConfigError', code: 'api_key_missing' })
+
+    expect(createWebSearchProviderMock).toHaveBeenCalledOnce()
+    expect(searchKeywords).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a configuration error when the selected keyword provider and fallback are both misconfigured', async () => {
+    const overrides = MockMainPreferenceServiceUtils.getPreferenceValue('chat.web_search.provider_overrides')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      ...overrides,
+      tavily: { ...overrides.tavily, apiKeys: [] },
+      'exa-mcp': {
+        capabilities: {
+          searchKeywords: { apiHost: 'invalid-url' }
+        }
+      }
+    })
+
+    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] })).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'api_key_missing'
+    })
+  })
+
+  it('retries only failed keywords through ExaMCP and preserves input order', async () => {
+    const tavilySearch = vi.fn((input: string) =>
+      input === 'first'
+        ? Promise.resolve(
+            response('tavily', 'searchKeywords', input, [
+              { title: 'First', content: 'tavily', url: 'https://tavily.test/first' }
+            ])
+          )
+        : Promise.reject(new Error(`Tavily failed: ${input}`))
+    )
+    const exaMcpSearch = vi.fn((input: string) =>
+      Promise.resolve(
+        response('exa-mcp', 'searchKeywords', input, [
+          { title: 'Second', content: 'exa', url: 'https://exa.test/second' }
+        ])
+      )
+    )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'tavily' ? { searchKeywords: tavilySearch } : { searchKeywords: exaMcpSearch }
+    )
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
+
+    expect(exaMcpSearch).toHaveBeenCalledOnce()
+    expect(exaMcpSearch).toHaveBeenCalledWith('second', expect.any(Object), undefined)
+    expect(result.providerId).toBe('exa-mcp')
+    expect(result.providerIds).toEqual(['tavily', 'exa-mcp'])
+    expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
+  })
+
+  it('does not start another fallback when ExaMCP itself fails', async () => {
+    const error = new Error('ExaMCP failed')
+    const exaMcpSearch = vi.fn().mockRejectedValue(error)
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords: exaMcpSearch })
+
+    await expect(webSearchService.searchKeywords({ providerId: 'exa-mcp', keywords: ['first'] })).rejects.toBe(error)
+
+    expect(createWebSearchProviderMock).toHaveBeenCalledOnce()
+    expect(exaMcpSearch).toHaveBeenCalledOnce()
+  })
+
+  it('does not fall back from a successful empty keyword response', async () => {
+    const tavilySearch = vi.fn().mockResolvedValue(response('tavily', 'searchKeywords', 'empty', []))
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords: tavilySearch })
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['empty'] })
+
+    expect(result.results).toEqual([])
+    expect(createWebSearchProviderMock).toHaveBeenCalledOnce()
   })
 
   it('throws AbortError without logging service failures', async () => {
     const abortError = new DOMException('The operation was aborted', 'AbortError')
     const abortController = new AbortController()
-    abortController.abort()
-    const searchKeywords = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response('tavily', 'searchKeywords', 'first', [
-          { title: 'First', content: 'one', url: 'https://example.com/first' }
-        ])
-      )
-      .mockRejectedValueOnce(abortError)
+    abortController.abort(abortError)
+    const searchKeywords = vi.fn()
     createWebSearchProviderMock.mockReturnValue({ searchKeywords })
 
     await expect(
@@ -307,11 +415,12 @@ describe('WebSearchService', () => {
 
     expect(loggerWarnMock).not.toHaveBeenCalled()
     expect(loggerErrorMock).not.toHaveBeenCalled()
+    expect(searchKeywords).not.toHaveBeenCalled()
   })
 
-  it('keeps partial successes when an input aborts without a caller-aborted signal', async () => {
+  it('falls back when a provider input aborts without a caller-aborted signal', async () => {
     const abortError = new DOMException('The operation was aborted', 'AbortError')
-    const searchKeywords = vi
+    const tavilySearch = vi
       .fn()
       .mockResolvedValueOnce(
         response('tavily', 'searchKeywords', 'first', [
@@ -319,23 +428,24 @@ describe('WebSearchService', () => {
         ])
       )
       .mockRejectedValueOnce(abortError)
-    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+    const exaMcpSearch = vi
+      .fn()
+      .mockResolvedValue(
+        response('exa-mcp', 'searchKeywords', 'second', [
+          { title: 'Second', content: 'two', url: 'https://example.com/second' }
+        ])
+      )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'tavily' ? { searchKeywords: tavilySearch } : { searchKeywords: exaMcpSearch }
+    )
 
     const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
 
-    expect(result.results).toEqual([
-      {
-        title: 'First',
-        content: 'one',
-        url: 'https://example.com/first',
-        sourceInput: 'first'
-      }
-    ])
-    expect(loggerWarnMock).toHaveBeenCalledWith('Partial web search input failed', {
-      providerId: 'tavily',
-      capability: 'searchKeywords',
-      input: 'second',
-      error: 'The operation was aborted'
+    expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
+    expect(loggerInfoMock).toHaveBeenCalledWith('Web search fallback recovered failed inputs', {
+      primaryProviderId: 'tavily',
+      fallbackProviderId: 'exa-mcp',
+      recoveredInputs: 1
     })
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
@@ -346,27 +456,35 @@ describe('WebSearchService', () => {
       searchKeywords: vi.fn().mockRejectedValue(abortError)
     })
 
-    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] })).rejects.toBe(
+    await expect(webSearchService.searchKeywords({ providerId: 'exa-mcp', keywords: ['first'] })).rejects.toBe(
       abortError
     )
 
     expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', abortError, {
-      providerId: 'tavily',
+      providerId: 'exa-mcp',
       capability: 'searchKeywords'
     })
   })
 
-  it('throws when every input fails and logs the service failure', async () => {
-    const error = new Error('network failed')
-    createWebSearchProviderMock.mockReturnValue({
-      searchKeywords: vi.fn().mockRejectedValue(error)
-    })
+  it('aggregates keyword provider failures when every fallback input fails', async () => {
+    const primaryError = new Error('network failed')
+    const fallbackError = new Error('ExaMCP failed')
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) => ({
+      searchKeywords: vi.fn().mockRejectedValue(provider.id === 'tavily' ? primaryError : fallbackError)
+    }))
 
     await expect(
       webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
-    ).rejects.toThrow('network failed')
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof AggregateError &&
+        error.message.includes('network failed') &&
+        error.message.includes('ExaMCP failed') &&
+        error.errors.includes(primaryError) &&
+        error.errors.includes(fallbackError)
+    )
 
-    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', error, {
+    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', expect.any(AggregateError), {
       providerId: 'tavily',
       capability: 'searchKeywords'
     })
@@ -546,7 +664,7 @@ describe('WebSearchService', () => {
     )
     expect(fetchUrls).toHaveBeenCalledWith('https://example.com/first', expect.any(Object), undefined)
     expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
-    expect(sanitizeRemoteUrlMock).not.toHaveBeenCalled()
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
     expect(result).toEqual({
       query: 'https://example.com/first',
       providerId: 'fetch',
@@ -565,8 +683,78 @@ describe('WebSearchService', () => {
     await expect(webSearchService.fetchUrls({ urls: ['not a url'] })).rejects.toThrow('Invalid URL format: not a url')
   })
 
-  it('falls back from native fetch to Jina after passing the failed hostname through the literal URL guard', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+  it('skips an unconfigured URL provider and fetches every URL through Cherry Fetch', async () => {
+    setWebSearchPreferences({ providerApiKeys: { querit: [] } })
+    const queritFetch = vi.fn()
+    const cherryFetch = vi.fn((input: string) =>
+      Promise.resolve(response('fetch', 'fetchUrls', input, [{ title: input, content: 'cherry', url: input }]))
+    )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'querit' ? { fetchUrls: queritFetch } : { fetchUrls: cherryFetch }
+    )
+
+    const result = await webSearchService.fetchUrls({
+      providerId: 'querit',
+      urls: ['https://example.com/first', 'https://example.com/second']
+    })
+
+    expect(queritFetch).not.toHaveBeenCalled()
+    expect(cherryFetch).toHaveBeenCalledTimes(2)
+    expect(result.providerId).toBe('fetch')
+    expect(result.results.map(({ content }) => content)).toEqual(['cherry', 'cherry'])
+  })
+
+  it('retries a failed configured URL provider through Cherry Fetch', async () => {
+    const queritFetch = vi.fn().mockRejectedValue(new Error('Querit failed'))
+    const cherryFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('fetch', 'fetchUrls', 'https://example.com/article', [
+          { title: 'Recovered', content: 'cherry', url: 'https://example.com/article' }
+        ])
+      )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'querit' ? { fetchUrls: queritFetch } : { fetchUrls: cherryFetch }
+    )
+
+    const result = await webSearchService.fetchUrls({
+      providerId: 'querit',
+      urls: ['https://example.com/article']
+    })
+
+    expect(cherryFetch).toHaveBeenCalledOnce()
+    expect(result.results[0]?.title).toBe('Recovered')
+  })
+
+  it('continues from a failed Cherry Fetch fallback to Jina', async () => {
+    const primaryError = new Error('Querit failed')
+    const fallbackError = new Error('Cherry Fetch failed')
+    const queritFetch = vi.fn().mockRejectedValue(primaryError)
+    const cherryFetch = vi.fn().mockRejectedValue(fallbackError)
+    const jinaFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('jina', 'fetchUrls', 'https://example.com/article', [
+          { title: 'Recovered', content: 'Jina content', url: 'https://example.com/article' }
+        ])
+      )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) => {
+      if (provider.id === 'querit') return { fetchUrls: queritFetch }
+      if (provider.id === 'fetch') return { fetchUrls: cherryFetch }
+      return { fetchUrls: jinaFetch }
+    })
+
+    const result = await webSearchService.fetchUrls({
+      providerId: 'querit',
+      urls: ['https://example.com/article']
+    })
+
+    expect(jinaFetch).toHaveBeenCalledOnce()
+    expect(result.providerId).toBe('jina')
+    expect(result.results[0]?.title).toBe('Recovered')
+  })
+
+  it('falls back from native fetch to Jina after passing the failed hostname through the DNS guard', async () => {
     const primaryError = new Error('native failed')
     const nativeFetch = vi.fn().mockRejectedValue(primaryError)
     const jinaFetch = vi
@@ -582,8 +770,10 @@ describe('WebSearchService', () => {
 
     const result = await webSearchService.fetchUrlsUnprocessed({ urls: ['https://fake-ip.example/article'] })
 
-    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('https://fake-ip.example/article', undefined, false)
-    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+    expect(resolveRemoteFetchUrlMock).toHaveBeenCalledWith('https://fake-ip.example/article', {
+      allowPrivateNetwork: false,
+      signal: undefined
+    })
     expect(jinaFetch).toHaveBeenCalledWith('https://fake-ip.example/article', expect.any(Object), undefined)
     expect(result.results).toEqual([
       {
@@ -616,8 +806,8 @@ describe('WebSearchService', () => {
     const result = await webSearchService.fetchUrls({ providerId: 'jina', urls: ['https://example.com/article'] })
 
     expect(nativeFetch).toHaveBeenCalledWith('https://example.com/article', expect.any(Object), undefined)
-    expect(sanitizeRemoteUrlMock).not.toHaveBeenCalled()
-    expect(result.providerId).toBe('jina')
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+    expect(result.providerId).toBe('fetch')
     expect(result.results).toHaveLength(1)
   })
 
@@ -649,6 +839,8 @@ describe('WebSearchService', () => {
     expect(jinaFetch).toHaveBeenCalledTimes(2)
     expect(jinaFetch).toHaveBeenNthCalledWith(1, 'https://example.com/second', expect.any(Object), undefined)
     expect(jinaFetch).toHaveBeenNthCalledWith(2, 'https://example.com/third', expect.any(Object), undefined)
+    expect(result.providerId).toBe('jina')
+    expect(result.providerIds).toEqual(['fetch', 'jina'])
     expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
   })
 
@@ -672,44 +864,41 @@ describe('WebSearchService', () => {
 
     await expect(request).rejects.toBe(abortError)
     expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
-    expect(sanitizeRemoteUrlMock).not.toHaveBeenCalled()
+    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the native failure when the literal URL guard rejects a private address before Jina', async () => {
+  it('keeps the native failure when the guard rejects a private address before Jina', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+    const { resolveRemoteFetchUrl } = await vi.importActual<typeof RemoteUrlSafetyModule>('@main/utils/remoteUrlSafety')
+    resolveRemoteFetchUrlMock.mockImplementation(resolveRemoteFetchUrl)
     const primaryError = new Error('native failed')
     const nativeFetch = vi.fn().mockRejectedValue(primaryError)
-    sanitizeRemoteUrlMock.mockImplementation(() => {
-      throw new Error('Unsafe remote url')
-    })
     createWebSearchProviderMock.mockReturnValue({ fetchUrls: nativeFetch })
 
     await expect(webSearchService.fetchUrls({ urls: ['http://127.0.0.1/article'] })).rejects.toBe(primaryError)
 
     expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
-    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('http://127.0.0.1/article', undefined, false)
-    expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
   })
 
-  it('reaches the Jina fallback for a private address when app.fetch.allow_private_network is on', async () => {
+  it('never sends a private address to Jina even when app.fetch.allow_private_network is on', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
-    const nativeFetch = vi.fn().mockRejectedValue(new Error('native failed'))
-    const jinaFetch = vi
-      .fn()
-      .mockResolvedValue(
-        response('jina', 'fetchUrls', 'http://192.168.1.10/wiki', [
-          { title: 'NAS', content: 'Wiki content', url: 'http://192.168.1.10/wiki' }
-        ])
-      )
+    const { resolveRemoteFetchUrl } = await vi.importActual<typeof RemoteUrlSafetyModule>('@main/utils/remoteUrlSafety')
+    resolveRemoteFetchUrlMock.mockImplementation(resolveRemoteFetchUrl)
+    const primaryError = new Error('native failed')
+    const nativeFetch = vi.fn().mockRejectedValue(primaryError)
+    const jinaFetch = vi.fn()
     createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
       provider.id === 'fetch' ? { fetchUrls: nativeFetch } : { fetchUrls: jinaFetch }
     )
 
-    const result = await webSearchService.fetchUrlsUnprocessed({ urls: ['http://192.168.1.10/wiki'] })
+    await expect(
+      webSearchService.fetchUrlsUnprocessed({
+        urls: ['http://192.168.1.10/wiki?token=secret', 'http://localhost:3000/admin']
+      })
+    ).rejects.toBe(primaryError)
 
-    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('http://192.168.1.10/wiki', undefined, true)
-    expect(jinaFetch).toHaveBeenCalledWith('http://192.168.1.10/wiki', expect.any(Object), undefined)
-    expect(result.results[0]?.title).toBe('NAS')
+    expect(jinaFetch).not.toHaveBeenCalled()
+    expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
   })
 
   it('retains primary and fallback diagnostics when both fetch providers fail', async () => {

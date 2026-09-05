@@ -30,6 +30,7 @@ import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
@@ -189,7 +190,7 @@ function isRenderableTopicMessage(message: SharedMessage): boolean {
  */
 export async function getTopicMessages(
   id: string,
-  options: { maxMessages?: number } = {}
+  options: { maxMessages?: number; nodeId?: string; includeSiblings?: boolean } = {}
 ): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
@@ -199,7 +200,12 @@ export async function getTopicMessages(
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
-        query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
+        query: {
+          limit: MESSAGES_PAGE_SIZE,
+          nodeId: options.nodeId,
+          includeSiblings: options.includeSiblings ?? true,
+          cursor
+        }
       })) as BranchMessagesResponse
 
       // Topic-level fields are stable across pages; first response wins.
@@ -224,7 +230,7 @@ export async function getTopicMessages(
       cursor = response.nextCursor
     } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
-    return pages.reverse().flat()
+    return withPriorCitationParts(pages.reverse().flat())
   } catch (error: unknown) {
     if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${id} not found in Data API, returning empty`)
