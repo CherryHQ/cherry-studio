@@ -286,7 +286,14 @@ describe('WebviewAnnotationControls', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/next'
+      })
+    )
+    act(() => webview.emitNative('did-navigate', { url: 'https://example.com/next' }))
     await act(async () => {
       resolveClear()
     })

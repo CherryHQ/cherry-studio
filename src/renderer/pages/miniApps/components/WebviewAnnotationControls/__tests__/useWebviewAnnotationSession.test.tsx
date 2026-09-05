@@ -146,7 +146,15 @@ describe('useWebviewAnnotationSession', () => {
           webviewRef={webviewRef}
           onCommit={() => {
             boundDuringCommit =
-              ['ipc-message', 'did-start-navigation', 'render-process-gone', 'dom-ready'].every((type) =>
+              [
+                'ipc-message',
+                'did-start-navigation',
+                'did-redirect-navigation',
+                'did-navigate',
+                'did-fail-load',
+                'render-process-gone',
+                'dom-ready'
+              ].every((type) =>
                 vi.mocked(webview.addEventListener).mock.calls.some(([registeredType]) => registeredType === type)
               ) && sentCommands(webview).some((command) => command.type === 'request_state')
           }}
@@ -278,7 +286,14 @@ describe('useWebviewAnnotationSession', () => {
     act(() => {
       clearResult = result.current.clear()
     })
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/next'
+      })
+    )
+    act(() => webview.emitNative('did-navigate', { url: 'https://example.com/next' }))
     act(() => {
       stateChanged(webview, sessionTwo, true, 3)
       guestEvent(webview, {
@@ -375,29 +390,107 @@ describe('useWebviewAnnotationSession', () => {
     expect(result.current).toMatchObject({ ready: true, enabled: false, count: 2 })
   })
 
-  it('retires only a new main-frame document and accepts only its next session', () => {
+  it('pauses a provisional navigation, restores a failed one, and retires only on commit', async () => {
     const webview = createWebview()
     const webviewRef = createWebviewRef(webview)
     const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview, sessionOne, true, 1))
 
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: false, isInPlace: false }))
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: false,
+        isInPlace: false,
+        url: 'https://frame.test'
+      })
+    )
     expect(result.current).toMatchObject({ ready: true, enabled: true, count: 1 })
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: true }))
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: true,
+        url: 'https://example.com/page#section'
+      })
+    )
     expect(result.current).toMatchObject({ ready: true, enabled: true, count: 1 })
 
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
-    expect(result.current).toMatchObject({ ready: false, enabled: false, count: 0 })
-    expect(sentCommands(webview)).toEqual(
-      expect.arrayContaining([
-        { type: 'deactivate', sessionId: sessionOne },
-        { type: 'clear', sessionId: sessionOne }
-      ])
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/blocked'
+      })
     )
+    expect(result.current).toMatchObject({ ready: false, enabled: false, count: 1 })
+    expect(sentCommands(webview)).toContainEqual({ type: 'deactivate', sessionId: sessionOne })
+    expect(sentCommands(webview)).not.toContainEqual({ type: 'clear', sessionId: sessionOne })
+
+    act(() =>
+      webview.emitNative('did-fail-load', {
+        errorCode: -3,
+        errorDescription: 'ERR_ABORTED',
+        validatedURL: 'https://example.com/blocked',
+        isMainFrame: true
+      })
+    )
+    await waitFor(() => expect(result.current).toMatchObject({ ready: true, enabled: true, count: 1 }))
+    expect(sentCommands(webview)).toContainEqual({ type: 'set_enabled', sessionId: sessionOne, enabled: true })
+    expect(sentCommands(webview)).toContainEqual({ type: 'request_state' })
+
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/next'
+      })
+    )
+    act(() => webview.emitNative('did-navigate', { url: 'https://example.com/next' }))
+    expect(result.current).toMatchObject({ ready: false, enabled: false, count: 0 })
+    expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId: sessionOne })
     act(() => stateChanged(webview, sessionOne, false, 3))
     expect(result.current.ready).toBe(false)
     act(() => stateChanged(webview, sessionTwo, false, 2))
     expect(result.current).toMatchObject({ ready: true, count: 2 })
+  })
+
+  it('does not restore a failed URL superseded by a redirected navigation', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => stateChanged(webview, sessionOne, true, 2))
+
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/start'
+      })
+    )
+    act(() =>
+      webview.emitNative('did-redirect-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/redirected'
+      })
+    )
+    act(() =>
+      webview.emitNative('did-fail-load', {
+        errorCode: -3,
+        errorDescription: 'ERR_ABORTED',
+        validatedURL: 'https://example.com/start',
+        isMainFrame: true
+      })
+    )
+    expect(result.current).toMatchObject({ ready: false, enabled: false, count: 2 })
+
+    act(() =>
+      webview.emitNative('did-fail-load', {
+        errorCode: -105,
+        errorDescription: 'ERR_NAME_NOT_RESOLVED',
+        validatedURL: 'https://example.com/redirected',
+        isMainFrame: true
+      })
+    )
+    await waitFor(() => expect(result.current).toMatchObject({ ready: true, enabled: true, count: 2 }))
   })
 
   it('clears and invalidates copy only when the target identity changes', async () => {
@@ -645,7 +738,13 @@ describe('useWebviewAnnotationSession', () => {
     act(() => snapshotReady(webview))
     await waitFor(() => expect(request).toHaveBeenCalledOnce())
 
-    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    act(() =>
+      webview.emitNative('did-start-navigation', {
+        isMainFrame: true,
+        isInPlace: false,
+        url: 'https://example.com/next'
+      })
+    )
     const copyRejection = expect(copyResult!).rejects.toThrow('stale')
     await act(async () => {
       resolveExport?.('# stale')

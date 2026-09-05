@@ -219,6 +219,37 @@ describe('WebviewService webview ownership', () => {
     expect(guest.debugger.attach).toHaveBeenCalledOnce()
   })
 
+  it('aborts and detaches a pending export before stop allows a restart', async () => {
+    const guest = createContents(7, host, {
+      sendCommand: () => new Promise(() => undefined)
+    })
+    guestById.set(7, guest)
+    getAllWebContents.mockReturnValue([guest])
+    const firstSessionId = initializeReady(service, guest)
+    const firstExport = service.exportAnnotations(input(firstSessionId), 'owner')
+    const firstOutcome = firstExport.then(
+      () => 'resolved',
+      (error: Error) => error.message
+    )
+    await vi.waitFor(() => expect(guest.debugger.attach).toHaveBeenCalledOnce())
+
+    const stop = (service as unknown as { onStop: () => Promise<void> }).onStop()
+
+    await vi.waitFor(() => expect(guest.debugger.detach).toHaveBeenCalledOnce(), { timeout: 200, interval: 5 })
+    await stop
+    await expect(firstOutcome).resolves.toBe('Annotation document session is stale')
+
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    const secondSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
+    guest.debugger.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main-frame' } } }
+      if (method === 'Page.createIsolatedWorld') return { executionContextId: 73 }
+      return {}
+    })
+    await expect(service.exportAnnotations(input(secondSessionId), 'owner')).resolves.toContain('Fix this')
+    expect(guest.debugger.attach).toHaveBeenCalledTimes(2)
+  })
+
   it('waits for dom-ready before announcing an existing guest that is still loading', async () => {
     const guest = createContents(7, host, { loadingMainFrame: true })
     getAllWebContents.mockReturnValue([guest])
@@ -304,18 +335,34 @@ describe('WebviewService webview ownership', () => {
     expect(guest.setWindowOpenHandler).toHaveBeenCalledTimes(2)
   })
 
-  it('invalidates an old session on new-document navigation but keeps it for same-document navigation', async () => {
+  it('restores a failed navigation and rotates only after a successful new-document navigation', async () => {
     const guest = createContents(7, host, { devToolsOpened: true })
     guestById.set(7, guest)
     const sessionId = initializeReady(service, guest)
-    guest.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
+    guest.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: true,
+      url: 'https://example.com/page#section'
+    })
     await expect(service.exportAnnotations(input(sessionId), 'owner')).resolves.toContain('Fix this')
 
-    guest.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    guest.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/blocked'
+    })
     await expect(service.exportAnnotations(input(sessionId), 'owner')).rejects.toThrow(
       'Annotation document session is stale'
     )
-    guest.emit('did-fail-load', {})
+    guest.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://example.com/blocked', true)
+    await expect(service.exportAnnotations(input(sessionId), 'owner')).resolves.toContain('Fix this')
+
+    guest.emit('did-start-navigation', {
+      isMainFrame: true,
+      isSameDocument: false,
+      url: 'https://example.com/next'
+    })
+    guest.emit('did-navigate', {}, 'https://example.com/next')
     guest.emit('dom-ready')
     const nextSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId
     expect(nextSessionId).not.toBe(sessionId)

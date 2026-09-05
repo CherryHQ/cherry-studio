@@ -92,6 +92,12 @@ interface CopyOperation extends Binding {
   generation: number
 }
 
+interface ProvisionalNavigation {
+  url: string
+  sessionId: string | null
+  restoreEnabled: boolean
+}
+
 const snapshotEnvelope = (value: unknown) => {
   if (!value || typeof value !== 'object') return null
   const envelope = value as Record<string, unknown>
@@ -123,6 +129,7 @@ export function useWebviewAnnotationSession({
   const retiredSessionsRef = useRef(new Set<string>())
   const pendingSnapshotRef = useRef<PendingSnapshot | null>(null)
   const operationRef = useRef<CopyOperation | null>(null)
+  const provisionalNavigationRef = useRef<ProvisionalNavigation | null>(null)
   const copyInFlightRef = useRef(false)
   const generationRef = useRef(0)
   const targetRef = useRef(target)
@@ -174,10 +181,12 @@ export function useWebviewAnnotationSession({
     bindingRef.current = { webview: attachedWebview, webviewId }
     sessionRef.current = null
     retiredSessionsRef.current = new Set()
+    provisionalNavigationRef.current = null
     store.setState(EMPTY_STATE)
 
     const retireSession = (clear: boolean, message: string) => {
       const sessionId = sessionRef.current
+      provisionalNavigationRef.current = null
       invalidateOperation(message)
       if (sessionId) {
         void sendCommand(attachedWebview, { type: 'deactivate', sessionId })
@@ -282,7 +291,7 @@ export function useWebviewAnnotationSession({
         configureSession(guestEvent.sessionId)
       }
 
-      const enabled = hostActiveRef.current && guestEvent.enabled
+      const enabled = !provisionalNavigationRef.current && hostActiveRef.current && guestEvent.enabled
       store.setState((current) => ({
         ...current,
         enabled,
@@ -295,8 +304,41 @@ export function useWebviewAnnotationSession({
       }
     }
 
-    const handleNavigation = (event: Event & { isMainFrame: boolean; isInPlace?: boolean }) => {
-      if (event.isMainFrame && !event.isInPlace) retireSession(true, 'Webview document changed')
+    const handleNavigation = (event: Electron.DidStartNavigationEvent) => {
+      if (!event.isMainFrame || event.isInPlace) return
+      const current = provisionalNavigationRef.current
+      provisionalNavigationRef.current = {
+        url: event.url,
+        sessionId: sessionRef.current,
+        restoreEnabled: current?.sessionId === sessionRef.current ? current.restoreEnabled : store.getSnapshot().enabled
+      }
+      invalidateOperation('Webview navigation started')
+      const sessionId = sessionRef.current
+      if (sessionId) void sendCommand(attachedWebview, { type: 'deactivate', sessionId })
+      store.setState((state) => ({ ...state, enabled: false, editor: null }))
+    }
+    const handleRedirect = (event: Electron.DidRedirectNavigationEvent) => {
+      const provisional = provisionalNavigationRef.current
+      if (provisional && event.isMainFrame && !event.isInPlace) provisional.url = event.url
+    }
+    const handleDidNavigate = (event: Electron.DidNavigateEvent) => {
+      const provisional = provisionalNavigationRef.current
+      if (!provisional || event.url !== provisional.url) return
+      retireSession(true, 'Webview document changed')
+    }
+    const handleDidFailLoad = (event: Electron.DidFailLoadEvent) => {
+      const provisional = provisionalNavigationRef.current
+      if (!provisional || !event.isMainFrame || event.validatedURL !== provisional.url) return
+      provisionalNavigationRef.current = null
+      const sessionId = sessionRef.current
+      const restoreEnabled = Boolean(
+        sessionId && sessionId === provisional.sessionId && provisional.restoreEnabled && hostActiveRef.current
+      )
+      store.setState((state) => ({ ...state, enabled: restoreEnabled }))
+      if (sessionId && restoreEnabled) {
+        void sendCommand(attachedWebview, { type: 'set_enabled', sessionId, enabled: true })
+      }
+      void sendCommand(attachedWebview, { type: 'request_state' })
     }
     const handleRenderProcessGone = () => retireSession(false, 'Webview render process exited')
     const requestState = () => {
@@ -304,7 +346,10 @@ export function useWebviewAnnotationSession({
     }
 
     attachedWebview.addEventListener('ipc-message', handleGuestMessage)
-    attachedWebview.addEventListener('did-start-navigation', handleNavigation as EventListener)
+    attachedWebview.addEventListener('did-start-navigation', handleNavigation)
+    attachedWebview.addEventListener('did-redirect-navigation', handleRedirect)
+    attachedWebview.addEventListener('did-navigate', handleDidNavigate)
+    attachedWebview.addEventListener('did-fail-load', handleDidFailLoad)
     attachedWebview.addEventListener('render-process-gone', handleRenderProcessGone)
     attachedWebview.addEventListener('dom-ready', requestState)
     requestState()
@@ -318,7 +363,10 @@ export function useWebviewAnnotationSession({
         sessionRef.current = null
       }
       attachedWebview.removeEventListener('ipc-message', handleGuestMessage)
-      attachedWebview.removeEventListener('did-start-navigation', handleNavigation as EventListener)
+      attachedWebview.removeEventListener('did-start-navigation', handleNavigation)
+      attachedWebview.removeEventListener('did-redirect-navigation', handleRedirect)
+      attachedWebview.removeEventListener('did-navigate', handleDidNavigate)
+      attachedWebview.removeEventListener('did-fail-load', handleDidFailLoad)
       attachedWebview.removeEventListener('render-process-gone', handleRenderProcessGone)
       attachedWebview.removeEventListener('dom-ready', requestState)
     }
@@ -359,6 +407,7 @@ export function useWebviewAnnotationSession({
     return (
       bindingRef.current === binding &&
       sessionRef.current === sessionId &&
+      !provisionalNavigationRef.current &&
       generationRef.current === generation &&
       hostActiveRef.current
     )
@@ -469,6 +518,7 @@ export function useWebviewAnnotationSession({
     ) {
       return false
     }
+    if (provisionalNavigationRef.current) return false
     try {
       return operation.webview.getWebContentsId() === operation.webviewId
     } catch {
@@ -477,7 +527,7 @@ export function useWebviewAnnotationSession({
   }, [])
 
   const copy = useCallback(async () => {
-    if (copyInFlightRef.current || state.count === 0) return
+    if (copyInFlightRef.current || provisionalNavigationRef.current || state.count === 0) return
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (!binding || !binding.webviewId || !sessionId) return
@@ -524,7 +574,7 @@ export function useWebviewAnnotationSession({
   return {
     enabled: state.enabled,
     count: state.count,
-    ready: Boolean(webview && state.documentSessionId),
+    ready: Boolean(webview && state.documentSessionId && !provisionalNavigationRef.current),
     copying: state.copying,
     editor: state.editor,
     toggle,

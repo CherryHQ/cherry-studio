@@ -82,9 +82,11 @@ export class WebviewService extends BaseService {
   }
 
   protected async onStop() {
+    const annotationSessions = [...this.annotationSessions.values()]
+    for (const annotationSession of annotationSessions) annotationSession.dispose()
+    await Promise.all(annotationSessions.map((annotationSession) => annotationSession.waitForIdle()))
     for (const cleanup of this.preloadBindings.values()) cleanup()
     this.preloadBindings.clear()
-    for (const annotationSession of this.annotationSessions.values()) annotationSession.dispose()
     this.annotationSessions.clear()
   }
 
@@ -209,11 +211,12 @@ export class WebviewService extends BaseService {
     const annotationSession = this.annotationSessions.get(input.webviewId)
     if (!annotationSession?.isFor(guest)) throw new Error('Annotation document session is stale')
 
-    return annotationSession.run(input.documentSessionId, async () => {
+    return annotationSession.run(input.documentSessionId, async (signal) => {
       const markdown = await exportAnnotationDocument({
         guest,
         target: input.target,
-        annotations: input.annotations
+        annotations: input.annotations,
+        signal
       })
       if (this.requireOwnedSiteWebview(input.webviewId, senderId) !== guest) {
         throw new Error('The caller does not own this webview')
