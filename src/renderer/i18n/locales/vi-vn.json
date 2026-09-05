@@ -4869,6 +4869,7 @@
   "settings.skills.batchInstallComplete": "Đã cài đặt {{count}} kỹ năng",
   "settings.skills.batchInstallPartialFailed": "Đã cài đặt {{success}}/{{total}} kỹ năng, {{failed}} thất bại",
   "settings.skills.batchInstallQueued": "Đang chờ xử lý",
+  "settings.skills.enabledOnly": "Chỉ kỹ năng đã bật",
   "settings.skills.globalToggle": "Bật kỹ năng {{name}} trên toàn hệ thống",
   "settings.skills.install": "Cài đặt",
   "settings.skills.installFailed": "Không thể cài đặt kỹ năng: {{name}}",

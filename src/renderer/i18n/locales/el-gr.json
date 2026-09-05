@@ -4869,6 +4869,7 @@
   "settings.skills.batchInstallComplete": "Εγκαταστάθηκαν {{count}} δεξιότητες",
   "settings.skills.batchInstallPartialFailed": "Εγκαταστάθηκαν {{success}}/{{total}} δεξιότητες, {{failed}} αποτυχίες",
   "settings.skills.batchInstallQueued": "Σε ουρά",
+  "settings.skills.enabledOnly": "Μόνο ενεργοποιημένες δεξιότητες",
   "settings.skills.globalToggle": "Καθολική ενεργοποίηση δεξιότητας {{name}}",
   "settings.skills.install": "Εγκατάσταση",
   "settings.skills.installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",

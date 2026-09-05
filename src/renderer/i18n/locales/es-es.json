@@ -4869,6 +4869,7 @@
   "settings.skills.batchInstallComplete": "{{count}} habilidades instaladas",
   "settings.skills.batchInstallPartialFailed": "Instaladas {{success}}/{{total}} habilidades, {{failed}} fallidas",
   "settings.skills.batchInstallQueued": "En cola",
+  "settings.skills.enabledOnly": "Solo habilidades habilitadas",
   "settings.skills.globalToggle": "Activar globalmente la habilidad {{name}}",
   "settings.skills.install": "Instalar",
   "settings.skills.installFailed": "Error al instalar la habilidad: {{name}}",

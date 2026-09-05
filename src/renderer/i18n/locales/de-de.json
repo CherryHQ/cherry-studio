@@ -4869,6 +4869,7 @@
   "settings.skills.batchInstallComplete": "{{count}} Fähigkeiten installiert",
   "settings.skills.batchInstallPartialFailed": "{{success}}/{{total}} Fähigkeiten installiert, {{failed}} fehlgeschlagen",
   "settings.skills.batchInstallQueued": "In Warteschlange",
+  "settings.skills.enabledOnly": "Nur aktivierte Fähigkeiten",
   "settings.skills.globalToggle": "Fähigkeit {{name}} global aktivieren",
   "settings.skills.install": "Installieren",
   "settings.skills.installFailed": "Fehler beim Installieren der Fähigkeit: {{name}}",

@@ -4869,6 +4869,7 @@
   "settings.skills.batchInstallComplete": "{{count}} compétences installées",
   "settings.skills.batchInstallPartialFailed": "{{success}}/{{total}} compétences installées, {{failed}} échouées",
   "settings.skills.batchInstallQueued": "En attente",
+  "settings.skills.enabledOnly": "Compétences activées uniquement",
   "settings.skills.globalToggle": "Activer globalement la compétence {{name}}",
   "settings.skills.install": "Installer",
   "settings.skills.installFailed": "Échec de l'installation de la compétence : {{name}}",

@@ -1,9 +1,9 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
-import type { ResourceType } from '@renderer/types/resourceCatalog'
+import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceGrid } from './ResourceGrid'
@@ -23,6 +23,7 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  resourceFilter?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
@@ -32,7 +33,8 @@ export function ResourceCatalogView({
   toolbarLeading,
   variant = 'library',
   title,
-  description
+  description,
+  resourceFilter
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -48,6 +50,11 @@ export function ResourceCatalogView({
       dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+  const visibleResources = useMemo(
+    () => (resourceFilter ? gridProps.resources.filter(resourceFilter) : gridProps.resources),
+    [gridProps.resources, resourceFilter]
+  )
+  const hasHiddenResources = Boolean(resourceFilter && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -86,6 +93,8 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
+            resources={visibleResources}
+            hasHiddenResources={hasHiddenResources}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}
