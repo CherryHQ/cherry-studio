@@ -1,4 +1,8 @@
-import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
+import type {
+  ComposerToolFooterAction,
+  ComposerToolLauncher,
+  ComposerToolLauncherKind
+} from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
@@ -70,7 +74,7 @@ export interface ToolContext {
 }
 
 export interface ToolLauncherApi {
-  registerLaunchers: (entries: ComposerToolLauncher[]) => () => void
+  registerLaunchers: (entries: ComposerToolLauncher[], footerActions?: ComposerToolFooterAction[]) => () => void
 }
 
 /**
