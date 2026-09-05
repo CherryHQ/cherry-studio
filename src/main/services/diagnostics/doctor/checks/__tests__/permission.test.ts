@@ -25,6 +25,14 @@ beforeEach(() => {
 })
 
 describe('permission-screen-capture', () => {
+  it('does not offer a permission prompt for policy restrictions', async () => {
+    capture.getScreenCapturePermissionStatus.mockReturnValue('restricted')
+    await expect(screenCapturePermission.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      detail: { variant: 'restricted' },
+      actions: []
+    })
+  })
   it('passes until macOS has explicitly denied screen capture', async () => {
     capture.getScreenCapturePermissionStatus.mockReturnValue('not-determined')
     await expect(screenCapturePermission.run(ctx)).resolves.toEqual({ status: 'pass' })
@@ -42,12 +50,17 @@ describe('permission-screen-capture', () => {
 
   it('opens System Settings when macOS will no longer show the permission prompt', async () => {
     capture.requestScreenCapturePermission.mockResolvedValue('denied')
-    await expect(screenCapturePermission.fixes.request(ctx)).resolves.toEqual({ status: 'fixed' })
+    capture.getScreenCapturePermissionStatus.mockReturnValue('denied')
+    await expect(screenCapturePermission.fixes.request(ctx)).resolves.toMatchObject({ status: 'failed' })
     expect(capture.openScreenCaptureSettings).toHaveBeenCalledOnce()
   })
 })
 
 describe('permission-accessibility', () => {
+  it('does not report an unanswered trust request as fixed', async () => {
+    accessibility.isTrustedAccessibilityClient.mockReturnValue(false)
+    await expect(accessibilityPermission.fixes.request(ctx)).resolves.toMatchObject({ status: 'failed' })
+  })
   it('passes without probing macOS when Selection Assistant is disabled', async () => {
     await expect(accessibilityPermission.run(ctx)).resolves.toEqual({ status: 'pass' })
     expect(accessibility.isTrustedAccessibilityClient).not.toHaveBeenCalled()

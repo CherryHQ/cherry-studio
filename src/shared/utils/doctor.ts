@@ -33,8 +33,9 @@ export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   }
   if (typeof runId !== 'string' || runId.length === 0) return false
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
-  if (target !== undefined && (typeof target !== 'string' || target.length === 0)) return false
-  return (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).some((fix) => fix.id === fixId)
+  const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+  if (!meta) return false
+  return meta.targeted ? typeof target === 'string' && target.length > 0 : !Object.hasOwn(value, 'target')
 }
 
 export const DOCTOR_BASICS_DATA_CLASS: Readonly<Record<keyof DoctorBasics, DoctorDataClass>> = {

@@ -42,6 +42,7 @@ export type DoctorFixRisk = 'low' | 'confirm'
 
 export interface DoctorFixMeta {
   readonly id: string
+  readonly targeted?: true
   readonly risk: DoctorFixRisk
   readonly reversible: boolean
   /** The fix only takes effect after `app.relaunch`. */
@@ -120,7 +121,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'permission',
     tier: 'quick',
     fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
-    details: ['denied'],
+    details: ['denied', 'restricted'],
     requires: []
   },
   'permission-accessibility': {
@@ -161,7 +162,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'config-hardware-acceleration': {
     domain: 'config',
     tier: 'quick',
-    fixes: [{ id: 'enable', risk: 'low', reversible: true, relaunch: true }],
+    fixes: [],
     details: ['disabled_without_recent_crash'],
     requires: []
   },
@@ -239,7 +240,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'mcp-servers-connected': {
     domain: 'mcp',
     tier: 'quick',
-    fixes: [{ id: 'restart', risk: 'low', reversible: true, relaunch: false }],
+    fixes: [{ id: 'restart', risk: 'low', reversible: true, relaunch: false, targeted: true }],
     details: ['server_errors'],
     requires: []
   },
@@ -275,6 +276,16 @@ export const DOCTOR_CHECK_CATALOG = {
 
 export type DoctorCheckCatalog = typeof DOCTOR_CHECK_CATALOG
 export type DoctorFixId<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['fixes'][number]['id']
+export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> = Extract<
+  DoctorCheckCatalog[Id]['fixes'][number],
+  { id: Fix }
+> extends { targeted: true }
+  ? { readonly target: string }
+  : { readonly target?: never }
+
+type DoctorFixAction<Id extends DoctorCheckId> = {
+  [Fix in DoctorFixId<Id>]: { readonly kind: 'fix'; readonly fixId: Fix } & DoctorFixTarget<Id, Fix>
+}[DoctorFixId<Id>]
 export type DoctorDetailVariant<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['details'][number]
 export type DoctorFixableCheckId = {
   [Id in DoctorCheckId]: [DoctorFixId<Id>] extends [never] ? never : Id
@@ -291,9 +302,7 @@ export type DoctorNavigateTarget =
   | '/settings/provider?id=claude-code'
 
 export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
-  | ([DoctorFixId<Id>] extends [never]
-      ? never
-      : { readonly kind: 'fix'; readonly fixId: DoctorFixId<Id>; readonly target?: string })
+  | DoctorFixAction<Id>
   | { readonly kind: 'navigate'; readonly target: DoctorNavigateTarget }
   /** Absolute path already resolved by main; the renderer only forwards it to `system.shell.open_path`. */
   | { readonly kind: 'open_path'; readonly path: string }
@@ -315,7 +324,7 @@ export interface DoctorEvidenceItem {
 
 /** What a probe itself decides. `skip` and `error` are assigned by the engine, never by a check. */
 export type DoctorCheckOutcome<Id extends DoctorCheckId = DoctorCheckId> =
-  | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id>; readonly actions?: readonly DoctorAction<Id>[] }
+  | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id> }
   | {
       readonly status: 'warn' | 'fail'
       readonly attribution: DoctorAttribution
@@ -404,11 +413,12 @@ export type DoctorCancelResult = { readonly status: 'canceled' | 'not_running' }
 
 export type DoctorFixRequest = {
   [Id in DoctorFixableCheckId]: {
-    readonly runId: string
-    readonly checkId: Id
-    readonly fixId: DoctorFixId<Id>
-    readonly target?: string
-  }
+    [Fix in DoctorFixId<Id>]: {
+      readonly runId: string
+      readonly checkId: Id
+      readonly fixId: Fix
+    } & DoctorFixTarget<Id, Fix>
+  }[DoctorFixId<Id>]
 }[DoctorFixableCheckId]
 
 /**
@@ -420,7 +430,7 @@ export type DoctorFixResult =
   | { readonly status: 'failed'; readonly message: string; readonly result: DoctorCheckResult }
   | {
       readonly status: 'stale'
-      readonly reason: 'run_superseded' | 'finding_changed'
+      readonly reason: 'run_superseded' | 'report_expired' | 'finding_changed'
       readonly result?: DoctorCheckResult
     }
 
