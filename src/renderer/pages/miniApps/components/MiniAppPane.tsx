@@ -126,6 +126,7 @@ const MiniAppPane: FC<Props> = ({
   return (
     <div
       className={cn('pointer-events-none relative flex h-full min-h-0 flex-col *:pointer-events-auto', className)}
+      onFocusCapture={onActivate}
       onMouseDownCapture={onActivate}>
       <div className="shrink-0">
         <MinimalToolbar

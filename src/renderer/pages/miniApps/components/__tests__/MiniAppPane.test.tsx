@@ -1,5 +1,6 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import type { RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,7 +27,9 @@ vi.mock('../MinimalToolbar', () => ({
     mocks.toolbarRenders.push(props)
     mocks.toolbarProps = props
     return (
-      <div
+      <button
+        type="button"
+        aria-label="mini-app-toolbar"
         data-testid="minimal-toolbar"
         data-ready={String(props.isWebviewReady)}
         data-webview-id={(props.webviewRef?.current ?? props.webview)?.dataset.miniAppId ?? ''}
@@ -116,6 +119,38 @@ describe('MiniAppPane loading logo', () => {
 })
 
 describe('MiniAppPane concrete webview ownership', () => {
+  it('activates the pane when keyboard focus enters its toolbar', async () => {
+    const user = userEvent.setup()
+    const activatePrimary = vi.fn()
+    const activateSplit = vi.fn()
+
+    render(
+      <>
+        <MiniAppPane
+          app={{ ...customApp, appId: 'primary' }}
+          splitMode="close"
+          onSplit={vi.fn()}
+          isHostActive
+          onActivate={activatePrimary}
+        />
+        <MiniAppPane
+          app={{ ...customApp, appId: 'split' }}
+          splitMode="close"
+          onSplit={vi.fn()}
+          isHostActive={false}
+          onActivate={activateSplit}
+        />
+      </>
+    )
+
+    await user.tab()
+    expect(activatePrimary).toHaveBeenCalledOnce()
+    expect(activateSplit).not.toHaveBeenCalled()
+
+    await user.tab()
+    expect(activateSplit).toHaveBeenCalledOnce()
+  })
+
   it('keeps an already-loaded webview behind one stable ref', () => {
     mocks.loaded = true
     const webview = createWebview()
