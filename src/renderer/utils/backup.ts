@@ -82,11 +82,7 @@ export function getLocalizedBackupErrorMessage(
   }
 
   let messageKey: BackupMessageKey = fallbackKey
-  if (
-    errorCode === 'ENOSPC' ||
-    errorMessage.includes('ENOSPC') ||
-    /no space left on device/i.test(errorMessage)
-  ) {
+  if (errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)) {
     messageKey = 'backup.error.disk_full'
   } else if (options?.tlsCertificateHint === true && isTlsCertificateFailure(error)) {
     // Scoped to WebDAV callers: the guidance points at the WebDAV self-signed
