@@ -313,10 +313,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
-  // Debounce the query sent to the search backend and hold it during IME
-  // composition so pinyin intermediates don't fire per-keystroke FTS queries.
-  // `useDeferredValue` stays downstream to keep heavy result renders off the
-  // typing path; the two compose (request-rate control + render scheduling).
+  // Debounce the backend query, freezing it during IME composition;
+  // `useDeferredValue` stays downstream to schedule heavy result renders.
   const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
     useImeAwareDebouncedValue(query.trim())
   const deferredQuery = useDeferredValue(debouncedQuery)
@@ -819,13 +817,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       if (event.key === 'Enter') {
-        // Results still belong to the previous query until the debounce
-        // commit and the deferred render both catch up; swallow Enter
-        // instead of opening the stale active item. The input's DOM value is
-        // the source of truth here, not the `query` state: some engines emit
-        // compositionend before the final change event, so the state can
-        // still hold the romanization intermediate for a frame after the
-        // commit has already landed.
+        // Swallow Enter while the rendered results still belong to a previous
+        // query; read the input's DOM value, as the state can lag it by a frame.
         const inputValue = event.currentTarget.value.trim()
         if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery) {
           event.preventDefault()
