@@ -261,6 +261,45 @@ describe('useWebviewAnnotationSession', () => {
     expect(result.current.editor?.draft).toBe('Retry this draft')
   })
 
+  it('reports a delivered clear after navigation without clearing the replacement session', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => stateChanged(webview, sessionOne, true, 2))
+    let resolveClear!: () => void
+    vi.mocked(webview.send).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = resolve
+        })
+    )
+
+    let clearResult!: Promise<boolean>
+    act(() => {
+      clearResult = result.current.clear()
+    })
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    act(() => {
+      stateChanged(webview, sessionTwo, true, 3)
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId: sessionTwo,
+        requestId: '00000000-0000-4000-8000-000000000021',
+        comment: 'Replacement session draft',
+        canDelete: true,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
+    })
+
+    await act(async () => {
+      resolveClear()
+      await expect(clearResult).resolves.toBe(true)
+    })
+
+    expect(result.current).toMatchObject({ ready: true, enabled: true, count: 3 })
+    expect(result.current.editor?.draft).toBe('Replacement session draft')
+  })
+
   it('keeps the editor open when delivering cancel rejects', async () => {
     const webview = createWebview()
     const webviewRef = createWebviewRef(webview)
