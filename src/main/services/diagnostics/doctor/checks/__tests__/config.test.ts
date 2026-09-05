@@ -59,14 +59,15 @@ describe('config-hardware-acceleration', () => {
     expect(scan.collectErrorLogRecords).not.toHaveBeenCalled()
   })
 
-  it('offers to re-enable acceleration when no renderer crash occurred in seven days', async () => {
+  it('navigates to settings to re-enable acceleration when no renderer crash occurred in seven days', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(2_000_000_000_000)
     bootConfig.get.mockReturnValue(true)
 
     await expect(hardwareAcceleration.run(ctx)).resolves.toEqual({
-      status: 'pass',
+      status: 'warn',
+      attribution: 'user-fixable',
       detail: { variant: 'disabled_without_recent_crash' },
-      actions: [{ kind: 'fix', fixId: 'enable' }]
+      actions: [{ kind: 'navigate', target: '/settings/general' }]
     })
     expect(scan.collectErrorLogRecords).toHaveBeenCalledWith('/mock/app.logs', {
       fromMs: 1_999_395_200_000,
@@ -81,10 +82,5 @@ describe('config-hardware-acceleration', () => {
     })
 
     await expect(hardwareAcceleration.run(ctx)).resolves.toEqual({ status: 'pass' })
-  })
-
-  it('enables acceleration in boot config and requires a relaunch', async () => {
-    await expect(hardwareAcceleration.fixes.enable(ctx)).resolves.toEqual({ status: 'requires_relaunch' })
-    expect(bootConfig.set).toHaveBeenCalledWith('app.disable_hardware_acceleration', false)
   })
 })

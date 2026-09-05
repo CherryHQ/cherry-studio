@@ -13,6 +13,14 @@ export const screenCapturePermission = defineDoctorCheck({
   id: 'permission-screen-capture',
   async run() {
     const status = getScreenCapturePermissionStatus()
+    if (status === 'restricted')
+      return {
+        status: 'warn',
+        attribution: 'user-fixable',
+        detail: { variant: 'restricted' },
+        actions: [],
+        devMessage: 'Screen capture is restricted by system policy; contact the administrator'
+      }
     if (status !== 'denied') return { status: 'pass' }
     return {
       status: 'warn',
@@ -25,9 +33,12 @@ export const screenCapturePermission = defineDoctorCheck({
   },
   fixes: {
     async request() {
-      const status = await requestScreenCapturePermission()
+      await requestScreenCapturePermission()
+      const status = getScreenCapturePermissionStatus()
       if (status === 'denied') openScreenCaptureSettings()
-      return { status: 'fixed' }
+      return status === 'authorized'
+        ? { status: 'fixed' }
+        : { status: 'failed', message: 'Screen capture permission has not been granted' }
     }
   }
 })
@@ -52,7 +63,9 @@ export const accessibilityPermission = defineDoctorCheck({
   fixes: {
     async request() {
       systemPreferences.isTrustedAccessibilityClient(true)
-      return { status: 'fixed' }
+      return systemPreferences.isTrustedAccessibilityClient(false)
+        ? { status: 'fixed' }
+        : { status: 'failed', message: 'Accessibility permission has not been granted' }
     }
   }
 })

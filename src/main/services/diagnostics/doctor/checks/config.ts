@@ -52,15 +52,11 @@ export const hardwareAcceleration = defineDoctorCheck({
     )
     if (hasRecentRendererCrash) return { status: 'pass' }
     return {
-      status: 'pass',
+      status: 'warn',
+      attribution: 'user-fixable',
       detail: { variant: 'disabled_without_recent_crash' },
-      actions: [{ kind: 'fix', fixId: 'enable' }]
+      actions: [{ kind: 'navigate', target: '/settings/general' }]
     }
   },
-  fixes: {
-    async enable() {
-      bootConfigService.set('app.disable_hardware_acceleration', false)
-      return { status: 'requires_relaunch' }
-    }
-  }
+  fixes: {}
 })

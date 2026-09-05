@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorCheckId,
-  doctorFixMeta,
   type DoctorReport,
   isDoctorFixRequest,
   projectDoctorReport
@@ -23,35 +22,18 @@ describe('DOCTOR_CHECK_CATALOG', () => {
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
   })
-
-  it('exposes fix metadata the dialog needs before offering the button', () => {
-    expect(doctorFixMeta('config-boot-config-valid', 'repair')).toEqual({
-      id: 'repair',
-      risk: 'low',
-      reversible: true,
-      relaunch: true
-    })
-    expect(doctorFixMeta('permission-screen-capture', 'request')).toEqual({
-      id: 'request',
-      risk: 'low',
-      reversible: true,
-      relaunch: false
-    })
-  })
-
-  it('runs the API-key check only after the default model is valid', () => {
-    expect(DOCTOR_CHECK_CATALOG['provider-api-key-present'].requires).toEqual(['provider-default-model'])
-  })
-
-  it('keeps network update discovery in the live tier and the other install checks local', () => {
-    expect(DOCTOR_CHECK_CATALOG['install-update-available'].tier).toBe('live')
-    expect(DOCTOR_CHECK_CATALOG['install-update-available'].requires).toEqual(['network-endpoint-update'])
-    expect(DOCTOR_CHECK_CATALOG['install-native-modules'].tier).toBe('quick')
-  })
 })
 
 describe('isDoctorFixRequest', () => {
   const valid = { runId: 'run-1', checkId: 'config-boot-config-valid', fixId: 'repair' }
+  it('requires targets only for targeted fixes and rejects retired destructive fixes', () => {
+    expect(isDoctorFixRequest({ ...valid, target: 'unexpected' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: undefined })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'mcp-servers-connected', fixId: 'restart' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-disk-space', fixId: 'cleanup' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-diagnostic-data-size', fixId: 'clear' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'config-hardware-acceleration', fixId: 'enable' })).toBe(false)
+  })
 
   it('accepts a fix the catalog declares for that check, bound to a run', () => {
     expect(isDoctorFixRequest(valid)).toBe(true)

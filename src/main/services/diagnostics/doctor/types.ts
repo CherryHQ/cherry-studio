@@ -1,4 +1,10 @@
-import type { DoctorCheckId, DoctorCheckOutcome, DoctorEvidenceItem, DoctorFixId } from '@shared/types/doctor'
+import type {
+  DoctorCheckId,
+  DoctorCheckOutcome,
+  DoctorEvidenceItem,
+  DoctorFixId,
+  DoctorFixTarget
+} from '@shared/types/doctor'
 
 export interface DoctorContext {
   /** Aborted on the check's timeout or when the whole run is canceled; long probes should honour it. */
@@ -16,12 +22,12 @@ export type DoctorFixOutcome =
   | { readonly status: 'fixed' | 'requires_relaunch' }
   | { readonly status: 'failed'; readonly message: string }
 
-export interface DoctorFixContext extends DoctorContext {
-  /** Optional opaque target copied only from the matching action in a fresh probe. */
-  readonly target?: string
-}
+export type DoctorFixContext<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> = DoctorContext &
+  DoctorFixTarget<Id, Fix>
 
-export type DoctorFixHandler = (ctx: DoctorFixContext) => Promise<DoctorFixOutcome>
+export type DoctorFixHandler<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> = (
+  ctx: DoctorFixContext<Id, Fix>
+) => Promise<DoctorFixOutcome>
 
 /** A check implementation. Domain, tier, prerequisites and fix metadata live in the shared catalog. */
 export interface DoctorCheckDefinition<Id extends DoctorCheckId> {
@@ -30,7 +36,7 @@ export interface DoctorCheckDefinition<Id extends DoctorCheckId> {
   readonly timeoutMs?: number
   run(ctx: DoctorContext): Promise<DoctorProbeOutcome<Id>>
   /** One handler per fix the catalog declares; `{}` when it declares none. */
-  readonly fixes: { readonly [Fix in DoctorFixId<Id>]: DoctorFixHandler }
+  readonly fixes: { readonly [Fix in DoctorFixId<Id>]: DoctorFixHandler<Id, Fix> }
 }
 
 export const defineDoctorCheck = <Id extends DoctorCheckId>(def: DoctorCheckDefinition<Id>) => def
