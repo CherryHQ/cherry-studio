@@ -18,6 +18,13 @@ The official platform service adjustment notice states that model experiences, A
 
 Select a model from another available provider. Existing local provider records, credentials, and conversation history are not deleted. The notice states that balance refund applications remain open until December 3, 2026, 24:00.
 
+## Verification points
+
+- Existing `yi` providers and preset-derived copies are hidden and rejected by runtime reads and mutations; creating either identity is rejected.
+- The v1-to-v2 migration skips both retired identities while continuing to migrate available providers.
+- Rejected operations leave persisted provider records and API keys unchanged; saved conversation history is retained.
+- Other providers remain available, including providers serving Yi models under their own identities.
+
 ## Notes for release manager
 
 Source: the official 01.AI platform service adjustment notice supplied with the change request. Retirement is based on provider identity, including preset-derived copies, rather than model names; Yi models served by other providers are unaffected.
