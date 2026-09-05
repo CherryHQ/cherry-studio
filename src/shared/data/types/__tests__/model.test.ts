@@ -2,9 +2,9 @@ import { areDifferentModelIdentities, resolveUniqueModelId } from '@shared/data/
 import { describe, expect, it } from 'vitest'
 
 describe('resolveUniqueModelId', () => {
-  it('reuses a pre-composed model ID from a persisted snapshot', () => {
+  it('treats snapshot IDs as raw when they contain the unique-ID separator', () => {
     expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-a::model-a' })).toBe(
-      'provider-a::model-a'
+      'provider-a::provider-a::model-a'
     )
   })
 

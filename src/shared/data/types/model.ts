@@ -193,10 +193,6 @@ export function resolveUniqueModelId(
 ): UniqueModelId | undefined {
   if (isUniqueModelId(modelId)) return modelId
   if (!modelSnapshot) return undefined
-  const parsedSnapshotId = UniqueModelIdSchema.safeParse(modelSnapshot.id)
-  if (parsedSnapshotId.success && parseUniqueModelId(parsedSnapshotId.data).providerId === modelSnapshot.provider) {
-    return parsedSnapshotId.data
-  }
 
   try {
     return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
@@ -219,12 +215,6 @@ export function areDifferentModelIdentities(
   const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
   const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
   if (leftModelId === undefined || rightModelId === undefined) return false
-
-  if (left.modelSnapshot && right.modelSnapshot) {
-    return (
-      left.modelSnapshot.provider !== right.modelSnapshot.provider || left.modelSnapshot.id !== right.modelSnapshot.id
-    )
-  }
 
   return leftModelId !== rightModelId
 }

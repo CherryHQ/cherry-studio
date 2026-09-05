@@ -194,6 +194,38 @@ describe('useTopicMessagesCache', () => {
     expect(nextBranch).toEqual([])
   })
 
+  it('reparents a retained descendant across pages when its historical parent is removed', async () => {
+    const historicalParent = {
+      ...message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b'),
+      parentId: 'question-1'
+    }
+    const activeDescendant = {
+      ...message('follow-up', 'user', '2026-08-28T00:00:03.000Z'),
+      parentId: historicalParent.id
+    }
+    const pages = [
+      branchPage([{ message: activeDescendant }], activeDescendant.id),
+      branchPage([{ message: historicalParent }], activeDescendant.id)
+    ]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set([historicalParent.id]), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    expect(nextPages?.[0]?.items).toEqual([{ message: { ...activeDescendant, parentId: historicalParent.parentId } }])
+    expect(nextPages?.[1]?.items).toEqual([])
+  })
+
   it('does not promote an off-path user sibling when the selected user branch is removed', () => {
     const selectedUser = message('question-b', 'user', '2026-08-28T00:00:02.000Z')
     const offPathUser = message('question-a', 'user', '2026-08-28T00:00:01.000Z')

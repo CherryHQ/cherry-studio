@@ -86,6 +86,38 @@ function activeNodeIdAfterOptimisticTransform(
   return promoted?.message.id ?? fallbackId
 }
 
+function reparentAfterOptimisticTransform(
+  previousPages: BranchMessagesResponse[],
+  nextPages: BranchMessagesResponse[]
+): BranchMessagesResponse[] {
+  const messagesFromPages = (pages: BranchMessagesResponse[]) =>
+    pages.flatMap((page) => page.items.flatMap((item) => [item.message, ...(item.siblingsGroup ?? [])]))
+  const retainedIds = new Set(messagesFromPages(nextPages).map((message) => message.id))
+  const removedParents = new Map(
+    messagesFromPages(previousPages)
+      .filter((message) => !retainedIds.has(message.id))
+      .map((message) => [message.id, message.parentId])
+  )
+  if (removedParents.size === 0) return nextPages
+
+  const reparent = (message: SharedMessage): SharedMessage => {
+    let parentId = message.parentId
+    while (parentId && removedParents.has(parentId)) {
+      parentId = removedParents.get(parentId) ?? null
+    }
+    return parentId === message.parentId ? message : { ...message, parentId }
+  }
+
+  return nextPages.map((page) => ({
+    ...page,
+    items: page.items.map((item) => ({
+      ...item,
+      message: reparent(item.message),
+      ...(item.siblingsGroup ? { siblingsGroup: item.siblingsGroup.map(reparent) } : {})
+    }))
+  }))
+}
+
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
   const metadata = message.metadata ?? {}
   const createdAt = metadata.createdAt ?? new Date().toISOString()
@@ -137,7 +169,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       await mutate(
         (pages) => {
           if (!pages) return pages
-          return pages.map((page) => {
+          const nextPages = pages.map((page) => {
             const items = transform(page.items, page.activeNodeId)
             return {
               ...page,
@@ -145,6 +177,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
               activeNodeId: activeNodeIdAfterOptimisticTransform(page.items, items, page.activeNodeId, page.rootId)
             }
           })
+          return reparentAfterOptimisticTransform(pages, nextPages)
         },
         { revalidate: false }
       )
