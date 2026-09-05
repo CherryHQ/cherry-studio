@@ -6,7 +6,7 @@ const prompt: LanguageModelV3CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Think before answering.' }] }
 ]
 
-// Guards patches/@ai-sdk__openai@3.0.53.patch. DeepSeek's Responses API emits
+// Guards the @ai-sdk/openai compatibility patch. DeepSeek's Responses API emits
 // response.reasoning_text.delta rather than OpenAI's reasoning summary delta event.
 // Without the patch, the SDK accepts the event as an unknown chunk and silently
 // drops the reasoning text before it reaches Cherry Studio's stream pipeline.

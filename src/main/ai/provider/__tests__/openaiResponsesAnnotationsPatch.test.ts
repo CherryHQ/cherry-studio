@@ -1,7 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
-// Guards patches/@ai-sdk__openai@3.0.53.patch. The upstream non-streaming Responses schema
+// Guards the @ai-sdk/openai compatibility patch. The upstream non-streaming Responses schema
 // requires `annotations` on every output_text part, but third-party Responses implementations
 // (Volcano Ark's Agent plan, #19337) omit it entirely — a valid HTTP 200 that, unpatched, fails
 // schema validation (AI_TypeValidationError) and breaks every non-streaming call. The patch
