@@ -59,7 +59,7 @@ function groupStatus(rows: readonly DoctorRowViewModel[]): DoctorGroupStatus {
   if (rows.some((row) => row.status === 'fail' || row.status === 'error')) return 'fail'
   if (rows.some((row) => row.status === 'warn')) return 'warn'
   if (rows.some((row) => row.status === 'pending')) return 'running'
-  if (rows.some((row) => row.status === 'pass')) return 'pass'
+  if (rows.every((row) => row.status === 'pass')) return 'pass'
   return 'neutral'
 }
 

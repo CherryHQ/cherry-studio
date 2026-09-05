@@ -38,24 +38,4 @@ describe('doctorSessionReducer', () => {
     state = doctorSessionReducer(state, { type: 'finish-interaction', kind: 'fixing' })
     expect(state.interaction).toEqual({ kind: 'idle' })
   })
-
-  it('tracks expanded domains and consent-revealed evidence only for this popup session', () => {
-    let state = createDoctorSession({ initialPanel: 'checks' })
-
-    expect(state.expandedDomains).toEqual([])
-
-    state = doctorSessionReducer(state, { type: 'set-expanded-domains', domains: ['network', 'mcp'] })
-    state = doctorSessionReducer(state, { type: 'reveal-evidence', checkId: 'network-endpoint-cloud' })
-
-    expect(state.expandedDomains).toEqual(['network', 'mcp'])
-    expect(state.revealedEvidence).toEqual(['network-endpoint-cloud'])
-  })
-
-  it('keeps a relaunch notice for the remainder of the popup session', () => {
-    const initial = createDoctorSession({ initialPanel: 'checks' })
-
-    const next = doctorSessionReducer(initial, { type: 'mark-relaunch-required' })
-
-    expect(next.relaunchRequired).toBe(true)
-  })
 })

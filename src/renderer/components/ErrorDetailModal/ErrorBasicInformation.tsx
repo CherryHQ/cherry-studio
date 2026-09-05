@@ -45,7 +45,7 @@ export function ErrorBasicInformation({
   ].filter((field): field is BasicField => field !== undefined)
 
   return (
-    <section className="rounded-xl border border-border bg-secondary p-4">
+    <section className="rounded-xl border border-border bg-secondary p-4 text-secondary-foreground">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-medium text-sm">{t('error.diagnostics.basic_information')}</h2>
         <div className="flex flex-wrap items-center gap-1">

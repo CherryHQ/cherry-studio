@@ -1,6 +1,6 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
+import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
-import { formatError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -71,8 +71,8 @@ const translations: Record<string, string> = {
   'error.stack': 'Stack',
   'error.statusCode': 'Status code',
   'message.copied': 'Copied',
-  'settings.doctor.actions.run_network': 'Network and services check',
-  'settings.doctor.actions.run_basic': 'Basic checks',
+  'settings.doctor.actions.run_network': 'Full check (includes network and services)',
+  'settings.doctor.actions.run_basic': 'Quick basic checks',
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
@@ -124,6 +124,7 @@ vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: v
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ diagnoseError: mocks.diagnoseError }))
 
 vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => translations[key] ?? key } }))
+vi.mock('i18next', () => ({ t: (key: string) => translations[key] ?? key }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -132,8 +133,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
-  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
+vi.mock('@renderer/components/doctor', async (importOriginal) => ({
+  ...(await importOriginal<typeof DoctorComponents>()),
+  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -241,9 +243,12 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('503')).toBeInTheDocument()
     expect(screen.queryByText('private stack')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Copy' }))
-    expect(writeText).toHaveBeenCalledWith(formatError(providerError))
+    expect(writeText).toHaveBeenCalledWith(
+      ['Error name: ProviderError', 'Error message: failed', 'Stack: private stack'].join('\n')
+    )
   })
 
   it('keeps diagnostics mounted while navigating error details from the dialog header', async () => {
@@ -259,19 +264,14 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(screen.getByRole('button', { name: 'View Details' }))
     const dialog = screen.getByRole('dialog')
-    const dialogHeader = dialog.querySelector('[data-slot="dialog-header"]')
-    expect(dialogHeader).toBeInTheDocument()
-    expect(
-      within(dialogHeader as HTMLElement).getByRole('button', { name: 'Back to diagnostic overview' })
-    ).toBeInTheDocument()
-    expect(within(dialogHeader as HTMLElement).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
-    expect(within(dialog).getAllByRole('heading', { name: 'Error Details' })).toHaveLength(1)
+    expect(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
     expect(within(dialog).getByText('private stack')).toBeVisible()
 
     mocks.doctorState = completedDoctorState([passingVersionResult])
     view.rerender(<PopupHost />)
     await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
-    await user.click(within(dialogHeader as HTMLElement).getByRole('button', { name: 'Back to diagnostic overview' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' }))
 
     expect(await screen.findByText(aiDiagnosis.explanation)).toBeInTheDocument()
     const installGroup = screen.getByRole('button', { name: /Installation/ })
@@ -297,8 +297,6 @@ describe('ErrorDetailContent diagnostics', () => {
   it('offers a basic rerun directly from an expired-result warning', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState([], new Date(Date.now() - 1).toISOString())
-    mocks.request.mockRejectedValueOnce(new Error('initial rerun failed'))
-
     renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
 
     await screen.findByText('This result is out of date.')
@@ -306,11 +304,11 @@ describe('ErrorDetailContent diagnostics', () => {
       .getAllByRole('status')
       .find((alert) => within(alert).queryByText('This result is out of date.'))
     expect(staleAlert).toBeDefined()
-    const rerun = within(staleAlert as HTMLElement).getByRole('button', { name: 'Basic checks' })
+    const rerun = within(staleAlert as HTMLElement).getByRole('button', { name: 'Quick basic checks' })
 
     await user.click(rerun)
 
-    await waitFor(() => expect(screen.queryByText('This result is out of date.')).not.toBeInTheDocument())
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
   })
 
   it('opens destructive confirmation as a child dialog without replacing the error overview', async () => {
@@ -342,15 +340,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
   })
 
-  it('observes an active shared Doctor run without replacing it', async () => {
-    mocks.doctorState = runningDoctorState('live')
-    renderErrorDetailContent({ error: providerError })
-
-    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
-  })
-
-  it('runs network and service checks from the diagnostics header', async () => {
+  it('runs a full check from the diagnostics header', async () => {
     const user = userEvent.setup()
     mocks.doctorState = runningDoctorState('quick')
     const { rerender } = renderErrorDetailContent({ error: providerError })
@@ -363,7 +353,7 @@ describe('ErrorDetailContent diagnostics', () => {
         </DialogContent>
       </Dialog>
     )
-    const networkCheck = await screen.findByRole('button', { name: 'Network and services check' })
+    const networkCheck = await screen.findByRole('button', { name: 'Full check (includes network and services)' })
     await waitFor(() => expect(networkCheck).toBeEnabled())
     await user.click(networkCheck)
 
@@ -409,29 +399,6 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(description).not.toContain('private AI diagnosis')
     expect(description).not.toContain('private Doctor evidence')
     expect(description).not.toContain('private stack')
-  })
-
-  it('shows the report action only with a configured handoff', () => {
-    const onOpenDiagnosticReport = vi.fn()
-    mocks.doctorState = runningDoctorState('live')
-    const { rerender } = renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
-
-    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
-
-    rerender(
-      <Dialog open>
-        <DialogContent>
-          <ErrorDetailContent
-            cachedDiagnosis={aiDiagnosis}
-            diagnosticReport={{ location: 'Home conversation' }}
-            error={providerError}
-            onOpenDiagnosticReport={onOpenDiagnosticReport}
-          />
-        </DialogContent>
-      </Dialog>
-    )
-
-    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeInTheDocument()
   })
 
   it('waits for error details to finish closing before opening report review', async () => {

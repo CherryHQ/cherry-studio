@@ -1,6 +1,6 @@
 import { Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
-import { DoctorCheckResults, DoctorConfirmationView } from '@renderer/components/doctor/DoctorCheckResults'
-import { useDoctorController } from '@renderer/components/doctor/useDoctorController'
+import { DoctorCheckResults, DoctorConfirmationView } from '@renderer/components/doctor'
+import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckId, DoctorNavigateTarget } from '@shared/types/doctor'
