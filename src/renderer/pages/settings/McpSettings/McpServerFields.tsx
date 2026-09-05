@@ -59,8 +59,12 @@ export const buildMcpSchema = (t: (key: string) => string) =>
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 export type McpForm = UseFormReturn<McpFormValues>
 
-export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
-  return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
+export function resolveMcpConfigTransportType(
+  type: McpServer['type'],
+  name: string,
+  command?: string
+): McpServer['type'] {
+  return type === 'inMemory' && (name === BuiltinMcpServerNames.mcpAutoInstall || Boolean(command)) ? 'stdio' : type
 }
 
 /**
@@ -216,7 +220,7 @@ export function toMcpFormDefaultValues(server: McpServer): DefaultValues<McpForm
   return {
     name: server.name,
     description: server.description ?? '',
-    serverType: resolveMcpConfigTransportType(server.type, server.name),
+    serverType: resolveMcpConfigTransportType(server.type, server.name, server.command),
     baseUrl: server.baseUrl || '',
     command: server.command || '',
     registryUrl: server.registryUrl || '',

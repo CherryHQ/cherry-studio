@@ -99,6 +99,18 @@ describe('toMcpFormDefaultValues', () => {
 
     expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
   })
+
+  it('exposes stdio fields for a legacy command-backed in-memory server', () => {
+    const server = {
+      id: 'legacy-command-server',
+      name: 'Legacy command server',
+      type: 'inMemory',
+      command: 'missing-mcp-command',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
+  })
 })
 
 describe('resolveMcpConfigTransportType', () => {
@@ -108,6 +120,10 @@ describe('resolveMcpConfigTransportType', () => {
 
   it('keeps other built-in servers on the in-memory configuration', () => {
     expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory')).toBe('inMemory')
+  })
+
+  it('exposes stdio configuration for legacy command-backed servers', () => {
+    expect(resolveMcpConfigTransportType('inMemory', 'Legacy server', 'npx')).toBe('stdio')
   })
 })
 

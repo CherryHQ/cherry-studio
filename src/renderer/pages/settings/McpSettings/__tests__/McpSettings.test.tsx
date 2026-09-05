@@ -268,6 +268,29 @@ describe('McpSettings', () => {
     expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
   })
 
+  it('focuses the command for a legacy command-backed in-memory server', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'legacy-command-server',
+      name: 'Legacy command server',
+      type: 'inMemory',
+      command: 'missing-mcp-command',
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'spawn ENOENT',
+      errorCode: 'ENOENT',
+      errorPath: currentServer.command
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'Command' })).toHaveFocus()
+  })
+
   it('focuses the endpoint URL when a remote server is unavailable', async () => {
     currentSearch = {}
     currentServer = {
