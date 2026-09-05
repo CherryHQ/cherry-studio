@@ -711,7 +711,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
+  it('reuses first-party image data URLs and also exposes their managed paths', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -758,7 +758,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content: [
-            { type: 'text', text: 'describe this' },
+            {
+              type: 'text',
+              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /managed/entry-1'
+            },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
         }
@@ -766,6 +769,73 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('keeps a native image usable when its supplemental managed path cannot be resolved', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getPhysicalPath.mockImplementationOnce(() => {
+      throw new Error('not found')
+    })
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: [
+          message.parts[0],
+          {
+            type: 'file',
+            url: 'data:image/png;base64,QUJD',
+            mediaType: 'image/png',
+            filename: 'pixel.png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ]
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'describe this' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+      'Claude Code attachments could not be sent',
+      expect.anything()
+    )
     void connection.close()
   })
 
@@ -850,7 +920,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'inspect these images' },
             {
               type: 'file',
-              url: 'file:///tmp/diagram.bmp',
               mediaType: 'image/bmp',
               filename: 'diagram.bmp',
               providerMetadata: { cherry: { fileEntryId: 'entry-bmp' } }
@@ -883,7 +952,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n- "missing.png": /managed/entry-missing\n\nUnavailable attachments: empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -892,7 +961,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
-      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+      attachments: ['empty.png', 'missing-url.png']
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
     void connection.close()
@@ -1204,7 +1273,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: 'describe this\nAttached file "pixel.png":\nOCR text'
+          content:
+            'describe this\nAttached file "pixel.png":\nOCR text\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /managed/entry-1'
         }
       },
       done: false
