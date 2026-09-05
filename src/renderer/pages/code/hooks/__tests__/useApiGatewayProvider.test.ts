@@ -1,4 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,20 +50,23 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
   it('starts the gateway without reading its key', async () => {
     mocks.apiGatewayRunning = false
     mocks.startApiGateway.mockResolvedValue(true)
+    vi.mocked(preferenceService.get).mockResolvedValueOnce('127.0.0.1').mockResolvedValueOnce(24444)
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
-    await expect(result.current!.ensureRunning()).resolves.toBeUndefined()
-    expect(preferenceService.get).not.toHaveBeenCalled()
+    const provider = await result.current!.ensureRunning()
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
   })
 
   it('does not restart a running gateway', async () => {
     mocks.apiGatewayRunning = true
     mocks.apiGatewayConfig = { host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-live', enabled: true }
+    vi.mocked(preferenceService.get).mockResolvedValueOnce('127.0.0.1').mockResolvedValueOnce(24444)
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
-    await expect(result.current!.ensureRunning()).resolves.toBeUndefined()
+    const provider = await result.current!.ensureRunning()
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
     expect(mocks.startApiGateway).not.toHaveBeenCalled()
   })
 

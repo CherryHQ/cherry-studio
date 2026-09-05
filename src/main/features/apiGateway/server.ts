@@ -45,6 +45,7 @@ export class ApiGateway {
   private app: ApiGatewayApp | null = null
   private serverInfo: NodeServerInfo | null = null
   private running = false
+  private startPromise: Promise<void> | null = null
   /**
    * Owned here so session lifetime is exactly server lifetime: once the socket closes every
    * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
@@ -53,16 +54,37 @@ export class ApiGateway {
   private readonly mcpSessions = new McpSessionStore()
 
   async start(): Promise<void> {
+    if (this.startPromise) return this.startPromise
     if (this.running) {
       logger.warn('Server already running')
       return
     }
 
+    this.startPromise = this.startInternal().finally(() => {
+      this.startPromise = null
+    })
+    return this.startPromise
+  }
+
+  private async startInternal(): Promise<void> {
     // Load config from preference service
     const preferenceService = application.get('PreferenceService')
     const port = preferenceService.get('feature.api_gateway.port')
     const host = preferenceService.get('feature.api_gateway.host')
 
+    try {
+      await this.listen(host, port)
+    } catch (error) {
+      if (!this.isAddressInUseError(error) || port === 0) throw error
+
+      logger.warn('Configured API gateway port is occupied; selecting an available port', { host, port })
+      const fallbackPort = await this.listen(host, 0)
+      await preferenceService.set('feature.api_gateway.port', fallbackPort)
+      logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
+    }
+  }
+
+  private listen(host: string, port: number): Promise<number> {
     const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
     this.app = app
 
@@ -85,8 +107,10 @@ export class ApiGateway {
               .call(serverInfo.raw)
               .then(() => {
                 this.running = true
-                logger.info('API server started', { host, port })
-                resolve()
+                const address = http?.address()
+                const boundPort = typeof address === 'object' && address ? address.port : serverInfo.port
+                logger.info('API server started', { host, port: boundPort })
+                resolve(boundPort)
               })
               .catch((error: unknown) => {
                 this.cleanupFailedStart()
@@ -95,7 +119,7 @@ export class ApiGateway {
           } else {
             this.running = true
             logger.info('API server started', { host, port })
-            resolve()
+            resolve(serverInfo.port)
           }
         })
       } catch (error) {
@@ -103,6 +127,10 @@ export class ApiGateway {
         reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
+  }
+
+  private isAddressInUseError(error: unknown): boolean {
+    return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
   }
 
   private applyServerTimeouts(server: HttpServer): void {

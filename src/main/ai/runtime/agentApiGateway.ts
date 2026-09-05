@@ -67,12 +67,13 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
   // the same reconciler (serializing behind an in-flight transition) and throws the real bind
   // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
-  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
+  await apiGatewayService.ensureRunning()
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
+  const runningConfig = apiGatewayService.getCurrentConfig()
+  const host = runningConfig.host || '127.0.0.1'
+  const port = runningConfig.port || 23333
   return {
     baseUrl: gatewayClientOrigin(host, port),
     apiKey,

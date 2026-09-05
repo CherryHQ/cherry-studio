@@ -170,10 +170,9 @@ export function useLaunchDialogController({
       if (!launchModelRecord) {
         throw new Error(`Model is no longer available: ${cliConfigContext.modelId}`)
       }
-      if (isGatewayProvider && apiGatewayProvider) {
-        await apiGatewayProvider.ensureRunning()
-      }
-      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+      const runningGatewayProvider =
+        isGatewayProvider && apiGatewayProvider ? await apiGatewayProvider.ensureRunning() : undefined
+      if (runningGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
@@ -212,7 +211,7 @@ export function useLaunchDialogController({
           configBlob,
           ...(mergeFiles ? { files: mergeFiles } : {}),
           writePrimaryModel: cliConfigContext.writePrimaryModel,
-          gateway: { provider: apiGatewayProvider.provider, apiKey }
+          gateway: { provider: runningGatewayProvider, apiKey }
         })
       }
       // Both routes address a model by its provider-facing apiModelId: the gateway matches on it,

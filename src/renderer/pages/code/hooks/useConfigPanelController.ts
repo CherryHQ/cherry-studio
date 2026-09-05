@@ -82,9 +82,9 @@ export function useConfigPanelController({
       if (!writesCliConfig || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
         return undefined
       }
-      await apiGatewayProvider.ensureRunning()
+      const provider = await apiGatewayProvider.ensureRunning()
       const apiKey = await apiGatewayProvider.getApiKey()
-      return { provider: apiGatewayProvider.provider, apiKey }
+      return { provider, apiKey }
     },
     [apiGatewayProvider, writesCliConfig]
   )

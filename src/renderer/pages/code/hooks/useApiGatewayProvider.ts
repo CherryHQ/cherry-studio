@@ -23,7 +23,7 @@ export interface ApiGatewayProviderBundle {
   /** Current persisted gateway key; `null` before the gateway has ever started (main generates it lazily). */
   apiKey: string | null
   /** Start the gateway if needed and confirm it is running. */
-  ensureRunning: () => Promise<void>
+  ensureRunning: () => Promise<Provider>
   /** Read the persisted key for a CLI config-file write. */
   getApiKey: () => Promise<string>
 }
@@ -41,7 +41,9 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
 
-  const ensureRunning = useCallback(async (): Promise<void> => {
+  const provider = useMemo(() => createApiGatewayProvider(t('code.api_gateway.title'), host, port), [host, port, t])
+
+  const ensureRunning = useCallback(async (): Promise<Provider> => {
     if (!apiGatewayRunning) {
       // Main persists the key in `onActivate` BEFORE the server binds, and it survives a stop — so a
       // key can exist while nothing is listening. Only proceed when the start actually confirmed the
@@ -52,7 +54,16 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
         throw new Error('API gateway failed to start')
       }
     }
-  }, [apiGatewayRunning, startApiGateway])
+    const [runningHost, runningPort] = await Promise.all([
+      preferenceService.get('feature.api_gateway.host'),
+      preferenceService.get('feature.api_gateway.port')
+    ])
+    return createApiGatewayProvider(
+      t('code.api_gateway.title'),
+      runningHost || DEFAULT_GATEWAY_HOST,
+      runningPort || DEFAULT_GATEWAY_PORT
+    )
+  }, [apiGatewayRunning, startApiGateway, t])
 
   const getApiKey = useCallback(async (): Promise<string> => {
     const key = await preferenceService.get('feature.api_gateway.api_key')
@@ -62,23 +73,23 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
     return key
   }, [])
 
-  return useMemo(() => {
-    const baseUrl = gatewayClientOrigin(host, port)
-    const provider: Provider = {
-      id: CLI_API_GATEWAY_PROVIDER_ID,
-      // Display-only; the CLI provider key is decoupled from this title (see cliProviderKeyName).
-      name: t('code.api_gateway.title'),
-      endpointConfigs: {
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl },
-        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
-      },
-      apiKeys: [{ id: 'gateway', isEnabled: true }],
-      authType: 'api-key',
-      reportsActualCost: false,
-      settings: DEFAULT_PROVIDER_SETTINGS,
-      isEnabled: true
-    }
-    return { provider, apiKey, ensureRunning, getApiKey }
-  }, [host, port, apiKey, t, ensureRunning, getApiKey])
+  return useMemo(() => ({ provider, apiKey, ensureRunning, getApiKey }), [provider, apiKey, ensureRunning, getApiKey])
+}
+
+function createApiGatewayProvider(name: string, host: string, port: number): Provider {
+  const baseUrl = gatewayClientOrigin(host, port)
+  return {
+    id: CLI_API_GATEWAY_PROVIDER_ID,
+    name,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl },
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
+    },
+    apiKeys: [{ id: 'gateway', isEnabled: true }],
+    authType: 'api-key',
+    reportsActualCost: false,
+    settings: DEFAULT_PROVIDER_SETTINGS,
+    isEnabled: true
+  }
 }

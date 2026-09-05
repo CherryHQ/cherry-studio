@@ -127,8 +127,11 @@ export function buildApp({
     // from the spec it serves: the docs routes are not part of the API.
     .get(
       `${OPENAPI_PATH}/json`,
-      ({ request }) =>
-        buildOpenApiDocument(app, resolveDocsLanguage(new URL(request.url)), gatewayClientOrigin(host, port)),
+      ({ request }) => {
+        const url = new URL(request.url)
+        const origin = port === 0 ? url.origin : gatewayClientOrigin(host, port)
+        return buildOpenApiDocument(app, resolveDocsLanguage(url), origin)
+      },
       { detail: { hide: true } }
     )
     // OpenAPI docs UI (Scalar), pointed at the spec for the same language.
