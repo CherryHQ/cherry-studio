@@ -325,6 +325,24 @@ describe('error', () => {
       expect(providerErrorText(serializeError(retryError))).toBe('account is not authorized for this model')
     })
 
+    it('preserves a plain terminal error when serializing a retry error', () => {
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [new Error('upstream socket closed')]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toMatchObject({
+        name: 'Error',
+        message: 'upstream socket closed',
+        stack: expect.any(String),
+        cause: null
+      })
+      expect(providerErrorText(serialized)).toBe('upstream socket closed')
+    })
+
     it('uses the newest retry attempt when lastError is absent', () => {
       expect(
         providerErrorText({
