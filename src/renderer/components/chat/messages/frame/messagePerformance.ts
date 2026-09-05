@@ -21,6 +21,17 @@ export interface MessagePerformanceViewModel {
   intervals: MessagePerformanceInterval[]
 }
 
+export function getMessageTokenUsage(stats: MessageStats) {
+  const inputTokens = stats.inputTokens
+  const outputTokens = stats.outputTokens
+  const componentTotal =
+    inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined
+  const totalTokens = stats.totalTokens !== undefined && stats.totalTokens > 0 ? stats.totalTokens : componentTotal
+
+  if (![inputTokens, outputTokens, totalTokens].some((value) => value !== undefined && value > 0)) return {}
+  return { inputTokens, outputTokens, totalTokens }
+}
+
 function intervalFromRuntimeSpan(span: MessageRuntimeSpan, rangeEnd: number): MessagePerformanceInterval | undefined {
   const completedAt = span.completedAt ?? rangeEnd
   if (completedAt <= span.startedAt) return undefined
