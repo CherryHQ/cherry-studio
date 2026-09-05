@@ -82,7 +82,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
   // SDK skips canUseTool on auto-approved paths.
-  const toolGuardHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
+  const toolGuardHook: HookCallback = async (input, toolUseId, options): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!toolName) return {}
@@ -100,6 +100,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       pluginDirectories: ctx.pluginDirectories,
       cwd,
       agentDataPath,
+      signal: options?.signal,
       supportsImages: ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,

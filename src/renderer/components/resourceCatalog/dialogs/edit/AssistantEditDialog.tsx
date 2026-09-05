@@ -782,6 +782,7 @@ function AssistantAdvancedFields({
             render={({ field }) => (
               <InputNumber
                 min={1}
+                max={Number.MAX_SAFE_INTEGER}
                 step={1}
                 aria-label={t('library.config.basic.max_tokens')}
                 className="h-8 rounded-lg px-2.5"

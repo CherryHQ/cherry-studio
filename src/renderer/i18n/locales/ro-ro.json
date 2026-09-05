@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "O conversație sau un agent este încă în execuție. Așteaptă să se termine, apoi încearcă din nou.",
   "backup.error.disk_full": "Nu există suficient spațiu pe disc. Eliberați spațiu și încercați din nou.",
   "backup.error.disk_full_with_available": "Nu există suficient spațiu pe disc (disponibil: {{available}}). Eliberați spațiu și încercați din nou.",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Nu s-a putut verifica certificatul TLS al serverului WebDAV. Dacă serverul folosește un certificat auto-semnat sau de la o CA privată, activați „Permite certificatele auto-semnate” în Setări → Date → WebDAV (aceasta reduce securitatea transferului).",
   "backup.progress.completed": "Backup finalizat",
   "backup.progress.compressing": "Se comprimă fișierele...",

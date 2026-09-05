@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại.",
   "backup.error.disk_full": "Không đủ dung lượng ổ đĩa. Hãy giải phóng dung lượng rồi thử lại.",
   "backup.error.disk_full_with_available": "Không đủ dung lượng ổ đĩa (còn trống {{available}}). Hãy giải phóng dung lượng rồi thử lại.",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Không thể xác minh chứng chỉ TLS của máy chủ WebDAV. Nếu máy chủ dùng chứng chỉ tự ký hoặc chứng chỉ từ CA riêng, hãy bật «Cho phép chứng chỉ tự ký» trong Cài đặt → Dữ liệu → WebDAV (điều này làm giảm bảo mật truyền tải).",
   "backup.progress.completed": "Sao lưu đã hoàn tất",
   "backup.progress.compressing": "Đang nén tệp...",
