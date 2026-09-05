@@ -2178,6 +2178,7 @@
   "message.tools.activity.codeFiles": "kod dosyaları",
   "message.tools.activity.codeHostInfo": "uzak depo bilgileri",
   "message.tools.activity.configFiles": "proje belgeleri ve yapılandırma",
+  "message.tools.activity.continueHandle": "İşlemeye devam et",
   "message.tools.activity.copy": "Kopyala",
   "message.tools.activity.copying": "Kopyalanıyor",
   "message.tools.activity.create": "Oluştur",

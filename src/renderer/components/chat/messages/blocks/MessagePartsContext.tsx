@@ -78,6 +78,27 @@ export function usePartsMap() {
   return use(PartsContext)
 }
 
+// ============================================================================
+// Full Parts Map Context — survives tool-group boundaries
+// ============================================================================
+
+const FullPartsMapContext = createContext<Record<string, CherryMessagePart[]> | null>(null)
+
+/**
+ * Provide the list-level parts map for cross-message lookups. Unlike
+ * PartsContext, nested boundaries never null this out — completed tool groups
+ * reset PartsContext to skip approval checks, which would also hide any
+ * consumer that must see other messages' parts.
+ */
+export function FullPartsMapProvider({ value, children }: { value: PartsMap; children: ReactNode }) {
+  return <FullPartsMapContext value={value}>{children}</FullPartsMapContext>
+}
+
+/** Read the list-level parts map (null when no provider is mounted). */
+export function useFullPartsMap() {
+  return use(FullPartsMapContext)
+}
+
 /** Check if parts data is provided. */
 export function useHasMessageParts(): boolean {
   return use(PartsContext) !== null

@@ -2178,6 +2178,7 @@
   "message.tools.activity.codeFiles": "コードファイル",
   "message.tools.activity.codeHostInfo": "リモートリポジトリ情報",
   "message.tools.activity.configFiles": "プロジェクトのドキュメントと設定",
+  "message.tools.activity.continueHandle": "処理を継続",
   "message.tools.activity.copy": "コピー",
   "message.tools.activity.copying": "コピー中",
   "message.tools.activity.create": "作成",
