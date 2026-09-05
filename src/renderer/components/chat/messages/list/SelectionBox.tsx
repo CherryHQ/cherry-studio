@@ -7,8 +7,19 @@ interface SelectionBoxProps {
   handleSelectMessage: (messageId: string, selected: boolean) => void
 }
 
+interface Position {
+  x: number
+  y: number
+}
+
+interface DragBox {
+  start: Position
+  current: Position
+}
+
 const INTERACTIVE_CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-slot=checkbox], [role="checkbox"]'
 const MESSAGE_SELECT_CHECKBOX_SELECTOR = '[data-message-select-checkbox]'
+const DRAG_THRESHOLD = 5
 
 function getMessageCheckbox(element: HTMLElement): HTMLElement | null {
   return element.querySelector<HTMLElement>(MESSAGE_SELECT_CHECKBOX_SELECTOR)
@@ -28,28 +39,29 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
   messageElements,
   handleSelectMessage
 }) => {
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [dragCurrent, setDragCurrent] = useState({ x: 0, y: 0 })
-  const [isMouseDown, setIsMouseDown] = useState(false)
-
+  const [dragBox, setDragBox] = useState<DragBox | null>(null)
+  const isMouseDown = useRef(false)
+  const isDragging = useRef(false)
+  const dragStart = useRef<Position | null>(null)
+  const pendingPointer = useRef<Position | null>(null)
+  const animationFrame = useRef<number | null>(null)
   const dragSelectedIds = useRef<Set<string>>(new Set())
-
-  // 拖拽阈值，只有移动距离超过这个值才开始框选
-  // 避免触控板点击触发拖拽
-  const DRAG_THRESHOLD = 5
+  const highlightTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
 
   useEffect(() => {
-    let handleMouseMoveTimer: NodeJS.Timeout
-    if (!isMultiSelectMode) return
+    if (!isMultiSelectMode) {
+      setDragBox(null)
+    }
+  }, [isMultiSelectMode])
 
-    const updateDragPos = (e: MouseEvent) => {
-      const container = scrollContainerRef.current!
-      if (!container) return { x: 0, y: 0 }
-      const rect = container.getBoundingClientRect()
+  useEffect(() => {
+    if (!isMultiSelectMode) return
+    const timers = highlightTimers.current
+
+    const updateDragPos = (pointer: Position, container: HTMLDivElement, containerRect: DOMRect): Position => {
       return {
-        x: e.clientX - rect.left + container.scrollLeft,
-        y: e.clientY - rect.top + container.scrollTop
+        x: pointer.x - containerRect.left + container.scrollLeft,
+        y: pointer.y - containerRect.top + container.scrollTop
       }
     }
 
@@ -59,54 +71,57 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
       e.preventDefault()
 
-      setIsMouseDown(true)
-      const pos = updateDragPos(e)
-      setDragStart(pos)
-      setDragCurrent(pos)
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      isMouseDown.current = true
+      dragStart.current = updateDragPos({ x: e.clientX, y: e.clientY }, container, container.getBoundingClientRect())
+      pendingPointer.current = null
       dragSelectedIds.current.clear()
     }
 
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isMouseDown) return
+    const processMouseMove = () => {
+      animationFrame.current = null
 
-      const pos = updateDragPos(e)
+      const pointer = pendingPointer.current
+      const start = dragStart.current
+      const container = scrollContainerRef.current
+      pendingPointer.current = null
+      if (!pointer || !start || !container || !isMouseDown.current) return
 
-      const deltaX = Math.abs(pos.x - dragStart.x)
-      const deltaY = Math.abs(pos.y - dragStart.y)
+      const containerRect = container.getBoundingClientRect()
+      const pos = updateDragPos(pointer, container, containerRect)
+
+      const deltaX = Math.abs(pos.x - start.x)
+      const deltaY = Math.abs(pos.y - start.y)
       const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
 
-      if (!isDragging && distance > DRAG_THRESHOLD) {
-        setIsDragging(true)
+      if (!isDragging.current && distance > DRAG_THRESHOLD) {
+        isDragging.current = true
         document.body.classList.add('no-select')
       }
 
-      if (!isDragging) return
+      if (!isDragging.current) return
 
-      e.preventDefault()
-      setDragCurrent(pos)
+      setDragBox({ start, current: pos })
 
-      // 计算当前框选矩形
-      const left = Math.min(dragStart.x, pos.x)
-      const right = Math.max(dragStart.x, pos.x)
-      const top = Math.min(dragStart.y, pos.y)
-      const bottom = Math.max(dragStart.y, pos.y)
+      const left = Math.min(start.x, pos.x)
+      const right = Math.max(start.x, pos.x)
+      const top = Math.min(start.y, pos.y)
+      const bottom = Math.max(start.y, pos.y)
 
       messageElements.forEach((el, id) => {
-        // 检查消息是否已被选中（不管是拖动选中还是手动选中）
         const checkbox = getMessageCheckbox(el)
         const isAlreadySelected = checkbox ? isCheckboxSelected(checkbox) : false
 
-        // 清除上下文这类消息也会被选中，所以需要跳过
         if (!checkbox) return
 
         const rect = el.getBoundingClientRect()
-        const container = scrollContainerRef.current!
-        const eTop = rect.top - container.getBoundingClientRect().top + container.scrollTop
-        const eLeft = rect.left - container.getBoundingClientRect().left + container.scrollLeft
+        const eTop = rect.top - containerRect.top + container.scrollTop
+        const eLeft = rect.left - containerRect.left + container.scrollLeft
         const eBottom = eTop + rect.height
         const eRight = eLeft + rect.width
 
-        // 检查消息是否在当前选择框内
         const isInSelectionBox = !(eRight < left || eLeft > right || eBottom < top || eTop > bottom)
 
         if (!isInSelectionBox) {
@@ -116,25 +131,49 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
           return
         }
 
-        // 只有在选择框内且未被选中的消息才需要处理
         if (!dragSelectedIds.current.has(id) && !isAlreadySelected) {
           handleSelectMessage(id, true)
           dragSelectedIds.current.add(id)
           el.classList.add('selection-highlight')
-          handleMouseMoveTimer = setTimeout(() => el.classList.remove('selection-highlight'), 300)
+          const timer = setTimeout(() => {
+            el.classList.remove('selection-highlight')
+            timers.delete(timer)
+          }, 300)
+          timers.add(timer)
         }
       })
     }
 
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDown.current) return
+
+      if (isDragging.current) {
+        e.preventDefault()
+      }
+
+      pendingPointer.current = { x: e.clientX, y: e.clientY }
+      if (animationFrame.current === null) {
+        animationFrame.current = requestAnimationFrame(processMouseMove)
+      }
+    }
+
     const handleMouseUp = () => {
-      setIsMouseDown(false)
-      if (isDragging) {
-        setIsDragging(false)
+      if (animationFrame.current !== null) {
+        cancelAnimationFrame(animationFrame.current)
+        processMouseMove()
+      }
+
+      isMouseDown.current = false
+      dragStart.current = null
+      pendingPointer.current = null
+      if (isDragging.current) {
+        isDragging.current = false
+        setDragBox(null)
         document.body.classList.remove('no-select')
       }
     }
 
-    const container = scrollContainerRef.current!
+    const container = scrollContainerRef.current
     container?.addEventListener('mousedown', handleMouseDown)
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -144,20 +183,29 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
       document.body.classList.remove('no-select')
-      clearTimeout(handleMouseMoveTimer)
+      if (animationFrame.current !== null) {
+        cancelAnimationFrame(animationFrame.current)
+      }
+      timers.forEach(clearTimeout)
+      timers.clear()
+      animationFrame.current = null
+      pendingPointer.current = null
+      dragStart.current = null
+      isMouseDown.current = false
+      isDragging.current = false
     }
-  }, [isMultiSelectMode, isDragging, isMouseDown, dragStart, scrollContainerRef, messageElements, handleSelectMessage])
+  }, [isMultiSelectMode, scrollContainerRef, messageElements, handleSelectMessage])
 
-  if (!isDragging || !isMultiSelectMode) return null
+  if (!dragBox || !isMultiSelectMode) return null
 
   return (
     <div
       className="pointer-events-none absolute z-100 border border-primary border-dashed bg-[rgba(0,114,245,0.1)]"
       style={{
-        left: Math.min(dragStart.x, dragCurrent.x),
-        top: Math.min(dragStart.y, dragCurrent.y),
-        width: Math.abs(dragCurrent.x - dragStart.x),
-        height: Math.abs(dragCurrent.y - dragStart.y)
+        left: Math.min(dragBox.start.x, dragBox.current.x),
+        top: Math.min(dragBox.start.y, dragBox.current.y),
+        width: Math.abs(dragBox.current.x - dragBox.start.x),
+        height: Math.abs(dragBox.current.y - dragBox.start.y)
       }}
     />
   )
