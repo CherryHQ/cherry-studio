@@ -27,8 +27,23 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'data-citation', data: {} }
       )
     },
+    // The derived translation is dropped by the same save, so it does not displace the file
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'data-translation', data: { content: 'translation', targetLanguage: 'en-us' } },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
     {
       messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
     },
     {
       messageParts: parts({
@@ -159,12 +174,13 @@ describe('canEditAssistantMessageParts', () => {
     { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
     { messageParts: parts({ type: 'text', text: '   ' }) },
     { messageParts: parts() },
-    // Interleaved editable parts require reordering to save, so they stay blocked
+    // Files have no anchor: Composer re-emits them as one run directly after the edited text, so a
+    // file parked anywhere else is moved by a save
     {
       messageParts: parts(
-        { type: 'text', text: 'before tool' },
+        { type: 'text', text: 'answer' },
         { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
-        { type: 'text', text: 'after tool' }
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
       )
     },
     {
@@ -180,7 +196,7 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'text', text: 'after file' }
       )
     }
-  ])('is not editable when the message has no text or interleaved parts', ({ messageParts }) => {
+  ])('is not editable when the message has no text or a file outside the run after it', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })
