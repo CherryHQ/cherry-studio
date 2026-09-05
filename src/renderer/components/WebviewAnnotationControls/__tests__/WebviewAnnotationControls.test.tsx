@@ -263,6 +263,29 @@ describe('WebviewAnnotationControls', () => {
     expect(screen.getByLabelText('2 条标注')).toBeInTheDocument()
   })
 
+  it('closes a delivered clear confirmation when navigation retires its session', async () => {
+    const user = userEvent.setup()
+    const webview = createWebview()
+    renderControls(webview)
+    act(() => stateChanged(webview, false, 2))
+    await user.click(screen.getByRole('button', { name: '清空标注' }))
+    let resolveClear!: () => void
+    vi.mocked(webview.send).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = resolve
+        })
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    await act(async () => {
+      resolveClear()
+    })
+
+    expect(screen.queryByRole('dialog', { name: '清空全部标注？' })).not.toBeInTheDocument()
+  })
+
   it('closes a clear confirmation when the target identity changes', async () => {
     const user = userEvent.setup()
     const webview = createWebview()

@@ -491,9 +491,10 @@ export function useWebviewAnnotationSession({
     if (!binding || !sessionId) return false
     const generation = generationRef.current
     if (!(await sendCommand(binding.webview, { type: 'clear', sessionId }))) return false
-    if (!isSessionCurrent(binding, sessionId, generation)) return false
-    invalidateOperation('Annotations cleared')
-    store.setState((current) => ({ ...current, count: 0, editor: null }))
+    if (isSessionCurrent(binding, sessionId, generation)) {
+      invalidateOperation('Annotations cleared')
+      store.setState((current) => ({ ...current, count: 0, editor: null }))
+    }
     return true
   }, [invalidateOperation, isSessionCurrent, sendCommand, store])
 
