@@ -588,6 +588,26 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-other')).toBeNull()
     })
 
+    it('skips task events that carry no tool-use id', async () => {
+      const ROOT2 = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d036'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ROOT2,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              { type: 'data-agent-task-event' as const, data: { taskId: 'task-1', event: 'progress' as const } },
+              taskEventPart('task-1', 'launch-use')
+            ]
+          }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+
     it('prefers the earliest row when several carry the same task id', async () => {
       const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
       const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d034'

@@ -2052,13 +2052,15 @@ export class AgentSessionRuntimeService extends BaseService {
     // persisted host row once per root so resumed chunks land on the launch message; the looked-up
     // rows are already committed, so seeding their accumulator from the DB needs no pending buffer.
     if (!messageId && !entry.checkedFlowHostMisses?.has(rootToolCallId)) {
-      ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
       try {
         const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
         if (hostMessageId) {
           ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
           ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
           messageId = hostMessageId
+        } else {
+          // Only a successful miss is cached — a transient query error must stay retryable.
+          ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
         }
       } catch (error) {
         logger.warn('Failed to recover flow host row for detached subagent chunk', {
@@ -2253,6 +2255,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
       .then(() => {
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
+        // A failed persist keeps its accumulator: its in-memory parts are the only surviving copy
+        // and the next flush (or a successor seed) must be able to retry them.
+        const failedMessageIds = new Set<string>()
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
@@ -2265,6 +2270,7 @@ export class AgentSessionRuntimeService extends BaseService {
               messageId: accumulator.messageId,
               error
             })
+            failedMessageIds.add(accumulator.messageId)
             continue
           }
           completedFlows.push({ messageId: accumulator.messageId, parts })
@@ -2273,6 +2279,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Only drop the accumulators this flush closed — one created mid-drain belongs to newer
         // chunks and must survive, or its content leaks silently.
         for (const accumulator of accumulators) {
+          if (failedMessageIds.has(accumulator.messageId)) continue
           if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
             entry.backgroundFlowAccumulators.delete(accumulator.messageId)
           }
