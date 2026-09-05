@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import type { DbType } from '@data/db/types'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
@@ -400,10 +401,207 @@ describe('applyMigrations over a populated database', () => {
     ).toThrow(/UNIQUE|constraint/i)
   })
 
-  it('backfills durable refs for existing agent-session attachments', () => {
-    // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
-    // not move the seed after the backfill and silently stop testing the populated upgrade path.
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
+  it('uses the database migration completion as the cleanup-policy provenance boundary', () => {
+    // Stop before 0003 adds cleanup_policy. This reproduces an rc.1 database whose one-shot
+    // migration created a referenced file after the fixed journal timestamp used by the first
+    // implementation of this backfill.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0003_slow_proudstar'))
+    const oldFixedCutoff = 1785514531244
+    const fileCreatedAt = oldFixedCutoff + 60_000
+    const migrationCompletedAt = fileCreatedAt + 60_000
+    const fileEntryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'late-rc1-logo', 'png', 1, NULL, ?, ?, NULL)`
+      )
+      .run(fileEntryId, fileCreatedAt, fileCreatedAt)
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('late-rc1-provider', 'Late RC1', 'a0', ?, ?)`
+      )
+      .run(fileCreatedAt, fileCreatedAt)
+    sqlite
+      .prepare(
+        `INSERT INTO provider_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
+         VALUES ('bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', ?, 'late-rc1-provider', ?, ?)`
+      )
+      .run(fileEntryId, fileCreatedAt, fileCreatedAt)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt: migrationCompletedAt, version: '2.0.0', error: null }),
+        migrationCompletedAt,
+        migrationCompletedAt
+      )
+
+    applyMigrations(db, resolveMigrationsPath())
+    new LegacyFileCleanupPolicySeeder().run(db)
+
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'delete_when_unreferenced'
+    })
+  })
+
+  it('backfills cleanup policy only for referenced files present at one-shot migration completion', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const migrationCompletedAt = 1785514531244
+    const legacyReferenced = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const legacyUnreferenced = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const recentReferenced = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    const legacyChat = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    const legacyPainting = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee'
+    const legacyMiniApp = 'ffffffff-ffff-7fff-8fff-ffffffffffff'
+    const legacyReferencedLater = 'abababab-abab-7aba-8aba-abababababab'
+    const legacyUserRetained = 'acacacac-acac-7aca-8aca-acacacacacac'
+    const insertEntry = sqlite.prepare(
+      `INSERT INTO file_entry
+        (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+       VALUES (?, 'internal', ?, 'png', 1, NULL, 'manual', ?, ?, NULL)`
+    )
+    insertEntry.run(legacyReferenced, 'legacy-referenced', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertEntry.run(legacyUnreferenced, 'legacy-unreferenced', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertEntry.run(recentReferenced, 'recent-referenced', migrationCompletedAt + 1, migrationCompletedAt + 1)
+    insertEntry.run(legacyChat, 'legacy-chat', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertEntry.run(legacyPainting, 'legacy-painting', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertEntry.run(legacyMiniApp, 'legacy-mini-app', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertEntry.run(
+      legacyReferencedLater,
+      'legacy-referenced-later',
+      migrationCompletedAt - 1,
+      migrationCompletedAt - 1
+    )
+    insertEntry.run(legacyUserRetained, 'legacy-user-retained', migrationCompletedAt - 1, migrationCompletedAt + 1)
+
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt: migrationCompletedAt, version: '2.0.0', error: null }),
+        migrationCompletedAt,
+        migrationCompletedAt
+      )
+
+    const insertProvider = sqlite.prepare(
+      `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    insertProvider.run('legacy-provider', 'Legacy', 'a0', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    insertProvider.run('recent-provider', 'Recent', 'a1', migrationCompletedAt + 1, migrationCompletedAt + 1)
+    insertProvider.run('later-provider', 'Later', 'a2', migrationCompletedAt + 1, migrationCompletedAt + 1)
+    insertProvider.run('retained-provider', 'Retained', 'a3', migrationCompletedAt - 1, migrationCompletedAt - 1)
+    const insertRef = sqlite.prepare(
+      `INSERT INTO provider_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    insertRef.run(
+      '11111111-1111-7111-8111-111111111111',
+      legacyReferenced,
+      'legacy-provider',
+      migrationCompletedAt - 1,
+      migrationCompletedAt - 1
+    )
+    insertRef.run(
+      '22222222-2222-7222-8222-222222222222',
+      recentReferenced,
+      'recent-provider',
+      migrationCompletedAt + 1,
+      migrationCompletedAt + 1
+    )
+    insertRef.run(
+      '23232323-2323-7323-8323-232323232323',
+      legacyReferencedLater,
+      'later-provider',
+      migrationCompletedAt + 1,
+      migrationCompletedAt + 1
+    )
+    insertRef.run(
+      '24242424-2424-7424-8424-242424242424',
+      legacyUserRetained,
+      'retained-provider',
+      migrationCompletedAt - 1,
+      migrationCompletedAt - 1
+    )
+
+    sqlite
+      .prepare(
+        `INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('33333333-3333-7333-8333-333333333333', 'Legacy topic', 'a0', ?, ?, ?)`
+      )
+      .run(migrationCompletedAt - 1, migrationCompletedAt - 1, migrationCompletedAt - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO message
+          (id, parent_id, topic_id, role, data, status, created_at, updated_at)
+         VALUES
+          ('44444444-4444-7444-8444-444444444444', NULL, '33333333-3333-7333-8333-333333333333',
+           'root', '{"parts":[]}', 'success', ?, ?),
+          ('55555555-5555-7555-8555-555555555555', '44444444-4444-7444-8444-444444444444',
+           '33333333-3333-7333-8333-333333333333', 'user', '{"parts":[]}', 'success', ?, ?)`
+      )
+      .run(migrationCompletedAt - 1, migrationCompletedAt - 1, migrationCompletedAt - 1, migrationCompletedAt - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO chat_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES ('66666666-6666-7666-8666-666666666666', ?, '55555555-5555-7555-8555-555555555555',
+                 'attachment', ?, ?)`
+      )
+      .run(legacyChat, migrationCompletedAt - 1, migrationCompletedAt - 1)
+
+    sqlite
+      .prepare(
+        `INSERT INTO painting (id, provider_id, prompt, order_key, created_at, updated_at)
+         VALUES ('77777777-7777-7777-8777-777777777777', 'legacy-provider', 'Legacy painting', 'a0', ?, ?)`
+      )
+      .run(migrationCompletedAt - 1, migrationCompletedAt - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO painting_file_ref (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES ('88888888-8888-7888-8888-888888888888', ?, '77777777-7777-7777-8777-777777777777',
+                 'output', ?, ?)`
+      )
+      .run(legacyPainting, migrationCompletedAt - 1, migrationCompletedAt - 1)
+
+    sqlite
+      .prepare(
+        `INSERT INTO mini_app (app_id, name, url, status, order_key, created_at, updated_at)
+         VALUES ('legacy-mini-app', 'Legacy mini app', 'https://example.com', 'enabled', 'a0', ?, ?)`
+      )
+      .run(migrationCompletedAt - 1, migrationCompletedAt - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO mini_app_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
+         VALUES ('99999999-9999-7999-8999-999999999999', ?, 'legacy-mini-app', ?, ?)`
+      )
+      .run(legacyMiniApp, migrationCompletedAt - 1, migrationCompletedAt - 1)
+
+    new LegacyFileCleanupPolicySeeder().run(db)
+
+    expect(sqlite.prepare(`SELECT name, cleanup_policy FROM file_entry ORDER BY name`).all()).toEqual([
+      { name: 'legacy-chat', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-mini-app', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-painting', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-referenced', cleanup_policy: 'delete_when_unreferenced' },
+      { name: 'legacy-referenced-later', cleanup_policy: 'manual' },
+      { name: 'legacy-unreferenced', cleanup_policy: 'manual' },
+      { name: 'legacy-user-retained', cleanup_policy: 'manual' },
+      { name: 'recent-referenced', cleanup_policy: 'manual' }
+    ])
+  })
+
+  it('backfills durable refs for agent-session attachments imported after schema migrations', () => {
+    // The one-shot v1 -> v2 importer runs after schema migrations. In particular,
+    // 0006 has already attempted its populated-table backfill before AgentsMigrator
+    // inserts these messages, so the boot seeder must close that ordering gap.
+    applyMigrations(db, resolveMigrationsPath())
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
     const messageId = '88888888-8888-4888-8888-888888888888'
@@ -412,9 +610,19 @@ describe('applyMigrations over a populated database', () => {
       .prepare(
         `INSERT INTO file_entry
           (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
-         VALUES (?, 'internal', 'report', 'pdf', 12, NULL, 'delete_when_unreferenced', ?, ?, NULL)`
+         VALUES (?, 'internal', 'report', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
       )
       .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt: now + 1, version: '2.0.0', error: null }),
+        now + 1,
+        now + 1
+      )
     sqlite
       .prepare(
         `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -423,10 +631,10 @@ describe('applyMigrations over a populated database', () => {
       .run(now, now)
     sqlite
       .prepare(
-        `INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at)
-         VALUES ('session-attachment-migrate', 'Session', 'workspace-attachment-migrate', 'a0', ?, ?)`
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-attachment-migrate', 'Session', 'workspace-attachment-migrate', 'a0', ?, ?, ?)`
       )
-      .run(now, now)
+      .run(now, now, now)
 
     const filePart = {
       type: 'file',
@@ -448,7 +656,8 @@ describe('applyMigrations over a populated database', () => {
       )
       .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
 
-    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    new LegacyFileCleanupPolicySeeder().run(db)
 
     const refs = sqlite
       .prepare(
@@ -460,7 +669,139 @@ describe('applyMigrations over a populated database', () => {
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ file_entry_id: fileEntryId, source_id: messageId, role: 'attachment' })
     expect(refs[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'delete_when_unreferenced'
+    })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('does not backfill agent attachments when the source message changed after migration', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const now = Date.now()
+    const completedAt = now + 1
+    const fileEntryId = '56565656-5656-4565-8565-565656565656'
+    const messageId = '67676767-6767-4676-8676-676767676767'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'updated-agent-report', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
+      )
+      .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt, version: '2.0.0', error: null }),
+        completedAt,
+        completedAt
+      )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-agent-updated', 'Workspace', '/tmp/agent-updated', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-agent-updated', 'Session', 'workspace-agent-updated', 'a0', ?, ?, ?)`
+      )
+      .run(now, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-updated', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(
+        messageId,
+        JSON.stringify({
+          parts: [{ type: 'file', providerMetadata: { cherry: { fileEntryId } } }]
+        }),
+        now,
+        completedAt + 1
+      )
+
+    new LegacyFileCleanupPolicySeeder().run(db)
+
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'manual'
+    })
+  })
+
+  it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const now = Date.now()
+    const fileEntryId = '12121212-1212-7121-8121-121212121212'
+    const messageId = '34343434-3434-4343-8343-343434343434'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'rollback-report', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
+      )
+      .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt: now + 1, version: '2.0.0', error: null }),
+        now + 1,
+        now + 1
+      )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-cleanup-rollback', 'Workspace', '/tmp/cleanup-rollback', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-cleanup-rollback', 'Session', 'workspace-cleanup-rollback', 'a0', ?, ?, ?)`
+      )
+      .run(now, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-cleanup-rollback', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(
+        messageId,
+        JSON.stringify({
+          parts: [
+            {
+              type: 'file',
+              providerMetadata: { cherry: { fileEntryId } }
+            }
+          ]
+        }),
+        now,
+        now
+      )
+    sqlite.exec(`
+      CREATE TRIGGER reject_cleanup_policy_update
+      BEFORE UPDATE OF cleanup_policy ON file_entry
+      WHEN NEW.id = '${fileEntryId}'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced cleanup-policy failure');
+      END;
+    `)
+
+    expect(() => new LegacyFileCleanupPolicySeeder().run(db)).toThrow()
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'manual'
+    })
   })
 
   it('enables existing skills globally without changing per-agent preferences', () => {
