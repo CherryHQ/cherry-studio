@@ -24,6 +24,7 @@ import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystu
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
+  COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
   CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
@@ -162,10 +163,14 @@ export const inLoopCompactionFeature: RequestFeature = {
       })
       return {}
     }
+    // Apply a safety margin to the declared window so compaction triggers
+    // earlier when the provider's real limit is smaller than the model's
+    // declared contextWindow (common for third-party models/channels).
+    const effectiveContextWindow = Math.floor(contextWindow * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN)
     // Against the room the PROMPT actually has, not the whole window: whatever
     // this request declares as max_tokens is billed alongside the input.
     const inputRoom = resolveInputRoom(
-      contextWindow,
+      effectiveContextWindow,
       resolveRequestedMaxOutputTokens(
         scope.request.callOverrides?.maxOutputTokens,
         undefined,
@@ -181,7 +186,11 @@ export const inLoopCompactionFeature: RequestFeature = {
     // the compressor, so its own budget must come from the compressor's window.
     // With an 8k compressor on a 128k chat, sizing by the chat window overflows
     // the summarize request outright.
-    const compressionWindow = compressor.contextWindow ?? contextWindow
+    // Apply the same safety margin to the compressor's window so
+    // the summarize call also leaves headroom for overstated declared windows.
+    const compressionWindow = Math.floor(
+      (compressor.contextWindow ?? contextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+    )
     // Resolved once per request: it only selects the per-modality cost table (image/audio/
     // video constants), so it can't change between steps of the same request.
     const dialect = resolveModelTokenDialect(scope.provider, scope.model)
@@ -234,9 +243,12 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+            maxInputTokens: Math.min(
+              Math.max(0, compressionWindow - maxOutputTokens),
+              Math.max(
+                COMPACTION_MIN_INPUT_BUDGET,
+                Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+              )
             )
           })
         } catch (error) {

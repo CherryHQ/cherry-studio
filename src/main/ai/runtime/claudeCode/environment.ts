@@ -10,6 +10,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { COMPACTION_CLAUDE_SAFETY_MARGIN } from '@main/ai/constants'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
@@ -64,9 +65,14 @@ const require_ = createRequire(import.meta.url)
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
+// Third-party channels may report a contextWindow larger than the provider's actual limit
+// (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
+// Apply the conservative safety margin only to untrusted providers; Anthropic-official
+// channels report accurate windows and must not lose half their context to a blanket 0.6.
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
-  requestedOutput: number
+  requestedOutput: number,
+  provider?: Provider | null
 ): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
@@ -75,8 +81,24 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const budget = Math.floor((contextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
-  return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  // Only the canonical Anthropic provider reports an accurate window; any
+  // user-configured relay that merely reuses the Anthropic endpoint must stay
+  // on the conservative margin or it can overstate the window (e.g. #18894).
+  const isTrustedAnthropic =
+    provider != null && (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic')
+  const effectiveContextWindow = isTrustedAnthropic
+    ? contextWindow
+    : Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+  const inputRoom = effectiveContextWindow - requestedOutput
+  const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  // The MIN clamp is a usability floor for trusted windows, but for
+  // untrusted relays it must not raise the budget above the
+  // safety-adjusted input room or it would exceed the real provider limit.
+  if (isTrustedAnthropic) {
+    return clamped
+  }
+  return Math.min(clamped, Math.max(inputRoom, 0))
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at

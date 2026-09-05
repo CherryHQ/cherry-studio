@@ -289,7 +289,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {
-    // 3 tiny messages — well under 4000 * 0.8 = 3200 token trigger threshold
+    // 3 tiny messages — well under floor(4000 * 0.9) * 0.8 = 2880 token trigger threshold
     const path = [
       fakeMsg('u1', 'user', 'hello'),
       fakeMsg('a1', 'assistant', 'hi'),
@@ -452,11 +452,11 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   // Providers bill `input + max_tokens`, so a request that declares max_tokens
-  // has that much less room for history. 4000 window − 2000 reserved = 2000 of
-  // room, tripping at 1600 where the raw window would have waited until 3200.
+  // has that much less room for history. 3600 effective window − 2000 reserved = 1600 of
+  // room, tripping at 1280 where the raw window would have waited until 2880.
   it('2a. an Anthropic-endpoint request folds against the room left after max_tokens', async () => {
     mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'anthropic-messages' })
-    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 3200, over 1600
+    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 2880, over 1280
     mockGetPathToNode.mockReturnValue(
       ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
     )
@@ -534,10 +534,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {
-    // Use massive text so total tokens exceed 4000 * 0.8 = 3200 token trigger.
-    // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 3200.
-    // keepBudget = floor(4000 * 0.3) = 1200.
-    // Walking from tail: u3(700)≤1200 → keepStart=4; a2(700)→1400>1200 → stop.
+    // Use massive text so total tokens exceed floor(4000 * 0.9) * 0.8 = 2880 token trigger.
+    // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 2880.
+    // keepBudget = floor(3600 * 0.3) = 1080.
+    // Walking from tail: u3(700)≤1080 → keepStart=4; a2(700)→1400>1080 → stop.
     // keepIdx=4, boundary = recent[3] = a2.
     const BIG = 'token '.repeat(700)
 
@@ -674,7 +674,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('2g. budgets the summarize call by the compressor window, not the chat window', async () => {
-    // 20k chat window → trigger 16k tokens; 5 × 4k-token blocks = 20k clears it.
+    // 20k chat window → trigger floor(20000 * 0.9) * 0.8 = 14400 tokens; 5 × 4k-token blocks = 20k clears it.
     const BIG = 'token '.repeat(4_000)
     const path = [
       fakeMsg('u1', 'user', BIG),
@@ -693,6 +693,73 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
     const opts = mockSummarizeModelMessages.mock.calls[0][2]
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
+  })
+
+  // Boundary contract for the safety margin in durable turn-start compaction.
+  // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+  // A 73K prompt is above the new 72K trigger but below the old 80K trigger,
+  // proving the margin actually changes the compaction boundary.
+  it('2g-1. compacts inside the new 72K–80K trigger band for a 100K window (turn-start)', async () => {
+    // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+    // 19 messages of 4K tokens each = 76K, above the new 72K trigger but below the old 80K trigger.
+    const BIG = 'token '.repeat(4_000)
+    const path = [fakeMsg('u1', 'user', BIG), fakeMsg('a1', 'assistant', BIG)]
+    for (let i = 2; i < 19; i++) {
+      path.push(fakeMsg(`u${i}`, 'user', BIG))
+    }
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    await makeHistory('u1', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The compressor fallback must apply the safety margin exactly once, not twice.
+  // When compressionModel.contextWindow is null the fallback uses minContextWindow
+  // (not the already-margined effectiveContextWindow), so the margin is applied once:
+  // floor(minContextWindow * 0.9) not floor(floor(minContextWindow * 0.9) * 0.9).
+  it('2g-2. applies the safety margin exactly once in the compressor-fallback budget', async () => {
+    // 100K chat window, compressor has no declared contextWindow → falls back to minContextWindow.
+    // compressorWindow = floor(100_000 * 0.9) = 90_000 (margin applied once)
+    // NOT floor(floor(100_000 * 0.9) * 0.9) = floor(90_000 * 0.9) = 81_000 (double margin)
+    // Need > 72K tokens to exceed the trigger (floor(90K * 0.8) = 72K).
+    const BIG = 'token '.repeat(4_000)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG),
+      fakeMsg('a3', 'assistant', BIG),
+      fakeMsg('u4', 'user', BIG),
+      fakeMsg('a4', 'assistant', BIG),
+      fakeMsg('u5', 'user', BIG),
+      fakeMsg('a5', 'assistant', BIG),
+      fakeMsg('u6', 'user', BIG),
+      fakeMsg('a6', 'assistant', BIG),
+      fakeMsg('u7', 'user', BIG),
+      fakeMsg('a7', 'assistant', BIG),
+      fakeMsg('u8', 'user', BIG),
+      fakeMsg('a8', 'assistant', BIG),
+      fakeMsg('u9', 'user', BIG),
+      fakeMsg('a9', 'assistant', BIG),
+      fakeMsg('u10', 'user', BIG),
+      fakeMsg('a10', 'assistant', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    // Explicit compressor with no contextWindow → triggers fallback path.
+    compressionOn({ languageModel: {}, contextWindow: null })
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    // resolveCompressionOutputTokens(90_000): share=floor(90_000*0.25)=22_500, ceiling=16_384 → maxOutput=16_384
+    // maxInputTokens = max(2000, floor((90_000 - 16_384) * 0.85)) = floor(73_616 * 0.85) = 62_573
+    // maxOutputTokens + maxInputTokens = 16_384 + 62_573 = 78_957
+    // With double margin (81_000): maxOutput=16_384, maxInput=floor((81_000-16_384)*0.85)=54_923, sum=71_307
+    expect(opts.maxOutputTokens + opts.maxInputTokens).toBe(78_957)
   })
 
   // Turn-start compaction runs BEFORE the model stream opens, so without a
@@ -875,7 +942,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {
     // a1 has a compactionSummary → applyDeepestMarker replaces [u1,a1] with [summary(a1)].
-    // Resulting effective = [summary(a1), u2, a2, u3] — well under 3200 token threshold.
+    // Resulting effective = [summary(a1), u2, a2, u3] — well under 2880 token threshold.
     const path = [
       fakeMsg('u1', 'user', 'old question'),
       fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'),
@@ -934,79 +1001,78 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('5. over-budget by anchor → contextTokens base tips total over threshold', async () => {
-    // Context window = 4000; trigger = floor(4000 * 0.8) = 3200.
-    // a1 carries contextTokens = 3150 (just below 3200). The new user row u2 has
-    // a tiny text (~5 tokens), so anchor+tail = 3150 + ~5 = ~3155... wait, that
-    // is still under. Use contextTokens = 3190 so tail from u2 (~5 tokens) tips
-    // it to ~3195, still under. Use 3195 + a bigger tail.
+    // Context window = 4000; effective = floor(4000 * 0.9) = 3600; trigger = floor(3600 * 0.8) = 2880.
+    // a1 carries contextTokens = 3150 (just below 2880... wait, 3150 > 2880, so a1 alone exceeds trigger).
+    // Use contextTokens = 2800 (just below 2880). The new user row u2 has
+    // a tiny text (~5 tokens), so anchor+tail = 2800 + ~5 = ~2805... still under. Use 2870.
     //
-    // Actually: contextTokens = 3180, u2 text = 'hi there how are you doing today' (~8 tokens)
-    // → estimate = 3180 + 8 = 3188 < 3200. Not enough.
+    // Actually: contextTokens = 2870, u2 text = 'question '.repeat(10) ≈ 10 tokens
+    // → estimate = 2870 + 10 = 2880. Not strictly over (<= is a no-op). Use 2875 + a bit more.
     //
-    // Use contextTokens = 3195, u2 = 'question '.repeat(10) ≈ 10 tokens → 3205 > 3200. Triggers.
-    // Full-tokenx on these tiny parts alone: a1 text = 'ok' (~1 tok) + u2 (~10 tok) = ~11 tok < 3200 → would NOT trigger.
+    // Use contextTokens = 2875, u2 = 'question '.repeat(10) ≈ 10 tokens → 2885 > 2880. Triggers.
+    // Full-tokenx on these tiny parts alone: a1 text = 'ok' (~1 tok) + u2 (~10 tok) = ~11 tok < 2880 → would NOT trigger.
     //
-    // keepBudget = floor(4000 * 0.5) = 2000. planKeepBoundary over [a1(~1), u2(~10)] with budget=2000
-    // → all fit (acc=11≤2000), keepStart=1 (u2 is user at idx 1), keepIdx=1 → boundary = recent[0] = a1 → null (keepStart===0 would be null but here keepIdx=1 is fine).
+    // keepBudget = floor(3600 * 0.3) = 1080. planKeepBoundary over [a1(~1), u2(~10)] with budget=1080
+    // → all fit (acc=11≤1080), keepStart=1 (u2 is user at idx 1), keepIdx=1 → boundary = recent[0] = a1 → null (keepStart===0 would be null but here keepIdx=1 is fine).
     // Wait: recent = rows after marker (no marker, d=-1) = [u1_row? No — no marker]. Let me recalculate:
     // rows = [u1, a1, u2]. effective = same (no marker). d = -1. recent = rows.slice(0) = [u1, a1, u2].
-    // planKeepBoundary([u1,a1,u2], 2000): walk from tail: u2(~10)≤2000→keepStart=2; a1(~1)→11; u1(~10)→21≤2000→keepStart=0 (u1 is user).
+    // planKeepBoundary([u1,a1,u2], 1080): walk from tail: u2(~10)≤1080→keepStart=2; a1(~1)→11; u1(~10)→21≤1080→keepStart=0 (u1 is user).
     // keepStart=0 → returns null → no compaction. Hmm, keepStart===0 returns null.
     //
     // Fix: add more rows so the kept portion doesn't reach index 0.
-    // [u1, a1(contextTokens=3195), u2, a2, u3]. effective = all 5.
+    // [u1, a1(contextTokens=2875), u2, a2, u3]. effective = all 5.
     // estimateContext: find rightmost assistant with contextTokens → a1 at idx 1.
-    // base=3195, tail = estimate(u2)+estimate(a2)+estimate(u3) = ~10+~5+~5 = ~20 → 3215 > 3200. Triggers.
-    // Full-tokenx: ~10+~5+~10+~5+~5 = ~35 < 3200. Would NOT trigger. ✓
+    // base=2875, tail = estimate(u2)+estimate(a2)+estimate(u3) = ~10+~5+~5 = ~20 → 2895 > 2880. Triggers.
+    // Full-tokenx: ~10+~5+~10+~5+~5 = ~35 < 2880. Would NOT trigger. ✓
     //
-    // planKeepBoundary([u1,a1,u2,a2,u3], 2000): walk from tail:
-    //   u3(~5)→5, keepStart=4; a2(~5)→10; u2(~10)→20, keepStart=2; a1(~5)→25; u1(~10)→35 ≤2000, keepStart=0.
+    // planKeepBoundary([u1,a1,u2,a2,u3], 1080): walk from tail:
+    //   u3(~5)→5, keepStart=4; a2(~5)→10; u2(~10)→20, keepStart=2; a1(~5)→25; u1(~10)→35 ≤1080, keepStart=0.
     //   keepStart=0 → null → no compaction via boundary. Hmm.
     //
     // Need bigger tail tokens so budget is exceeded before reaching idx 0.
-    // Use MED = 'word '.repeat(300) ≈ 300 tokens. [u1, a1(ctx=3195), u2(MED), a2(MED), u3(MED)].
-    // Full-tokenx: a1_text=~5, u1=~5, u2=300, a2=300, u3=300 → ~910 < 3200. Would NOT trigger.
-    // estimateContext: anchor=a1(idx=1), base=3195, tail=u2(300)+a2(300)+u3(300)=900 → 4095 > 3200. Triggers. ✓
-    // keepBudget=2000. planKeepBoundary: walk from tail: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(~5)→905; u1(~5)→910 ≤2000 → ks=0 → null.
+    // Use MED = 'word '.repeat(300) ≈ 300 tokens. [u1, a1(ctx=2875), u2(MED), a2(MED), u3(MED)].
+    // Full-tokenx: a1_text=~5, u1=~5, u2=300, a2=300, u3=300 → ~910 < 2880. Would NOT trigger.
+    // estimateContext: anchor=a1(idx=1), base=2875, tail=u2(300)+a2(300)+u3(300)=900 → 3775 > 2880. Triggers. ✓
+    // keepBudget=1080. planKeepBoundary: walk from tail: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(~5)→905; u1(~5)→910 ≤1080 → ks=0 → null.
     //
-    // Still null. Use window=10000. trigger=8000, keep=5000.
-    // a1 ctx=7900, u2=MED(300), a2=MED(300), u3=MED(300). tail=900→8800>8000. Triggers.
-    // Full-tokenx: ~5+5+300+300+300=910 < 8000. Would NOT trigger. ✓
-    // keepBudget=5000. walk: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(5)→905; u1(5)→910 ≤5000 → ks=0→null. Still null.
+    // Still null. Use window=10000. effective=9000, trigger=7200, keep=2700.
+    // a1 ctx=7100, u2=MED(300), a2=MED(300), u3=MED(300). tail=900→8000>7200. Triggers.
+    // Full-tokenx: ~5+5+300+300+300=910 < 7200. Would NOT trigger. ✓
+    // keepBudget=2700. walk: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(5)→905; u1(5)→910 ≤2700 → ks=0→null. Still null.
     //
     // The issue is all rows fit in budget. Need the tail alone to exceed keepBudget.
-    // Use LARGE = 'word '.repeat(2000) ≈ 2000 tokens. window=10000, keep=5000.
-    // [u1(LARGE), a1(ctx=7900), u2(LARGE), a2(LARGE), u3(LARGE)].
-    // estimateContext: base=7900, tail=u2(2000)+a2(2000)+u3(2000)=6000 → 13900>8000. Triggers.
-    // Full-tokenx: u1(2000)+a1(~5)+u2(2000)+a2(2000)+u3(2000)=~8005 > 8000 too. Would also trigger! Bad.
+    // Use LARGE = 'word '.repeat(2000) ≈ 2000 tokens. window=10000, effective=9000, keep=2700.
+    // [u1(LARGE), a1(ctx=7100), u2(LARGE), a2(LARGE), u3(LARGE)].
+    // estimateContext: base=7100, tail=u2(2000)+a2(2000)+u3(2000)=6000 → 13100>7200. Triggers.
+    // Full-tokenx: u1(2000)+a1(~5)+u2(2000)+a2(2000)+u3(2000)=~8005 > 7200 too. Would also trigger! Bad.
     //
     // The requirement: full-tokenx alone would NOT cross threshold, but anchor+delta does.
     // So: anchor brings in historical real usage that tokenx would never see.
-    // Use a1 small text ('ok'), contextTokens=7900, u2=tiny, a2=tiny, u3=tiny.
-    // Full-tokenx: all tiny = ~15 tok < 8000. Would NOT trigger. ✓
-    // estimateContext: 7900 + ~10 = ~7910 > 8000? No 7910 < 8000.
-    // Use contextTokens=8100 directly? No, that alone exceeds threshold with empty tail.
-    // threshold=8000. contextTokens=7990, tail=u2(20tok)+a2(5tok)+u3(5tok)=30 → 8020>8000. Triggers!
-    // Full-tokenx: a1(~1)+u1(~1)+u2(~20)+a2(~5)+u3(~5)=~32 < 8000. Would NOT. ✓
-    // keepBudget=5000. walk: u3(5)→5,ks=4; a2(5)→10; u2(20)→30,ks=2; a1(1)→31; u1(1)→32 ≤5000 → ks=0→null.
+    // Use a1 small text ('ok'), contextTokens=7100, u2=tiny, a2=tiny, u3=tiny.
+    // Full-tokenx: all tiny = ~15 tok < 7200. Would NOT trigger. ✓
+    // estimateContext: 7100 + ~10 = ~7110 > 7200? No 7110 < 7200.
+    // Use contextTokens=7190 directly? No, that alone exceeds threshold with empty tail.
+    // threshold=7200. contextTokens=7190, tail=u2(20tok)+a2(5tok)+u3(5tok)=30 → 7220>7200. Triggers!
+    // Full-tokenx: a1(~1)+u1(~1)+u2(~20)+a2(~5)+u3(~5)=~32 < 7200. Would NOT. ✓
+    // keepBudget=2700. walk: u3(5)→5,ks=4; a2(5)→10; u2(20)→30,ks=2; a1(1)→31; u1(1)→32 ≤2700 → ks=0→null.
     //
     // Still null! The problem is with only tiny messages, keep boundary always includes everything.
     // I need keepIdx !== null, which requires the budget to be exceeded before reaching index 0.
-    // Use [u1(BIG=500), a1(ctx=7990,text=tiny), u2(tiny=20tok), a2(tiny), u3(tiny)].
-    // keepBudget=5000. walk: u3(5)+a2(5)+u2(20)+a1(1)→31+u1(500)=531 ≤5000 → ks=0→null. Still null.
+    // Use [u1(BIG=500), a1(ctx=7190,text=tiny), u2(tiny=20tok), a2(tiny), u3(tiny)].
+    // keepBudget=2700. walk: u3(5)+a2(5)+u2(20)+a1(1)→31+u1(500)=531 ≤2700 → ks=0→null. Still null.
     //
-    // Use window=1000. trigger=800, keep=500.
+    // Use window=1000. effective=900, trigger=720, keep=270.
     // [u1(BIG=300tok), a1(ctx=790,text=tiny=1), u2(BIG=300), a2(BIG=300), u3(BIG=300)].
-    // Full-tokenx: 300+1+300+300+300=1201 > 800. Would also trigger!
+    // Full-tokenx: 300+1+300+300+300=1201 > 720. Would also trigger!
     //
     // The cleanest approach: use small text for u1 and a1 (so full-tokenx misses), but
     // LARGE text for u2/a2/u3 (so keepBudget is exceeded and boundary is found at u2).
-    // window=10000, trigger=8000, keep=5000.
-    // a1 contextTokens=7900 (real prior usage, huge), text=tiny.
+    // window=10000, effective=9000, trigger=7200, keep=2700.
+    // a1 contextTokens=7100 (real prior usage, huge), text=tiny.
     // u1=tiny. u2='word '.repeat(2000)=2000tok. a2='word '.repeat(2000). u3='word '.repeat(1000).
-    // estimateContext: base=7900, tail=u2(2000)+a2(2000)+u3(1000)=5000 → 12900>8000. Triggers.
-    // Full-tokenx: u1(~1)+a1(~1)+u2(2000)+a2(2000)+u3(1000)=~5002 < 8000. Would NOT. ✓
-    // keepBudget=floor(10000*0.3)=3000. walk from tail: u3(1000)→1000,ks=4; a2(2000)→3000; u2(2000)→5000>3000 → stop.
+    // estimateContext: base=7100, tail=u2(2000)+a2(2000)+u3(1000)=5000 → 12100>7200. Triggers.
+    // Full-tokenx: u1(~1)+a1(~1)+u2(2000)+a2(2000)+u3(1000)=~5002 < 7200. Would NOT. ✓
+    // keepBudget=floor(9000*0.3)=2700. walk from tail: u3(1000)→1000,ks=4; a2(2000)→3000; u2(2000)→5000>2700 → stop.
     // keepStart=4, keepIdx=4 (not null, not 0). boundary=recent[3]=a2. ✓ (test asserts only that it triggered)
     // NOTE: the derivation lines above predate KEEP_BUDGET_RATIO=0.3 (they show the old 0.5 math); the fixture still
     // triggers under 0.3 — only the boundary moved a1→a2, which this test does not assert.
@@ -1111,8 +1177,8 @@ function inLoopScope(contextWindow: number) {
 }
 
 describe('in-loop vs turn-start compaction — no double-compact', () => {
-  const WINDOW = 4000 // makeModel default; trigger = floor(4000 * 0.8) = 3200
-  // 700-token blocks: 5 rows = 3500 > 3200 → turn-start compaction triggers.
+  const WINDOW = 4000 // makeModel default; effective = floor(4000 * 0.9) = 3600; trigger = floor(3600 * 0.8) = 2880
+  // 700-token blocks: 5 rows = 3500 > 2880 → turn-start compaction triggers.
   const BIG = 'token '.repeat(700)
 
   beforeEach(() => {
@@ -1168,7 +1234,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     const { modelMessages } = await servedTurnStartHistory()
 
     // Simulate the agent loop accumulating output: append an assistant turn plus a
-    // tool result, large enough to tip the prompt over the 3200-token trigger.
+    // tool result, large enough to tip the prompt over the 2880-token trigger.
     const grownPrompt = [
       ...modelMessages,
       { role: 'assistant' as const, content: [{ type: 'text', text: 'word '.repeat(1500) }] },
