@@ -865,6 +865,8 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     [resolvedPath, options?.query, limit, enabled]
   )
   const infiniteCacheKey = useMemo(() => unstable_serialize_infinite(getKey), [getKey])
+  const activeInfiniteCacheKeyRef = useRef(infiniteCacheKey)
+  activeInfiniteCacheKeyRef.current = infiniteCacheKey
 
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
     return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
@@ -879,13 +881,28 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 
   const { error, isLoading, isValidating, mutate: boundMutate, setSize } = swrResult
   const mutate = useCallback(
-    ((data, opts) =>
-      data === undefined
-        ? boundMutate(data, opts)
-        : globalMutate(infiniteCacheKey, data as never, opts as never)) as SWRInfiniteKeyedMutator<
-      ResponseForPath<TPath, 'GET'>[]
-    >,
-    [boundMutate, globalMutate, infiniteCacheKey]
+    (async (data, opts) => {
+      const result =
+        data === undefined || activeInfiniteCacheKeyRef.current === infiniteCacheKey
+          ? await boundMutate(data, opts)
+          : await globalMutate(infiniteCacheKey, data as never, opts as never)
+      const revalidate = typeof opts === 'boolean' ? opts : opts?.revalidate
+
+      if (data !== undefined && revalidate === false && Array.isArray(result)) {
+        const pageMutations: Promise<unknown>[] = []
+        let previousPage: CursorPaginationResponse<unknown> | null = null
+        for (let index = 0; index < result.length; index++) {
+          const page = result[index] as CursorPaginationResponse<unknown>
+          const pageKey = getKey(index, previousPage)
+          if (pageKey) pageMutations.push(globalMutate(pageKey, page, { revalidate: false }))
+          previousPage = page
+        }
+        await Promise.all(pageMutations)
+      }
+
+      return result
+    }) as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>,
+    [boundMutate, getKey, globalMutate, infiniteCacheKey]
   )
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders

@@ -881,6 +881,78 @@ describe('useInfiniteQuery integration', () => {
     await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('updated-t1'))
   })
 
+  it('preserves page-scoped revalidation for explicit mutations on the active query', async () => {
+    const getSpy = spyGet()
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [],
+        nextCursor: isOlderPage ? undefined : 'older-page',
+        activeNodeId: isOlderPage ? 'older' : 'newest'
+      }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    const olderPageCalls = () =>
+      getSpy.mock.calls.filter(
+        ([, request]) => (request as { query?: { cursor?: string } })?.query?.cursor === 'older-page'
+      ).length
+    const callsBeforeMutation = olderPageCalls()
+
+    await act(async () => {
+      await result.current.mutate(
+        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
+        { revalidate: (page) => page.activeNodeId === 'older' }
+      )
+    })
+
+    expect(olderPageCalls()).toBe(callsBeforeMutation + 1)
+  })
+
+  it('updates page caches for explicit non-revalidated mutations', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [{ id: isOlderPage ? 'delete-me' : 'keep-me' }],
+        nextCursor: isOlderPage ? undefined : 'older-page'
+      }
+    }) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () =>
+        useInfiniteQuery('/agent-sessions/:sessionId/messages', {
+          params: { sessionId: 'session-1' },
+          query: { deferToolOutputs: true },
+          limit: 50
+        }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.mutate(
+        (pages) => pages?.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== 'delete-me') })),
+        { revalidate: false }
+      )
+    })
+
+    const olderPageKey = unstable_serialize([
+      '/agent-sessions/session-1/messages',
+      { deferToolOutputs: true, limit: 50, cursor: 'older-page' }
+    ])
+    const olderPage = cache.get(olderPageKey)?.data as { items: Array<{ id: string }> } | undefined
+    expect(olderPage?.items.map((item) => item.id)).toEqual([])
+  })
+
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {
     let olderPageText = 'stale approval'
     const getSpy = spyGet()
