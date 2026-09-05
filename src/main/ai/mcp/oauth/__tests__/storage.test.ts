@@ -100,4 +100,14 @@ describe('JsonFileStorage round-trip', () => {
     const reader = new JsonFileStorage(serverUrlHash, configDir)
     await expect(reader.getTokens()).resolves.toBeUndefined()
   })
+
+  // The file holds access/refresh tokens and the client secret; it must not be
+  // world-readable on multi-user systems (same class as the trace JSONL fix).
+  it.skipIf(process.platform === 'win32')('writes the token file owner-only (0600)', async () => {
+    const storage = new JsonFileStorage(serverUrlHash, configDir)
+    await storage.saveTokens({ access_token: 'tok', token_type: 'Bearer' })
+
+    const stats = await fs.stat(path.join(configDir, `${serverUrlHash}_oauth.json`))
+    expect(stats.mode & 0o777).toBe(0o600)
+  })
 })
