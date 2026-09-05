@@ -1,8 +1,11 @@
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -226,6 +229,89 @@ describe('TemporaryChatService', () => {
       expect(result.messageCount).toBe(0)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.activeNodeId).toBeNull()
+    })
+
+    it('registers file references from buffered messages', async () => {
+      const fileEntryId = '0198ef7d-687e-7000-8000-000000000001'
+      const old = Date.now() - 2 * 60 * 60 * 1000
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'attachment',
+        ext: 'png',
+        size: 4,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: old,
+        updatedAt: old
+      })
+
+      const topic = service.createTopic({ name: 'with attachment' })
+      const message = service.appendMessage(topic.id, {
+        role: 'user',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              filename: 'attachment.png',
+              url: 'file:///attachment.png',
+              providerMetadata: { cherry: { fileEntryId } }
+            }
+          ]
+        }
+      })
+
+      expect(fileEntryService.findCleanupCandidates({ graceMs: 60 * 60 * 1000, limit: 100 })).not.toContainEqual(
+        expect.objectContaining({ id: fileEntryId })
+      )
+
+      service.persist(topic.id)
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId, sourceId: message.id, role: 'attachment' })
+      expect(fileEntryService.findCleanupCandidates({ graceMs: 60 * 60 * 1000, limit: 100 })).not.toContainEqual(
+        expect.objectContaining({ id: fileEntryId })
+      )
+    })
+
+    it('releases temporary attachment retention when the chat is discarded', async () => {
+      const fileEntryId = '0198ef7d-687e-7000-8000-000000000002'
+      const old = Date.now() - 2 * 60 * 60 * 1000
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'discarded attachment',
+        ext: 'png',
+        size: 4,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: old,
+        updatedAt: old
+      })
+      const topic = service.createTopic({ name: 'discarded' })
+      service.appendMessage(topic.id, {
+        role: 'user',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              filename: 'discarded.png',
+              url: 'file:///discarded.png',
+              providerMetadata: { cherry: { fileEntryId } }
+            }
+          ]
+        }
+      })
+
+      service.deleteTopic(topic.id)
+
+      expect(fileEntryService.findCleanupCandidates({ graceMs: 60 * 60 * 1000, limit: 100 })).toContainEqual(
+        expect.objectContaining({ id: fileEntryId })
+      )
     })
 
     it('unknown topicId → notFound', () => {

@@ -97,6 +97,9 @@ export class TemporaryChatService {
     if (!this.topics.has(id)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', id)
     }
+    for (const message of this.messages.get(id) ?? []) {
+      messageService.releaseTemporaryMessageFileRefs(message.id)
+    }
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
@@ -156,6 +159,7 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     list.push(row)
+    messageService.retainTemporaryMessageFileRefs(row.id, row.data)
     const topic = this.topics.get(topicId)
     if (topic && isConversationActivityRole(row.role)) {
       topic.lastActivityAt = Math.max(topic.lastActivityAt, now)
@@ -250,6 +254,7 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
+          messageService.replaceFileRefsTx(tx, m.id, m.data)
           prevId = m.id
         }
 
@@ -268,6 +273,10 @@ export class TemporaryChatService {
       this.topics.set(topicId, topic)
       this.messages.set(topicId, msgs)
       throw err
+    }
+
+    for (const message of msgs) {
+      messageService.releaseTemporaryMessageFileRefs(message.id)
     }
 
     topicService.notifyReadModelChange([topicId], 'membership')
