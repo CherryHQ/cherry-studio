@@ -365,6 +365,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('proxy')
   })
 
+  it('classifies Chromium ERR_SSL_CLIENT_AUTH_CERT_NEEDED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED' }))
+    expect(result.category).toBe('proxy')
+  })
+
   it('does not match plain "proxy" without qualifier', () => {
     const result = classifyError(makeError({ message: 'something proxy related' }))
     expect(result.category).not.toBe('proxy')
