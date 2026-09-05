@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Kiểm tra đầy đủ sẽ chạy lại các mục kiểm tra cơ bản và bao gồm cả mạng lẫn dịch vụ.",
   "settings.doctor.panel_descriptions.export": "Lưu thông tin chẩn đoán đã chọn thành tệp ZIP cục bộ.",
   "settings.doctor.panel_descriptions.report": "Xem lại mô tả và thông tin chẩn đoán đã chọn trước khi gửi riêng tư đến Cherry Studio.",
-  "settings.doctor.panels.export": "Lưu thông tin chẩn đoán",
+  "settings.doctor.panels.export": "Xuất gói chẩn đoán",
   "settings.doctor.panels.report": "Báo cáo sự cố",
   "settings.doctor.report.check_description": "Chẩn đoán hệ thống phát hiện sự cố trong {{title}} ({{checkId}}).",
   "settings.doctor.stale.description": "Kết quả chẩn đoán này đã cũ.",

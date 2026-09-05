@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Vollständige Prüfungen führen die grundlegenden Prüfungen erneut aus und schließen Netzwerk und Dienste ein.",
   "settings.doctor.panel_descriptions.export": "Speichern Sie ausgewählte Diagnoseinformationen als lokale ZIP-Datei.",
   "settings.doctor.panel_descriptions.report": "Prüfen Sie die Beschreibung und die ausgewählten Diagnoseinformationen, bevor Sie das Problem privat an Cherry Studio melden.",
-  "settings.doctor.panels.export": "Diagnoseinformationen speichern",
+  "settings.doctor.panels.export": "Diagnosepaket exportieren",
   "settings.doctor.panels.report": "Problem melden",
   "settings.doctor.report.check_description": "Die Systemdiagnose hat ein Problem bei „{{title}}“ ({{checkId}}) gefunden.",
   "settings.doctor.stale.description": "Dieses Diagnoseergebnis ist veraltet.",

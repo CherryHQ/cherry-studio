@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Полная проверка повторно выполняет основные проверки и включает проверку сети и сервисов.",
   "settings.doctor.panel_descriptions.export": "Сохраните выбранные сведения диагностики в локальный ZIP-файл.",
   "settings.doctor.panel_descriptions.report": "Проверьте описание и выбранные сведения диагностики перед их конфиденциальной отправкой в Cherry Studio.",
-  "settings.doctor.panels.export": "Сохранить сведения диагностики",
+  "settings.doctor.panels.export": "Экспортировать диагностический пакет",
   "settings.doctor.panels.report": "Сообщить о проблеме",
   "settings.doctor.report.check_description": "Диагностика системы обнаружила проблему в проверке «{{title}}» ({{checkId}}).",
   "settings.doctor.stale.description": "Этот результат диагностики устарел.",

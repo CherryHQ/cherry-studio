@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "完全検査では基本項目を再実行し、ネットワークとサービスも検査します。",
   "settings.doctor.panel_descriptions.export": "選択した診断情報をローカルの ZIP ファイルとして保存します。",
   "settings.doctor.panel_descriptions.report": "説明と選択した診断情報を確認してから、Cherry Studio に非公開で送信します。",
-  "settings.doctor.panels.export": "診断情報を保存",
+  "settings.doctor.panels.export": "診断パッケージをエクスポート",
   "settings.doctor.panels.report": "問題を報告",
   "settings.doctor.report.check_description": "システム診断で「{{title}}」に問題が見つかりました（{{checkId}}）。",
   "settings.doctor.stale.description": "この診断結果は古くなっています。",

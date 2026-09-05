@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Full checks rerun the basic checks and include network and service checks.",
   "settings.doctor.panel_descriptions.export": "Save selected diagnostic information as a local ZIP file.",
   "settings.doctor.panel_descriptions.report": "Review a description and selected diagnostic information before sending it privately to Cherry Studio.",
-  "settings.doctor.panels.export": "Save diagnostic information",
+  "settings.doctor.panels.export": "Export diagnostic bundle",
   "settings.doctor.panels.report": "Report a problem",
   "settings.doctor.report.check_description": "System diagnostics found an issue in {{title}} ({{checkId}}).",
   "settings.doctor.stale.description": "This diagnostic result is out of date.",

@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "La comprobación completa repite las comprobaciones básicas e incluye la red y los servicios.",
   "settings.doctor.panel_descriptions.export": "Guarda la información de diagnóstico seleccionada como un archivo ZIP local.",
   "settings.doctor.panel_descriptions.report": "Revisa una descripción y la información de diagnóstico seleccionada antes de enviarlas de forma privada a Cherry Studio.",
-  "settings.doctor.panels.export": "Guardar información de diagnóstico",
+  "settings.doctor.panels.export": "Exportar paquete de diagnóstico",
   "settings.doctor.panels.report": "Informar de un problema",
   "settings.doctor.report.check_description": "El diagnóstico del sistema encontró un problema en {{title}} ({{checkId}}).",
   "settings.doctor.stale.description": "Este resultado de diagnóstico está desactualizado.",

@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Verificarea completă repetă verificările de bază și include rețeaua și serviciile.",
   "settings.doctor.panel_descriptions.export": "Salvează informațiile de diagnosticare selectate într-un fișier ZIP local.",
   "settings.doctor.panel_descriptions.report": "Revizuiește descrierea și informațiile de diagnosticare selectate înainte de a le trimite în privat către Cherry Studio.",
-  "settings.doctor.panels.export": "Salvează informațiile de diagnosticare",
+  "settings.doctor.panels.export": "Exportă pachetul de diagnosticare",
   "settings.doctor.panels.report": "Raportează o problemă",
   "settings.doctor.report.check_description": "Diagnosticarea sistemului a găsit o problemă la {{title}} ({{checkId}}).",
   "settings.doctor.stale.description": "Acest rezultat de diagnosticare este învechit.",

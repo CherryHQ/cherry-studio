@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "Tam denetim, temel denetimleri yeniden çalıştırır ve ağ ile hizmetleri de denetler.",
   "settings.doctor.panel_descriptions.export": "Seçili tanılama bilgilerini yerel bir ZIP dosyası olarak kaydedin.",
   "settings.doctor.panel_descriptions.report": "Bir açıklamayı ve seçili tanılama bilgilerini Cherry Studio'ya özel olarak göndermeden önce gözden geçirin.",
-  "settings.doctor.panels.export": "Tanılama bilgilerini kaydet",
+  "settings.doctor.panels.export": "Tanılama paketini dışa aktar",
   "settings.doctor.panels.report": "Sorun bildir",
   "settings.doctor.report.check_description": "Sistem tanılaması {{title}} ({{checkId}}) denetiminde bir sorun buldu.",
   "settings.doctor.stale.description": "Bu tanılama sonucu güncel değil.",

@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "La vérification complète relance les vérifications de base et inclut le réseau et les services.",
   "settings.doctor.panel_descriptions.export": "Enregistrez les informations de diagnostic sélectionnées dans un fichier ZIP local.",
   "settings.doctor.panel_descriptions.report": "Examinez une description et les informations de diagnostic sélectionnées avant de les envoyer confidentiellement à Cherry Studio.",
-  "settings.doctor.panels.export": "Enregistrer les informations de diagnostic",
+  "settings.doctor.panels.export": "Exporter le paquet de diagnostic",
   "settings.doctor.panels.report": "Signaler un problème",
   "settings.doctor.report.check_description": "Le diagnostic système a détecté un problème dans {{title}} ({{checkId}}).",
   "settings.doctor.stale.description": "Ce résultat de diagnostic est obsolète.",

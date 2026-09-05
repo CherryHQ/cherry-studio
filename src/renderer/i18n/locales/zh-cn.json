@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "完整检查会重新运行基础项，并加入网络与服务检查。",
   "settings.doctor.panel_descriptions.export": "将所选诊断信息保存为本地 ZIP 文件。",
   "settings.doctor.panel_descriptions.report": "将问题描述和所选诊断信息私密发送给 Cherry Studio 前进行检查。",
-  "settings.doctor.panels.export": "保存诊断信息",
+  "settings.doctor.panels.export": "导出诊断包",
   "settings.doctor.panels.report": "问题上报",
   "settings.doctor.report.check_description": "系统诊断在“{{title}}”（{{checkId}}）中发现问题。",
   "settings.doctor.stale.description": "此诊断结果已过期。",

@@ -4104,7 +4104,7 @@
   "settings.doctor.panel_descriptions.checks": "完整檢查會重新執行基本項目，並加入網路與服務檢查。",
   "settings.doctor.panel_descriptions.export": "將所選診斷資訊儲存為本機 ZIP 檔案。",
   "settings.doctor.panel_descriptions.report": "將問題描述和所選診斷資訊私密傳送給 Cherry Studio 前進行檢查。",
-  "settings.doctor.panels.export": "儲存診斷資訊",
+  "settings.doctor.panels.export": "匯出診斷包",
   "settings.doctor.panels.report": "問題上報",
   "settings.doctor.report.check_description": "系統診斷在「{{title}}」（{{checkId}}）中發現問題。",
   "settings.doctor.stale.description": "此診斷結果已過期。",
