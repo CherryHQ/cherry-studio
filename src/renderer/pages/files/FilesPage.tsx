@@ -57,6 +57,11 @@ interface EmbeddedFilePreview {
   refreshKey: number
 }
 
+interface FileHydrationTracker {
+  completedIds: Set<FileEntryId>
+  pendingIds: Set<FileEntryId>
+}
+
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
 // or below the per-request limit enforced by the shared file IPC schemas.
@@ -91,6 +96,35 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     })
   )
   return Object.assign({}, ...results) as OutputFor<Route>
+}
+
+function createFileHydrationTracker(): FileHydrationTracker {
+  return { completedIds: new Set(), pendingIds: new Set() }
+}
+
+function hydrateMissingFileRecords<Route extends FileBatchRoute>(
+  route: Route,
+  ids: readonly FileEntryId[],
+  tracker: FileHydrationTracker,
+  isCurrent: () => boolean,
+  onLoaded: (records: OutputFor<Route>) => void
+): void {
+  const missingIds = [...new Set(ids)].filter((id) => !tracker.completedIds.has(id) && !tracker.pendingIds.has(id))
+  if (missingIds.length === 0) return
+
+  missingIds.forEach((id) => tracker.pendingIds.add(id))
+  void requestBatchedFileRecords(route, missingIds)
+    .then((records) => {
+      if (!isCurrent()) return
+      missingIds.forEach((id) => tracker.completedIds.add(id))
+      onLoaded(records)
+    })
+    .catch((error) => {
+      if (isCurrent()) logger.error('Failed to load file IPC metadata', error as Error)
+    })
+    .finally(() => {
+      missingIds.forEach((id) => tracker.pendingIds.delete(id))
+    })
 }
 
 async function requestBatchedFileMutation(
@@ -323,6 +357,12 @@ function FilesPage() {
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
+  const [hydrationGeneration, setHydrationGeneration] = useState(0)
+  const hydrationGenerationRef = useRef(0)
+  const isHydrationMountedRef = useRef(true)
+  const metadataHydrationRef = useRef(createFileHydrationTracker())
+  const physicalPathHydrationRef = useRef(createFileHydrationTracker())
+  const danglingStateHydrationRef = useRef(createFileHydrationTracker())
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -393,6 +433,11 @@ function FilesPage() {
   })
 
   const viewKey = isTrash ? 'trash' : 'active'
+  // Sorting only changes row order; it does not change which records need
+  // metadata, paths, or dangling-state hydration. Keep that cache warm across
+  // sort toggles and scope invalidation to view/filter changes instead.
+  const hydrationScopeKey = `${viewKey}:${activeFileType ?? ''}`
+  const hydrationScopeRef = useRef(hydrationScopeKey)
   const currentFilePages = isTrash ? trashedFilePages : activeFilePages
   const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))
   const activeFilesTotal =
@@ -435,49 +480,98 @@ function FilesPage() {
     if (fileStatsError) logger.error('Failed to load file stats', fileStatsError)
   }, [fileStatsError])
 
+  const invalidateFileHydration = useCallback(() => {
+    const nextGeneration = hydrationGenerationRef.current + 1
+    hydrationGenerationRef.current = nextGeneration
+    metadataHydrationRef.current = createFileHydrationTracker()
+    physicalPathHydrationRef.current = createFileHydrationTracker()
+    danglingStateHydrationRef.current = createFileHydrationTracker()
+    setMetadataById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+    setPhysicalPathById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+    setDanglingStateById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+    setHydrationGeneration(nextGeneration)
+  }, [])
+
   useEffect(() => {
+    if (hydrationScopeRef.current === hydrationScopeKey) return
+    hydrationScopeRef.current = hydrationScopeKey
+    invalidateFileHydration()
+  }, [hydrationScopeKey, invalidateFileHydration])
+
+  useEffect(() => {
+    isHydrationMountedRef.current = true
+    return () => {
+      isHydrationMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    // SWR keeps the previous pages while a filter/scope query revalidates. Those
+    // rows are only a visual bridge and can include files hidden by the new
+    // filter, so do not hydrate them until the current query has settled.
+    if (isFilesRefreshing) return
+
     if (displayEntries.length === 0) {
       if (isFilesLoading || isFilesRefreshing) return
-      setMetadataById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      setPhysicalPathById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      setDanglingStateById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+      const trackers = [
+        metadataHydrationRef.current,
+        physicalPathHydrationRef.current,
+        danglingStateHydrationRef.current
+      ]
+      const hasTrackedIds = trackers.some(
+        ({ completedIds, pendingIds }) => completedIds.size > 0 || pendingIds.size > 0
+      )
+      if (hasTrackedIds) invalidateFileHydration()
       return
     }
 
-    let cancelled = false
+    const generation = hydrationGenerationRef.current
+    const isCurrent = () => isHydrationMountedRef.current && hydrationGenerationRef.current === generation
     const ids = displayEntries.map((entry) => entry.id)
     const imageIds = displayEntries
       .filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image')
       .map((entry) => entry.id)
-    void Promise.all([
-      requestBatchedFileRecords('file.batch_get_metadata', ids),
-      requestBatchedFileRecords('file.batch_get_physical_paths', imageIds),
-      requestBatchedFileRecords('file.batch_get_dangling_states', ids)
-    ])
-      .then(([metadata, physicalPaths, danglingStates]) => {
-        if (cancelled) return
-        setMetadataById(metadata)
-        setPhysicalPathById(physicalPaths)
-        setDanglingStateById(danglingStates)
-      })
-      .catch((error) => {
-        if (!cancelled) logger.error('Failed to load file IPC metadata', error as Error)
-      })
 
-    return () => {
-      cancelled = true
-    }
-  }, [displayEntries, isFilesLoading, isFilesRefreshing, viewKey])
+    hydrateMissingFileRecords('file.batch_get_metadata', ids, metadataHydrationRef.current, isCurrent, (metadata) => {
+      setMetadataById((prev) => ({ ...prev, ...metadata }))
+    })
+    hydrateMissingFileRecords(
+      'file.batch_get_physical_paths',
+      imageIds,
+      physicalPathHydrationRef.current,
+      isCurrent,
+      (physicalPaths) => {
+        setPhysicalPathById((prev) => ({ ...prev, ...physicalPaths }))
+      }
+    )
+    hydrateMissingFileRecords(
+      'file.batch_get_dangling_states',
+      ids,
+      danglingStateHydrationRef.current,
+      isCurrent,
+      (danglingStates) => {
+        setDanglingStateById((prev) => ({ ...prev, ...danglingStates }))
+      }
+    )
+  }, [displayEntries, hydrationGeneration, invalidateFileHydration, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(() => {
     return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
   }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {
+    invalidateFileHydration()
     resetActiveFiles()
     resetTrashedFiles()
     await Promise.all([refreshActiveFiles(), refreshTrashedFiles(), refetchFileStats()])
-  }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
+  }, [
+    invalidateFileHydration,
+    refetchFileStats,
+    refreshActiveFiles,
+    refreshTrashedFiles,
+    resetActiveFiles,
+    resetTrashedFiles
+  ])
 
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
