@@ -7,8 +7,7 @@ import {
   Globe,
   Mail,
   MessageSquareText,
-  Rss,
-  Stethoscope
+  Rss
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -26,7 +25,6 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import { DoctorPopup } from '@renderer/components/doctor'
 import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -366,14 +364,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-diagnostics"
-          icon={<Stethoscope className="size-4.5" />}
-          title={t('settings.doctor.entry.title')}
-          actionLabel={t('settings.doctor.entry.button')}
-          onAction={() => void DoctorPopup.show({ initialPanel: 'checks' })}
         />
       </SettingGroup>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
