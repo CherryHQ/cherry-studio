@@ -20,7 +20,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import type { DoctorCheckId } from '@shared/types/doctor'
-import { ChevronDown, Copy, RotateCcw } from 'lucide-react'
+import { ChevronDown, Copy, Download, RotateCcw } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -223,6 +223,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem onSelect={() => controller.setPanel('export')}>
+              <Download className="size-4" />
               {t('settings.doctor.panels.export')}
             </DropdownMenuItem>
           </DropdownMenuContent>
