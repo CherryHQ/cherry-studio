@@ -149,6 +149,25 @@ describe('resolveHermesProviderInfo', () => {
 })
 
 describe('resolvePiProviderInfo', () => {
+  it('prefers the provider default when the model advertises that endpoint capability', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'openai-responses',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://chat.example' },
+            'openai-responses': { baseUrl: 'https://responses.example' }
+          }
+        }),
+        ['openai-chat-completions', 'openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://responses.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
   it('prefers a model-supported endpoint and maps it to Pi API names', () => {
     expect(
       resolvePiProviderInfo(

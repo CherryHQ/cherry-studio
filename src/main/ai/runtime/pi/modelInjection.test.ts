@@ -605,6 +605,27 @@ describe('modelInjection service resolution', () => {
   })
 
   it('rejects an unsupported provider default instead of silently switching protocols', async () => {
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: 'p',
+      name: 'P',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'bedrock', baseUrl: 'https://gateway.example.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: 128_000,
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    })
+
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
   it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
     serviceMocks.getByProviderId.mockResolvedValueOnce({
       id: CHERRY_CLOUD_PROVIDER_ID,

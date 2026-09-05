@@ -80,12 +80,15 @@ function resolveSupportedEndpointType(
   const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
+  const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
 
   return (
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
+    (isSupported(provider.defaultChatEndpoint) &&
+    isModelCapable(provider.defaultChatEndpoint) &&
+    hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
       : undefined) ??
+    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
     supportedEndpoints.find(hasEndpoint) ??
     fallbackEndpoint
   )
