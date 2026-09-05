@@ -973,7 +973,7 @@ describe('ChatComposer', () => {
       ...model,
       id: 'openai::gpt-5',
       providerId: 'openai',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'low' as const, 'high' as const] }],
         selectableEfforts: ['minimal' as const, 'low' as const, 'high' as const]
