@@ -64,6 +64,35 @@ vi.mock('react-i18next', () => ({
 
 import { useDoctorController } from '../useDoctorController'
 
+function completedDoctorState(): DoctorState {
+  const now = Date.now()
+  return {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      runId: 'completed-run',
+      tier: 'quick',
+      startedAt: new Date(now - 1_000).toISOString(),
+      finishedAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false,
+        userDataPath: '/tmp/cherry'
+      },
+      results: [],
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
 describe('useDoctorController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -126,6 +155,47 @@ describe('useDoctorController', () => {
     await waitFor(() => expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything()))
   })
 
+  it('runs one basic check when an embedded host opens over a completed run', async () => {
+    mocks.doctorState = completedDoctorState()
+    const options = {
+      autoRunPolicy: 'when-not-running' as const,
+      initialPanel: 'checks' as const,
+      onInstallUpdate: vi.fn(),
+      onNavigate: vi.fn()
+    }
+    const { rerender } = renderHook(() => useDoctorController(options))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
+        tier: 'quick'
+      })
+    )
+    rerender()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('observes an active shared run without replacing it', async () => {
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'shared-live',
+      tier: 'live',
+      startedAt: new Date().toISOString(),
+      results: []
+    }
+
+    renderHook(() =>
+      useDoctorController({
+        autoRunPolicy: 'when-not-running',
+        initialPanel: 'checks',
+        onInstallUpdate: vi.fn(),
+        onNavigate: vi.fn()
+      })
+    )
+
+    await act(async () => {})
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+  })
+
   it('switches a report action to the report panel without copying Doctor results into the draft', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const { result } = renderHook(() =>
@@ -153,6 +223,24 @@ describe('useDoctorController', () => {
     await act(async () => result.current.executeAction('install-native-modules', { kind: 'report' }))
 
     expect(result.current.session.descriptionDraft).toBe('settings.doctor.report.check_description')
+  })
+
+  it('hands a report action to an embedded host without changing panels', async () => {
+    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    const onReportProblem = vi.fn()
+    const { result } = renderHook(() =>
+      useDoctorController({
+        initialPanel: 'checks',
+        onInstallUpdate: vi.fn(),
+        onNavigate: vi.fn(),
+        onReportProblem
+      })
+    )
+
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-1'))
+
+    expect(onReportProblem).toHaveBeenCalledWith('settings.doctor.report.check_description')
+    expect(result.current.session.activePanel).toBe('checks')
   })
 
   it('requires inline confirmation for destructive fixes before sending the exact backend request', async () => {
