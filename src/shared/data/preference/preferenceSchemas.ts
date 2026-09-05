@@ -43,6 +43,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex
+    'agent.session.hidden_builtin_ids': string[]
+    // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
@@ -579,6 +581,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.icon_type': 'emoji',
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
     'agent.session.display_mode': 'agent',
+    'agent.session.hidden_builtin_ids': [],
     'agent.session.position': 'left',
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,

@@ -2,6 +2,8 @@ import type * as CherryUiModule from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -9,7 +11,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceCardMenu } from '../ResourceCardMenu'
-import { ResourceCard } from '../ResourceCards'
+import { AgentResourceCard, ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
 const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
@@ -48,6 +50,8 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'agent.session.agent.add_to_list': '添加到列表',
+          'agent.session.agent.hide_from_list': '从列表隐藏',
           'settings.skills.globalToggle': '全局启用技能',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
@@ -409,7 +413,9 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(): ResourceItem {
+function createAgentResource(
+  overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}
+): Extract<ResourceItem, { type: 'agent' }> {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -418,7 +424,8 @@ function createAgentResource(): ResourceItem {
     avatar: 'A',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw'],
+    ...overrides
   }
 }
 
@@ -473,7 +480,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
   )
 }
 
-function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceCard>> = {}) {
+function getResourceCardProps(overrides: Partial<Omit<ComponentProps<typeof ResourceCard>, 'resource'>> = {}) {
   return {
     allGroups: [],
     onDelete: vi.fn(),
@@ -790,6 +797,12 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    mockPreferenceService._resetMockState()
+    mockPreferenceService.update.mockClear()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -833,12 +846,62 @@ describe('ResourceGrid card actions', () => {
     const resource = createAgentResource()
     const onDelete = vi.fn()
 
-    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+    render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
 
     expect(screen.queryByRole('button', { name: /common.more/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '删除' }))
 
     expect(onDelete).toHaveBeenCalledWith(resource)
+  })
+
+  it('adds a hidden protected Agent back to the list without replacing card editing', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource({
+      id: 'cherry-support',
+      name: 'Cherry Support',
+      raw: { configuration: { builtin_role: 'support' } } as Extract<ResourceItem, { type: 'agent' }>['raw']
+    })
+    const onDelete = vi.fn()
+    const onEdit = vi.fn()
+    MockUsePreferenceUtils.setPreferenceValue('agent.session.hidden_builtin_ids', ['other-agent', resource.id])
+
+    const view = render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+
+    await user.click(screen.getByRole('button', { name: '添加到列表' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual(['other-agent'])
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onEdit).not.toHaveBeenCalled()
+
+    view.rerender(<AgentResourceCard resource={{ ...resource }} {...getResourceCardProps({ onDelete, onEdit })} />)
+    await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual([
+      'other-agent',
+      resource.id
+    ])
+    expect(onDelete).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cherry Support' }))
+    expect(onEdit).toHaveBeenCalledWith(resource)
+  })
+
+  it('reports a protected Agent list visibility failure without opening or deleting the card', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource({
+      id: 'cherry-support',
+      name: 'Cherry Support',
+      raw: { configuration: { builtin_role: 'support' } } as Extract<ResourceItem, { type: 'agent' }>['raw']
+    })
+    const onDelete = vi.fn()
+    const onEdit = vi.fn()
+    mockPreferenceService.update.mockRejectedValueOnce(new Error('preference unavailable'))
+
+    render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+
+    await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.error'))
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onEdit).not.toHaveBeenCalled()
   })
 
   it('shows only one assistant group in the compact card layout', () => {

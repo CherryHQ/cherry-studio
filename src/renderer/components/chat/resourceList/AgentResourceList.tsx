@@ -9,6 +9,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -20,7 +21,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { EyeOff, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +41,7 @@ const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
+const AGENT_ENTITY_HIDE_FROM_LIST_ACTION_ID = 'agent-entity.hide-from-list'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
 type SessionListItem = AgentSessionEntity & {
@@ -87,6 +89,7 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -116,9 +119,35 @@ export function AgentResourceList({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
   const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
+  const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
+  const handleHideBuiltinAgent = useCallback(
+    async (agentId: string) => {
+      await hideBuiltinAgent(agentId)
+    },
+    [hideBuiltinAgent]
+  )
+  const hiddenProtectedAgentIdSet = useMemo(
+    () =>
+      new Set(
+        agents
+          .filter(
+            (agent) =>
+              hiddenBuiltinAgentIdSet.has(agent.id) && isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
+          )
+          .map((agent) => agent.id)
+      ),
+    [agents, hiddenBuiltinAgentIdSet]
+  )
+  const visibleAgents = useMemo(
+    () => agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id)),
+    [agents, hiddenProtectedAgentIdSet]
+  )
   const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
+    () =>
+      sessions
+        .filter((session) => !session.agentId || !hiddenProtectedAgentIdSet.has(session.agentId))
+        .map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
+    [hiddenProtectedAgentIdSet, pinIdBySessionId, sessions]
   )
   const handleActivationError = useCallback(
     (error: unknown) => {
@@ -141,7 +170,7 @@ export function AgentResourceList({
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
-      agents.map((agent) => {
+      visibleAgents.map((agent) => {
         const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
 
         return {
@@ -164,7 +193,7 @@ export function AgentResourceList({
           )
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
+    [agentPinnedIdSet, assistantIconType, defaultModelId, handleCreateSession, t, visibleAgents]
   )
 
   const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
@@ -230,15 +259,11 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(
-        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
-      )
-
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
-          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
+          title: t('agent.delete.title'),
+          content: t('agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -248,13 +273,8 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        if (deleteTasksOnly) {
-          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          closeConversationTabs('agents', result.deletedIds)
-        } else {
-          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        }
+        const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
         try {
           await Promise.all(
             ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
@@ -273,7 +293,7 @@ export function AgentResourceList({
         }
 
         try {
-          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
+          await Promise.all([refetchAgents(), reload()])
         } catch (err) {
           logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
         }
@@ -285,24 +305,14 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [
-      activeAgentId,
-      agents,
-      closeConversationTabs,
-      deletingAgentId,
-      invalidate,
-      onActiveAgentDeleted,
-      refetchAgents,
-      reload,
-      t
-    ]
+    [activeAgentId, closeConversationTabs, deletingAgentId, invalidate, onActiveAgentDeleted, refetchAgents, reload, t]
   )
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+      const protectedBuiltin = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
       )
 
@@ -334,15 +344,22 @@ export function AgentResourceList({
           assistantIconType,
           t
         ),
-        buildResolvedResourceEntityMenuAction({
-          id: AGENT_ENTITY_DELETE_ACTION_ID,
-          label: t(deleteTasksOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
-          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
-          group: 'danger',
-          order: 30,
-          danger: true,
-          availability: { visible: true, enabled: deletingAgentId === null }
-        })
+        protectedBuiltin
+          ? buildResolvedResourceEntityMenuAction({
+              id: AGENT_ENTITY_HIDE_FROM_LIST_ACTION_ID,
+              label: t('agent.session.agent.hide_from_list'),
+              icon: <EyeOff size={14} />,
+              order: 30
+            })
+          : buildResolvedResourceEntityMenuAction({
+              id: AGENT_ENTITY_DELETE_ACTION_ID,
+              label: t('agent.delete.title'),
+              icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+              group: 'danger',
+              order: 30,
+              danger: true,
+              availability: { visible: true, enabled: deletingAgentId === null }
+            })
       ]
     },
     [
@@ -377,10 +394,15 @@ export function AgentResourceList({
       }
       if (action.id === AGENT_ENTITY_DELETE_ACTION_ID) {
         void handleDeleteAgent(item.id)
+        return
+      }
+      if (action.id === AGENT_ENTITY_HIDE_FROM_LIST_ACTION_ID) {
+        void handleHideBuiltinAgent(item.id)
       }
     },
     [
       handleDeleteAgent,
+      handleHideBuiltinAgent,
       handleToggleAgentPin,
       openAgentEditor,
       removeAgent,

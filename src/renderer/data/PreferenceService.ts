@@ -49,7 +49,9 @@ export class PreferenceService {
     UnifiedPreferenceKeyType,
     Array<{
       requestId: string
-      value: any
+      resolveValue: (currentValue: any) => any
+      skipIfEqual: boolean
+      atomic: boolean
       resolve: (value: void | PromiseLike<void>) => void
       reject: (reason?: any) => void
     }>
@@ -89,13 +91,21 @@ export class PreferenceService {
    * @param key The preference key that changed
    */
   private notifyChangeListeners(key: string) {
+    const notify = (listener: () => void) => {
+      try {
+        listener()
+      } catch (error) {
+        logger.error(`Preference change listener failed for ${key}:`, error as Error)
+      }
+    }
+
     // Notify global listeners
-    this.allChangesListeners.forEach((listener) => listener())
+    this.allChangesListeners.forEach(notify)
 
     // Notify specific key listeners
     const keyListeners = this.keyChangeListeners.get(key)
     if (keyListeners) {
-      keyListeners.forEach((listener) => listener())
+      keyListeners.forEach(notify)
     }
   }
 
@@ -155,6 +165,17 @@ export class PreferenceService {
   }
 
   /**
+   * Queue an optimistic read-modify-write against the latest value for a key.
+   */
+  public async update<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    updater: (currentValue: UnifiedPreferenceType[K]) => UnifiedPreferenceType[K]
+  ): Promise<void> {
+    const requestId = this.generateRequestId()
+    return this.enqueueRequest(key, requestId, updater, true, true)
+  }
+
+  /**
    * Optimistic update: Queue request to prevent race conditions
    * Updates UI immediately, then syncs to database with rollback on failure
    * @param key The preference key to update
@@ -166,7 +187,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
-    return this.enqueueRequest(key, requestId, value)
+    return this.enqueueRequest(key, requestId, () => value)
   }
 
   /**
@@ -207,6 +228,47 @@ export class PreferenceService {
       this.rollbackOptimistic(key, requestId)
       logger.error(`Optimistic update failed for ${key} (${requestId}), rolling back:`, error as Error)
       throw error
+    }
+  }
+
+  private async executeAtomicUpdate(
+    key: UnifiedPreferenceKeyType,
+    resolveValue: (currentValue: any) => any,
+    requestId: string
+  ): Promise<void> {
+    while (true) {
+      const currentValue = await window.api.preference.get(key)
+      const value = resolveValue(currentValue)
+
+      if (isEqual(currentValue, value)) {
+        if (!isEqual(this.cache[key], currentValue)) {
+          this.cache[key] = currentValue
+          this.notifyChangeListeners(key)
+        }
+        return
+      }
+
+      this.cache[key] = value
+      this.notifyChangeListeners(key)
+      this.optimisticValues.set(key, {
+        value,
+        originalValue: currentValue,
+        timestamp: Date.now(),
+        requestId,
+        isFirst: true
+      })
+
+      try {
+        if (await window.api.preference.compareAndSet(key, currentValue, value)) {
+          this.confirmOptimistic(key, requestId)
+          return
+        }
+
+        this.rollbackOptimistic(key, requestId)
+      } catch (error) {
+        this.rollbackOptimistic(key, requestId)
+        throw error
+      }
     }
   }
 
@@ -544,9 +606,6 @@ export class PreferenceService {
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to confirm mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -571,9 +630,6 @@ export class PreferenceService {
 
       const duration = Date.now() - optimisticState.timestamp
       logger.warn(`Optimistic update rolled back for ${key} (${requestId}) after ${duration}ms to original value`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to rollback mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -615,17 +671,24 @@ export class PreferenceService {
    * Add request to queue for a specific key to prevent race conditions
    * @param key The preference key to update
    * @param requestId Unique identifier for this request
-   * @param value The value to set
+   * @param resolveValue Resolves the queued value from the latest cached value
+   * @param skipIfEqual Whether to skip persistence when the resolved value is unchanged
    * @returns Promise that resolves when the request is processed
    */
-  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
+  private enqueueRequest(
+    key: UnifiedPreferenceKeyType,
+    requestId: string,
+    resolveValue: (currentValue: any) => any,
+    skipIfEqual = false,
+    atomic = false
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!this.requestQueues.has(key)) {
         this.requestQueues.set(key, [])
       }
 
       const queue = this.requestQueues.get(key)!
-      queue.push({ requestId, value, resolve, reject })
+      queue.push({ requestId, resolveValue, skipIfEqual, atomic, resolve, reject })
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
@@ -647,10 +710,25 @@ export class PreferenceService {
 
     const currentRequest = queue[0]
     try {
-      await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
+      if (currentRequest.atomic) {
+        await this.executeAtomicUpdate(key, currentRequest.resolveValue, currentRequest.requestId)
+        currentRequest.resolve()
+        return
+      }
+
+      const currentValue = this.cache[key] !== undefined ? this.cache[key] : getDefaultValue(key)
+      const value = currentRequest.resolveValue(currentValue)
+      if (currentRequest.skipIfEqual && isEqual(currentValue, value)) {
+        currentRequest.resolve()
+        return
+      }
+
+      await this.executeOptimisticUpdate(key, value, currentRequest.requestId)
       currentRequest.resolve()
     } catch (error) {
       currentRequest.reject(error)
+    } finally {
+      this.completeQueuedRequest(key)
     }
   }
 

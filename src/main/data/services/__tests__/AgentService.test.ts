@@ -1407,6 +1407,17 @@ describe('AgentService', () => {
       expect(ids1.some((id) => ids2.includes(id))).toBe(false)
     })
 
+    it('returns only the requested Agent identities', async () => {
+      await insertAgent({ id: 'agent_exact_a', name: 'A' })
+      await insertAgent({ id: 'agent_exact_b', name: 'B' })
+      await insertAgent({ id: 'agent_exact_c', name: 'C' })
+
+      const { agents, total } = agentService.listAgents({ ids: ['agent_exact_a', 'agent_exact_c'] })
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_exact_a', 'agent_exact_c'])
+      expect(total).toBe(2)
+    })
+
     it('sorts by name ascending when sortBy=name and sortOrder=asc', async () => {
       await insertAgent({ name: 'Zebra' })
       await insertAgent({ name: 'Alpha' })

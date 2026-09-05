@@ -1,12 +1,14 @@
 import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { Group } from '@shared/data/types/group'
-import { Trash2 } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import { EyeOff, ListPlus, Trash2 } from 'lucide-react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCardMenu } from './ResourceCardMenu'
@@ -60,15 +62,38 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   )
 }
 
-export function ResourceCard({
+function ProtectedBuiltinAgentListAction({ resource }: { resource: Extract<ResourceItem, { type: 'agent' }> }) {
+  const { t } = useTranslation()
+  const { hiddenBuiltinAgentIds, hideBuiltinAgent, showBuiltinAgent } = useBuiltinAgentListVisibility()
+  const hidden = hiddenBuiltinAgentIds.includes(resource.id)
+  const label = t(hidden ? 'agent.session.agent.add_to_list' : 'agent.session.agent.hide_from_list')
+  const Icon = hidden ? ListPlus : EyeOff
+
+  const handleClick = () => void (hidden ? showBuiltinAgent(resource.id) : hideBuiltinAgent(resource.id))
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      onClick={handleClick}
+      className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">
+      <Icon size={12} className="lucide-custom" />
+      <span>{label}</span>
+    </Button>
+  )
+}
+
+function ResourceCardPresentation({
   resource: r,
   variant = 'library',
   allGroups,
   onDelete,
   onDuplicate,
   onEdit,
-  onExport
-}: ResourceCardProps) {
+  onExport,
+  action
+}: ResourceCardProps & { action?: ReactNode }) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
   const isSettings = variant === 'settings'
@@ -130,40 +155,58 @@ export function ResourceCard({
             )}
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {r.type === 'skill' && isSettings ? (
-              <div className="flex items-center gap-1">
-                <SkillGlobalToggle resource={r} />
+            {action ??
+              (r.type === 'skill' && isSettings ? (
+                <div className="flex items-center gap-1">
+                  <SkillGlobalToggle resource={r} />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('library.action.uninstall')}
+                    onClick={() => onDelete(r)}
+                    className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
+                    <Trash2 size={12} className="lucide-custom" />
+                  </Button>
+                </div>
+              ) : showOverflowMenu ? (
+                <ResourceCardMenu
+                  resource={r}
+                  onDuplicate={onDuplicate}
+                  onDelete={onDelete}
+                  onExport={onExport}
+                  allGroups={allGroups}
+                  triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                />
+              ) : (
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={t('library.action.uninstall')}
+                  aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
                   onClick={() => onDelete(r)}
                   className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
                   <Trash2 size={12} className="lucide-custom" />
                 </Button>
-              </div>
-            ) : showOverflowMenu ? (
-              <ResourceCardMenu
-                resource={r}
-                onDuplicate={onDuplicate}
-                onDelete={onDelete}
-                onExport={onExport}
-                allGroups={allGroups}
-                triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
-              />
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
-                onClick={() => onDelete(r)}
-                className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
-                <Trash2 size={12} className="lucide-custom" />
-              </Button>
-            )}
+              ))}
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+export function ResourceCard(props: ResourceCardProps) {
+  return <ResourceCardPresentation {...props} />
+}
+
+export function AgentResourceCard({
+  resource,
+  ...props
+}: Omit<ResourceCardProps, 'resource'> & {
+  resource: Extract<ResourceItem, { type: 'agent' }>
+}) {
+  const action = isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role) ? (
+    <ProtectedBuiltinAgentListAction resource={resource} />
+  ) : undefined
+
+  return <ResourceCardPresentation {...props} resource={resource} action={action} />
 }

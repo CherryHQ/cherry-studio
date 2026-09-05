@@ -49,7 +49,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../ResourceCatalogSearchInput'
-import { ResourceCard } from './ResourceCards'
+import { AgentResourceCard, ResourceCard } from './ResourceCards'
 
 const logger = loggerService.withContext('ResourceGrid')
 
@@ -614,18 +614,21 @@ function VirtualizedResourceGrid({
               gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
               transform: `translateY(${virtualRow.start}px)`
             }}>
-            {row.map((resource) => (
-              <ResourceCard
-                key={resource.id}
-                resource={resource}
-                variant={variant}
-                allGroups={allGroups}
-                onDelete={onDelete}
-                onDuplicate={onDuplicate}
-                onEdit={onEdit}
-                onExport={onExport}
-              />
-            ))}
+            {row.map((resource) => {
+              const props = {
+                variant,
+                allGroups,
+                onDelete,
+                onDuplicate,
+                onEdit,
+                onExport
+              }
+              return resource.type === 'agent' ? (
+                <AgentResourceCard key={resource.id} {...props} resource={resource} />
+              ) : (
+                <ResourceCard key={resource.id} {...props} resource={resource} />
+              )
+            })}
           </div>
         )
       })}
