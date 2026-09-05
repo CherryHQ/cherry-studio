@@ -262,7 +262,8 @@ describe('AgentChatContextProvider', () => {
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
         reasoningEffort: 'default',
-        serviceTier: 'standard'
+        serviceTier: 'standard',
+        shouldAutoName: true
       }
     )
     expect(prepared.models).toEqual([])
@@ -312,7 +313,8 @@ describe('AgentChatContextProvider', () => {
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
         reasoningEffort: 'default',
-        serviceTier: 'standard'
+        serviceTier: 'standard',
+        shouldAutoName: true
       }
     )
   })
@@ -400,7 +402,7 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
   })
 
-  it('does not auto-name a busy follow-up turn', async () => {
+  it('queues a busy follow-up with its auto-naming eligibility', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
 
@@ -408,6 +410,11 @@ describe('AgentChatContextProvider', () => {
 
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
     expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ shouldAutoName: true })
+    )
   })
 
   it('retries auto-naming on a later idle turn while the temporary title remains', async () => {

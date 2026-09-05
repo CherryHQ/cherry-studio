@@ -3307,6 +3307,29 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
+  it('carries automatic naming eligibility into queued turn persistence', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    service.enqueueUserMessage('session-1', userMessage('user-2', [], 'Try again'), { shouldAutoName: true })
+    service.markTurnTerminal('session-1', 'success')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const startedTurn = mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]
+    expect(startedTurn).toBeDefined()
+    await persistenceListener(startedTurn).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+    })
+
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'Try again', {
+      id: 'assistant-2',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'recovered' }]
+    })
+  })
+
   it.each(['paused', 'error'] as const)(
     'keeps automatic naming pending when the first assistant turn is %s',
     async (status) => {

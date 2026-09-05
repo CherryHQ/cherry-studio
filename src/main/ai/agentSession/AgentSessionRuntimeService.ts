@@ -213,6 +213,8 @@ type AgentSessionTurn = {
 
 type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
+  /** Whether this queued turn may complete the session's pending automatic naming flow. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
@@ -830,6 +832,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
+      shouldAutoName?: boolean
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
@@ -892,6 +895,7 @@ export class AgentSessionRuntimeService extends BaseService {
         knowledgeBaseIds,
         fastMode,
         steer: true,
+        ...(opts.shouldAutoName ? { shouldAutoName: true } : {}),
         ...(headless ? { headless } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
@@ -2667,6 +2671,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.autoNamePending ||= pendingTurn.shouldAutoName === true
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
