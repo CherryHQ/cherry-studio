@@ -245,7 +245,9 @@ describe('null arguments', () => {
     ['network.fetch', () => cherry.network.fetch(null as never)],
     ['clipboard.write', () => cherry.clipboard.write(null as never)],
     ['notification.show', () => cherry.notification.show(null as never)],
-    ['ai.chat', () => cherry.ai.chat(null as never, {})]
+    ['ai.chat', () => cherry.ai.chat(null as never, {})],
+    ['ai.chat options', () => cherry.ai.chat({ messages: [] }, null as never)],
+    ['file.export options', () => cherry.file.export('export.txt', null as never)]
   ])('%s treats null like an absent argument', async (_name, call) => {
     await expect(call()).resolves.toBeDefined()
   })

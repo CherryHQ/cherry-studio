@@ -105,6 +105,29 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('common.detail')).toBeNull()
   })
 
+  it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: 'Not logged in \u00b7 Please run /login',
+          stack: null,
+          cause: null,
+          errors: ['Not logged in \u00b7 Please run /login']
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses structured provider data when classifying an error', () => {
     render(
       <ErrorBlock
@@ -180,6 +203,41 @@ describe('ErrorBlock', () => {
       })
     )
 
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('offers provider settings recovery when a retry error wraps a 401', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_RetryError',
+          message: 'Failed after 2 attempts. Last error:',
+          stack: null,
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 401,
+            responseBody: '{"error":{"message":"Invalid Authentication"}}'
+          },
+          errors: [
+            {
+              name: 'AI_APICallError',
+              statusCode: 401,
+              responseBody: '{"error":{"message":"Invalid Authentication"}}'
+            }
+          ]
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
     fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })

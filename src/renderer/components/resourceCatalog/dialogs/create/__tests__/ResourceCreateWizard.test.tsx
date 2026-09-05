@@ -34,7 +34,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: (options?: { enabled?: boolean }) => {
     modelHook.useDefaultModel(options)
     return { defaultModel: modelHook.defaultModel }
-  }
+  },
+  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -43,7 +44,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
-    modelHook.agentModelFilter(agentType, model, provider)
+    modelHook.agentModelFilter(agentType, model, provider),
+  useAgentModelDisabled: () => () => false
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit

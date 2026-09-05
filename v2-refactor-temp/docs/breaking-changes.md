@@ -23,6 +23,7 @@
 | Date | Change | Document |
 | --- | --- | --- |
 | 2026-08-24 | Legacy referenced files adopt automatic cleanup policy | [2026-08-24-legacy-file-cleanup-policy.md](./breaking-changes/2026-08-24-legacy-file-cleanup-policy.md) |
+| 2026-09-05 | Yi provider retired | [2026-09-05-retire-yi-provider.md](./breaking-changes/2026-09-05-retire-yi-provider.md) |
 | 2026-08-21 | GitHub Models provider removed | [2026-08-21-remove-github-models.md](./breaking-changes/2026-08-21-remove-github-models.md) |
 | 2026-06-12 | Default assistant and CherryAI defaults are seeded | [2026-06-12-default-assistant-name.md](./breaking-changes/2026-06-12-default-assistant-name.md) |
 | 2026-04-23 | Web Search 移除本地搜索引擎与 RAG 压缩配置 | [2026-04-23-web-search-remove-local-providers-and-rag.md](./breaking-changes/2026-04-23-web-search-remove-local-providers-and-rag.md) |

@@ -145,6 +145,7 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
+| Markdown alerts | `--markdown-important` | Important alert title and icon accent |
 | User message | `--chat-user` | User-message surface |
 | Resource-list rows | `--resource-list-row-hover`, `--resource-list-row-active`, `--resource-list-row-active-foreground`, `--resource-list-row-selected`, `--resource-list-row-selected-foreground` | Cross-surface resource navigation row states; hover preserves the row's existing foreground hierarchy, while active and selected use explicit surface pairs |
 

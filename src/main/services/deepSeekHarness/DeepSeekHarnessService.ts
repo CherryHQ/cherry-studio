@@ -288,7 +288,7 @@ export class DeepSeekHarnessService extends BaseService {
       if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
     }
 
-    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0'], {
+    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,
@@ -352,19 +352,52 @@ function sanitizeDiagnostic(value: string, secret?: string): string {
 }
 
 function parseReadyUrl(output: string): string | undefined {
-  const match = /^dsh web: (http:\/\/127\.0\.0\.1:(\d{1,5}))(?:\s|$)/m.exec(output)
-  if (!match) return undefined
-  const port = Number(match[2])
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return undefined
-  const url = new URL(match[1])
-  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/') return undefined
-  return url.toString().replace(/\/$/, '')
+  for (const match of output.matchAll(/^dsh web: (\S+)\r?\n/gm)) {
+    const candidate = match[1]
+    const address = /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})/.exec(candidate)
+    if (!address) continue
+    const port = Number(address[1])
+    if (port > 65535) continue
+
+    try {
+      const url = new URL(candidate)
+      if (
+        url.protocol !== 'http:' ||
+        url.hostname !== '127.0.0.1' ||
+        url.username ||
+        url.password ||
+        url.pathname !== '/' ||
+        url.hash
+      ) {
+        continue
+      }
+
+      const baseUrl = `http://127.0.0.1:${address[1]}`
+      if (!url.search) {
+        if (candidate !== baseUrl && candidate !== `${baseUrl}/`) continue
+        return baseUrl
+      }
+
+      const params = [...url.searchParams]
+      const token = params.length === 1 && params[0][0] === 'token' ? params[0][1] : undefined
+      if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || candidate !== `${baseUrl}/?token=${token}`) continue
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  return undefined
 }
 
 async function assertWebReady(url: string): Promise<void> {
-  const response = await fetch(`${url}/`, { redirect: 'manual', signal: AbortSignal.timeout(5000) })
+  const readyUrl = new URL(url)
+  const response = await fetch(readyUrl.toString(), { redirect: 'manual', signal: AbortSignal.timeout(5000) })
   await response.body?.cancel()
-  if (response.status !== 200) throw new Error(`DeepSeek Harness Web UI returned HTTP ${response.status}`)
+  const exchangedToken =
+    readyUrl.searchParams.has('token') && response.status === 303 && response.headers.get('location') === '/'
+  if (response.status !== 200 && !exchangedToken) {
+    throw new Error(`DeepSeek Harness Web UI returned HTTP ${response.status}`)
+  }
 }
 
 function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal): Promise<string> {

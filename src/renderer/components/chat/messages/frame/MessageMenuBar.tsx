@@ -11,6 +11,7 @@ import {
   useMessageListActions,
   useMessageListSelection,
   useMessageListUi,
+  useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageMenuConfig, type MessageListItem } from '../types'
@@ -67,7 +68,11 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const messageParts = useMessageParts(message.id)
-  const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
+  const messageForExport = useMemo(
+    () => createMessageExportView(message, messageParts, priorCitationParts),
+    [message, messageParts, priorCitationParts]
+  )
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 

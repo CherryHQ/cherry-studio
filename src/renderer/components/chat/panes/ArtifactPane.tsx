@@ -6,7 +6,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import {
   FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   type FileEditSession
@@ -154,7 +154,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onEditModeChange
   } = props
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme(editMode === 'edit')
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)

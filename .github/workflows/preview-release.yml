@@ -28,17 +28,12 @@ jobs:
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     outputs:
+      asset_sha: ${{ steps.source.outputs.asset_sha }}
       branch_slug: ${{ steps.source.outputs.branch_slug }}
       preview_tag: ${{ steps.source.outputs.preview_tag }}
       short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Require the workflow from main
-        if: github.ref != 'refs/heads/main'
-        run: |
-          echo "Preview Release must be dispatched from main; choose the source branch with the branch input" >&2
-          exit 1
-
       - name: Resolve source branch
         id: source
         shell: bash
@@ -61,17 +56,20 @@ jobs:
 
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
           echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
   build:
-    name: Build preview (${{ matrix.os }})
+    name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
+    environment: release
     strategy:
       fail-fast: false
       matrix:
+        edition: [global, cn]
         os: ${{ fromJSON(
           inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           inputs.platform == 'linux' && '["ubuntu-latest"]' ||
@@ -82,7 +80,7 @@ jobs:
 
     steps:
       - name: Check out preview commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -120,7 +118,7 @@ jobs:
         shell: bash
         run: |
           BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
-          PREVIEW_VERSION="$BASE_VERSION-preview.g${{ needs.resolve.outputs.short_sha }}"
+          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
@@ -128,7 +126,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm build:linux
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
@@ -136,22 +134,35 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          pnpm build:mac
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: pnpm build:win
+        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
 
+      - name: Validate edition preview artifacts
+        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+
       - name: Upload preview artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}
+          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.exe
             dist/*.zip
@@ -164,6 +175,7 @@ jobs:
             dist/latest*.yml
             dist/rc*.yml
             dist/beta*.yml
+            dist/preview*.yml
             dist/*.blockmap
           if-no-files-found: error
           retention-days: 3
