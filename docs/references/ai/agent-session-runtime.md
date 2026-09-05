@@ -7,6 +7,8 @@ sources:
   - src/main/ai/runtime/pi
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - packages/dsh-bridge/src/plugin.ts
 ---
 
 # Agent Session Runtime
@@ -423,6 +425,37 @@ For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
 to restore files.
+
+## Native user-data SQLite guard
+
+`userDataSqliteGuard.ts` is the single policy source that protects Cherry Studio's SQLite files
+across Claude Code, Pi, and DSH. Native structured write tools cannot bypass it through a permission
+mode: Claude calls it from the common `PreToolUse` guard table, Pi calls it in the shared native and
+code-mode authorizer before Full Access handling, and DSH asks Main over the authenticated bridge
+before local approval or bypass policy. DSH root agents and delegated subagents use the same check;
+an unavailable bridge or invalid cwd fails closed. This does not add to or change DSH's existing
+sandbox configuration.
+
+The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
+Existing symlink and hard-link aliases to those files are protected by canonical path and file
+identity checks.
+Other `.db` and `.sqlite` files and their sidecars below `userData` are protected unless the session
+workspace is a strict descendant of `userData` and the target stays inside that workspace. A
+workspace equal to or above `userData` creates no exception, and the Agent data directory is not an
+exception by itself. Structured read tools are unaffected.
+
+Shell inspection is deliberately best-effort. It recognizes literal quoted or unquoted tokens,
+control separators, paths relative to the initial cwd, absolute and literal home paths, SQLite
+`file:` URIs, sidecars, and option values after `=`. For direct Python, Node.js, and Bun commands,
+it also checks path literals embedded in inline code; ordinary interpreter use in the workspace
+remains available. It does not model `cd`, expand arbitrary variables or globs, inspect
+substitutions, evaluate constructed interpreter paths, or read script contents. A literal match is
+denied even when the command appears read-only.
+
+This hook is a tool-call policy boundary, not a sandbox or an operating-system security boundary.
+It does not inspect third-party MCP argument schemas, constrain child processes, or promise safety
+against a same-user local process replacing a checked path before use (TOCTOU). A stronger guarantee
+requires enforcement at the execution or sandbox boundary.
 
 ## Claude Code driver
 

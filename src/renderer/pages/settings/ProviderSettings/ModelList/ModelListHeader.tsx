@@ -55,7 +55,9 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
     <>
       <div className={modelListClasses.headerInlineRow}>
         <div className={modelListClasses.sectionTitleLine}>
-          <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+          <h2 id="setting-provider-model-list" className={modelListClasses.sectionTitle}>
+            {t('settings.models.list_title')}
+          </h2>
           {docsLink ? (
             <div className={modelListClasses.titleHelpRow}>
               <Tooltip content={t('settings.models.docs')}>

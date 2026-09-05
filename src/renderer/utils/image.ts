@@ -605,6 +605,43 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
 
+const INTRINSIC_SVG_LENGTH = /^\s*\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|pt|pc|mm|cm|in|q|em|ex)?\s*$/i
+
+const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
+  if (value === null || !INTRINSIC_SVG_LENGTH.test(value)) return false
+  const length = Number.parseFloat(value)
+  return Number.isFinite(length) && length > 0
+}
+
+/**
+ * An SVG embedded in the conversation is responsive (`width="100%"`, usually no
+ * height), but the same node becomes a replaced image in the full-screen preview.
+ * Percentage/missing dimensions give that standalone image the browser's small
+ * default intrinsic size, so the viewer's fit and zoom geometry starts from the
+ * wrong box. Give only the preview clone an intrinsic vector size.
+ */
+const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
+  const clone = svgElement.cloneNode(true) as SVGElement
+  if (
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
+  ) {
+    return clone
+  }
+
+  const viewBox = clone
+    .getAttribute('viewBox')
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number)
+  if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+    clone.setAttribute('width', String(viewBox[2]))
+    clone.setAttribute('height', String(viewBox[3]))
+  }
+
+  return clone
+}
+
 export type ImageInput = SVGElement | HTMLImageElement | string | Blob
 
 export interface ImagePreviewOptions {
@@ -619,7 +656,10 @@ export interface ImagePreviewOptions {
  */
 export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
   if (input instanceof SVGElement) {
-    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    const blob =
+      options.format === 'svg'
+        ? svgToSvgBlob(createStandaloneSvgPreview(input))
+        : await svgToPngBlob(input, options.scale || 3)
     return URL.createObjectURL(blob)
   }
 

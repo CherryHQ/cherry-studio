@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { type Model } from '@shared/data/types/model'
@@ -16,7 +16,8 @@ export interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Bu
 }
 
 export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
-  filter: (model: Model) => boolean
+  filter: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   onSelect: (model: Model | undefined) => void
 }
 
@@ -67,6 +68,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   placeholder,
   compact,
   filter,
+  isModelDisabled,
   onSelect
 }) => (
   <ModelSelector
@@ -74,6 +76,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
+    isModelDisabled={isModelDisabled}
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
     }

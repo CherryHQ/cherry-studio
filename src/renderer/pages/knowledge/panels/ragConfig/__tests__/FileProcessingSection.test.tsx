@@ -210,7 +210,7 @@ describe('FileProcessingSection', () => {
 
       await waitFor(() => expect(mocks.showDownloadPopup).toHaveBeenCalled())
       expect(mocks.showDownloadPopup.mock.calls[0][0]).toMatchObject({
-        model: 'ocr',
+        id: 'pp-ocrv6-medium',
         description: 'PaddleOCR PP-OCRv6 · ~140 MB'
       })
       await waitFor(() => expect(onFileProcessorChange).toHaveBeenCalledWith('local-document'))
