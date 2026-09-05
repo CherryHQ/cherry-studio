@@ -597,12 +597,14 @@
             "type": "openai-chat",
             "wire": {
               "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
                 "operations": [
                   {
                     "target": "reasoning.effort",
                     "value": {
-                      "source": "literal",
-                      "value": "medium"
+                      "source": "effort"
                     }
                   }
                 ]
@@ -2483,5 +2485,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "edaf6c7d22e41cb9"
+  "version": "abb0d57d0b98c2c8"
 }

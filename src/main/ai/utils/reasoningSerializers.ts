@@ -119,10 +119,17 @@ function resolveMode(
 
 function resolveModeEffort(
   selection: CanonicalReasoningSelection,
-  mode: ReasoningWireMode
+  mode: ReasoningWireMode,
+  model: Model
 ): ReasoningEffort | undefined {
   if (selection === 'default' || selection === 'none') return undefined
-  return mode.effortMap?.[selection] ?? selection
+  const effort = mode.effortMap?.[selection] ?? selection
+  if (selection !== 'auto') return effort
+
+  // Project a profile's automatic tier onto the model's supported efforts.
+  // Toggle-only models retain the profile's wire value.
+  const supported = resolveSelection(effort === 'auto' ? 'medium' : effort, model)
+  return supported && supported !== 'default' ? supported : effort
 }
 
 function resolveModeBudget(
@@ -166,7 +173,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   const mode = resolveMode(selection, input.profile)
   if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
 
-  const effort = resolveModeEffort(selection, mode)
+  const effort = resolveModeEffort(selection, mode, input.model)
   const budgetTokens =
     'budget' in mode ? resolveModeBudget(selection, input.model, mode.budget, input.maxTokens) : undefined
 
