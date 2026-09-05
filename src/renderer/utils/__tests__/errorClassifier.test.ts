@@ -55,6 +55,22 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
+  it('prefers an earlier specific diagnosis over the last attempt generic recovery', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [
+          { name: 'AI_APICallError', statusCode: 401 },
+          { name: 'AI_APICallError', statusCode: 400 }
+        ]
+      }),
+      'openai'
+    )
+
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   it('keeps the outer classification when the wrapper itself is diagnosable', () => {
     const result = classifyError(
       makeRetryError({
@@ -80,6 +96,12 @@ describe('classifyError', () => {
 
     expect(result.category).toBe('unknown')
     expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('encodes the provider id in the generic HTTP 400 recovery target', () => {
+    const result = classifyError(makeError({ statusCode: 400 }), 'gateway&fallback#beta')
+
+    expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
   // Auth
