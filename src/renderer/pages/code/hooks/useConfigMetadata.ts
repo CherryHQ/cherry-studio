@@ -2,8 +2,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
@@ -31,7 +31,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     () =>
       new Set(
         providers
-          .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider, getAppEdition()))
+          .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider))
           .map((provider) => provider.id)
       ),
     [providers]
@@ -40,7 +40,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     () =>
       new Map(
         allModels
-          .filter((model) => gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model))
+          .filter(
+            (model) =>
+              gatewayProviderIds.has(model.providerId) &&
+              !isManagedCherryCloudModel(model.providerId) &&
+              isGatewayRoutableModel(model)
+          )
           .map((model) => [model.id, model])
       ),
     [allModels, gatewayProviderIds]
@@ -69,9 +74,14 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
         // The gateway does dialect conversion, so any chat model of any enabled provider is usable
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
-        // keeping only what the gateway can route (same predicate as its /v1/models listing).
+        // keeping only what Code Mate may route through the gateway. Cherry Cloud does not expose
+        // a Code Mate feature entitlement, so its managed models are never offered here.
         if (isApiGatewayProviderId(providerId)) {
-          return gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model)
+          return (
+            gatewayProviderIds.has(model.providerId) &&
+            !isManagedCherryCloudModel(model.providerId) &&
+            isGatewayRoutableModel(model)
+          )
         }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
