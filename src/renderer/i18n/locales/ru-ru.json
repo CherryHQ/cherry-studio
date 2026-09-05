@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Положение списка задач",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Назад к проверкам",
+  "settings.doctor.actions.back_to_checks": "Назад к диагностике системы",
   "settings.doctor.actions.cancel_run": "Отменить проверки",
   "settings.doctor.actions.copy": "Копировать результаты",
   "settings.doctor.actions.downloading_update": "Скачивание обновления {{progress}}%",

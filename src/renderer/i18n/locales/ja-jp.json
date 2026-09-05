@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "タスクリストの位置",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "チェックに戻る",
+  "settings.doctor.actions.back_to_checks": "システム診断に戻る",
   "settings.doctor.actions.cancel_run": "検査をキャンセル",
   "settings.doctor.actions.copy": "結果をコピー",
   "settings.doctor.actions.downloading_update": "アップデートをダウンロード中 {{progress}}%",

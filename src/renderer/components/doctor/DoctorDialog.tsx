@@ -25,6 +25,11 @@ const PANEL_DESCRIPTION_KEYS = {
   export: 'settings.doctor.panel_descriptions.export',
   report: 'settings.doctor.panel_descriptions.report'
 } as const satisfies Record<DoctorPanel, string>
+const PANEL_TITLE_KEYS = {
+  checks: 'settings.doctor.title',
+  export: 'settings.doctor.panels.export',
+  report: 'settings.doctor.panels.report'
+} as const satisfies Record<DoctorPanel, string>
 
 export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
@@ -37,6 +42,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
+  const canReturnToChecks = initialPanel === 'checks'
 
   const finishHandoff = useCallback(
     async (action: () => void) => {
@@ -102,7 +108,15 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
     (busy: boolean) => setPanelInteraction('report-operation', busy),
     [setPanelInteraction]
   )
+  const finishSecondaryPanel = useCallback(() => {
+    if (canReturnToChecks) {
+      controller.setPanel('checks')
+      return
+    }
+    resolve({})
+  }, [canReturnToChecks, controller, resolve])
 
+  const panelTitle = t(PANEL_TITLE_KEYS[controller.session.activePanel])
   const panelDescription = t(PANEL_DESCRIPTION_KEYS[controller.session.activePanel])
 
   useEffect(() => {
@@ -121,7 +135,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
         <DialogHeader className="flex-row items-start gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
-          {controller.session.activePanel !== 'checks' ? (
+          {controller.session.activePanel !== 'checks' && canReturnToChecks ? (
             <Tooltip content={t('settings.doctor.actions.back_to_checks')}>
               <Button
                 type="button"
@@ -135,7 +149,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
             </Tooltip>
           ) : null}
           <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
-            <DialogTitle>{t('settings.doctor.title')}</DialogTitle>
+            <DialogTitle>{panelTitle}</DialogTitle>
             <DialogDescription>{panelDescription}</DialogDescription>
           </div>
         </DialogHeader>
@@ -149,7 +163,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
             <DiagnosticBundlePanel
               appVersion={controller.viewModel.report?.basics.version ?? ''}
               onBusyChange={setBundleBusy}
-              onClose={() => controller.setPanel('checks')}
+              onClose={finishSecondaryPanel}
             />
           </Suspense>
         ) : null}
@@ -161,7 +175,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
               description={controller.session.descriptionDraft}
               onBusyChange={setReportBusy}
               onDescriptionChange={controller.setDescription}
-              onClose={() => controller.setPanel('checks')}
+              onClose={finishSecondaryPanel}
             />
           </Suspense>
         ) : null}

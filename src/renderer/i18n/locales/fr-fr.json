@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Position de la liste des tâches",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Retour aux vérifications",
+  "settings.doctor.actions.back_to_checks": "Retour au diagnostic système",
   "settings.doctor.actions.cancel_run": "Annuler les vérifications",
   "settings.doctor.actions.copy": "Copier les résultats",
   "settings.doctor.actions.downloading_update": "Téléchargement de la mise à jour : {{progress}} %",

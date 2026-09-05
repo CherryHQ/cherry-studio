@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Vị trí danh sách tác vụ",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Quay lại phần kiểm tra",
+  "settings.doctor.actions.back_to_checks": "Quay lại chẩn đoán hệ thống",
   "settings.doctor.actions.cancel_run": "Hủy kiểm tra",
   "settings.doctor.actions.copy": "Sao chép kết quả",
   "settings.doctor.actions.downloading_update": "Đang tải bản cập nhật {{progress}}%",

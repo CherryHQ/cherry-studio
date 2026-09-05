@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Position der Aufgabenliste",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Zurück zu den Prüfungen",
+  "settings.doctor.actions.back_to_checks": "Zurück zur Systemdiagnose",
   "settings.doctor.actions.cancel_run": "Prüfungen abbrechen",
   "settings.doctor.actions.copy": "Ergebnisse kopieren",
   "settings.doctor.actions.downloading_update": "Update wird heruntergeladen: {{progress}} %",

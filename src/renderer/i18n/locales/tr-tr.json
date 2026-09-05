@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Görev listesi konumu",
   "settings.display.sidebar.chat.visible": "Sohbet Asistanını Kenar Çubuğunda Göster",
   "settings.display.sidebar.title": "Kenar Çubuğu Ayarları",
-  "settings.doctor.actions.back_to_checks": "Denetimlere geri dön",
+  "settings.doctor.actions.back_to_checks": "Sistem tanılamasına dön",
   "settings.doctor.actions.cancel_run": "Denetimleri iptal et",
   "settings.doctor.actions.copy": "Sonuçları kopyala",
   "settings.doctor.actions.downloading_update": "Güncelleme indiriliyor: %{{progress}}",

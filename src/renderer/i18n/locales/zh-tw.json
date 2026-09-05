@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "任務列表位置",
   "settings.display.sidebar.chat.visible": "在側邊欄顯示對話助手",
   "settings.display.sidebar.title": "側邊欄設定",
-  "settings.doctor.actions.back_to_checks": "返回檢查",
+  "settings.doctor.actions.back_to_checks": "返回系統診斷",
   "settings.doctor.actions.cancel_run": "取消檢查",
   "settings.doctor.actions.copy": "複製診斷結果",
   "settings.doctor.actions.downloading_update": "正在下載更新 {{progress}}%",

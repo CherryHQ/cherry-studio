@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Poziția listei de sarcini",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Înapoi la verificări",
+  "settings.doctor.actions.back_to_checks": "Înapoi la diagnosticarea sistemului",
   "settings.doctor.actions.cancel_run": "Anulează verificările",
   "settings.doctor.actions.copy": "Copiază rezultatele",
   "settings.doctor.actions.downloading_update": "Se descarcă actualizarea {{progress}}%",

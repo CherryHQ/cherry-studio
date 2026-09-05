@@ -3935,7 +3935,7 @@
   "settings.display.list_position.work": "Θέση λίστας εργασιών",
   "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
   "settings.display.sidebar.title": "Sidebar Settings",
-  "settings.doctor.actions.back_to_checks": "Πίσω στους ελέγχους",
+  "settings.doctor.actions.back_to_checks": "Επιστροφή στα διαγνωστικά συστήματος",
   "settings.doctor.actions.cancel_run": "Ακύρωση ελέγχων",
   "settings.doctor.actions.copy": "Αντιγραφή αποτελεσμάτων",
   "settings.doctor.actions.downloading_update": "Λήψη ενημέρωσης {{progress}}%",
