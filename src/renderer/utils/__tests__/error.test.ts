@@ -308,12 +308,19 @@ describe('error', () => {
       ).toBe('concurrency limit reached')
     })
 
-    it('preserves the provider message when serializing a retry error', () => {
+    it('preserves only safe provider details when serializing a retry error', () => {
       const providerError = new APICallError({
-        message: 'account is not authorized for this model',
-        url: 'https://api.example.com/chat/completions',
-        requestBodyValues: {},
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat/completions?token=url-secret',
+        requestBodyValues: { messages: [{ content: 'private user prompt' }] },
         statusCode: 403,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({
+          error: { message: 'account is not authorized for this model' },
+          trace: 'response-secret'
+        }),
+        data: { apiKey: 'data-secret' },
+        cause: new Error('Authorization: Bearer cause-secret'),
         isRetryable: true
       })
       const retryError = new RetryError({
@@ -322,7 +329,23 @@ describe('error', () => {
         errors: [providerError]
       })
 
-      expect(providerErrorText(serializeError(retryError))).toBe('account is not authorized for this model')
+      const serialized = serializeError(retryError)
+
+      expect(providerErrorText(serialized)).toBe('account is not authorized for this model')
+      expect(serialized.lastError).toMatchObject({
+        name: 'AI_APICallError',
+        message: 'account is not authorized for this model',
+        statusCode: 403,
+        isRetryable: true
+      })
+      expect(serialized.lastError).not.toHaveProperty('url')
+      expect(serialized.lastError).not.toHaveProperty('requestBodyValues')
+      expect(serialized.lastError).not.toHaveProperty('responseHeaders')
+      expect(serialized.lastError).not.toHaveProperty('responseBody')
+      expect(serialized.lastError).not.toHaveProperty('data')
+      expect(JSON.stringify(serialized)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+      )
     })
 
     it('preserves a plain terminal error when serializing a retry error', () => {

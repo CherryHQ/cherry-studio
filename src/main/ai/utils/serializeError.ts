@@ -1,5 +1,7 @@
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
+import { getSafeProviderErrorMessage } from '@shared/utils/providerError'
+import { APICallError } from 'ai'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -24,6 +26,16 @@ function toSerializable(value: unknown): Serializable {
 }
 
 function serializeNestedError(value: unknown): Serializable {
+  if (APICallError.isInstance(value)) {
+    return {
+      name: value.name,
+      message: getSafeProviderErrorMessage(value),
+      stack: null,
+      cause: null,
+      statusCode: value.statusCode ?? null,
+      isRetryable: value.isRetryable
+    }
+  }
   return value instanceof Error ? serializeError(value) : toSerializable(value)
 }
 

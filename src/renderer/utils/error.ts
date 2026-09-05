@@ -9,10 +9,9 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
-import { redactSecretText } from '@shared/utils/redaction'
+import { getSafeProviderErrorMessage } from '@shared/utils/providerError'
 import { safeSerialize } from '@shared/utils/serialize'
-import type { NoSuchToolError } from 'ai'
-import { AISDKError } from 'ai'
+import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
@@ -152,7 +151,16 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 }
 
 const serializeNestedError = (error: unknown) => {
-  if (AISDKError.isInstance(error)) return serializeError(error)
+  if (APICallError.isInstance(error)) {
+    return {
+      name: error.name,
+      message: getSafeProviderErrorMessage(error),
+      stack: null,
+      cause: null,
+      statusCode: error.statusCode ?? null,
+      isRetryable: error.isRetryable
+    } satisfies SerializedError
+  }
   return error instanceof Error ? getBaseError(error) : safeSerialize(error)
 }
 
@@ -329,37 +337,6 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   return text.trim()
 }
 
-const PROVIDER_ERROR_TEXT_MAX = 500
-const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
-
-function actionableProviderText(value: unknown): string {
-  if (typeof value !== 'string') return ''
-  const text = value.trim()
-  return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
-}
-
-function providerPayloadText(value: unknown): string {
-  if (typeof value === 'string') {
-    const parsed = parseJSON(value)
-    return parsed === null ? '' : providerPayloadText(parsed)
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
-
-  const payload = value as Record<string, unknown>
-  const error =
-    payload.error && typeof payload.error === 'object' ? (payload.error as Record<string, unknown>) : undefined
-  const detail =
-    payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : undefined
-  const detailError =
-    detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : undefined
-
-  return (
-    [error?.message, payload.message, detailError?.message, detail?.message, payload.detail, payload.msg, payload.error]
-      .map(actionableProviderText)
-      .find(Boolean) ?? ''
-  )
-}
-
 function retryProviderText(error: SerializedError): string {
   if (!isSerializedAiSdkRetryError(error)) return ''
   const attempts = Array.isArray(error.errors) ? [...error.errors].reverse() : []
@@ -375,12 +352,8 @@ function retryProviderText(error: SerializedError): string {
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
-  const fallback = actionableProviderText(error.message)
-  const data = providerPayloadText(error.data)
-  const body = typeof error?.responseBody === 'string' ? error.responseBody.trim() : ''
-  const parsedBody = body ? parseJSON(body) : null
-  const text = providerPayloadText(parsedBody) || data || retryProviderText(error) || fallback
-  return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
+  const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
+  return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>

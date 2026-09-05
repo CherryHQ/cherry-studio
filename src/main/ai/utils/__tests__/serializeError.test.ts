@@ -75,12 +75,19 @@ describe('serializeError', () => {
       expect(serializeError(error).i18nKey).toBe('tool_call_limit_reached')
     })
 
-    it('preserves nested provider error details in a RetryError', () => {
+    it('preserves only safe nested provider details in a RetryError', () => {
       const providerError = new APICallError({
-        message: 'provider rejected the request',
-        url: 'https://api.example.com/chat/completions',
-        requestBodyValues: {},
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat/completions?token=url-secret',
+        requestBodyValues: { messages: [{ content: 'private user prompt' }] },
         statusCode: 429,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({
+          error: { message: 'provider concurrency limit reached' },
+          trace: 'response-secret'
+        }),
+        data: { apiKey: 'data-secret' },
+        cause: new Error('Authorization: Bearer cause-secret'),
         isRetryable: true
       })
       const retryError = new RetryError({
@@ -94,10 +101,19 @@ describe('serializeError', () => {
       expect(result.reason).toBe('maxRetriesExceeded')
       expect(result.lastError).toMatchObject({
         name: 'AI_APICallError',
-        message: 'provider rejected the request',
-        statusCode: 429
+        message: 'provider concurrency limit reached',
+        statusCode: 429,
+        isRetryable: true
       })
+      expect(result.lastError).not.toHaveProperty('url')
+      expect(result.lastError).not.toHaveProperty('requestBodyValues')
+      expect(result.lastError).not.toHaveProperty('responseHeaders')
+      expect(result.lastError).not.toHaveProperty('responseBody')
+      expect(result.lastError).not.toHaveProperty('data')
       expect(result.errors).toEqual([result.lastError])
+      expect(JSON.stringify(result)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+      )
     })
 
     it('serializes a NoSuchToolError with its discriminant fields', () => {
