@@ -5,7 +5,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -90,7 +90,7 @@ const mcpSdkMock = vi.hoisted(() => {
     constructor() {
       clients.push(this)
     }
-    async connect(transport: { kind: string }) {
+    async connect(transport: { kind: string; onerror?: (error: Error) => void }) {
       // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
       // start() leaves it set. This is what makes the fallback retry fail unless client.close()
       // resets it — the test would not catch that regression otherwise.
@@ -101,6 +101,10 @@ const mcpSdkMock = vi.hoisted(() => {
       this.connectCalls.push({ kind: transport.kind })
       if (transport.kind === 'sse') {
         throw new SseError(405, 'Non-200 status code (405)')
+      }
+      if (transport.kind === 'stdio' && mcpSdkMock.state.stdioError) {
+        transport.onerror?.(mcpSdkMock.state.stdioError)
+        throw new Error('Connection closed')
       }
       if (mcpSdkMock.state.failStreamable) {
         if (mcpSdkMock.state.failStreamableUnauthorized) {
@@ -119,13 +123,16 @@ const mcpSdkMock = vi.hoisted(() => {
       this.code = code
     }
   }
-  const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  const stdioTransports: StdioClientTransport[] = []
   const streamableHttpTransports: Array<{ url: unknown; opts?: any }> = []
   class StdioClientTransport {
     kind = 'stdio' as const
     stderr = null
+    onerror?: (error: Error) => void
+    env?: Record<string, string>
     constructor(params: { env?: Record<string, string> }) {
-      stdioTransports.push(params)
+      this.env = params.env
+      stdioTransports.push(this)
     }
   }
   return {
@@ -142,6 +149,7 @@ const mcpSdkMock = vi.hoisted(() => {
       failStreamable: false,
       failStreamableUnauthorized: false,
       failStreamableCode: 503,
+      stdioError: undefined as NodeJS.ErrnoException | undefined,
       capabilities: undefined as Record<string, unknown> | undefined
     }
   }
@@ -210,7 +218,12 @@ describe('McpRuntimeService stdio environment', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.stdioTransports.length = 0
+    mcpSdkMock.state.stdioError = undefined
     shellEnvMock.getShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+  })
+
+  afterEach(() => {
+    mcpSdkMock.state.stdioError = undefined
   })
 
   it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
@@ -253,6 +266,55 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+
+  it('preserves EPERM details when the SDK reduces the connection failure to Connection closed', async () => {
+    const command = 'C:\\Program Files\\MCP\\server.exe'
+    mcpSdkMock.state.stdioError = Object.assign(new Error(`spawn ${command} EPERM`), {
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow('Connection closed')
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.stdio-server')).toMatchObject({
+      state: 'error',
+      lastError: 'Connection closed',
+      errorCode: 'EPERM',
+      errorPath: command
+    })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.other-server')).toBeUndefined()
+  })
+
+  it('rejects an unresolved placeholder before creating an SDK transport and identifies the configured path', async () => {
+    const command = '${MCP_COMMAND}'
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command,
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(/unresolved placeholder/i)
+
+    expect(mcpSdkMock.stdioTransports).toHaveLength(0)
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.stdio-server')).toMatchObject({
+      state: 'error',
+      errorCode: 'MCP_UNRESOLVED_PLACEHOLDER',
+      errorPath: command
+    })
   })
 })
 
@@ -372,6 +434,22 @@ describe('McpRuntimeService.setServerStatus', () => {
     service.setServerStatus('server-1', 'error', new Error('different')) // changed → broadcast
 
     expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(2)
+  })
+
+  it('preserves structured diagnostics when the same error is reported again without details', () => {
+    const service = new McpRuntimeService()
+    const error = new Error('Connection closed')
+
+    service.setServerStatus('server-1', 'error', error, { code: 'EPERM', path: 'C:\\MCP\\server.exe' })
+    service.setServerStatus('server-1', 'error', error)
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toMatchObject({
+      state: 'error',
+      lastError: 'Connection closed',
+      errorCode: 'EPERM',
+      errorPath: 'C:\\MCP\\server.exe'
+    })
+    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
   })
 })
 

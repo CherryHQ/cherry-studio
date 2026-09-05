@@ -6,6 +6,7 @@ const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValu
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
+const getShellEnv = vi.hoisted(() => vi.fn(async () => ({ PATH: '/shell/bin' })))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
@@ -18,7 +19,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({} as Record<string, unknown>)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
@@ -79,6 +80,21 @@ describe('createTransport', () => {
     await expect(create({ type: 'inMemory', name: '@cherry/memory' })).rejects.toThrow(
       /Failed to start in-memory server: boom/
     )
+  })
+
+  it('preserves structured details from a failed in-process start', async () => {
+    inMemoryServerMock.connect.mockRejectedValueOnce(
+      Object.assign(new Error('Unresolved placeholder'), {
+        code: 'MCP_UNRESOLVED_PLACEHOLDER',
+        path: '${MEMORY_FILE_PATH}'
+      })
+    )
+
+    await expect(create({ type: 'inMemory', name: '@cherry/memory' })).rejects.toMatchObject({
+      message: 'Failed to start in-memory server: Unresolved placeholder',
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: '${MEMORY_FILE_PATH}'
+    })
   })
 
   it('sends the app headers plus the server’s own on both URL transports', async () => {
@@ -151,6 +167,15 @@ describe('createTransport', () => {
     expect(transport.params.stderr).toBe('pipe')
   })
 
+  it('rejects an unresolved stdio placeholder before requesting the login shell environment', async () => {
+    await expect(create({ type: 'stdio', command: '${MCP_COMMAND}' })).rejects.toMatchObject({
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: '${MCP_COMMAND}'
+    })
+
+    expect(getShellEnv).not.toHaveBeenCalled()
+  })
+
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
     const entries: McpServerLogEntry[] = []
     const transport = (await create(
@@ -194,6 +219,32 @@ describe('createTransport', () => {
       data: expect.objectContaining({ code: 'ENOENT', path: 'C:\\missing\\uvx.exe' }),
       source: 'stdio'
     })
+  })
+
+  it('reports structured details for a Windows spawn permission error', async () => {
+    const entries: McpServerLogEntry[] = []
+    const onTransportError = vi.fn()
+    const command = 'C:\\Program Files\\MCP\\server.exe'
+    const transport = (await create(
+      { type: 'stdio', command },
+      { onServerLog: (entry) => entries.push(entry), onTransportError }
+    )) as unknown as FakeStdioTransport
+    const error = Object.assign(new Error(`spawn ${command} EPERM`), {
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+
+    transport.onerror?.(error)
+
+    expect(onTransportError).toHaveBeenCalledWith({
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+    expect(entries[0]?.data).toMatchObject({ code: 'EPERM', path: command })
   })
 
   it('runs an in-memory row we cannot start in-process through the connection it declares', async () => {

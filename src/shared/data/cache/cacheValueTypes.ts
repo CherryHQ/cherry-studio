@@ -37,6 +37,8 @@ export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  errorCode?: string
+  errorPath?: string
 }
 
 /**
