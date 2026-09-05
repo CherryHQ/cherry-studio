@@ -14,8 +14,8 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
-const SENSITIVE_EDITABLE_SELECTOR =
-  'input, textarea, select, option, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"]'
+const SENSITIVE_EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION'])
+const SENSITIVE_EDITABLE_ROLES = new Set(['textbox', 'searchbox', 'combobox'])
 const MARQUEE_DRAG_THRESHOLD_PX = 5
 /** An element counts as inside the marquee when this share of its area overlaps the box. */
 const REGION_CONTAINMENT_RATIO = 0.6
@@ -52,6 +52,18 @@ const OVERLAY_CSS = `
     border-radius: 4px;
     background: color-mix(in srgb, var(--annotation-accent) 8%, transparent);
     pointer-events: none;
+  }
+
+  .iframe-shield-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .iframe-shield {
+    position: fixed;
+    background: transparent;
+    pointer-events: auto;
   }
 
   .pin {
@@ -228,9 +240,23 @@ const composedParent = (element: Element): Element | null => {
   return root instanceof ShadowRoot ? root.host : null
 }
 
+const isSensitiveEditable = (element: Element) => {
+  if ((element.ownerDocument.designMode ?? '').toLowerCase() === 'on') return true
+  if (SENSITIVE_EDITABLE_TAGS.has(element.tagName)) return true
+  if (element instanceof HTMLElement) {
+    if (element.isContentEditable) return true
+    const contentEditable = element.getAttribute('contenteditable')
+    if (contentEditable !== null && contentEditable.toLowerCase() !== 'false') return true
+  }
+  return (element.getAttribute('role') ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .some((role) => SENSITIVE_EDITABLE_ROLES.has(role))
+}
+
 const containsSensitiveEditableContent = (element: Element) => {
   for (let current: Element | null = element; current; current = composedParent(current)) {
-    if (current.matches(SENSITIVE_EDITABLE_SELECTOR)) return true
+    if (isSensitiveEditable(current)) return true
   }
 
   const pending = [element]
@@ -238,7 +264,7 @@ const containsSensitiveEditableContent = (element: Element) => {
   while (pending.length > 0) {
     const current = pending.pop()!
     if (++visited > REGION_WALK_BUDGET) return true
-    if (current.matches(SENSITIVE_EDITABLE_SELECTOR)) return true
+    if (isSensitiveEditable(current)) return true
     if (current.shadowRoot) pending.push(...Array.from(current.shadowRoot.children))
     pending.push(...Array.from(current.children))
   }
@@ -315,6 +341,7 @@ const findCommonAncestor = (elements: readonly Element[]): Element | null => {
 }
 
 type StateListener = (event: WebviewAnnotationGuestEvent) => void
+type UnhandledKeyDownListener = (event: KeyboardEvent) => void
 
 export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
@@ -327,6 +354,9 @@ export class WebviewAnnotationController {
   private editorRequestId: string | null = null
   private enabled = false
   private highlightElement: Element | null = null
+  private iframeShieldLayer: HTMLDivElement | null = null
+  private iframeShields = new Map<HTMLIFrameElement, HTMLDivElement>()
+  private shieldIframes = new Map<HTMLDivElement, HTMLIFrameElement>()
   private marquee: HTMLDivElement | null = null
   private marqueePointerCapture: { target: Element; pointerId: number } | null = null
   private marqueePointerId: number | null = null
@@ -341,12 +371,18 @@ export class WebviewAnnotationController {
   private sessionId: string | null = null
   private observedRoots = new Set<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
+  private overlayRoot: ShadowRoot | null = null
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
   private theme: WebviewAnnotationTheme = 'light'
   private updateFrame: number | null = null
 
-  constructor(private readonly onStateChange: StateListener) {}
+  constructor(
+    private readonly onStateChange: StateListener,
+    private readonly onUnhandledKeyDown?: UnhandledKeyDownListener
+  ) {
+    this.addInputArbiter()
+  }
 
   handleCommand(command: WebviewAnnotationHostCommand) {
     if (command.type === 'start_session') {
@@ -409,7 +445,7 @@ export class WebviewAnnotationController {
 
   dispose() {
     this.enabled = false
-    this.removeSelectionListeners()
+    this.removeInputArbiter()
     this.cancelMarquee()
     this.stopPositionTracking()
     this.removeOverlay()
@@ -425,10 +461,9 @@ export class WebviewAnnotationController {
     this.enabled = nextEnabled
     if (this.enabled) {
       this.ensureOverlay()
-      this.addSelectionListeners()
       this.startPositionTracking()
     } else {
-      this.removeSelectionListeners()
+      this.clearIframeShields()
       this.cancelMarquee()
       this.closeEditor()
       this.highlightElement = null
@@ -444,7 +479,7 @@ export class WebviewAnnotationController {
   private reset(emit = true) {
     this.clearAnnotations(false)
     this.enabled = false
-    this.removeSelectionListeners()
+    this.clearIframeShields()
     this.cancelMarquee()
     this.stopPositionTracking()
     this.removeOverlay()
@@ -484,13 +519,17 @@ export class WebviewAnnotationController {
     highlight.className = 'highlight'
     const marquee = document.createElement('div')
     marquee.className = 'marquee'
+    const iframeShieldLayer = document.createElement('div')
+    iframeShieldLayer.className = 'iframe-shield-layer'
     const pinLayer = document.createElement('div')
-    shadowRoot.append(highlight, marquee, pinLayer)
+    shadowRoot.append(iframeShieldLayer, highlight, marquee, pinLayer)
     document.documentElement?.appendChild(host)
 
     this.overlayHost = host
+    this.overlayRoot = shadowRoot
     this.highlight = highlight
     this.marquee = marquee
+    this.iframeShieldLayer = iframeShieldLayer
     this.pinLayer = pinLayer
     this.applyTheme()
     this.renderPins()
@@ -526,49 +565,90 @@ export class WebviewAnnotationController {
       cancelAnimationFrame(this.updateFrame)
       this.updateFrame = null
     }
+    this.clearIframeShields()
     this.overlayHost?.remove()
     this.overlayHost = null
+    this.overlayRoot = null
     this.highlight = null
     this.marquee = null
+    this.iframeShieldLayer = null
     this.pinLayer = null
   }
 
-  private addSelectionListeners() {
-    document.addEventListener('pointermove', this.handlePointerMove, true)
-    document.addEventListener('pointerdown', this.handlePointerDown, true)
-    document.addEventListener('pointerup', this.handlePointerUp, true)
-    document.addEventListener('pointercancel', this.handlePointerCancel, true)
-    document.addEventListener('lostpointercapture', this.handlePointerCancel, true)
-    document.addEventListener('mousedown', this.blockSelectionEvent, true)
-    document.addEventListener('mouseup', this.blockSelectionEvent, true)
-    document.addEventListener('click', this.handleClick, true)
-    document.addEventListener('keydown', this.handleDocumentKeyDown, true)
+  private addInputArbiter() {
+    window.addEventListener('pointermove', this.handlePointerMove, true)
+    window.addEventListener('pointerdown', this.handlePointerDown, true)
+    window.addEventListener('pointerup', this.handlePointerUp, true)
+    window.addEventListener('pointercancel', this.handlePointerCancel, true)
+    window.addEventListener('lostpointercapture', this.handlePointerCancel, true)
+    window.addEventListener('mousedown', this.blockSelectionEvent, true)
+    window.addEventListener('mouseup', this.blockSelectionEvent, true)
+    window.addEventListener('click', this.handleClick, true)
+    window.addEventListener('keydown', this.handleWindowKeyDown, true)
   }
 
-  private removeSelectionListeners() {
-    document.removeEventListener('pointermove', this.handlePointerMove, true)
-    document.removeEventListener('pointerdown', this.handlePointerDown, true)
-    document.removeEventListener('pointerup', this.handlePointerUp, true)
-    document.removeEventListener('pointercancel', this.handlePointerCancel, true)
-    document.removeEventListener('lostpointercapture', this.handlePointerCancel, true)
-    document.removeEventListener('mousedown', this.blockSelectionEvent, true)
-    document.removeEventListener('mouseup', this.blockSelectionEvent, true)
-    document.removeEventListener('click', this.handleClick, true)
-    document.removeEventListener('keydown', this.handleDocumentKeyDown, true)
+  private removeInputArbiter() {
+    window.removeEventListener('pointermove', this.handlePointerMove, true)
+    window.removeEventListener('pointerdown', this.handlePointerDown, true)
+    window.removeEventListener('pointerup', this.handlePointerUp, true)
+    window.removeEventListener('pointercancel', this.handlePointerCancel, true)
+    window.removeEventListener('lostpointercapture', this.handlePointerCancel, true)
+    window.removeEventListener('mousedown', this.blockSelectionEvent, true)
+    window.removeEventListener('mouseup', this.blockSelectionEvent, true)
+    window.removeEventListener('click', this.handleClick, true)
+    window.removeEventListener('keydown', this.handleWindowKeyDown, true)
   }
 
   private isOverlayEvent(event: Event) {
     return Boolean(this.overlayHost && event.composedPath().includes(this.overlayHost))
   }
 
+  private overlayEventTarget(event: Event) {
+    const point = event as Event & { clientX?: unknown; clientY?: unknown }
+    if (
+      !this.overlayRoot ||
+      !this.isOverlayEvent(event) ||
+      typeof point.clientX !== 'number' ||
+      typeof point.clientY !== 'number'
+    ) {
+      return null
+    }
+    try {
+      return this.overlayRoot.elementFromPoint(point.clientX, point.clientY)
+    } catch {
+      return null
+    }
+  }
+
+  private overlayPin(event: Event) {
+    const target = this.overlayEventTarget(event)
+    return target instanceof Element ? target.closest<HTMLButtonElement>('.pin') : null
+  }
+
+  private blockOverlayPinEvent(event: Event) {
+    if (!this.overlayPin(event)) return false
+    event.stopImmediatePropagation()
+    return true
+  }
+
   private isEditablePath(event: Event) {
-    return event
-      .composedPath()
-      .some((target) => target instanceof Element && target.matches(SENSITIVE_EDITABLE_SELECTOR))
+    return event.composedPath().some((target) => target instanceof Element && isSensitiveEditable(target))
   }
 
   private pageEventElement(event: Event): Element | null {
-    if (this.isOverlayEvent(event) || this.isEditablePath(event)) return null
+    if (this.isEditablePath(event)) return null
+    const overlayTarget = this.overlayEventTarget(event)
+    if (overlayTarget instanceof HTMLDivElement) {
+      const iframe = this.shieldIframes.get(overlayTarget)
+      if (iframe?.isConnected) return iframe
+    }
+    for (const target of event.composedPath()) {
+      if (target instanceof HTMLDivElement) {
+        const iframe = this.shieldIframes.get(target)
+        if (iframe?.isConnected) return iframe
+      }
+    }
+    if (this.isOverlayEvent(event)) return null
     for (const target of event.composedPath()) {
       if (target instanceof Element && target !== this.overlayHost) return target
     }
@@ -577,6 +657,7 @@ export class WebviewAnnotationController {
 
   private handlePointerMove = (event: PointerEvent) => {
     if (!this.enabled || !event.isTrusted) return
+    if (this.marqueePointerId === null && this.blockOverlayPinEvent(event)) return
     if (this.marqueePointerId !== null) {
       if (event.pointerId !== this.marqueePointerId || !this.marqueeOrigin) return
       const passedThreshold =
@@ -593,13 +674,20 @@ export class WebviewAnnotationController {
         this.renderMarquee()
         this.schedulePositionUpdate()
       }
+      event.preventDefault()
+      event.stopImmediatePropagation()
       return
     }
-    this.highlightElement = this.pageEventElement(event)
+    const element = this.pageEventElement(event)
+    if (!element) return
+    this.highlightElement = element
     this.schedulePositionUpdate()
+    event.preventDefault()
+    event.stopImmediatePropagation()
   }
 
   private blockSelectionEvent = (event: Event) => {
+    if (this.enabled && event.isTrusted && this.blockOverlayPinEvent(event)) return
     if (!this.enabled || !event.isTrusted || !this.pageEventElement(event)) return
     event.preventDefault()
     event.stopImmediatePropagation()
@@ -609,6 +697,7 @@ export class WebviewAnnotationController {
     if (!this.enabled || !event.isTrusted || !event.isPrimary || event.button !== 0 || this.marqueePointerId !== null) {
       return
     }
+    if (this.blockOverlayPinEvent(event)) return
     const element = this.pageEventElement(event)
     if (!element) return
     event.preventDefault()
@@ -616,10 +705,13 @@ export class WebviewAnnotationController {
     this.marqueePointerId = event.pointerId
     this.marqueeOrigin = { x: event.clientX, y: event.clientY }
     try {
-      element.setPointerCapture(event.pointerId)
-      this.marqueePointerCapture = { target: element, pointerId: event.pointerId }
+      const eventTarget = event.composedPath().find((target): target is Element => target instanceof Element)
+      const pointerCaptureTarget =
+        (element instanceof HTMLIFrameElement ? this.iframeShields.get(element) : null) ?? eventTarget ?? element
+      pointerCaptureTarget.setPointerCapture(event.pointerId)
+      this.marqueePointerCapture = { target: pointerCaptureTarget, pointerId: event.pointerId }
     } catch {
-      // Document-level listeners still handle runtimes without pointer capture.
+      // Window-level listeners still handle runtimes without pointer capture.
     }
   }
 
@@ -646,6 +738,14 @@ export class WebviewAnnotationController {
 
   private handleClick = (event: MouseEvent) => {
     if (!this.enabled || !event.isTrusted) return
+    const pin = this.overlayPin(event)
+    if (pin) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const annotation = this.annotations.find((candidate) => candidate.id === pin.dataset.annotationId)
+      if (annotation) this.openAnnotationEditor(annotation)
+      return
+    }
     const element = this.pageEventElement(event)
     if (!element) return
     if (this.suppressNextClick) {
@@ -659,8 +759,8 @@ export class WebviewAnnotationController {
     this.openEditor({ mode: 'create-element', element })
   }
 
-  private handleDocumentKeyDown = (event: KeyboardEvent) => {
-    if (!this.enabled || !event.isTrusted || event.key !== 'Escape' || this.isOverlayEvent(event)) return
+  handleKeyDown(event: KeyboardEvent) {
+    if (!this.enabled || !event.isTrusted || event.key !== 'Escape' || this.isOverlayEvent(event)) return false
     event.preventDefault()
     event.stopImmediatePropagation()
     if (this.marqueeOrigin || this.marqueeRect) {
@@ -669,6 +769,49 @@ export class WebviewAnnotationController {
       this.closeEditor()
     } else {
       this.setEnabled(false)
+    }
+    return true
+  }
+
+  private handleWindowKeyDown = (event: KeyboardEvent) => {
+    if (!this.handleKeyDown(event)) this.onUnhandledKeyDown?.(event)
+  }
+
+  private clearIframeShields() {
+    for (const shield of this.iframeShields.values()) shield.remove()
+    this.iframeShields.clear()
+    this.shieldIframes.clear()
+  }
+
+  private updateIframeShields() {
+    if (!this.enabled || !this.iframeShieldLayer) {
+      this.clearIframeShields()
+      return
+    }
+
+    const iframes = new Set(Array.from(document.querySelectorAll('iframe')))
+    for (const [iframe, shield] of this.iframeShields) {
+      if (iframes.has(iframe)) continue
+      shield.remove()
+      this.iframeShields.delete(iframe)
+      this.shieldIframes.delete(shield)
+    }
+
+    for (const iframe of iframes) {
+      let shield = this.iframeShields.get(iframe)
+      if (!shield) {
+        shield = document.createElement('div')
+        shield.className = 'iframe-shield'
+        this.iframeShieldLayer.appendChild(shield)
+        this.iframeShields.set(iframe, shield)
+        this.shieldIframes.set(shield, iframe)
+      }
+      const rect = iframe.getBoundingClientRect()
+      shield.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none'
+      shield.style.left = `${rect.left}px`
+      shield.style.top = `${rect.top}px`
+      shield.style.width = `${rect.width}px`
+      shield.style.height = `${rect.height}px`
     }
   }
 
@@ -876,15 +1019,17 @@ export class WebviewAnnotationController {
       pin.dataset.annotationId = annotation.id
       pin.textContent = String(index + 1)
       pin.setAttribute('aria-label', `${this.locale?.edit ?? ''} ${index + 1}`.trim())
-      pin.addEventListener('click', () => {
-        const element = this.resolveAnnotationElement(annotation) ?? (annotation.region ? document.body : null)
-        if (!element) return
-        this.openEditor({ mode: 'edit', element, annotationId: annotation.id })
-      })
+      pin.addEventListener('click', () => this.openAnnotationEditor(annotation))
       this.pinLayer?.appendChild(pin)
     })
     this.startPositionTracking()
     this.schedulePositionUpdate()
+  }
+
+  private openAnnotationEditor(annotation: WebviewAnnotation) {
+    const element = this.resolveAnnotationElement(annotation) ?? (annotation.region ? document.body : null)
+    if (!element) return
+    this.openEditor({ mode: 'edit', element, annotationId: annotation.id })
   }
 
   private startPositionTracking() {
@@ -943,6 +1088,7 @@ export class WebviewAnnotationController {
     }
     for (const element of this.annotationElements.values()) collect(element)
     collect(this.editorElement)
+    if (this.enabled) for (const iframe of this.iframeShields.keys()) collect(iframe)
 
     if (next.size === this.observedRoots.size && Array.from(next).every((root) => this.observedRoots.has(root))) return
     this.mutationObserver.disconnect()
@@ -958,6 +1104,7 @@ export class WebviewAnnotationController {
     }
     for (const element of this.annotationElements.values()) collect(element)
     collect(this.editorElement)
+    if (this.enabled) for (const iframe of this.iframeShields.keys()) collect(iframe)
 
     for (const element of this.resizeObservedElements) {
       if (!next.has(element)) this.resizeObserver.unobserve(element)
@@ -991,6 +1138,7 @@ export class WebviewAnnotationController {
   private updatePositions() {
     if (!this.overlayHost) return
     if (!this.overlayHost.isConnected) document.documentElement?.appendChild(this.overlayHost)
+    this.updateIframeShields()
 
     this.annotations.forEach((annotation) => {
       const pin = this.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
