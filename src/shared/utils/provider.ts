@@ -261,11 +261,21 @@ export function getModelPreferredEndpoint(
 
   if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
 
-  // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
-  // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.
   const compatibleEndpoints = model.endpointTypes?.filter((endpointType) =>
     isEndpointCompatibleWithOperation(endpointType, operationCapability)
   )
+
+  // The provider's default chat endpoint is a setting the user picked; the declaration order below
+  // is whatever the catalog or an upstream `/models` happened to list first. Honor the setting
+  // whenever the model actually speaks it (#19688). Non-chat operations never reach here — the
+  // compatibility filter has already dropped a chat endpoint from their candidates.
+  const { defaultChatEndpoint } = provider
+  if (defaultChatEndpoint && compatibleEndpoints?.includes(defaultChatEndpoint) && isAvailable(defaultChatEndpoint)) {
+    return defaultChatEndpoint
+  }
+
+  // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
+  // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.
   const declaredEndpoint = compatibleEndpoints?.find(isAvailable)
   if (declaredEndpoint) return declaredEndpoint
 

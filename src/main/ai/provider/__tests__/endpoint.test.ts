@@ -651,7 +651,8 @@ describe('resolveEffectiveEndpoint', () => {
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         baseUrl: 'https://api.deepseek.com/anthropic'
       })
-      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      // Without a requirement the provider's default chat endpoint wins, since the model declares it.
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('is declined when the model does not declare it', () => {

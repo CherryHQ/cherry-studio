@@ -39,6 +39,46 @@ describe('getModelPreferredEndpoint', () => {
     expect(getModelPreferredEndpoint(model, makeProvider())).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
   })
 
+  it("routes to the provider's default chat endpoint over an earlier declared one (#19688)", () => {
+    // Declaration order is the catalog's, the default is the user's — the user wins.
+    const provider = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
+    const model = makeModel([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+
+    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+  })
+
+  it('keeps a pin above the provider default', () => {
+    const provider = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
+    const model = makeModel(
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+
+    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('ignores a provider default the model does not declare', () => {
+    const provider = makeProvider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
+    const model = makeModel([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+
+    expect(getModelPreferredEndpoint(model, provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('does not let the chat default hijack a non-chat operation', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://ark.example.com' }
+      }
+    })
+    const model = makeModel([ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+
+    expect(getModelPreferredEndpointForOperation(model, provider, MODEL_CAPABILITY.EMBEDDING)).toBe(
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    )
+  })
+
   it('skips a pin whose provider route was deleted rather than pairing its dialect with another host', () => {
     // The user pinned Responses, then removed that endpoint from the provider.
     const provider = makeProvider({

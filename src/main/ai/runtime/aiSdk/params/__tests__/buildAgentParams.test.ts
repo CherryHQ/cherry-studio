@@ -975,7 +975,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     const provider = makeProvider({
       id: 'dashscope',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      // This covers the Responses serialization, so the provider default names that route.
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }

@@ -48,11 +48,15 @@ operation, `resolveEffectiveEndpoint` resolves candidates in this order:
 
 1. A compatible, configured caller requirement for a runtime that speaks exactly one protocol.
 2. The model's compatible, configured `preferredEndpointType`.
-3. The first compatible model-declared endpoint with a configured provider route.
-4. If compatible declarations exist but none is configured, retain the first one and fail closed with
+3. `provider.defaultChatEndpoint`, when the model declares it and the provider still serves it. It is
+   a setting the user chose; the declaration order below is only the order a catalog or an upstream
+   `/models` happened to list.
+4. The first compatible model-declared endpoint with a configured provider route.
+5. If compatible declarations exist but none is configured, retain the first one and fail closed with
    an empty URL.
-5. Only for `text-generation`, a registered per-model gateway route or `provider.defaultChatEndpoint`.
-6. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
+6. Only for `text-generation`, a registered per-model gateway route or `provider.defaultChatEndpoint`
+   — the last-ditch form of step 3, for models that declare no protocol at all.
+7. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
    operation is not routable.
 
 `endpointTypes` is a protocol restriction, not a second model-type system. A model may support

@@ -328,7 +328,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('labels inheritance with the route the declared set resolves to, not the provider default', async () => {
+  it("labels inheritance with the provider's default chat endpoint once the model declares it", async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: {
@@ -356,8 +356,8 @@ describe('Model drawers', () => {
 
     expect(
       within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
-        // Chat completions leads the declared set, so it wins over the provider's Responses default.
-        name: `settings.models.add.preferred_endpoint.inherit_resolved (endpoint_type.openai)`
+        // The Responses default outranks the declared order, which is the catalog's, not the user's.
+        name: `settings.models.add.preferred_endpoint.inherit_resolved (endpoint_type.openai-response)`
       })
     ).toBeChecked()
   })

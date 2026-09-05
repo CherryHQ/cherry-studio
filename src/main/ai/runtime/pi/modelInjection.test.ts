@@ -105,7 +105,9 @@ describe('buildPiProviderInjection', () => {
     const provider = makeProvider({
       id: 'cherryin',
       name: 'CherryIN',
-      defaultChatEndpoint: 'openai-chat-completions',
+      // The compat flag is what this covers, so route to Anthropic the way the rest of the chain
+      // now does — through the provider default rather than the declaration order.
+      defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
         'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
         'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
@@ -124,7 +126,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
   })
 
-  it('uses the first declared endpoint when Pi supports both routes', () => {
+  it('honors the provider default when Pi supports both routes', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: {
