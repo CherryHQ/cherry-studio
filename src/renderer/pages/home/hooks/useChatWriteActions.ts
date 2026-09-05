@@ -23,7 +23,6 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
-import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -33,6 +32,7 @@ import type {
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
+import { resolveUniqueModelIds } from '@shared/utils/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
@@ -41,19 +41,17 @@ import type { useTopicMessagesCache } from './useTopicMessagesCache'
 const logger = loggerService.withContext('useChatWriteActions')
 
 function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: string): UniqueModelId[] {
-  const modelIds = new Set<UniqueModelId>()
+  const directAssistants = messages.filter(
+    (message) => message.role === 'assistant' && message.metadata?.parentId === userMessageId
+  )
+  const modelIds = resolveUniqueModelIds(
+    directAssistants.map((message) => ({
+      modelId: message.metadata?.modelId,
+      modelSnapshot: message.metadata?.messageSnapshot?.model
+    }))
+  ).filter((modelId): modelId is UniqueModelId => modelId !== undefined)
 
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    if (message.metadata?.parentId !== userMessageId) continue
-
-    const snapshot = message.metadata?.messageSnapshot
-    const model = snapshot?.model
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
-    if (modelId) modelIds.add(modelId)
-  }
-
-  return Array.from(modelIds)
+  return Array.from(new Set(modelIds))
 }
 
 function getInheritedTurnOptions(

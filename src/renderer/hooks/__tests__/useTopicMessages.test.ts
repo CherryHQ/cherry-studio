@@ -228,4 +228,49 @@ describe('useTopicMessages', () => {
     expect(Object.keys(result.current.siblingsMap).sort()).toEqual(['reply-c-1', 'reply-c-2'])
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
+
+  it('groups a legacy pre-composed snapshot with its authoritative model reply', () => {
+    const authoritativeReply = {
+      ...createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z'),
+      messageSnapshot: {
+        id: 'assistant-1',
+        name: 'Assistant',
+        model: { id: 'model-a', provider: 'provider-a', name: 'Model A' }
+      }
+    }
+    const legacyReply = {
+      ...createAssistantMessage('reply-a-2', 'provider-a::model-a', '2026-01-01T00:00:02.000Z'),
+      modelId: null,
+      messageSnapshot: {
+        id: 'assistant-1',
+        name: 'Assistant',
+        model: { id: 'provider-a::model-a', provider: 'provider-a', name: 'Model A' }
+      }
+    }
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [{ message: authoritativeReply, siblingsGroup: [legacyReply] }],
+          nextCursor: undefined,
+          activeNodeId: authoritativeReply.id
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    } as never)
+
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([authoritativeReply.id])
+    expect(result.current.siblingsMap[authoritativeReply.id].map((message) => message.id)).toEqual([
+      authoritativeReply.id,
+      legacyReply.id
+    ])
+  })
 })

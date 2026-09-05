@@ -671,6 +671,27 @@ describe('useChatWriteActions — fork and resend', () => {
     )
   })
 
+  it('inherits one model for equivalent authoritative and legacy snapshot replies', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const authoritativeReply = uiMsg('a1', 'assistant', 'u1')
+    authoritativeReply.metadata.modelId = 'provider::model-a'
+    authoritativeReply.metadata.messageSnapshot = {
+      model: { id: 'model-a', provider: 'provider' }
+    }
+    const legacyReply = uiMsg('a2', 'assistant', 'u1')
+    legacyReply.metadata.modelId = null
+    legacyReply.metadata.messageSnapshot = {
+      model: { id: 'provider::model-a', provider: 'provider' }
+    }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), authoritativeReply, legacyReply], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(expect.objectContaining({ mentionedModelIds: ['provider::model-a'] }))
+  })
+
   it('rejects edit-and-resend when stream open is blocked', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)

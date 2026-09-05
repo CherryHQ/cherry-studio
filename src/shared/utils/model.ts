@@ -31,34 +31,32 @@ export function resolveUniqueModelId(
   }
 }
 
-function matchesLegacyPrecomposedSnapshot(
-  modelId: string | null | undefined,
+interface ModelIdentityReference {
+  modelId: string | null | undefined
   modelSnapshot: { id: string; provider: string } | null | undefined
-): boolean {
-  if (!isUniqueModelId(modelId) || modelSnapshot?.id !== modelId) return false
-  return parseUniqueModelId(modelId).providerId === modelSnapshot.provider
+}
+
+/** Resolve related references, using authoritative IDs to recognize legacy snapshots. */
+export function resolveUniqueModelIds(references: readonly ModelIdentityReference[]): Array<UniqueModelId | undefined> {
+  const authoritativeIds = new Set(references.flatMap(({ modelId }) => (isUniqueModelId(modelId) ? [modelId] : [])))
+
+  return references.map(({ modelId, modelSnapshot }) => {
+    if (isUniqueModelId(modelId)) return modelId
+    if (
+      modelSnapshot &&
+      isUniqueModelId(modelSnapshot.id) &&
+      authoritativeIds.has(modelSnapshot.id) &&
+      parseUniqueModelId(modelSnapshot.id).providerId === modelSnapshot.provider
+    ) {
+      return modelSnapshot.id
+    }
+    return resolveUniqueModelId(modelId, modelSnapshot)
+  })
 }
 
 /** Return true only when two persisted references identify distinct models. */
-export function areDifferentModelIdentities(
-  left: {
-    modelId: string | null | undefined
-    modelSnapshot: { id: string; provider: string } | null | undefined
-  },
-  right: {
-    modelId: string | null | undefined
-    modelSnapshot: { id: string; provider: string } | null | undefined
-  }
-): boolean {
-  if (
-    matchesLegacyPrecomposedSnapshot(left.modelId, right.modelSnapshot) ||
-    matchesLegacyPrecomposedSnapshot(right.modelId, left.modelSnapshot)
-  ) {
-    return false
-  }
-
-  const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
-  const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
+export function areDifferentModelIdentities(left: ModelIdentityReference, right: ModelIdentityReference): boolean {
+  const [leftModelId, rightModelId] = resolveUniqueModelIds([left, right])
   if (leftModelId === undefined || rightModelId === undefined) return false
 
   return leftModelId !== rightModelId

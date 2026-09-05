@@ -203,6 +203,8 @@ export interface MessageListItem {
   updatedAt?: string
   status: MessageStatus
   modelId?: string
+  /** Persisted row identity before any snapshot fallback is projected. */
+  persistedModelId?: string | null
   /** Resolved model identity (from the author snapshot or the topic fallback). */
   model?: ModelSnapshot
   /** Producing-author snapshot (assistant|agent, model nested) frozen at creation. */

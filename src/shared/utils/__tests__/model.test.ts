@@ -16,6 +16,7 @@ import {
   isVideoModel,
   isVisionModel,
   resolveUniqueModelId,
+  resolveUniqueModelIds,
   supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
@@ -58,19 +59,35 @@ describe('shared model capability helpers', () => {
       ).toBe(true)
     })
 
-    it('does not distinguish a legacy pre-composed snapshot from the authoritative model ID', () => {
+    it('uses an authoritative ID to align related legacy pre-composed snapshots', () => {
+      const references = [
+        {
+          modelId: 'provider-a::model-a',
+          modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+        },
+        {
+          modelId: null,
+          modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
+        }
+      ] as const
+
+      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::model-a'])
+      expect(areDifferentModelIdentities(references[0], references[1])).toBe(false)
+    })
+
+    it('preserves authoritative IDs for raw model IDs containing the separator', () => {
       expect(
-        areDifferentModelIdentities(
+        resolveUniqueModelIds([
+          {
+            modelId: 'provider-a::provider-a::model-a',
+            modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
+          },
           {
             modelId: 'provider-a::model-a',
             modelSnapshot: { provider: 'provider-a', id: 'model-a' }
-          },
-          {
-            modelId: null,
-            modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
           }
-        )
-      ).toBe(false)
+        ])
+      ).toEqual(['provider-a::provider-a::model-a', 'provider-a::model-a'])
     })
 
     it('does not classify unresolvable snapshots as different models', () => {

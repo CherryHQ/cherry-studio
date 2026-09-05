@@ -99,6 +99,14 @@ describe('getDirectAssistantModelsByUserId', () => {
       id: 'assistant-a-duplicate',
       createdAt: '2026-01-01T00:00:02.000Z'
     } as MessageListItem
+    const legacySnapshotReply = {
+      ...firstReply,
+      id: 'assistant-a-legacy',
+      createdAt: '2026-01-01T00:00:02.500Z',
+      modelId: 'provider-a::provider-a::model-a',
+      persistedModelId: null,
+      model: { id: 'provider-a::model-a', name: 'Model A', provider: 'provider-a' }
+    } as MessageListItem
     const snapshotOnlyReply = {
       id: 'assistant-b',
       role: 'assistant',
@@ -132,6 +140,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       user,
       firstReply,
       duplicateReply,
+      legacySnapshotReply,
       snapshotOnlyReply,
       followUpUser,
       descendantReply
