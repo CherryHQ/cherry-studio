@@ -165,19 +165,21 @@ function ModelControl({
   'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
   const { t } = useTranslation()
-  const { getModelFreeQuotaStatus, isModelDisabled, isModelExclusiveToAgent } = useAgentModelAvailability()
+  const { getModelFreeQuotaStatus, isModelDisabled, isModelExclusiveToAgent, isModelQuotaExhausted } =
+    useAgentModelAvailability()
   const getModelDetailDescription = useCallback<ModelSelectorDetailDescriptionResolver>(
     (candidate) => {
       const quotaStatus = getModelFreeQuotaStatus(candidate)
-      if (!quotaStatus) return undefined
       if (quotaStatus === 'exhausted') return t('models.detail.free_quota_exhausted')
+      if (isModelQuotaExhausted(candidate)) return t('models.detail.quota_exhausted')
+      if (!quotaStatus) return undefined
       return t(
         isModelExclusiveToAgent(candidate)
           ? 'models.detail.limited_time_free_agent_only'
           : 'models.detail.limited_time_free'
       )
     },
-    [getModelFreeQuotaStatus, isModelExclusiveToAgent, t]
+    [getModelFreeQuotaStatus, isModelExclusiveToAgent, isModelQuotaExhausted, t]
   )
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)

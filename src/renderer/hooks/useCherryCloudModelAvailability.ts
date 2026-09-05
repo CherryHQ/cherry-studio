@@ -63,6 +63,10 @@ export function useCherryCloudModelAvailability(enabled = true) {
         }
         return quotaExhaustedModelIds.has(model.id) ? 'exhausted' : 'available'
       },
+      isModelQuotaExhausted: (model: Model) =>
+        isManagedCherryCloudModel(model.providerId) &&
+        entitledModelIds.has(model.id) &&
+        quotaExhaustedModelIds.has(model.id),
       isModelAvailableForFeature,
       isModelDisabledForFeature: (model: Model, feature: CherryCloudModelFeature) =>
         isManagedCherryCloudModel(model.providerId) &&
