@@ -31,7 +31,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({ default: () => null }))
-vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
+vi.mock('../WebviewAnnotationControls', () => ({
   WebviewAnnotationControls: () => <div data-testid="annotation-controls" />
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
