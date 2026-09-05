@@ -58,9 +58,8 @@ export function useImeAwareDebouncedValue(
 
   const handleCompositionEnd = useCallback((event: CompositionEvent<HTMLInputElement>) => {
     isComposingRef.current = false
-    // Some engines emit `compositionend` before the final change event, so
-    // the controlled `value` can still hold the romanization intermediate
-    // here; commit the input's actual DOM value instead.
+    // `compositionend` can precede the final change event, so the controlled
+    // `value` may still hold the intermediate: commit the DOM value instead.
     setCommittedValue(event.currentTarget.value.trim())
   }, [])
 
