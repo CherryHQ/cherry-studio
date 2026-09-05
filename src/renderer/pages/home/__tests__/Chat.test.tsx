@@ -172,12 +172,11 @@ vi.mock('../ChatContent', async () => {
 
   function MockChatContent(props: any) {
     chatContentProps.current = props
-    const { railGutterPx, setRailGutterPx } = useChatLayoutMode()
+    const { setRailGutter } = useChatLayoutMode()
 
     return (
       <div data-testid="chat-content">
-        <output aria-label="rail gutter">{railGutterPx}</output>
-        <button type="button" onClick={() => setRailGutterPx(24)}>
+        <button type="button" onClick={() => setRailGutter(24, 1)}>
           reserve rail gutter
         </button>
       </div>
@@ -302,11 +301,13 @@ describe('Chat', () => {
     const view = render(<Chat activeTopic={topic} />)
 
     await user.click(screen.getByRole('button', { name: 'reserve rail gutter' }))
-    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+    const layoutOwner = screen.getByTestId('chat-content').parentElement
+    expect(layoutOwner?.style.getPropertyValue('--chat-rail-gutter')).toBe('24px')
 
     view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
 
-    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+    expect(screen.getByTestId('chat-content').parentElement).toBe(layoutOwner)
+    expect(layoutOwner?.style.getPropertyValue('--chat-rail-gutter')).toBe('24px')
   })
 
   it('renders the navbar while the active topic is still resolving', () => {

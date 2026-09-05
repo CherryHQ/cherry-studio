@@ -368,12 +368,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       className="pointer-events-auto"
       style={{
         width: '100%',
-        ...(props.railGutterPx != null
-          ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + props.railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + props.railGutterPx
-            }
-          : {})
+        paddingLeft: `calc(${COMPOSER_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`,
+        paddingRight: `calc(${COMPOSER_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`
       }}>
       <div className="w-full">
         <div className="inputbar relative z-2 flex flex-col pt-0" onDragOver={handleDragOver} onDrop={handleDrop}>
