@@ -47,6 +47,7 @@ import {
   generateImageFromPrompt,
   PAINTING_EDIT_NOT_SUPPORTED_NOTE,
   PAINTING_ERROR_NOTE,
+  PAINTING_INVALID_OUTPUT_NOTE,
   PAINTING_MODEL_NOT_CONFIGURED_NOTE
 } from '../../../../painting'
 import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
@@ -251,6 +252,18 @@ describe('generate_image', () => {
     const result = await callExecute({ prompt: 'a cat' })
 
     expect(result).toEqual({ error: PAINTING_ERROR_NOTE })
+  })
+
+  it('surfaces rejected provider output instead of reporting an empty success', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockResolvedValue({
+      files: [],
+      validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' }] }
+    })
+
+    const result = await callExecute({ prompt: 'a cat' })
+
+    expect(result).toEqual({ error: PAINTING_INVALID_OUTPUT_NOTE })
   })
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {

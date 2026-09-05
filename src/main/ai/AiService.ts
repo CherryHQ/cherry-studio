@@ -46,9 +46,6 @@ import {
   NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
-import { XMLParser, XMLValidator } from 'fast-xml-parser'
-import { fileTypeFromBuffer } from 'file-type'
-import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -79,6 +76,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { validateGeneratedImage } from './utils/generatedImage'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
@@ -93,30 +91,6 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
-const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
-const SVG_MEDIA_TYPE = 'image/svg+xml'
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
-const svgParser = new XMLParser({ ignoreAttributes: false, processEntities: false })
-
-function isValidSvgImage(data: Buffer): boolean {
-  try {
-    const source = new TextDecoder('utf-8', { fatal: true }).decode(data)
-    if (/<!DOCTYPE\b/i.test(source) || XMLValidator.validate(source) !== true) return false
-
-    const document = svgParser.parse(source)
-    const roots = Object.keys(document).filter((key) => key !== '?xml')
-    if (roots.length !== 1) return false
-
-    const rootName = roots[0]
-    const [prefix, localName] = rootName.includes(':') ? rootName.split(':') : ['', rootName]
-    const root = localName === 'svg' ? document[rootName] : undefined
-    const namespaceAttribute = prefix ? `@_xmlns:${prefix}` : '@_xmlns'
-    return typeof root === 'object' && root !== null && root[namespaceAttribute] === SVG_NAMESPACE
-  } catch {
-    return false
-  }
-}
-
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
@@ -894,29 +868,9 @@ export class AiService extends BaseService {
     const dataUrls: Base64String[] = []
     const rejected: NonNullable<AiImageResult['validation']>['rejected'] = []
     for (const [index, image] of images.entries()) {
-      const mediaType = image.mediaType || 'image/png'
-      if (!mediaType.startsWith('image/')) {
-        rejected.push({ index, reason: 'unsupported_media_type' })
-      } else if (!image.base64 || !GENERATED_IMAGE_BASE64_SCHEMA.safeParse(image.base64).success) {
-        rejected.push({ index, reason: 'invalid_image_data' })
-      } else {
-        try {
-          const imageBytes = Buffer.from(image.base64, 'base64')
-          const detectedType = await fileTypeFromBuffer(imageBytes)
-          const detectedMediaType = detectedType?.mime.startsWith('image/')
-            ? detectedType.mime
-            : mediaType === SVG_MEDIA_TYPE && isValidSvgImage(imageBytes)
-              ? SVG_MEDIA_TYPE
-              : undefined
-          if (!detectedMediaType) {
-            rejected.push({ index, reason: 'invalid_image_data' })
-          } else {
-            dataUrls.push(`data:${detectedMediaType};base64,${image.base64}`)
-          }
-        } catch {
-          rejected.push({ index, reason: 'invalid_image_data' })
-        }
-      }
+      const validated = await validateGeneratedImage(image)
+      if (validated.reason) rejected.push({ index, reason: validated.reason })
+      else dataUrls.push(validated.data)
     }
 
     const validation =
@@ -1044,7 +998,7 @@ export class AiService extends BaseService {
 
     if (snapshot.status === 'completed') {
       const output = snapshot.output as ImageGenerationJobOutput | null
-      return { files: output?.files ?? [] }
+      return { files: output?.files ?? [], ...(output?.validation && { validation: output.validation }) }
     }
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')

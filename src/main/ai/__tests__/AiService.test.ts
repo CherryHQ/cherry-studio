@@ -2469,6 +2469,36 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     ])
   })
 
+  it('preserves custom-job output validation for the IPC consumer', async () => {
+    const service = createService()
+    stubResolution(service)
+    const validation = { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' as const }] }
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn() }
+      if (name === 'JobManager') {
+        return {
+          enqueueTx: () => ({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'completed', output: { files: [], validation }, error: null })
+          }),
+          cancel: vi.fn()
+        }
+      }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    ).resolves.toEqual({ files: [], validation })
+  })
+
   it('never stamps the caller output policy on the temp input / mask copies', async () => {
     // Regression: the builtin chat tool sends cleanupPolicy 'manual' for its *outputs*
     // (they carry no ref yet — #17169). That must not reach the job's input/mask scratch
