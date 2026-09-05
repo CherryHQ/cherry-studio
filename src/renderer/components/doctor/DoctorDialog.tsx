@@ -7,7 +7,7 @@ import { toast } from '@renderer/services/toast'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { ArrowLeft } from 'lucide-react'
-import { lazy, Suspense, useCallback, useRef } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
@@ -37,6 +37,7 @@ type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, 
 export function DoctorDialog({ initialDescription, initialPanel, open, resolve }: DoctorDialogProps) {
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadDialogHandle>(null)
+  const panelHeadingRef = useRef<HTMLDivElement>(null)
 
   const finishHandoff = useCallback(
     async (action: () => void) => {
@@ -105,6 +106,10 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
 
   const panelDescription = t(PANEL_DESCRIPTION_KEYS[controller.session.activePanel])
 
+  useEffect(() => {
+    panelHeadingRef.current?.focus()
+  }, [controller.session.activePanel])
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && void close()}>
       <DialogContent
@@ -127,7 +132,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
               {t('settings.doctor.actions.back_to_checks')}
             </Button>
           ) : null}
-          <div className="min-w-0 flex-1 space-y-1">
+          <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{t('settings.doctor.title')}</DialogTitle>
             <DialogDescription>{panelDescription}</DialogDescription>
           </div>

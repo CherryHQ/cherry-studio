@@ -28,7 +28,7 @@ import {
   Copy,
   RotateCcw
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -60,6 +60,18 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const { session, viewModel } = controller
   const interaction = session.interaction
   const dataPath = viewModel.report?.basics.userDataPath
+  const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
+
+  useEffect(() => {
+    if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
+    const checkId = restoreActionCheckRef.current
+    restoreActionCheckRef.current = null
+    document
+      .querySelector<HTMLButtonElement>(
+        `[data-doctor-action-check="${checkId}"], [data-doctor-evidence-trigger="${checkId}"]`
+      )
+      ?.focus()
+  }, [interaction.kind])
 
   const copyResults = async () => {
     if (!viewModel.report) return
@@ -97,6 +109,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   }
 
   if (interaction.kind === 'confirm-fix') {
+    const checkId = interaction.request.checkId
     const affectedResult = viewModel.rows.find((row) => row.id === interaction.request.checkId)?.result
     return (
       <ConfirmationPanel
@@ -104,19 +117,29 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
         description={<FixConfirmationDescription checkId={interaction.request.checkId} result={affectedResult} />}
         confirmLabel={fixLabel(t, interaction.request, controller.mcpServerName(interaction.request.target))}
         destructive
-        onCancel={controller.cancelFixConfirmation}
-        onConfirm={() => void controller.confirmFix()}
+        onCancel={() => {
+          restoreActionCheckRef.current = checkId
+          controller.cancelFixConfirmation()
+        }}
+        onConfirm={() => {
+          restoreActionCheckRef.current = checkId
+          void controller.confirmFix()
+        }}
       />
     )
   }
 
   if (interaction.kind === 'confirm-evidence') {
+    const checkId = interaction.checkId
     return (
       <ConfirmationPanel
         title={t('settings.doctor.confirm_evidence.title')}
         description={t('settings.doctor.confirm_evidence.description')}
         confirmLabel={t('settings.doctor.actions.show_details')}
-        onCancel={controller.cancelFixConfirmation}
+        onCancel={() => {
+          restoreActionCheckRef.current = checkId
+          controller.cancelFixConfirmation()
+        }}
         onConfirm={controller.confirmEvidence}
       />
     )
@@ -385,6 +408,11 @@ function DoctorCheckRow({
   const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []
   const runId = controller.viewModel.report?.runId
   const primaryAction = row.actions[0]
+  const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
+
+  useEffect(() => {
+    if (isEvidenceRevealed) sensitiveEvidenceRef.current?.focus()
+  }, [isEvidenceRevealed])
 
   return (
     <div className="rounded-lg px-2 py-3 hover:bg-accent/40">
@@ -406,11 +434,14 @@ function DoctorCheckRow({
             </dl>
           ) : null}
           {localEvidence.length > 0 || sensitiveEvidence.length > 0 ? (
-            <details className="pt-1 text-xs">
+            <details className="pt-1 text-xs" open={isEvidenceRevealed || undefined}>
               <summary className="cursor-pointer text-muted-foreground">
                 {t('settings.doctor.evidence.local_details')}
               </summary>
-              <dl className="selectable mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+              <dl
+                ref={sensitiveEvidenceRef}
+                tabIndex={isEvidenceRevealed ? -1 : undefined}
+                className="selectable mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
                 {localEvidence.map((item) => (
                   <Evidence
                     key={`${item.key}-${String(item.value)}`}
@@ -418,20 +449,19 @@ function DoctorCheckRow({
                     value={String(item.value)}
                   />
                 ))}
-                {isEvidenceRevealed
-                  ? sensitiveEvidence.map((item) => (
-                      <Evidence
-                        key={`${item.key}-${String(item.value)}`}
-                        name={`${item.key} · ${t('settings.doctor.evidence.consent_required')}`}
-                        value={String(item.value)}
-                      />
-                    ))
-                  : null}
+                {sensitiveEvidence.map((item) => (
+                  <Evidence
+                    key={`${item.key}-${String(item.value)}`}
+                    name={`${item.key} · ${t('settings.doctor.evidence.consent_required')}`}
+                    value={isEvidenceRevealed ? String(item.value) : '••••••'}
+                  />
+                ))}
               </dl>
               {sensitiveEvidence.length > 0 && !isEvidenceRevealed ? (
                 <Button
                   variant="link"
                   className="mt-2 h-auto px-0 py-0 text-xs"
+                  data-doctor-evidence-trigger={row.id}
                   onClick={() => controller.requestEvidence(row.id)}>
                   {t('settings.doctor.actions.show_details')}
                 </Button>
@@ -500,6 +530,7 @@ function DoctorActionButton({
       size="sm"
       loading={loading}
       disabled={disabled}
+      data-doctor-action-check={row.id}
       onClick={() => void controller.executeAction(row.id, action, runId)}>
       {actionLabel(t, controller, row.id, action)}
     </Button>
@@ -594,8 +625,12 @@ function ConfirmationPanel({
   readonly title: string
 }) {
   const { t } = useTranslation()
+  const focusRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => focusRef.current?.focus(), [])
+
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
+    <div ref={focusRef} tabIndex={-1} className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
       <Scrollbar className="min-h-0 px-6 py-4">
         <Alert type="warning" showIcon message={title} description={description} />
       </Scrollbar>
