@@ -57,6 +57,7 @@ interface ErrorDetailContentProps {
 }
 
 interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
+  readonly doctorCloseBlocked?: boolean
   readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
 }
 
@@ -513,6 +514,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   onOpenDiagnosticReport,
   cachedDiagnosis,
   onDoctorNavigate,
+  doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
@@ -538,7 +540,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   }, [error, t])
 
   const openDiagnosticReport = useCallback(() => {
-    if (!diagnosticReport || !onOpenDiagnosticReport) return
+    if (doctorCloseBlocked || !diagnosticReport || !onOpenDiagnosticReport) return
     onOpenDiagnosticReport(
       buildDiagnosticReportDescription({
         diagnosisContext,
@@ -554,7 +556,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         location: diagnosticReport.location
       })
     )
-  }, [diagnosticReport, diagnosisContext, error, onOpenDiagnosticReport, t])
+  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, onOpenDiagnosticReport, t])
 
   const showDetails = () => {
     setDetailsOpen(true)
@@ -606,7 +608,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
 
       {diagnosticReport && onOpenDiagnosticReport ? (
         <div role="group" aria-label={t('error.detail')} className="flex justify-end">
-          <Button variant="emphasis" onClick={openDiagnosticReport}>
+          <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}
           </Button>
@@ -663,7 +665,11 @@ const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps 
         onEscapeKeyDown={(event) => {
           if (doctorCloseBlocked) event.preventDefault()
         }}>
-        <ErrorDetailContent {...props} onDoctorCloseBlockedChange={setDoctorCloseBlocked} />
+        <ErrorDetailContent
+          {...props}
+          doctorCloseBlocked={doctorCloseBlocked}
+          onDoctorCloseBlockedChange={setDoctorCloseBlocked}
+        />
       </DialogContent>
     </Dialog>
   )
