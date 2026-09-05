@@ -1,5 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { type ClaudeCodeExitCategory, isClaudeCodeExitCategory } from '@shared/types/error'
 
 export interface ErrorClassification {
   category:
@@ -24,6 +25,24 @@ export interface ErrorClassification {
     | 'unknown'
   i18nKey: string
   navTarget: string | null
+}
+
+function classifyClaudeCodeExit(category: ClaudeCodeExitCategory, providerSuffix: string): ErrorClassification {
+  const providerCategories = new Set<ErrorClassification['category']>([
+    'auth',
+    'permission',
+    'model',
+    'quota',
+    'rate_limit'
+  ])
+  const navTarget = providerCategories.has(category)
+    ? `/settings/provider${providerSuffix}`
+    : category === 'network' || category === 'proxy'
+      ? '/settings/general'
+      : category === 'mcp'
+        ? '/settings/mcp/servers'
+        : null
+  return { category, i18nKey: `error.diagnosis.${category}`, navTarget }
 }
 
 export function isQuotaErrorMessage(message: string): boolean {
@@ -99,6 +118,11 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const errorBag = error as Record<string, unknown>
+  const providerSuffix = providerId ? `?id=${providerId}` : ''
+  const explicitClaudeCodeCategory = errorBag.claudeCodeExitCategory
+  if (isClaudeCodeExitCategory(explicitClaudeCodeCategory)) {
+    return classifyClaudeCodeExit(explicitClaudeCodeCategory, providerSuffix)
+  }
   const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
 
   switch (finishReason) {
@@ -111,7 +135,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody.toLowerCase() : ''

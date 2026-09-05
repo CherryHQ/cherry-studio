@@ -19,6 +19,27 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it.each([
+    ['auth', '/settings/provider?id=anthropic'],
+    ['model', '/settings/provider?id=anthropic'],
+    ['rate_limit', '/settings/provider?id=anthropic'],
+    ['network', '/settings/general'],
+    ['mcp', '/settings/mcp/servers'],
+    ['unknown', null]
+  ] as const)('uses an explicit Claude Code %s exit category', (category, navTarget) => {
+    expect(
+      classifyError(
+        {
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: category
+        },
+        'anthropic'
+      )
+    ).toMatchObject({ category, navTarget })
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
