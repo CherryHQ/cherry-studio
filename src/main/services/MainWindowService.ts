@@ -555,18 +555,9 @@ export class MainWindowService extends BaseService {
         return
       }
 
-      /**
-       * About setVisibleOnAllWorkspaces
-       *
-       * [macOS] Known Issue
-       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
-       *  AppleScript may be a solution, but it's not worth
-       *
-       * [Linux] Known Issue
-       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
-       *  因此在 Linux 环境下不执行这两行代码
-       */
-      if (!isLinux) {
+      // Windows uses this toggle to raise covered windows. On macOS it briefly hides the window
+      // and Dock while transforming the process type; Linux compositors also handle it poorly.
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
@@ -583,7 +574,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
-      if (!isLinux) {
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
       this.pushMainWindowInitData(initData)
