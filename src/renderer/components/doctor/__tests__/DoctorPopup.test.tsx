@@ -256,7 +256,10 @@ describe('DoctorPopup', () => {
             id: 'logs-recent-findings',
             status: 'warn',
             durationMs: 1,
-            evidence: [{ key: 'request-body', value: 'private response', dataClass: 'consent_required' }]
+            attribution: 'app-bug',
+            detail: { variant: 'findings' },
+            evidence: [{ key: 'request-body', value: 'private response', dataClass: 'consent_required' }],
+            actions: []
           }
         ],
         summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
