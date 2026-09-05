@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Éditer le dernier message utilisateur",
   "settings.shortcuts.empty": "Aucun raccourci n’est disponible dans ce groupe",
   "settings.shortcuts.exit_fullscreen": "Quitter le plein écran",
+  "settings.shortcuts.focus_input": "Activer le champ de saisie",
   "settings.shortcuts.new_topic": "Nouveau sujet",
   "settings.shortcuts.next_tab": "Onglet suivant",
   "settings.shortcuts.occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",

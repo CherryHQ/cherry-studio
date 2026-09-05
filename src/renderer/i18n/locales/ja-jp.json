@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "最後のユーザーメッセージを編集",
   "settings.shortcuts.empty": "このグループには利用可能なショートカットはありません",
   "settings.shortcuts.exit_fullscreen": "フルスクリーンを終了",
+  "settings.shortcuts.focus_input": "入力欄にフォーカス",
   "settings.shortcuts.new_topic": "新しいトピック",
   "settings.shortcuts.next_tab": "次のタブ",
   "settings.shortcuts.occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",

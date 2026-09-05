@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Editar último mensaje de usuario",
   "settings.shortcuts.empty": "No hay accesos directos disponibles en este grupo",
   "settings.shortcuts.exit_fullscreen": "Salir de pantalla completa",
+  "settings.shortcuts.focus_input": "Enfocar el campo de entrada",
   "settings.shortcuts.new_topic": "Nuevo tema",
   "settings.shortcuts.next_tab": "Siguiente pestaña",
   "settings.shortcuts.occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",

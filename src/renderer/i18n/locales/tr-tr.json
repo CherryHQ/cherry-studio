@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Son Kullanıcı Mesajını Düzenle",
   "settings.shortcuts.empty": "Bu grupta kullanılabilir kısayol yok",
   "settings.shortcuts.exit_fullscreen": "Tam Ekrandan Çık",
+  "settings.shortcuts.focus_input": "Giriş alanına odaklan",
   "settings.shortcuts.new_topic": "Yeni Konuşma",
   "settings.shortcuts.next_tab": "Sonraki Sekme",
   "settings.shortcuts.occupied_by_other_application": "Bu kısayol sistem veya başka bir uygulama tarafından zaten kullanılıyor",

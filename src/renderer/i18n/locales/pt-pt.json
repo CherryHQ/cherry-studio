@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Editar última mensagem do utilizador",
   "settings.shortcuts.empty": "Nenhum atalho está disponível neste grupo",
   "settings.shortcuts.exit_fullscreen": "Sair do ecrã cheia",
+  "settings.shortcuts.focus_input": "Focar o campo de entrada",
   "settings.shortcuts.new_topic": "Novo tópico",
   "settings.shortcuts.next_tab": "Próxima aba",
   "settings.shortcuts.occupied_by_other_application": "Este atalho já está a ser utilizado pelo sistema ou por outra aplicação",

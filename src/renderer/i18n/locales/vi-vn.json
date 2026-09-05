@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
   "settings.shortcuts.empty": "Không có phím tắt nào khả dụng trong nhóm này",
   "settings.shortcuts.exit_fullscreen": "Thoát toàn màn hình",
+  "settings.shortcuts.focus_input": "Tập trung vào ô nhập",
   "settings.shortcuts.new_topic": "Chủ đề mới",
   "settings.shortcuts.next_tab": "Tab tiếp theo",
   "settings.shortcuts.occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",

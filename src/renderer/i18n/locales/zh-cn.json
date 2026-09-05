@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "编辑最后一条用户消息",
   "settings.shortcuts.empty": "当前分组下没有可显示的快捷键",
   "settings.shortcuts.exit_fullscreen": "退出全屏",
+  "settings.shortcuts.focus_input": "激活输入框",
   "settings.shortcuts.new_topic": "新建对话",
   "settings.shortcuts.next_tab": "下一个标签页",
   "settings.shortcuts.occupied_by_other_application": "该快捷键已被系统或其他应用占用",

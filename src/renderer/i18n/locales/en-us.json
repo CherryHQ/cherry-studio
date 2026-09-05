@@ -4838,6 +4838,7 @@
   "settings.shortcuts.edit_last_user_message": "Edit Last User Message",
   "settings.shortcuts.empty": "No shortcuts are available in this group",
   "settings.shortcuts.exit_fullscreen": "Exit Fullscreen",
+  "settings.shortcuts.focus_input": "Focus Input",
   "settings.shortcuts.new_topic": "New Conversation",
   "settings.shortcuts.next_tab": "Next Tab",
   "settings.shortcuts.occupied_by_other_application": "This shortcut is already used by the system or another application",
