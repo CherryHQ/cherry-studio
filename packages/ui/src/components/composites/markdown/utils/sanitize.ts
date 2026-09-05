@@ -10,6 +10,12 @@
 export const SVG_ELEMENT_REGEX = /<svg[\s>]/i
 export const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
+const SAFE_COLOR_VALUE = String.raw`(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\([\d.%+,\s-]+\)|[a-z]+)`
+const SAFE_INLINE_COLOR_STYLE = new RegExp(
+  String.raw`^\s*(?:(?:color|background-color)\s*:\s*${SAFE_COLOR_VALUE}\s*;?\s*){1,2}$`,
+  'i'
+)
+
 export const SVG_ELEMENTS = [
   'svg',
   'defs',
@@ -204,7 +210,7 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
 
   return {
     ...schema,
-    tagNames: mergeUnique(schema.tagNames, ['span'], SVG_ELEMENTS),
+    tagNames: mergeUnique(schema.tagNames, ['mark', 'progress', 'small', 'span', 'u'], SVG_ELEMENTS),
     strip: mergeUnique(schema.strip, ['style']),
     attributes: {
       ...schema.attributes,
@@ -224,8 +230,10 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
         'data-composer-token-index',
         'dataComposerTokenIndex',
         'data-composer-token-block',
-        'dataComposerTokenBlock'
+        'dataComposerTokenBlock',
+        ['style', SAFE_INLINE_COLOR_STYLE]
       ]),
+      progress: mergeUnique(schema.attributes?.progress, ['max', 'value']),
       // The attribute is an opaque display id. Full citation JSON is deliberately rejected so
       // untrusted markdown cannot supply tooltip URLs, titles, or content.
       sup: mergeUnique(

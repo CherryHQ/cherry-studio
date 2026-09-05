@@ -1,3 +1,5 @@
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -23,21 +25,38 @@ describe('Cherry Cloud provider transport', () => {
     mocks.authenticatedFetch.mockResolvedValue(new Response('{}', { status: 200 }))
   })
 
-  it('delegates only the configured Cloud path and strips caller credentials', async () => {
-    const config = buildCherryCloudProviderConfig('messages')
+  it.each([
+    {
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      providerId: 'anthropic',
+      path: '/v1/messages'
+    },
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      providerId: 'openai-compatible',
+      path: '/v1/chat/completions'
+    }
+  ])('routes $endpointType through $path and strips caller credentials', async ({ endpointType, providerId, path }) => {
+    const config = buildCherryCloudProviderConfig(endpointType, 'messages')
     const settings = config.providerSettings as {
       apiKey?: string
       baseURL?: string
       fetch?: typeof globalThis.fetch
+      includeUsage?: boolean
+      name?: string
     }
     const controller = new AbortController()
 
-    expect(config.providerId).toBe('anthropic')
+    expect(config.providerId).toBe(providerId)
     expect(config.endpoint).toBe('messages')
     expect(settings.baseURL).toBe('https://cloud.cherryai.com.cn/v1')
     expect(settings.apiKey).toBeTruthy()
+    if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+      expect(settings.name).toBe(CHERRY_CLOUD_PROVIDER_ID)
+      expect(settings.includeUsage).toBe(true)
+    }
 
-    const response = await settings.fetch!(new URL('https://cloud.cherryai.com.cn/v1/messages?beta=true'), {
+    const response = await settings.fetch!(new URL(`https://cloud.cherryai.com.cn${path}?beta=true`), {
       method: 'POST',
       headers: {
         Authorization: 'Bearer caller-token',
@@ -57,9 +76,9 @@ describe('Cherry Cloud provider transport', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.authenticatedFetch).toHaveBeenCalledOnce()
-    const [path, init] = mocks.authenticatedFetch.mock.calls[0]
+    const [requestPath, init] = mocks.authenticatedFetch.mock.calls[0]
     const headers = new Headers(init.headers)
-    expect(path).toBe('/v1/messages?beta=true')
+    expect(requestPath).toBe(`${path}?beta=true`)
     expect(init).toMatchObject({ method: 'POST', body: '{"model":"claude"}' })
     expect(headers.get('content-type')).toBe('application/json')
     expect(headers.get('idempotency-key')).toBe('request-1')
@@ -76,16 +95,19 @@ describe('Cherry Cloud provider transport', () => {
     expect(init.signal?.aborted).toBe(true)
   })
 
-  it('rejects requests outside the configured Cloud message route', async () => {
-    const config = buildCherryCloudProviderConfig()
+  it.each([
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/chat/completions'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/messages']
+  ])('rejects requests outside the configured %s route', async (endpointType, mismatchedPath) => {
+    const config = buildCherryCloudProviderConfig(endpointType)
     const fetch = (config.providerSettings as { fetch?: typeof globalThis.fetch }).fetch!
 
-    await expect(fetch('https://example.com/v1/messages', { method: 'POST', body: '{}' })).rejects.toThrow(
+    await expect(fetch(`https://example.com${mismatchedPath}`, { method: 'POST', body: '{}' })).rejects.toThrow(
       'configured Cherry Cloud API origin'
     )
-    await expect(fetch('https://cloud.cherryai.com.cn/api/v1/account', { method: 'GET' })).rejects.toThrow(
-      'configured Cherry Cloud API origin'
-    )
+    await expect(
+      fetch(`https://cloud.cherryai.com.cn${mismatchedPath}`, { method: 'POST', body: '{}' })
+    ).rejects.toThrow('configured Cherry Cloud API origin')
     expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
   })
 })

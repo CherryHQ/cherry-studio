@@ -41,6 +41,11 @@ export interface ToolGuardContext {
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean
+  /**
+   * Live stuck-loop predicate for Bash; returns the identical-output run length when the command
+   * is looping without progress, undefined when no history is bound or the run has not formed.
+   */
+  readonly bashNoProgressRun?: (command: string) => number | undefined
 }
 
 /** A condition match; `evidence` carries detector output for dynamic reasons. */

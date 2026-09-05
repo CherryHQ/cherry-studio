@@ -46,9 +46,7 @@ const embeddingModel2 = {
   capabilities: [MODEL_CAPABILITY.EMBEDDING]
 }
 
-function modelPath(id: string) {
-  return `/models/${id}`
-}
+const modelPath = (id: string) => `/models/${id}`
 
 function stubModelQueries(
   models: Record<string, Model | undefined>,
@@ -91,9 +89,8 @@ function stubResolvedModels() {
 }
 
 function createWrapper(cache = new Map()) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(SWRConfig, { value: { provider: () => cache } }, children)
-  }
+  return ({ children }: { children: ReactNode }) =>
+    createElement(SWRConfig, { value: { provider: () => cache } }, children)
 }
 
 function enableSuggestions(modelId: string | null = null, defaultModelId = defaultModel.id) {

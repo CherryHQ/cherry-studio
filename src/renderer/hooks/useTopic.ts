@@ -190,7 +190,7 @@ function isRenderableTopicMessage(message: SharedMessage): boolean {
  */
 export async function getTopicMessages(
   id: string,
-  options: { maxMessages?: number } = {}
+  options: { maxMessages?: number; nodeId?: string; includeSiblings?: boolean } = {}
 ): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
@@ -200,7 +200,12 @@ export async function getTopicMessages(
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
-        query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
+        query: {
+          limit: MESSAGES_PAGE_SIZE,
+          nodeId: options.nodeId,
+          includeSiblings: options.includeSiblings ?? true,
+          cursor
+        }
       })) as BranchMessagesResponse
 
       // Topic-level fields are stable across pages; first response wins.

@@ -42,13 +42,13 @@ const ExportMenuOptions: FC = () => {
       <SettingSubtitle className="py-3">{t('settings.data.export_menu.categories.file')}</SettingSubtitle>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow id="setting-data-export-image" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.image} onCheckedChange={(checked) => handleToggleOption('image', checked)} />
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow id="setting-data-export-markdown" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
         <Switch
           checked={exportMenuOptions.markdown}
@@ -66,7 +66,7 @@ const ExportMenuOptions: FC = () => {
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow id="setting-data-export-docx" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
       </SettingRow>
@@ -120,7 +120,7 @@ const ExportMenuOptions: FC = () => {
       <SettingSubtitle className="py-3">{t('settings.data.export_menu.categories.copy')}</SettingSubtitle>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow id="setting-data-export-plain-text" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
         <Switch
           checked={exportMenuOptions.plain_text}
