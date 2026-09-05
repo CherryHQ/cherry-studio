@@ -506,6 +506,11 @@ function FilesPage() {
   }, [])
 
   useEffect(() => {
+    // SWR keeps the previous pages while a filter/scope query revalidates. Those
+    // rows are only a visual bridge and can include files hidden by the new
+    // filter, so do not hydrate them until the current query has settled.
+    if (isFilesRefreshing) return
+
     if (displayEntries.length === 0) {
       if (isFilesLoading || isFilesRefreshing) return
       const trackers = [

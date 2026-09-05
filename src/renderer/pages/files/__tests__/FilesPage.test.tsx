@@ -674,6 +674,54 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByText('files.empty.no_match_title')).not.toBeInTheDocument()
   })
 
+  it('does not hydrate previous rows while a filtered query is refreshing', async () => {
+    mockFileStats(statsForEntries([entry]))
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { fileType?: string; inTrash?: boolean } | undefined
+      if (query?.inTrash) {
+        return {
+          pages: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+
+      return {
+        // keepPreviousData exposes the old row while the filtered request is in flight
+        pages: [{ items: [entry] }],
+        isLoading: Boolean(query?.fileType),
+        isRefreshing: Boolean(query?.fileType),
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    ipcMocks.request.mockResolvedValue({})
+    render(<FilesPage />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    ipcMocks.request.mockClear()
+
+    fireEvent.click(screen.getByText('files.text'))
+
+    await waitFor(() => {
+      const activeCall = mockUseInfiniteQuery.mock.calls
+        .filter((call) => !(call[1]?.query as { inTrash?: boolean } | undefined)?.inTrash)
+        .at(-1)
+      expect(activeCall?.[1]?.query).toMatchObject({ fileType: 'text' })
+    })
+    expect(ipcMocks.request).not.toHaveBeenCalled()
+  })
+
   it('queries the selected type without scanning unrelated active pages', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
