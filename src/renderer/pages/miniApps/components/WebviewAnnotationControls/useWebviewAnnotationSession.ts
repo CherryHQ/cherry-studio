@@ -322,7 +322,7 @@ export function useWebviewAnnotationSession({
       attachedWebview.removeEventListener('render-process-gone', handleRenderProcessGone)
       attachedWebview.removeEventListener('dom-ready', requestState)
     }
-  }, [invalidateOperation, sendCommand, store, webview, webviewRef, webviewRevision])
+  }, [invalidateOperation, rejectPendingSnapshot, sendCommand, store, webview, webviewRef, webviewRevision])
 
   const previousTargetIdRef = useRef(target.id)
   useEffect(() => {

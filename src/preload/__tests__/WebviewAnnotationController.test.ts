@@ -116,7 +116,7 @@ const installFrameDriver = () => {
       return callbacks.size
     },
     runNext() {
-      const entry = callbacks.entries().next().value as [number, FrameRequestCallback] | undefined
+      const entry = callbacks.entries().next().value
       if (!entry) throw new Error('No animation frame was scheduled')
       callbacks.delete(entry[0])
       entry[1](entry[0])
