@@ -6,6 +6,7 @@ const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValu
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
+const getShellEnv = vi.hoisted(() => vi.fn(async () => ({ PATH: '/shell/bin' })))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
@@ -18,7 +19,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({} as Record<string, unknown>)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
@@ -149,6 +150,15 @@ describe('createTransport', () => {
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
     expect(transport.params.env.PATH).toBe('/shell/bin')
     expect(transport.params.stderr).toBe('pipe')
+  })
+
+  it('rejects an unresolved stdio placeholder before requesting the login shell environment', async () => {
+    await expect(create({ type: 'stdio', command: '${MCP_COMMAND}' })).rejects.toMatchObject({
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: '${MCP_COMMAND}'
+    })
+
+    expect(getShellEnv).not.toHaveBeenCalled()
   })
 
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {

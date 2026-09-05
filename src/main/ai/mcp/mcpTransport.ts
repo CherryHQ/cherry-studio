@@ -18,7 +18,7 @@ import { redactDeep } from '@shared/utils/redaction'
 import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
-import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'
+import { buildStdioEnvironment, resolveLaunchCommand, validateLaunchCommand } from './mcpLaunch'
 import type { McpOAuthClientProvider } from './oauth/provider'
 
 type CreateTransportInput = {
@@ -160,9 +160,6 @@ async function createStdio(
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
 
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
-
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {
     const resolvedConfig = application.get('McpPackageService').getResolvedMcpConfig(server.dxtPath)
@@ -175,6 +172,11 @@ async function createStdio(
       logger.warn(`Failed to resolve package config, falling back to manifest values`)
     }
   }
+
+  command = validateLaunchCommand(command)
+
+  // Note: getShellEnv() is memoized, so subsequent calls are fast
+  const loginShellEnv = await getShellEnv()
 
   const launch = await resolveLaunchCommand({
     command,
