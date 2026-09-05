@@ -1,10 +1,11 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import { Copy, Eye } from 'lucide-react'
 import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DiagnosticsPanel } from '../DiagnosticsPanel'
 import type { DiagnosticReportConfig } from './diagnosticReportDescription'
 
 interface ErrorBasicInformationProps {
@@ -45,31 +46,47 @@ export function ErrorBasicInformation({
   ].filter((field): field is BasicField => field !== undefined)
 
   return (
-    <section className="rounded-xl border border-border bg-secondary p-4 text-secondary-foreground">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-medium text-sm">{t('error.diagnostics.basic_information')}</h2>
-        <div className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="sm" disabled={!error} onClick={onCopy}>
-            <Copy className="size-4" />
-            {t('common.copy')}
-          </Button>
-          <Button ref={viewDetailsButtonRef} variant="ghost" size="sm" onClick={onViewDetails}>
-            <Eye className="size-4" />
-            {t('error.diagnosis.view_details')}
-          </Button>
+    <DiagnosticsPanel
+      title={t('error.diagnostics.basic_information')}
+      actions={
+        <div className="flex items-center gap-1">
+          <Tooltip content={t('common.copy')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.copy')}
+              disabled={!error}
+              onClick={onCopy}>
+              <Copy className="size-4" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('error.diagnosis.view_details')}>
+            <Button
+              ref={viewDetailsButtonRef}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnosis.view_details')}
+              onClick={onViewDetails}>
+              <Eye className="size-4" />
+            </Button>
+          </Tooltip>
         </div>
-      </div>
-
+      }
+      bodyClassName="px-4 pb-4">
       {fields.length > 0 ? (
-        <dl className="mt-3 grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
+        <dl className="overflow-hidden rounded-lg border border-border bg-background text-xs">
           {fields.map(([label, value]) => (
-            <div key={label} className="contents">
-              <dt className="text-muted-foreground">{label}</dt>
+            <div
+              key={label}
+              className="grid gap-x-4 gap-y-1 border-border border-t px-4 py-3 first:border-t-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
+              <dt className="font-medium">{label}</dt>
               <dd className="selectable min-w-0 break-words">{value}</dd>
             </div>
           ))}
         </dl>
       ) : null}
-    </section>
+    </DiagnosticsPanel>
   )
 }

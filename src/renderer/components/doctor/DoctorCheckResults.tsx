@@ -15,65 +15,81 @@ import {
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import {
+  defaultExpandedDoctorDomains,
   DOCTOR_CHECK_CONTENT,
   DOCTOR_DOMAIN_LABEL_KEYS,
   DOCTOR_FIX_LABEL_KEYS,
   DOCTOR_NAVIGATION_LABEL_KEYS,
-  DOCTOR_STATUS_LABEL_KEYS
+  DOCTOR_STATUS_LABEL_KEYS,
+  isDoctorRowExpandedByDefault
 } from '@renderer/utils/doctor'
 import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest } from '@shared/types/doctor'
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
-  const { session, viewModel } = controller
+  const { viewModel } = controller
 
   return (
     <Accordion
+      key={viewModel.report?.runId ?? `${viewModel.status}-${viewModel.tier ?? 'none'}`}
       type="multiple"
-      value={[...session.expandedDomains]}
-      onValueChange={(values) => controller.setExpandedDomains(values as typeof session.expandedDomains)}
+      defaultValue={[...defaultExpandedDoctorDomains(viewModel.groups)]}
       className="rounded-xl border border-border px-4">
-      {viewModel.groups.map((group) => (
-        <AccordionItem key={group.domain} value={group.domain}>
-          <AccordionTrigger className="py-3">
-            <span className="flex min-w-0 items-center gap-2">
-              <StatusIcon status={group.status} />
-              <span>{t(DOCTOR_DOMAIN_LABEL_KEYS[group.domain])}</span>
-              <span className="sr-only">
-                {t(
-                  group.status === 'running'
-                    ? DOCTOR_STATUS_LABEL_KEYS.pending
-                    : group.status === 'neutral'
-                      ? DOCTOR_STATUS_LABEL_KEYS.skip
-                      : DOCTOR_STATUS_LABEL_KEYS[group.status]
-                )}
+      {viewModel.groups.map((group) => {
+        const defaultRow = group.rows.find(isDoctorRowExpandedByDefault)
+
+        return (
+          <AccordionItem key={group.domain} value={group.domain}>
+            <AccordionTrigger className="py-3">
+              <span className="flex min-w-0 items-center gap-2">
+                <StatusIcon status={group.status} />
+                <span>{t(DOCTOR_DOMAIN_LABEL_KEYS[group.domain])}</span>
+                <span className="sr-only">
+                  {t(
+                    group.status === 'running'
+                      ? DOCTOR_STATUS_LABEL_KEYS.pending
+                      : group.status === 'neutral'
+                        ? DOCTOR_STATUS_LABEL_KEYS.skip
+                        : DOCTOR_STATUS_LABEL_KEYS[group.status]
+                  )}
+                </span>
+                <Badge variant="outline" className="font-normal text-xs">
+                  {group.rows.length}
+                </Badge>
               </span>
-              <Badge variant="outline" className="font-normal text-xs">
-                {group.rows.length}
-              </Badge>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-1 pt-0 pb-3">
-            {group.rows.map((row) => (
-              <DoctorCheckRow key={row.id} controller={controller} row={row} />
-            ))}
-          </AccordionContent>
-        </AccordionItem>
-      ))}
+            </AccordionTrigger>
+            <AccordionContent className="pb-3">
+              <Accordion
+                type="single"
+                collapsible
+                defaultValue={`doctor-${defaultRow?.id ?? group.rows[0]?.id}`}
+                className="rounded-lg border border-border px-2">
+                <DoctorCheckList controller={controller} rows={group.rows} />
+              </Accordion>
+            </AccordionContent>
+          </AccordionItem>
+        )
+      })}
     </Accordion>
   )
 }
 
-export function DoctorCheckList({ controller }: { readonly controller: DoctorController }) {
+export function DoctorCheckList({
+  controller,
+  rows = controller.viewModel.rows
+}: {
+  readonly controller: DoctorController
+  readonly rows?: DoctorController['viewModel']['rows']
+}) {
   return (
-    <div className="divide-y divide-border rounded-xl border border-border px-2">
-      {controller.viewModel.rows.map((row) => (
-        <DoctorCheckRow key={row.id} controller={controller} row={row} />
+    <>
+      {rows.map((row) => (
+        <DoctorCheckListItem key={row.id} controller={controller} row={row} />
       ))}
-    </div>
+    </>
   )
 }
 
@@ -106,7 +122,37 @@ export function DoctorConfirmationView({
   return null
 }
 
-function DoctorCheckRow({
+function DoctorCheckListItem({
+  controller,
+  row
+}: {
+  readonly controller: DoctorController
+  readonly row: DoctorController['viewModel']['rows'][number]
+}) {
+  const { t } = useTranslation()
+  const content = DOCTOR_CHECK_CONTENT[row.id]
+
+  return (
+    <AccordionItem value={`doctor-${row.id}`} className="px-2">
+      <AccordionTrigger className="py-3 font-normal">
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusIcon status={row.status} />
+          <span className="min-w-0 truncate font-medium text-sm">{t(content.title)}</span>
+          <Badge variant="outline" className="shrink-0 font-normal text-xs">
+            {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
+          </Badge>
+        </span>
+      </AccordionTrigger>
+      <AccordionContent className="space-y-2 pb-3 pl-6">
+        <CheckDescription result={row.result} />
+        <DoctorCheckEvidence controller={controller} row={row} />
+        <DoctorCheckActions controller={controller} row={row} className="flex flex-wrap justify-end gap-2" />
+      </AccordionContent>
+    </AccordionItem>
+  )
+}
+
+function DoctorCheckEvidence({
   controller,
   row
 }: {
@@ -115,49 +161,43 @@ function DoctorCheckRow({
 }) {
   const { t } = useTranslation()
   const result = row.result
-  const content = DOCTOR_CHECK_CONTENT[row.id]
   const isEvidenceRevealed = controller.session.revealedEvidence.includes(row.id)
   const publicEvidence = result?.evidence?.filter((item) => item.dataClass === 'public') ?? []
   const localEvidence = result?.evidence?.filter((item) => item.dataClass === 'local_only') ?? []
   const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []
-  const runId = controller.viewModel.report?.runId
-  const primaryAction = row.actions[0]
   const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
+  const evidenceItemValue = `doctor-evidence-${row.id}`
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed)
 
   useEffect(() => {
     if (isEvidenceRevealed) sensitiveEvidenceRef.current?.focus()
   }, [isEvidenceRevealed])
 
   return (
-    <div className="rounded-lg px-2 py-3 hover:bg-accent/40">
-      <div className="flex items-start gap-3">
-        <StatusIcon status={row.status} />
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="grid min-w-0 gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,45%)] sm:items-start">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <p className="font-medium text-sm">{t(content.title)}</p>
-              <Badge variant="outline" className="font-normal text-xs">
-                {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
-              </Badge>
-            </div>
-            <CheckDescription result={result} align="end" />
-          </div>
-          {publicEvidence.length > 0 ? (
-            <dl className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pt-1 text-xs">
-              {publicEvidence.map((item) => (
-                <Evidence key={`${item.key}-${String(item.value)}`} name={item.key} value={String(item.value)} />
-              ))}
-            </dl>
-          ) : null}
-          {localEvidence.length > 0 || sensitiveEvidence.length > 0 ? (
-            <details className="pt-1 text-xs" open={isEvidenceRevealed || undefined}>
-              <summary className="cursor-pointer text-muted-foreground">
-                {t('settings.doctor.evidence.local_details')}
-              </summary>
+    <>
+      {publicEvidence.length > 0 ? (
+        <dl className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pt-1 text-xs">
+          {publicEvidence.map((item) => (
+            <Evidence key={`${item.key}-${String(item.value)}`} name={item.key} value={String(item.value)} />
+          ))}
+        </dl>
+      ) : null}
+      {localEvidence.length > 0 || sensitiveEvidence.length > 0 ? (
+        <Accordion
+          type="single"
+          collapsible
+          value={isEvidenceExpanded ? evidenceItemValue : ''}
+          onValueChange={(value) => setIsEvidenceExpanded(value === evidenceItemValue)}
+          className="pt-1 text-xs">
+          <AccordionItem value={evidenceItemValue} className="border-0 first:border-t-0">
+            <AccordionTrigger className="py-1 font-normal text-muted-foreground text-xs">
+              {t('settings.doctor.evidence.local_details')}
+            </AccordionTrigger>
+            <AccordionContent className="pb-0">
               <dl
                 ref={sensitiveEvidenceRef}
                 tabIndex={isEvidenceRevealed ? -1 : undefined}
-                className="selectable mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
                 {localEvidence.map((item) => (
                   <Evidence
                     key={`${item.key}-${String(item.value)}`}
@@ -182,34 +222,51 @@ function DoctorCheckRow({
                   {t('settings.doctor.actions.show_details')}
                 </Button>
               ) : null}
-            </details>
-          ) : null}
-        </div>
-      </div>
-      {primaryAction ? (
-        <div className="mt-2 flex flex-wrap justify-end gap-2 pl-7">
-          <DoctorActionButton controller={controller} row={row} action={primaryAction} primary runId={runId} />
-          {row.actions.length > 1 ? (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={row.actionsDisabled || controller.isInteracting}>
-                  {t('settings.doctor.actions.more')}
-                  <ChevronDown className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {row.actions.slice(1).map((action, index) => (
-                  <DropdownMenuItem
-                    key={`${action.kind}-${index}`}
-                    disabled={row.actionsDisabled || controller.isInteracting}
-                    onSelect={() => void controller.executeAction(row.id, action, runId)}>
-                    {actionLabel(t, controller, row.id, action)}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : null}
+    </>
+  )
+}
+
+function DoctorCheckActions({
+  className,
+  controller,
+  row
+}: {
+  readonly className: string
+  readonly controller: DoctorController
+  readonly row: DoctorController['viewModel']['rows'][number]
+}) {
+  const { t } = useTranslation()
+  const runId = controller.viewModel.report?.runId
+  const primaryAction = row.actions[0]
+
+  if (!primaryAction) return null
+
+  return (
+    <div className={className}>
+      <DoctorActionButton controller={controller} row={row} action={primaryAction} primary runId={runId} />
+      {row.actions.length > 1 ? (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={row.actionsDisabled || controller.isInteracting}>
+              {t('settings.doctor.actions.more')}
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {row.actions.slice(1).map((action, index) => (
+              <DropdownMenuItem
+                key={`${action.kind}-${index}`}
+                disabled={row.actionsDisabled || controller.isInteracting}
+                onSelect={() => void controller.executeAction(row.id, action, runId)}>
+                {actionLabel(t, controller, row.id, action)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
     </div>
   )
@@ -246,15 +303,9 @@ function DoctorActionButton({
   )
 }
 
-function CheckDescription({
-  align = 'start',
-  result
-}: {
-  readonly align?: 'start' | 'end'
-  readonly result?: DoctorCheckResult
-}) {
+function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
   const { t } = useTranslation()
-  const className = `text-muted-foreground text-xs${align === 'end' ? ' sm:text-right' : ''}`
+  const className = 'min-w-0 break-words text-muted-foreground text-xs'
   if (!result) return <p className={className}>{t('settings.doctor.checks.pending')}</p>
   if (result.status === 'error') {
     return <p className={className}>{t('settings.doctor.checks.error')}</p>
