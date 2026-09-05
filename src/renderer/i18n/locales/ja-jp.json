@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "会話またはエージェントがまだ実行中です。終了するまで待ってから、もう一度お試しください。",
   "backup.error.disk_full": "ディスクの空き容量が不足しています。空き容量を増やしてから、もう一度お試しください。",
   "backup.error.disk_full_with_available": "ディスクの空き容量が不足しています（空き容量：{{available}}）。空き容量を増やしてから、もう一度お試しください。",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "WebDAV サーバーの TLS 証明書を検証できませんでした。サーバーが自己署名証明書またはプライベート CA 発行の証明書を使用している場合は、設定 → データ → WebDAV で「自己署名証明書を許可」を有効にしてください（セキュリティが低下します）。",
   "backup.progress.completed": "バックアップ完了",
   "backup.progress.compressing": "圧縮中...",

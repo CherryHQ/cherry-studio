@@ -1,4 +1,4 @@
-import type { SerializedError } from '@shared/types/error'
+import { isClaudeCodeExitCategory, type SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 
 /** Lenient JSON serialization with circular-reference safety.
@@ -76,7 +76,7 @@ export function serializeError(error: unknown): SerializedError {
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
-    if ('claudeCodeExitCategory' in e && typeof e.claudeCodeExitCategory === 'string') {
+    if ('claudeCodeExitCategory' in e && isClaudeCodeExitCategory(e.claudeCodeExitCategory)) {
       serialized.claudeCodeExitCategory = e.claudeCodeExitCategory
     }
     if ('diagnosticReference' in e && typeof e.diagnosticReference === 'string') {

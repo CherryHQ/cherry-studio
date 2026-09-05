@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut.",
   "backup.error.disk_full": "Nicht genügend Speicherplatz verfügbar. Geben Sie Speicherplatz frei und versuchen Sie es erneut.",
   "backup.error.disk_full_with_available": "Der Speicherplatz reicht nicht aus. Verfügbar: {{available}}. Geben Sie Speicherplatz frei und versuchen Sie es erneut.",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "Das TLS-Zertifikat des WebDAV-Servers konnte nicht überprüft werden. Wenn der Server ein selbstsigniertes oder von einer privaten CA ausgestelltes Zertifikat verwendet, aktivieren Sie „Selbstsignierte Zertifikate erlauben“ unter Einstellungen → Daten → WebDAV (dies verringert die Übertragungssicherheit).",
   "backup.progress.completed": "Backup abgeschlossen",
   "backup.progress.compressing": "Dateien werden komprimiert...",

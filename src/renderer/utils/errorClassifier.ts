@@ -1,4 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { type ClaudeCodeExitCategory, isClaudeCodeExitCategory } from '@shared/types/error'
 
 export interface ErrorClassification {
   category:
@@ -25,23 +27,7 @@ export interface ErrorClassification {
   navTarget: string | null
 }
 
-const CLAUDE_CODE_EXIT_CATEGORIES = new Set<ErrorClassification['category']>([
-  'auth',
-  'permission',
-  'model',
-  'quota',
-  'rate_limit',
-  'network',
-  'proxy',
-  'server',
-  'mcp',
-  'unknown'
-])
-
-function classifyClaudeCodeExit(
-  category: ErrorClassification['category'],
-  providerSuffix: string
-): ErrorClassification {
+function classifyClaudeCodeExit(category: ClaudeCodeExitCategory, providerSuffix: string): ErrorClassification {
   const providerCategories = new Set<ErrorClassification['category']>([
     'auth',
     'permission',
@@ -109,6 +95,23 @@ export function isProxyErrorMessage(message: string): boolean {
   )
 }
 
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -117,11 +120,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const errorBag = error as Record<string, unknown>
   const providerSuffix = providerId ? `?id=${providerId}` : ''
   const explicitClaudeCodeCategory = errorBag.claudeCodeExitCategory
-  if (
-    typeof explicitClaudeCodeCategory === 'string' &&
-    CLAUDE_CODE_EXIT_CATEGORIES.has(explicitClaudeCodeCategory as ErrorClassification['category'])
-  ) {
-    return classifyClaudeCodeExit(explicitClaudeCodeCategory as ErrorClassification['category'], providerSuffix)
+  if (isClaudeCodeExitCategory(explicitClaudeCodeCategory)) {
+    return classifyClaudeCodeExit(explicitClaudeCodeCategory, providerSuffix)
   }
   const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
 
@@ -173,6 +173,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('api key is invalid') ||
     msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
+    msg.includes('not logged in') ||
     msg.includes('unauthorized')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
@@ -289,6 +290,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Proxy / SSL certificate errors
   if (
+    msg.includes('err_ssl_client_auth_cert_needed') ||
     isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
@@ -334,6 +336,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
+  }
+
+  // A wrapper carries no status of its own — diagnose the first attempt that says something.
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown') {
+      return nestedClassification
+    }
   }
 
   return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }

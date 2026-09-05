@@ -1,16 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-export type ClaudeCodeExitCategory =
-  | 'auth'
-  | 'permission'
-  | 'model'
-  | 'quota'
-  | 'rate_limit'
-  | 'network'
-  | 'proxy'
-  | 'server'
-  | 'mcp'
-  | 'unknown'
+import type { ClaudeCodeExitCategory } from '@shared/types/error'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string

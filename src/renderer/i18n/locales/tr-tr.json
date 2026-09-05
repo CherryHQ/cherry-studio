@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "Bir konuşma veya ajan hâlâ çalışıyor. Tamamlanmasını bekleyip yeniden deneyin.",
   "backup.error.disk_full": "Yeterli disk alanı yok. Yer açıp tekrar deneyin.",
   "backup.error.disk_full_with_available": "Yeterli disk alanı yok ({{available}} kullanılabilir). Yer açıp tekrar deneyin.",
+  "backup.error.newer_version": "Bu yedek, Cherry Studio'nun daha yeni bir sürümü tarafından oluşturuldu ve bu sürümde geri yüklenemez. Lütfen Cherry Studio'yu güncelleyip tekrar deneyin.",
+  "backup.error.operation_busy": "Başka bir yedekleme veya geri yükleme işlemi zaten devam ediyor. Tamamlanmasını bekleyip tekrar deneyin.",
   "backup.error.webdav_tls_certificate": "WebDAV sunucusunun TLS sertifikası doğrulanamadı. Sunucu kendinden imzalı veya özel bir sertifika yetkilisi tarafından verilmiş bir sertifika kullanıyorsa Ayarlar → Veri → WebDAV bölümünde 'Kendinden İmzalı Sertifikalara İzin Ver' seçeneğini etkinleştirin (bu, aktarım güvenliğini azaltır).",
   "backup.progress.completed": "Yedekleme tamamlandı",
   "backup.progress.compressing": "Dosyalar sıkıştırılıyor...",

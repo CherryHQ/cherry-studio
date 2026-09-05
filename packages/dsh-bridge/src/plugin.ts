@@ -366,7 +366,27 @@ export function apply(ctx: Context): void {
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
     const delegated = agent.session.header.parentSession !== undefined
-    const policy = policies.get(rootSessionOf(agent))
+    const rootSessionId = rootSessionOf(agent)
+    try {
+      const guard = await link.request(
+        'guard/check',
+        {
+          sessionId: rootSessionId,
+          toolName: exec.name,
+          args: exec.arguments,
+          cwd: agent.session.header.cwd
+        },
+        exec.signal
+      )
+      if (guard.kind === 'deny') return guard
+    } catch {
+      return {
+        kind: 'deny' as const,
+        reason: 'The Cherry Studio safety guard could not verify this tool call.'
+      }
+    }
+
+    const policy = policies.get(rootSessionId)
     if (policy === undefined) {
       // Non-bridge root sessions keep dsh's chain; a delegated agent whose root
       // policy is unreachable fails closed (every root here is bridge-opened).
