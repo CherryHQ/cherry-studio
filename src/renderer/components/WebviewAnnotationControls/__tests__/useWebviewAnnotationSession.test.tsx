@@ -556,6 +556,57 @@ describe('useWebviewAnnotationSession', () => {
     }
   })
 
+  it('rejects a correlated malformed snapshot immediately and clears the timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const webview = createWebview()
+      const webviewRef = createWebviewRef(webview)
+      const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+      act(() => stateChanged(webview))
+
+      let copyResult: Promise<void>
+      act(() => {
+        copyResult = result.current.copy()
+      })
+      const outcome = copyResult!.then(
+        () => 'resolved',
+        (error: Error) => error.message
+      )
+      await act(async () => {
+        webview.emitNative('ipc-message', {
+          channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+          args: [
+            {
+              type: 'snapshot_ready',
+              sessionId: sessionOne,
+              requestId: '00000000-0000-4000-8000-000000000010',
+              annotations: [{ ...annotation, region: { rect: { x: 0, y: 0, width: 0, height: 1 }, elements: [] } }]
+            }
+          ]
+        })
+        await Promise.resolve()
+      })
+
+      const immediateOutcome = await Promise.race([outcome, Promise.resolve('pending')])
+      const immediateCopying = result.current.copying
+      const pendingTimers = vi.getTimerCount()
+      if (immediateOutcome === 'pending') {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2_001)
+          await outcome
+        })
+      }
+
+      expect(immediateOutcome).toBe('Invalid webview annotation snapshot')
+      expect(immediateCopying).toBe(false)
+      expect(pendingTimers).toBe(0)
+      expect(request).not.toHaveBeenCalled()
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects a pending snapshot on unmount and ignores its late response', async () => {
     const webview = createWebview()
     const webviewRef = createWebviewRef(webview)

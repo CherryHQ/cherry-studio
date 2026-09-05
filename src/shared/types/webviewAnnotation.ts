@@ -11,13 +11,15 @@ export const WEBVIEW_ANNOTATION_LIMITS = {
   accessibilityStates: 8,
   accessibilityText: 240,
   annotations: 50,
+  anchorCoord: 10_000_000,
   ariaLabel: 240,
   comment: 2_000,
   exportMarkdown: 512_000,
   pageTitle: 240,
   pageUrl: 2_048,
-  regionCoord: 10_000_000,
   regionElements: 12,
+  regionPageCoord: Number.MAX_SAFE_INTEGER,
+  regionSize: 10_000_000,
   role: 64,
   selector: 2_048,
   tagName: 64,
@@ -45,19 +47,19 @@ export const WebviewElementLocatorSchema = z
 
 export const WebviewRegionRectSchema = z
   .object({
-    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord)
+    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionPageCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionPageCoord),
+    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionPageCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionPageCoord),
+    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionSize),
+    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionSize)
   })
   .strict()
 
 export const WebviewAnnotationAnchorRectSchema = z
   .object({
-    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord)
+    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.anchorCoord).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
+    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.anchorCoord).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
+    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
+    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord)
   })
   .strict()
 

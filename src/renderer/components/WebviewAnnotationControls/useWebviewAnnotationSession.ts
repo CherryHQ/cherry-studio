@@ -92,6 +92,19 @@ interface CopyOperation extends Binding {
   generation: number
 }
 
+const snapshotEnvelope = (value: unknown) => {
+  if (!value || typeof value !== 'object') return null
+  const envelope = value as Record<string, unknown>
+  if (
+    envelope.type !== 'snapshot_ready' ||
+    typeof envelope.sessionId !== 'string' ||
+    typeof envelope.requestId !== 'string'
+  ) {
+    return null
+  }
+  return { sessionId: envelope.sessionId, requestId: envelope.requestId }
+}
+
 export function useWebviewAnnotationSession({
   webviewRef,
   webviewRevision,
@@ -182,23 +195,33 @@ export function useWebviewAnnotationSession({
     const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
       if (event.currentTarget !== attachedWebview) return
       if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
-      const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
-      if (!parsed.success) return
-      const guestEvent = parsed.data
-
-      if (guestEvent.type === 'snapshot_ready') {
-        const pending = pendingSnapshotRef.current
-        if (
-          !pending ||
-          sessionRef.current !== guestEvent.sessionId ||
-          pending.sessionId !== guestEvent.sessionId ||
-          pending.requestId !== guestEvent.requestId
-        ) {
+      const rawGuestEvent = event.args[0]
+      const envelope = snapshotEnvelope(rawGuestEvent)
+      const pending = pendingSnapshotRef.current
+      if (
+        envelope &&
+        pending &&
+        sessionRef.current === envelope.sessionId &&
+        pending.sessionId === envelope.sessionId &&
+        pending.requestId === envelope.requestId
+      ) {
+        const parsedSnapshot = WebviewAnnotationGuestEventSchema.safeParse(rawGuestEvent)
+        if (!parsedSnapshot.success || parsedSnapshot.data.type !== 'snapshot_ready') {
+          logger.debug('Rejected malformed webview annotation snapshot', { error: parsedSnapshot.error })
+          rejectPendingSnapshot('Invalid webview annotation snapshot')
           return
         }
         pendingSnapshotRef.current = null
         clearTimeout(pending.timeout)
-        pending.resolve(guestEvent.annotations)
+        pending.resolve(parsedSnapshot.data.annotations)
+        return
+      }
+
+      const parsed = WebviewAnnotationGuestEventSchema.safeParse(rawGuestEvent)
+      if (!parsed.success) return
+      const guestEvent = parsed.data
+
+      if (guestEvent.type === 'snapshot_ready') {
         return
       }
 

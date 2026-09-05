@@ -303,15 +303,31 @@ interface ViewportRect {
 
 const boundedAnchorCoord = (value: number, minimum: number) =>
   Math.min(
-    WEBVIEW_ANNOTATION_LIMITS.regionCoord,
+    WEBVIEW_ANNOTATION_LIMITS.anchorCoord,
     Math.max(minimum, Math.round(Number.isFinite(value) ? value : minimum))
   )
 
 const toAnchorRect = (rect: ViewportRect): WebviewAnnotationAnchorRect => ({
-  x: boundedAnchorCoord(rect.left, -WEBVIEW_ANNOTATION_LIMITS.regionCoord),
-  y: boundedAnchorCoord(rect.top, -WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+  x: boundedAnchorCoord(rect.left, -WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
+  y: boundedAnchorCoord(rect.top, -WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
   width: boundedAnchorCoord(rect.width, 1),
   height: boundedAnchorCoord(rect.height, 1)
+})
+
+const boundedPageCoord = (value: number) =>
+  Math.min(
+    WEBVIEW_ANNOTATION_LIMITS.regionPageCoord,
+    Math.max(-WEBVIEW_ANNOTATION_LIMITS.regionPageCoord, Math.round(Number.isFinite(value) ? value : 0))
+  )
+
+const boundedRegionSize = (value: number) =>
+  Math.min(WEBVIEW_ANNOTATION_LIMITS.regionSize, Math.max(1, Math.round(Number.isFinite(value) ? value : 1)))
+
+const toPageRegionRect = (rect: ViewportRect): WebviewRegionRect => ({
+  x: boundedPageCoord(rect.left + window.scrollX),
+  y: boundedPageCoord(rect.top + window.scrollY),
+  width: boundedRegionSize(rect.width),
+  height: boundedRegionSize(rect.height)
 })
 
 const anchorRectsEqual = (left: WebviewAnnotationAnchorRect | null, right: WebviewAnnotationAnchorRect) =>
@@ -889,18 +905,14 @@ export class WebviewAnnotationController {
     while (anchor && !buildWebviewElementSelector(anchor)) anchor = composedParent(anchor)
     if (!anchor) return
 
-    const pageRect: WebviewRegionRect = {
-      x: Math.round(rect.left + window.scrollX),
-      y: Math.round(rect.top + window.scrollY),
-      width: Math.max(1, Math.round(rect.width)),
-      height: Math.max(1, Math.round(rect.height))
+    const elements: WebviewElementLocator[] = []
+    for (const element of contained) {
+      const locator = createWebviewElementLocator(element)
+      if (locator) elements.push(locator)
+      if (elements.length >= WEBVIEW_ANNOTATION_LIMITS.regionElements) break
     }
-    const elements = contained
-      .map(createWebviewElementLocator)
-      .filter((locator): locator is WebviewElementLocator => locator !== null)
-      .slice(0, WEBVIEW_ANNOTATION_LIMITS.regionElements)
 
-    this.openEditor({ mode: 'create-region', element: anchor, region: { rect: pageRect, elements } })
+    this.openEditor({ mode: 'create-region', element: anchor, region: { rect: toPageRegionRect(rect), elements } })
   }
 
   private openEditor(request: EditorRequest) {
