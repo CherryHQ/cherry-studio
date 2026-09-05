@@ -10,7 +10,6 @@ import {
   type ToolCallRepairFunction,
   type ToolSet
 } from 'ai'
-import * as z from 'zod'
 
 import type { AppProviderSettingsMap } from '../../../types'
 
@@ -40,18 +39,10 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       return null
     }
 
-    let schema = asSchema(tools[toolCall.toolName].inputSchema)
-    if (!schema.validate) {
-      try {
-        schema = asSchema(z.fromJSONSchema(schemaJson as Parameters<typeof z.fromJSONSchema>[0]))
-      } catch (err) {
-        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
-          toolName: toolCall.toolName,
-          toolCallId: toolCall.toolCallId
-        })
-        return null
-      }
-    }
+    // A `jsonSchema()`-wrapped schema (e.g. MCP) carries no validator, so this
+    // validates nothing and the server stays the authority — same stance as
+    // `meta/toolInvoke.ts` and the SDK's own dispatch path.
+    const schema = asSchema(tools[toolCall.toolName].inputSchema)
 
     /** Canonical input, or undefined when the value does not fit the tool schema. */
     const canonicalize = async (value: unknown): Promise<unknown> => {

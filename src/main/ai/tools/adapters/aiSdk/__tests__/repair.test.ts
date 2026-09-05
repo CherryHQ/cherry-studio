@@ -78,7 +78,7 @@ describe('createAiRepair', () => {
     expect(generateText).not.toHaveBeenCalled()
   })
 
-  it('rejects a repair that violates a JSON-Schema-backed tool (the SDK carries no validator there)', async () => {
+  it('leaves a JSON-Schema-backed tool to its server — no fabricated client validator', async () => {
     const schemaJson: JSONSchema7 = {
       type: 'object',
       properties: { query: { type: 'string' } },
@@ -90,29 +90,14 @@ describe('createAiRepair', () => {
     const repaired = await repair({
       system: undefined,
       messages: [],
-      toolCall: makeToolCall('mcp_search', { q: 'hello world' }),
+      toolCall: makeToolCall('mcp_search', 'not json at all'),
       tools: { mcp_search: { inputSchema: jsonSchema(schemaJson) } } as never,
       inputSchema: async () => schemaJson as never,
       error: inputErr
     })
 
-    expect(repaired).toBeNull()
-  })
-
-  it('fails closed when a JSON Schema cannot be converted for validation', async () => {
-    const schemaJson = { not: { type: 'string' } } as const
-    generateText.mockResolvedValue({ output: { query: 'hello world' } })
-
-    const repaired = await repair({
-      system: undefined,
-      messages: [],
-      toolCall: makeToolCall('unsupported_schema', { query: 42 }),
-      tools: { unsupported_schema: { inputSchema: jsonSchema(schemaJson) } } as never,
-      inputSchema: async () => schemaJson as never,
-      error: inputErr
-    })
-
-    expect(repaired).toBeNull()
+    expect(repaired).not.toBeNull()
+    expect(JSON.parse(repaired!.input)).toEqual({ query: 42 })
   })
 
   it('reuses the request usage middleware so repair is an independent invocation', async () => {
