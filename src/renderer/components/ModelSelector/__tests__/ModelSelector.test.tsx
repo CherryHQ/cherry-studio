@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
+  virtualize: false,
   useModelSelectorData: vi.fn()
 }))
 
@@ -61,7 +62,12 @@ vi.mock('@renderer/components/tags/Model', () => ({
 }))
 
 vi.mock('../ModelSelectorDetailCard', () => ({
-  ModelSelectorDetailCard: ({ children }: { children: ReactNode }) => <>{children}</>
+  ModelSelectorDetailCard: ({ children, description }: { children: ReactNode; description?: ReactNode }) => (
+    <>
+      {children}
+      {description}
+    </>
+  )
 }))
 
 vi.mock('@renderer/components/VirtualList', async () => {
@@ -71,21 +77,27 @@ vi.mock('@renderer/components/VirtualList', async () => {
     DynamicVirtualList: ({
       ref,
       list,
-      children
+      children,
+      keepMountedIndexes = []
     }: {
       ref?: Ref<{ scrollToIndex: typeof mocks.scrollToIndex }>
       list: FlatListItem[]
       children: (item: FlatListItem, index: number) => ReactNode
+      keepMountedIndexes?: readonly number[]
     }) => {
       React.useImperativeHandle(ref, () => ({
         scrollToIndex: mocks.scrollToIndex
       }))
 
+      const renderedIndexes = mocks.virtualize
+        ? new Set([...Array.from({ length: Math.min(6, list.length) }, (_, index) => index), ...keepMountedIndexes])
+        : new Set(list.map((_, index) => index))
+
       return (
         <>
-          {list.map((item, index) => (
-            <React.Fragment key={item.key}>{children(item, index)}</React.Fragment>
-          ))}
+          {list.map((item, index) =>
+            renderedIndexes.has(index) ? <React.Fragment key={item.key}>{children(item, index)}</React.Fragment> : null
+          )}
         </>
       )
     }
@@ -123,8 +135,11 @@ vi.mock('@renderer/components/SelectorShell', () => ({
             {search ? (
               <input
                 aria-label={search.placeholder}
+                aria-activedescendant={search.activeDescendant}
+                aria-controls={search.ariaControls}
                 value={search.value}
                 onChange={(event) => search.onChange(event.target.value)}
+                onKeyDown={search.onKeyDown}
               />
             ) : null}
             {filterContent}
@@ -241,6 +256,7 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     mocks.bottomActions = []
     mocks.shellEvents = []
+    mocks.virtualize = false
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -328,6 +344,56 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('associates descriptions with keyboard-focused model options', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        getModelDetailDescription={(model) => (model.name === 'gpt-4' ? 0 : 'Free quota exhausted')}
+        isModelDisabled={(model) => model.name === 'gpt-3.5'}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
+    const listbox = screen.getByRole('listbox')
+    const [firstOption, secondOption] = screen.getAllByRole('option')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
+    expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+    expect(firstOption).toHaveAccessibleDescription('0')
+
+    await user.keyboard('{ArrowDown}')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', secondOption.id))
+    expect(secondOption).toHaveAttribute('aria-disabled', 'true')
+    expect(secondOption).toHaveAccessibleDescription('Free quota exhausted')
+  })
+
+  it('keeps the active descendant mounted after page navigation', async () => {
+    const items = Array.from({ length: 20 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
+    mocks.virtualize = true
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: items,
+        modelItems: items,
+        selectableModelsById: new Map(items.map((item) => [item.modelId, item.model]))
+      })
+    )
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
+    fireEvent.keyDown(searchInput, { key: 'PageDown' })
+
+    await waitFor(() =>
+      expect(searchInput.getAttribute('aria-activedescendant')).toContain(encodeURIComponent('openai::model-12'))
+    )
+    expect(document.getElementById(searchInput.getAttribute('aria-activedescendant')!)).not.toBeNull()
   })
 
   it('honors the explicitly supplied disabled state', async () => {

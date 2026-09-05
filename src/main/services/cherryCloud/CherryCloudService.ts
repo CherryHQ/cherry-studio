@@ -10,9 +10,14 @@ import {
   createUniqueModelId,
   type EndpointType,
   type ModelCapability,
-  parseUniqueModelId
+  parseUniqueModelId,
+  type UniqueModelId
 } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudModelFeature,
+  CherryCloudModelSyncResult,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
@@ -564,6 +569,8 @@ export class CherryCloudService extends BaseService {
     if (!this.cloudState.session) {
       return {
         entitledModelIds: [],
+        freeModelIds: [],
+        availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
         quotaExhaustedModelIds: []
       }
     }
@@ -580,10 +587,13 @@ export class CherryCloudService extends BaseService {
       throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
     }
 
-    const entitledModelIds = new Set(
-      account.entitlements
-        .filter((entitlement) => entitlement.status === 'active')
-        .flatMap((entitlement) => entitlement.model_ids)
+    const activeEntitlements = account.entitlements.filter((entitlement) => entitlement.status === 'active')
+    const entitledModelIds = new Set(activeEntitlements.flatMap((entitlement) => entitlement.model_ids))
+    const freeApiModelIds = new Set(
+      activeEntitlements.filter((entitlement) => entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
+    )
+    const paidApiModelIds = new Set(
+      activeEntitlements.filter((entitlement) => !entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
     )
     const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
     const quotaAvailableByModelId = new Map<string, boolean>()
@@ -600,11 +610,36 @@ export class CherryCloudService extends BaseService {
           .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
+    const availableModelIdsByFeature = {
+      agent: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['agent'],
+      chat: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['chat'],
+      translate: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['translate']
+    }
+    const freeModelIds: CherryCloudModelSyncResult['freeModelIds'] = []
+    for (const model of models) {
+      const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
+      if (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id)) freeModelIds.push(uniqueModelId)
+      for (const feature of model.available_features) availableModelIdsByFeature[feature].push(uniqueModelId)
+    }
     this.reconcileEntitledModels(models)
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
+      freeModelIds: [...new Set(freeModelIds)],
+      availableModelIdsByFeature: {
+        agent: [...new Set(availableModelIdsByFeature.agent)],
+        chat: [...new Set(availableModelIdsByFeature.chat)],
+        translate: [...new Set(availableModelIdsByFeature.translate)]
+      },
       quotaExhaustedModelIds
     }
+  }
+
+  public isModelAvailableForFeature(modelId: UniqueModelId, feature: CherryCloudModelFeature): boolean {
+    const cached = this.modelSyncCache
+    return (
+      cached?.generation === this.sessionGeneration &&
+      cached.result.availableModelIdsByFeature[feature].includes(modelId)
+    )
   }
 
   private reconcileEntitledModels(

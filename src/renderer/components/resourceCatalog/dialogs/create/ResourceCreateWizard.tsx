@@ -2,6 +2,7 @@ import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar }
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -135,9 +136,10 @@ export function ResourceCreateWizard({
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
   const agentType = form.watch('agentType')
-  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
+  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, open && kind === 'agent')
+  const assistantModelFilter = useCherryCloudModelFilter('chat', modelFilter, open && kind === 'assistant')
   const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
-  const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
+  const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)

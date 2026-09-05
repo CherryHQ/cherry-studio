@@ -1,6 +1,7 @@
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type ModelCapability, objectValues } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { cherryCloudModelFeatureSchema } from '@shared/ipc/schemas/cherryCloud'
 import * as z from 'zod'
 
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
@@ -101,7 +102,8 @@ export const cloudModelListSchema = z.looseObject({
       endpoint_type: cloudEndpointTypeSchema,
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive(),
-      capabilities: cloudModelCapabilitiesSchema
+      capabilities: cloudModelCapabilitiesSchema,
+      available_features: z.array(cherryCloudModelFeatureSchema).min(1)
     })
   )
 })

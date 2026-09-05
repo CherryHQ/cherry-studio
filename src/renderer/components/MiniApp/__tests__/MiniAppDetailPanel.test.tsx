@@ -26,6 +26,9 @@ const { request, activity, selectableModels } = vi.hoisted(() => {
   }
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelFilter: (_feature: string, filter?: (model: Model) => boolean) => filter ?? (() => true)
+}))
 // An independently tested child: the real selector needs the portal container the
 // global `@cherrystudio/ui` stand-in does not provide (same boundary ContextManagementSettings draws).
 vi.mock('@renderer/components/DefaultModelSelector', () => ({

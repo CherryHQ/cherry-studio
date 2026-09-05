@@ -174,7 +174,12 @@ describe('OnboardingPage', () => {
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
       if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
       if (route === 'cherry_cloud.models.sync') {
-        return { entitledModelIds: [], quotaExhaustedModelIds: [] }
+        return {
+          entitledModelIds: [],
+          freeModelIds: [],
+          availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+          quotaExhaustedModelIds: []
+        }
       }
       throw new Error(`Unexpected IPC route: ${route}`)
     })
@@ -668,6 +673,7 @@ describe('OnboardingPage', () => {
   })
 
   it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {
+    const chatOnlyCloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-only-model`
     const firstCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::first-agent-model`
     const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`
     cloudMocks.appEdition = 'cn'
@@ -675,7 +681,13 @@ describe('OnboardingPage', () => {
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
       if (route === 'cherry_cloud.models.sync') {
         return {
-          entitledModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
+          entitledModelIds: [chatOnlyCloudModelId, firstCloudAgentModelId, secondCloudAgentModelId],
+          freeModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
+          availableModelIdsByFeature: {
+            agent: [firstCloudAgentModelId, secondCloudAgentModelId],
+            chat: [chatOnlyCloudModelId],
+            translate: []
+          },
           quotaExhaustedModelIds: []
         }
       }

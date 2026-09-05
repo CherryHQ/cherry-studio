@@ -1,0 +1,155 @@
+import type { ModelSelectorProps } from '@renderer/components/ModelSelector'
+import type { Model } from '@shared/data/types/model'
+import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+
+import { AgentConversationControls } from '../AgentConversationControls'
+
+const mocks = vi.hoisted(() => ({
+  availableModel: {
+    id: 'cherryai-subscription::available',
+    providerId: 'cherryai-subscription',
+    name: 'Available cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  exhaustedModel: {
+    id: 'cherryai-subscription::exhausted',
+    providerId: 'cherryai-subscription',
+    name: 'Exhausted cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  sharedFreeModel: {
+    id: 'cherryai-subscription::shared-free',
+    providerId: 'cherryai-subscription',
+    name: 'Shared free cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  paidModel: {
+    id: 'cherryai-subscription::paid',
+    providerId: 'cherryai-subscription',
+    name: 'Paid cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  paidExhaustedModel: {
+    id: 'cherryai-subscription::paid-exhausted',
+    providerId: 'cherryai-subscription',
+    name: 'Paid exhausted cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  regularModel: {
+    id: 'openai::regular',
+    providerId: 'openai',
+    name: 'Regular provider model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+}))
+
+vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({ default: () => null }))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger, getModelDetailDescription, isModelDisabled }: ModelSelectorProps) => (
+    <div>
+      {trigger}
+      {[
+        { key: 'available', model: mocks.availableModel },
+        { key: 'shared-free', model: mocks.sharedFreeModel },
+        { key: 'exhausted', model: mocks.exhaustedModel },
+        { key: 'paid', model: mocks.paidModel },
+        { key: 'paid-exhausted', model: mocks.paidExhaustedModel },
+        { key: 'regular', model: mocks.regularModel }
+      ].map(({ key, model }) => (
+        <button key={key} type="button" disabled={isModelDisabled?.(model)}>
+          <span data-testid={`${key}-description`}>{getModelDetailDescription?.(model)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ menuTrigger }: { menuTrigger: ReactNode }) => menuTrigger
+}))
+
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
+  WorkspaceSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelAvailability: () => ({
+    getModelFreeQuotaStatus: (model: Model) => {
+      if (model.id === mocks.availableModel.id || model.id === mocks.sharedFreeModel.id) return 'available'
+      if (model.id === mocks.exhaustedModel.id) return 'exhausted'
+      return undefined
+    },
+    isModelExclusiveToAgent: (model: Model) => model.id === mocks.availableModel.id,
+    isModelQuotaExhausted: (model: Model) =>
+      model.id === mocks.exhaustedModel.id || model.id === mocks.paidExhaustedModel.id,
+    isModelDisabled: (model: Model) => model.id === mocks.exhaustedModel.id || model.id === mocks.paidExhaustedModel.id
+  })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({ useProviderDisplayName: () => undefined }))
+vi.mock('@renderer/utils/naming', () => ({ getProviderDisplayNameById: (providerId: string) => providerId }))
+vi.mock('@renderer/utils/style', () => ({ cn: (...values: unknown[]) => values.filter(Boolean).join(' ') }))
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'agent.session.workspace_selector.no_project': 'No project',
+        'models.detail.free_quota_exhausted': '免费额度已用完，待重置',
+        'models.detail.limited_time_free': '限时免费',
+        'models.detail.limited_time_free_agent_only': '限时免费，仅限于工作模块内使用',
+        'models.detail.quota_exhausted': '套餐额度已用完，请升级套餐或等待重置'
+      })[key] ?? key
+  })
+}))
+
+describe('AgentConversationControls', () => {
+  it('maps Work model quota status to descriptions and disabled state', () => {
+    render(
+      <AgentConversationControls
+        selectAgentLabel="Select agent"
+        selectModelLabel="Select model"
+        selectWorkspaceLabel="Select project"
+        shouldAutoSelectCreatedAgent={false}
+        side="bottom"
+        agentTriggerMode="selector"
+        canChangeModel
+        onAgentChange={vi.fn()}
+        onModelSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('available-description')).toHaveTextContent('限时免费，仅限于工作模块内使用')
+    expect(screen.getByTestId('shared-free-description')).toHaveTextContent('限时免费')
+    expect(screen.getByTestId('exhausted-description')).toHaveTextContent('免费额度已用完，待重置')
+    expect(screen.getByTestId('exhausted-description').closest('button')).toBeDisabled()
+    expect(screen.getByTestId('paid-description')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('paid-description').closest('button')).not.toBeDisabled()
+    expect(screen.getByTestId('paid-exhausted-description')).toHaveTextContent('套餐额度已用完，请升级套餐或等待重置')
+    expect(screen.getByTestId('paid-exhausted-description').closest('button')).toBeDisabled()
+    expect(screen.getByTestId('regular-description')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('regular-description').closest('button')).not.toBeDisabled()
+  })
+})

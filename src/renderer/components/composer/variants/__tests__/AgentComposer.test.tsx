@@ -508,6 +508,11 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelAvailability: () => ({
+    getModelFreeQuotaStatus: () => undefined,
+    isModelExclusiveToAgent: () => false,
+    isModelDisabled: () => false
+  }),
   useAgentModelFilter: () => undefined,
   useAgentModelDisabled: () => undefined
 }))
