@@ -205,6 +205,7 @@ vi.mock('@main/utils/asar', () => ({
 
 vi.mock('@main/utils/file', () => ({
   getPathStatus: mocks.getPathStatus,
+  isFilesystemRoot: () => false,
   isPathInside: (child: string, parent: string) => {
     const relative = path.relative(path.resolve(parent), path.resolve(child))
     return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative)

@@ -88,6 +88,14 @@ export {
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isOutsidePath, isPathInside, isSameOrInside, resolvePath } from './path'
+export {
+  canWrite,
+  isFilesystemRoot,
+  isNotEmptyDir,
+  isOutsidePath,
+  isPathInside,
+  isSameOrInside,
+  resolvePath
+} from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

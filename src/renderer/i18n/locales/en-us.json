@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Select work directory",
   "agent.session.workspace_selector.search_placeholder": "Search work directories",
   "agent.session.workspace_selector.select_failed": "Failed to select folder.",
+  "agent.session.workspace_status.filesystem_root": "Filesystem roots cannot be used as workspaces. Choose a subfolder: {{path}}",
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",
   "agent.session_delivery.from": "From {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Accepted",

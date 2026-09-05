@@ -2458,6 +2458,48 @@ describe('AgentComposer', () => {
     expect(items).toEqual([expect.objectContaining({ id: 'agent-resource:no-paths' })])
   })
 
+  it.each(['/', 'C:\\', '\\\\server\\share'])(
+    'does not search a persisted filesystem-root workspace: %s',
+    async (workspacePath) => {
+      mocks.sessionWorkspacePath = workspacePath
+
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+
+      const source = mocks.surfaceProps?.suggestionSources?.[0]
+      const items = await source?.items({ query: 'notes', editor: {} as any })
+
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+      expect(items).toEqual([expect.objectContaining({ id: 'agent-resource:no-paths' })])
+    }
+  )
+
+  it('searches a POSIX double-slash workspace instead of treating it as a Windows UNC root', async () => {
+    mocks.sessionWorkspacePath = '//server/share'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    await source?.items({ query: 'notes', editor: {} as any })
+
+    expect(mocks.listDirectoryEntries).toHaveBeenCalledWith('//server/share', expect.any(Object))
+  })
+
   it('provides workspace file resources through the @ mention suggestion source', async () => {
     vi.useFakeTimers()
     try {

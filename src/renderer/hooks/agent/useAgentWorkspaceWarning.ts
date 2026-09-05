@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { isFilesystemRoot } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
@@ -15,6 +16,11 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     if (!enabled) return
     if (!workspacePath) {
       setWarning(undefined)
+      return
+    }
+    const parsedWorkspacePath = AbsoluteFilePathSchema.safeParse(workspacePath)
+    if (parsedWorkspacePath.success && isFilesystemRoot(parsedWorkspacePath.data)) {
+      setWarning(t('agent.session.workspace_status.filesystem_root', { path: workspacePath }))
       return
     }
 

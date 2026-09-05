@@ -4,6 +4,7 @@
   "agent.session.new": "New task",
   "agent.session.run_status.busy": "The Agent Session is busy. Please try again shortly.",
   "agent.session.run_status.unavailable": "The Agent Session is no longer available.",
+  "agent.session.workspace_status.filesystem_root": "Filesystem roots cannot be used as workspaces. Choose a subfolder: {{path}}",
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",
   "agent.session.workspace_status.missing": "Workspace path does not exist: {{path}}",
   "agent.session.workspace_status.not_directory": "Workspace path is not a directory: {{path}}",

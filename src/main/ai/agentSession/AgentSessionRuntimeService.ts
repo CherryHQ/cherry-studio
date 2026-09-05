@@ -614,6 +614,14 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     try {
+      const session = agentSessionService.getById(sessionId)
+      if (!session?.agentId) return
+      const agent = agentService.getAgent(session.agentId)
+      if (!agent?.model) return
+      const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+      if (!driver) return
+      await driver.validateSession(session)
+
       const existing = this.entries.get(sessionId)
       if (existing) {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
@@ -626,12 +634,6 @@ export class AgentSessionRuntimeService extends BaseService {
           .catch((error) => logger.warn('Failed to re-prime agent session connection', { sessionId, error }))
         return
       }
-
-      const session = agentSessionService.getById(sessionId)
-      if (!session?.agentId) return
-      const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
       // trace context the first turn will. The connection is reused across turns, so without this its
