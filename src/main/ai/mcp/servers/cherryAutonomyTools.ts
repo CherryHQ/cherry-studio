@@ -1,10 +1,10 @@
 /**
- * Agent autonomy tools (cron / notify / config) hosted by the in-process
+ * Agent autonomy and cross-Session tools hosted by the in-process
  * `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
  *
  * Unlike the stateless builtin lookup tools, these act on behalf of a specific
  * agent (schedule its tasks, notify through its channels, manage its own
- * configuration), so they take the per-session agent context
+ * configuration and Sessions), so they take the per-session agent context
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
@@ -29,10 +29,13 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { SessionNameEntitySchema } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
+
+import { SESSION_RENAME_TOOL_NAME } from './cherryAutonomyToolNames'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 
@@ -331,6 +334,27 @@ const SESSION_CREATE_TOOL: Tool = {
   }
 }
 
+const SESSION_RENAME_TOOL: Tool = {
+  name: SESSION_RENAME_TOOL_NAME,
+  description:
+    'Rename the display title of a Session owned by the current Agent. This changes only Session metadata; its id, workspace, message history, and existing delivery routing and snapshots remain unchanged.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      session_id: {
+        type: 'string',
+        description: 'Session id returned by session_list or session_search.'
+      },
+      title: {
+        type: 'string',
+        maxLength: 255,
+        description: 'New non-empty Session display title (max 255 characters).'
+      }
+    },
+    required: ['session_id', 'title']
+  }
+}
+
 const SESSION_SEND_TOOL: Tool = {
   name: SESSION_SEND_TOOL_NAME,
   description:
@@ -359,6 +383,7 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
   SESSION_SEARCH_TOOL,
+  SESSION_RENAME_TOOL,
   SESSION_CREATE_TOOL,
   SESSION_DELIVERIES_TOOL,
   SESSION_SEND_TOOL
@@ -428,6 +453,8 @@ export class CherryAutonomyTools {
           return this.listSessions(args)
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
+        case SESSION_RENAME_TOOL_NAME:
+          return this.renameSession(args)
         case SESSION_CREATE_TOOL_NAME:
           return await this.createSession(args)
         case SESSION_DELIVERIES_TOOL_NAME:
@@ -606,6 +633,33 @@ export class CherryAutonomyTools {
           : []
       )
     return { content: [{ type: 'text' as const, text: JSON.stringify({ deliveries }) }] }
+  }
+
+  private renameSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const sessionId = typeof args.session_id === 'string' ? args.session_id.trim() : ''
+    const rawTitle = typeof args.title === 'string' ? args.title : ''
+    const title = rawTitle.trim()
+    if (!sessionId) throw new McpError(ErrorCode.InvalidParams, "'session_id' is required")
+    if (!title) throw new McpError(ErrorCode.InvalidParams, "'title' is required")
+    if (!SessionNameEntitySchema.safeParse(title).success) {
+      throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
+    }
+
+    const session = agentSessionService.renameOwned({
+      sessionId,
+      expectedAgentId: this.agentId,
+      name: title
+    })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ ok: true, agentId: session.agentId, sessionId: session.id, title: session.name })
+        }
+      ]
+    }
   }
 
   private async createSession(args: Record<string, unknown>) {

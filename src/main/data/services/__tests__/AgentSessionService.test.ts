@@ -812,6 +812,75 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('atomically renames a Session owned by the expected Agent', async () => {
+    const session = await createSession('Before owned rename')
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ isNameManuallyEdited: false, lastActivityAt: 123, updatedAt: 1 })
+      .where(eq(agentSessionTable.id, session.id))
+    notifyDataApiDataChangeMock.mockClear()
+
+    const renamed = agentSessionService.renameOwned({
+      sessionId: session.id,
+      expectedAgentId: 'agent-session-test',
+      name: 'Owned rename'
+    })
+
+    expect(renamed).toMatchObject({
+      id: session.id,
+      name: 'Owned rename',
+      isNameManuallyEdited: true,
+      lastActivityAt: '1970-01-01T00:00:00.123Z'
+    })
+    expect(Date.parse(renamed.updatedAt)).toBeGreaterThan(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
+  })
+
+  it('marks a same-name owned rename as manual', async () => {
+    const session = await createSession('Keep this name')
+
+    const renamed = agentSessionService.renameOwned({
+      sessionId: session.id,
+      expectedAgentId: 'agent-session-test',
+      name: 'Keep this name'
+    })
+
+    expect(renamed).toMatchObject({ name: 'Keep this name', isNameManuallyEdited: true })
+  })
+
+  it('does not reveal or mutate Sessions outside the expected Agent ownership', async () => {
+    const session = await createSession('Private name')
+    notifyDataApiDataChangeMock.mockClear()
+
+    const foreignError = captureError(() =>
+      agentSessionService.renameOwned({
+        sessionId: session.id,
+        expectedAgentId: 'another-agent',
+        name: 'Should not apply'
+      })
+    )
+    const missingError = captureError(() =>
+      agentSessionService.renameOwned({
+        sessionId: 'missing-session',
+        expectedAgentId: 'agent-session-test',
+        name: 'Should not apply'
+      })
+    )
+
+    expect(foreignError).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(missingError).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      name: 'Private name',
+      isNameManuallyEdited: false
+    })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
   it('preserves explicit automatic session renames', async () => {
     const session = await createSession('Before automatic update')
 

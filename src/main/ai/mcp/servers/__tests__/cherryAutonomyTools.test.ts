@@ -23,6 +23,7 @@ const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
+const mockRenameSession = vi.fn()
 const mockListSessions = vi.fn()
 const mockSearchSessions = vi.fn()
 const mockSearchSessionMessages = vi.fn()
@@ -49,6 +50,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
+    renameOwned: mockRenameSession,
     listAddressableByCursor: mockListSessions,
     searchWithMetadataEvidence: mockSearchSessions
   }
@@ -174,19 +176,24 @@ describe('CherryAutonomyTools', () => {
   it('should list all tools', () => {
     const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
-    expect(tools).toHaveLength(8)
+    expect(tools).toHaveLength(9)
     expect(tools.map((t) => t.name)).toEqual([
       'cron',
       'notify',
       'config',
       'session_list',
       'session_search',
+      'session_rename',
       'session_create',
       'session_deliveries',
       'session_send'
     ])
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
+    })
+    expect(tools.find((tool) => tool.name === 'session_rename')?.inputSchema).toMatchObject({
+      required: ['session_id', 'title'],
+      properties: { title: { maxLength: 255 } }
     })
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
@@ -209,31 +216,38 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
-    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
-      'denies %s from a headless turn before reading or mutating another Session',
-      async (toolName) => {
-        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
-        const args =
-          toolName === 'session_search'
-            ? { query: 'secret' }
+    it.each([
+      'session_list',
+      'session_search',
+      'session_rename',
+      'session_deliveries',
+      'session_create',
+      'session_send'
+    ])('denies %s from a headless turn before reading or mutating another Session', async (toolName) => {
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const args =
+        toolName === 'session_search'
+          ? { query: 'secret' }
+          : toolName === 'session_rename'
+            ? { session_id: 'session_b', title: 'Renamed' }
             : toolName === 'session_create'
               ? { message: 'delegate' }
               : toolName === 'session_send'
                 ? { target_session_id: 'session_b', message: 'delegate' }
                 : {}
 
-        const result = await callTool(createServer(), args, toolName)
+      const result = await callTool(createServer(), args, toolName)
 
-        expect(result.isError).toBe(true)
-        expect(JSON.parse(result.content[0].text)).toMatchObject({
-          ok: false,
-          error: { code: 'SESSION_TOOL_FORBIDDEN' }
-        })
-        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
-        expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
-        expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
-      }
-    )
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SESSION_TOOL_FORBIDDEN' }
+      })
+      expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+      expect(mockRenameSession).not.toHaveBeenCalled()
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+      expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+    })
 
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
@@ -484,6 +498,56 @@ describe('CherryAutonomyTools', () => {
         agentId: 'agent_test',
         sessionId: 'session-new',
         delivery: { id: 'delivery-1', status: 'accepted' }
+      })
+    })
+
+    it('renames a same-Agent Session using the trusted Agent identity', async () => {
+      mockRenameSession.mockReturnValue({ id: 'session_b', agentId: 'agent_test', name: 'Task directory' })
+
+      const result = await callTool(
+        createServer('agent_test'),
+        { session_id: ' session_b ', title: ' Task directory ' },
+        'session_rename'
+      )
+
+      expect(mockRenameSession).toHaveBeenCalledWith({
+        sessionId: 'session_b',
+        expectedAgentId: 'agent_test',
+        name: 'Task directory'
+      })
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        ok: true,
+        agentId: 'agent_test',
+        sessionId: 'session_b',
+        title: 'Task directory'
+      })
+    })
+
+    it.each([
+      [{ title: 'Renamed' }, "'session_id' is required"],
+      [{ session_id: 'session_b', title: '   ' }, "'title' is required"],
+      [{ session_id: 'session_b', title: 42 }, "'title' is required"],
+      [{ session_id: 'session_b', title: 'x'.repeat(256) }, "'title' must be at most 255 characters"],
+      [{ session_id: 'session_b', title: '🍒'.repeat(128) }, "'title' must be at most 255 characters"]
+    ])('rejects invalid session rename input %#', async (args, message) => {
+      const result = await callTool(createServer(), args, 'session_rename')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain(message)
+      expect(mockRenameSession).not.toHaveBeenCalled()
+    })
+
+    it('accepts a Unicode title within the shared 255-code-unit schema limit', async () => {
+      const title = '🍒'.repeat(127)
+      mockRenameSession.mockReturnValue({ id: 'session_b', agentId: 'agent_test', name: title })
+
+      const result = await callTool(createServer('agent_test'), { session_id: 'session_b', title }, 'session_rename')
+
+      expect(result.isError).not.toBe(true)
+      expect(mockRenameSession).toHaveBeenCalledWith({
+        sessionId: 'session_b',
+        expectedAgentId: 'agent_test',
+        name: title
       })
     })
   })
