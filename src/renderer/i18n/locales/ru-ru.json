@@ -2180,6 +2180,7 @@
   "message.tools.activity.codeFiles": "файлы кода",
   "message.tools.activity.codeHostInfo": "сведения об удалённом репозитории",
   "message.tools.activity.configFiles": "документация и конфигурация проекта",
+  "message.tools.activity.continueHandle": "Продолжить обработку",
   "message.tools.activity.copy": "Копировать",
   "message.tools.activity.copying": "Выполняется копирование",
   "message.tools.activity.create": "Создать",

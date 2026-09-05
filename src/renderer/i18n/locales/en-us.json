@@ -2180,6 +2180,7 @@
   "message.tools.activity.codeFiles": "code files",
   "message.tools.activity.codeHostInfo": "remote repo info",
   "message.tools.activity.configFiles": "project docs and config",
+  "message.tools.activity.continueHandle": "Continue handling",
   "message.tools.activity.copy": "Copy",
   "message.tools.activity.copying": "Copying",
   "message.tools.activity.create": "Create",

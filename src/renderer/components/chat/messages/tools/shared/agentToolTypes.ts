@@ -48,6 +48,7 @@ import type {
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import * as z from 'zod'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
@@ -278,6 +279,85 @@ export type WorkflowToolOutput = WorkflowOutput | string
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
 export type SendMessageToolOutput = string
+
+/** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
+ *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */
+export function getResumedAgentId(output: unknown): string | undefined {
+  if (typeof output === 'string') {
+    return (
+      /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
+      /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1]
+    )
+  }
+  if (output && typeof output === 'object') {
+    const record = output as { resumedAgentId?: unknown; pin?: unknown }
+    if (typeof record.resumedAgentId === 'string') return record.resumedAgentId
+    if (record.pin && typeof record.pin === 'object' && typeof (record.pin as { id?: unknown }).id === 'string') {
+      return (record.pin as { id: string }).id
+    }
+  }
+  return undefined
+}
+
+/**
+ * Resolve a SendMessage receipt back to the agent run it continues: the resumed agent keeps
+ * streaming under its launch tool-call id, so entries must point at that launch. Returns the
+ * launch's toolCallId and description (which doubles as the agent's identity).
+ */
+/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` when its serialized
+ *  form mentions the id: the id is session-scoped and generated at launch time, so the earliest
+ *  matching part is always the launch itself, and any textual trailer check would break whenever
+ *  the CLI rewords its receipt between versions. */
+function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
+  if (typeof output === 'string') return output.includes(resumedAgentId)
+  if (isRecord(output)) return JSON.stringify(output).includes(resumedAgentId)
+  return false
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function resolveResumedAgent(
+  output: unknown,
+  fullPartsMap: Record<string, CherryMessagePart[]> | null
+): { toolCallId: string; description?: string } | undefined {
+  const resumedAgentId = getResumedAgentId(output)
+  if (!resumedAgentId || !fullPartsMap) return undefined
+  // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
+  // part that can reference this id, and later mentions (a quote inside another part's output)
+  // must not redirect the entry.
+  for (const parts of Object.values(fullPartsMap)) {
+    for (const part of parts) {
+      const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      if (
+        (record.toolName === AgentToolsType.Agent || record.toolName === AgentToolsType.Task) &&
+        typeof record.toolCallId === 'string' &&
+        isLaunchReceiptFor(record.output, resumedAgentId)
+      ) {
+        const input = record.input
+        // A blank description must fall through to the prompt, or the continuation identity and
+        // the flow title render empty.
+        const description =
+          input && typeof input === 'object' && typeof (input as { description?: unknown }).description === 'string'
+            ? (input as { description: string }).description.trim() || undefined
+            : undefined
+        return {
+          toolCallId: record.toolCallId,
+          description:
+            description ??
+            (input && typeof input === 'object' && typeof (input as { prompt?: unknown }).prompt === 'string'
+              ? (input as { prompt: string }).prompt
+                  .split(/\r?\n/)
+                  .find((line) => line.trim())
+                  ?.trim()
+              : undefined)
+        }
+      }
+    }
+  }
+  return undefined
+}
 export type TeamCreateToolInput = Record<string, unknown>
 export type TeamCreateToolOutput = string
 export type TeamDeleteToolInput = Record<string, unknown>
