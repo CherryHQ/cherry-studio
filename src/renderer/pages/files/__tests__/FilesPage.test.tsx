@@ -205,7 +205,13 @@ function renderFilesPage(entries: FileEntry[] = [entry]) {
 }
 
 function selectFileAt(index: number) {
-  fireEvent.click(screen.getAllByRole('checkbox', { name: 'files.select_file' })[index])
+  // The per-row checkbox aria-label is `files.select_file` when sourcePath is
+  // absent and `files.select_file_with_path` when present (PR #19573). Match
+  // either with a regex so this helper works in both branches.
+  const fileCheckboxes = screen
+    .getAllByRole('checkbox')
+    .filter((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
+  fireEvent.click(fileCheckboxes[index])
 }
 
 beforeEach(() => {
@@ -512,10 +518,16 @@ describe('FilesPage keyboard rename', () => {
   it('handles file shortcuts from a focused selection checkbox', async () => {
     renderFilesPage()
 
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    fireEvent.click(checkbox)
-    checkbox.focus()
-    fireEvent.keyDown(checkbox, { key: 'Delete' })
+    // The per-row checkbox aria-label is `files.select_file` when sourcePath
+    // is absent and `files.select_file_with_path` when present (PR #19573).
+    // Match either so the test stays correct on both branches.
+    const fileCheckbox = screen
+      .getAllByRole('checkbox')
+      .find((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
+    expect(fileCheckbox).toBeDefined()
+    fireEvent.click(fileCheckbox as HTMLElement)
+    ;(fileCheckbox as HTMLElement).focus()
+    fireEvent.keyDown(fileCheckbox as HTMLElement, { key: 'Delete' })
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
@@ -1005,12 +1017,14 @@ describe('FilesPage file operations', () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
     renderFilesPage([entry, secondEntry])
 
-    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
-    fireEvent.click(checkboxes[0])
+    const fileCheckboxes = screen
+      .getAllByRole('checkbox')
+      .filter((c) => (c.getAttribute('aria-label') ?? '').startsWith('files.select_file'))
+    fireEvent.click(fileCheckboxes[0])
     fireEvent.contextMenu(screen.getByText('notes.md'))
 
-    expect(checkboxes[0]).toBeChecked()
-    expect(checkboxes[1]).not.toBeChecked()
+    expect(fileCheckboxes[0]).toBeChecked()
+    expect(fileCheckboxes[1]).not.toBeChecked()
   })
 
   it('shows contextual actions for a single selected file', () => {
