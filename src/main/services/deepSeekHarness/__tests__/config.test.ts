@@ -185,6 +185,25 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('uses the provider default when it is one of the model declared endpoints', () => {
+    const providerDefault = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
+      }
+    })
+    const modelWithMultipleEndpoints = model({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(providerDefault, modelWithMultipleEndpoints)).toEqual({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages',
+      baseUrl: 'https://proxy.example/anthropic'
+    })
+  })
+
   it('preserves comments, unrelated routes, and old managed models while selecting the new default', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
     await writeFile(path.join(dir, '.credentials.yaml'), '# credentials note\nOTHER_KEY: keep\n', { mode: 0o600 })
