@@ -1,8 +1,8 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { AccordionContent, AccordionItem, AccordionTrigger, Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { ChevronDown, CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
+import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,94 +63,76 @@ const AiDiagnosisSectionWithStatus = memo(
       }
     }, [error, i18n.language, onStatusChange, diagnosisContext, blockId, onDiagnosisComplete, t])
 
-    if (status === 'done' && result) {
-      return (
-        <details
-          className="group rounded-xl border border-border bg-background p-4 text-foreground"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true">
-          <summary
-            aria-label={t('error.diagnosis.ai_result')}
-            className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
-            <span className="flex min-w-0 flex-wrap items-center gap-2">
-              <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
-              <span className="font-medium text-sm">{t('error.diagnosis.ai_button')}</span>
-              <Badge variant="outline" className="font-normal text-xs">
-                {t('error.diagnosis.ai_done')}
-              </Badge>
-            </span>
-            <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
-              {t('error.diagnosis.view_details')}
-              <span className="inline-flex motion-safe:transition-transform motion-safe:group-open:rotate-180">
-                <ChevronDown className="size-4" aria-hidden />
-              </span>
-            </span>
-          </summary>
-          <div className="mt-3 space-y-2 border-border border-t pt-3 text-muted-foreground text-sm leading-6">
-            <p>{result.explanation || result.summary}</p>
-            {result.steps.length > 0 ? (
-              <ol className="space-y-1.5">
-                {result.steps.map((step, index) => (
-                  <li key={`${index}-${step.text}`} className="flex gap-2 px-2.5 py-1.5">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
-                      {index + 1}
-                    </span>
-                    <span>{step.text}</span>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-          </div>
-        </details>
-      )
-    }
+    const statusLabel =
+      status === 'loading'
+        ? t('error.diagnosis.ai_loading')
+        : status === 'done'
+          ? t('error.diagnosis.ai_done')
+          : status === 'error'
+            ? t('settings.doctor.status.error')
+            : null
 
     return (
-      <div
-        className="rounded-xl border border-border bg-background p-4 text-foreground"
+      <AccordionItem
+        value="ai-diagnosis"
+        className="px-2"
         role={status === 'error' ? 'alert' : 'status'}
         aria-live="polite"
         aria-atomic="true">
-        <div className="flex flex-wrap items-center gap-2">
-          {status === 'loading' ? (
-            <span className="inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
-              <Loader2 className="size-4 text-primary" />
-            </span>
-          ) : status === 'done' ? (
-            <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
-          ) : status === 'error' ? (
-            <CircleAlert className="size-4 shrink-0 text-error" aria-hidden />
-          ) : (
-            <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          )}
-          <p className="font-medium text-sm">{t('error.diagnosis.ai_button')}</p>
-          <Badge variant="outline" className="font-normal text-xs">
-            {status === 'loading'
-              ? t('error.diagnosis.ai_loading')
-              : status === 'done'
-                ? t('error.diagnosis.ai_done')
-                : status === 'error'
-                  ? t('settings.doctor.status.error')
-                  : t('settings.doctor.status.pending')}
-          </Badge>
-        </div>
-
-        {status === 'error' ? (
-          <div className="mt-3 space-y-2">
-            <p className="text-error text-xs">{diagError}</p>
+        <AccordionTrigger className="py-3 font-normal">
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            {status === 'loading' ? (
+              <span className="inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
+                <Loader2 className="size-4 text-primary" />
+              </span>
+            ) : status === 'done' ? (
+              <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
+            ) : status === 'error' ? (
+              <CircleAlert className="size-4 shrink-0 text-error" aria-hidden />
+            ) : (
+              <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
+            <span className="font-medium text-sm">{t('error.diagnosis.ai_result')}</span>
+            {statusLabel ? (
+              <Badge variant="outline" className="font-normal text-xs">
+                {statusLabel}
+              </Badge>
+            ) : null}
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="space-y-3 pb-3">
+          {status === 'done' && result ? (
+            <div className="space-y-2 text-muted-foreground text-sm leading-6">
+              <p>{result.explanation || result.summary}</p>
+              {result.steps.length > 0 ? (
+                <ol className="space-y-1.5">
+                  {result.steps.map((step, index) => (
+                    <li key={`${index}-${step.text}`} className="flex gap-2 px-2.5 py-1.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
+                        {index + 1}
+                      </span>
+                      <span>{step.text}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          ) : null}
+          {status === 'error' ? (
+            <div className="space-y-2">
+              <p className="text-error text-xs">{diagError}</p>
+              <Button variant="outline" size="sm" onClick={() => void runDiagnosis()}>
+                {t('common.retry')}
+              </Button>
+            </div>
+          ) : null}
+          {status === 'idle' ? (
             <Button variant="outline" size="sm" onClick={() => void runDiagnosis()}>
-              {t('common.retry')}
+              {t('error.diagnosis.ai_button')}
             </Button>
-          </div>
-        ) : null}
-
-        {status === 'idle' ? (
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => void runDiagnosis()}>
-            {t('error.diagnosis.ai_button')}
-          </Button>
-        ) : null}
-      </div>
+          ) : null}
+        </AccordionContent>
+      </AccordionItem>
     )
   }
 )

@@ -32,7 +32,26 @@ const passingVersionResult: DoctorCheckResult = {
   durationMs: 1
 }
 
+const lowDiskResult: DoctorCheckResult = {
+  id: 'storage-disk-space',
+  status: 'warn',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'low' },
+  actions: []
+}
+
+const invalidBootConfigResult: DoctorCheckResult = {
+  id: 'config-boot-config-valid',
+  status: 'fail',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'invalid_keys' },
+  actions: [{ kind: 'fix', fixId: 'repair' }]
+}
+
 const mocks = vi.hoisted(() => ({
+  cacheReady: true,
   diagnoseError: vi.fn(),
   doctorState: { status: 'idle' } as DoctorState,
   openSettingsTab: vi.fn(),
@@ -41,6 +60,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const translations: Record<string, string> = {
+  'common.close': 'Close',
   'common.copy': 'Copy',
   'common.cancel': 'Cancel',
   'common.retry': 'Retry',
@@ -48,7 +68,7 @@ const translations: Record<string, string> = {
   'error.diagnosis.ai_button': 'AI diagnosis',
   'error.diagnosis.ai_done': 'AI diagnosis complete',
   'error.diagnosis.ai_loading': 'Diagnosing',
-  'error.diagnosis.ai_result': 'AI diagnosis',
+  'error.diagnosis.ai_result': 'AI diagnosis result',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
@@ -63,17 +83,31 @@ const translations: Record<string, string> = {
   'message.copied': 'Copied',
   'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
+  'settings.doctor.checks.config-boot-config-valid.detail.invalid_keys':
+    'Some startup settings are not recognized or valid.',
+  'settings.doctor.checks.config-boot-config-valid.title': 'Startup configuration',
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
-  'settings.doctor.domains.install': 'Installation',
+  'settings.doctor.fixes.repair_boot_config': 'Repair startup configuration',
+  'settings.doctor.messages.relaunch_required': 'Restart Cherry Studio to apply the repair.',
+  'settings.doctor.status.fail': 'Failed',
   'settings.doctor.status.pass': 'Passed',
+  'settings.doctor.summary.problems': '{{count}} items need attention',
+  'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
 }
 
+function translate(key: string, params?: Record<string, string | number>) {
+  return Object.entries(params ?? {}).reduce(
+    (value, [name, replacement]) => value.replace(`{{${name}}}`, String(replacement)),
+    translations[key] ?? key
+  )
+}
+
 vi.mock('@data/CacheService', () => ({
-  cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
+  cacheService: { isSharedCacheReady: () => mocks.cacheReady, onSharedCacheReady: vi.fn() }
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -116,7 +150,7 @@ vi.mock('i18next', () => ({ t: (key: string) => translations[key] ?? key }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en-US' },
-    t: (key: string) => translations[key] ?? key
+    t: translate
   })
 }))
 
@@ -140,6 +174,14 @@ function renderErrorDetailContent(props: ErrorDetailContentProps) {
       </DialogContent>
     </Dialog>
   )
+}
+
+function getStartAiDiagnosisButton() {
+  const action = screen
+    .getAllByRole('button', { name: 'AI diagnosis' })
+    .find((button) => !button.hasAttribute('aria-expanded'))
+  expect(action).toBeDefined()
+  return action as HTMLButtonElement
 }
 
 function runningDoctorState(tier: 'quick' | 'live'): DoctorState {
@@ -197,6 +239,7 @@ function deferredDiagnosis() {
 describe('ErrorDetailContent diagnostics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.cacheReady = true
     mocks.doctorState = { status: 'idle' }
     mocks.diagnoseError.mockResolvedValue(aiDiagnosis)
     mocks.request.mockResolvedValue({ status: 'completed' })
@@ -214,6 +257,15 @@ describe('ErrorDetailContent diagnostics', () => {
     vi.useRealTimers()
   })
 
+  it.each(['Copy', 'View Details'])('shows the %s action label in a tooltip', async (label) => {
+    renderErrorDetailContent({ error: providerError })
+
+    const button = screen.getByRole('button', { name: label })
+    const trigger = button.closest('[data-slot="tooltip-trigger"]')
+    fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
+    expect(await screen.findByRole('tooltip', { name: label })).toHaveTextContent(label)
+  })
+
   it('shows compact basic information and copies the unchanged error text', async () => {
     const user = userEvent.setup()
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
@@ -224,7 +276,8 @@ describe('ErrorDetailContent diagnostics', () => {
       error: providerError
     })
 
-    expect(screen.getByText('Basic information')).toBeInTheDocument()
+    const basicInformation = screen.getByRole('region', { name: 'Basic information' })
+    expect(basicInformation).toBeInTheDocument()
     expect(screen.getByText('Home conversation')).toBeInTheDocument()
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
@@ -238,7 +291,7 @@ describe('ErrorDetailContent diagnostics', () => {
     )
   })
 
-  it('keeps diagnostics mounted while navigating error details from the dialog header', async () => {
+  it('keeps diagnostics mounted while nested error details are open and restores focus when they close', async () => {
     const user = userEvent.setup()
     const pendingDiagnosis = deferredDiagnosis()
     mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
@@ -249,42 +302,114 @@ describe('ErrorDetailContent diagnostics', () => {
       showErrorDetailPopup({ error: providerError })
     })
 
-    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
-    await user.click(screen.getByRole('button', { name: 'View Details' }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
-    expect(within(dialog).getByText('private stack')).toBeVisible()
+    const outerDialog = screen.getByText('Basic information').closest('[role="dialog"]')
+    const viewDetails = screen.getByRole('button', { name: 'View Details' })
+    await user.click(getStartAiDiagnosisButton())
+    await user.click(viewDetails)
+
+    expect(screen.getAllByRole('dialog', { hidden: true })).toHaveLength(2)
+    expect(outerDialog).toBeInTheDocument()
+    expect(within(outerDialog as HTMLElement).getByText('Basic information')).toBeInTheDocument()
+    const detailDialog = screen.getByText('private stack').closest('[role="dialog"]')
+    expect(detailDialog).not.toBe(outerDialog)
+    expect(within(detailDialog as HTMLElement).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
 
     mocks.doctorState = completedDoctorState([passingVersionResult])
     view.rerender(<PopupHost />)
     await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
-    await user.click(within(dialog).getByRole('button', { name: 'Back to diagnostic overview' }))
+    await user.click(within(detailDialog as HTMLElement).getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText(aiDiagnosis.explanation)).toBeInTheDocument()
+    await waitFor(() => expect(viewDetails).toHaveFocus())
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
   })
 
-  it('collapses a successful AI diagnosis until the user expands it', async () => {
+  it('keeps error details open until an in-progress Doctor repair reports its result', async () => {
+    let resolveFix!: (result: { status: 'requires_relaunch' }) => void
+    mocks.cacheReady = false
+    mocks.doctorState = completedDoctorState([invalidBootConfigResult])
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.doctor.fix') {
+        return new Promise((resolve) => {
+          resolveFix = resolve
+        })
+      }
+      return Promise.resolve({ status: 'completed' })
+    })
     const user = userEvent.setup()
-    mocks.doctorState = runningDoctorState('quick')
+    render(<PopupHost />)
 
-    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+    act(() => {
+      showErrorDetailPopup({ error: providerError })
+    })
 
-    const disclosure = screen.getByLabelText('AI diagnosis')
-    expect(screen.getByText(aiDiagnosis.explanation)).not.toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Startup configuration/ }))
+    const repair = screen.getByRole('button', { name: 'Repair startup configuration' })
+    await waitFor(() => expect(repair).toBeEnabled())
+    await user.click(repair)
 
-    await user.click(disclosure)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument())
+    await user.keyboard('{Escape}')
+    expect(popupService.getSnapshot()[0]?.open).toBe(true)
+    const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
+    expect(overlay).not.toBeNull()
+    fireEvent.click(overlay as HTMLElement)
+    expect(popupService.getSnapshot()[0]?.open).toBe(true)
 
-    expect(screen.getByText(aiDiagnosis.explanation)).toBeVisible()
+    await act(async () => resolveFix({ status: 'requires_relaunch' }))
+
+    expect(await screen.findByText('Restart Cherry Studio to apply the repair.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
   })
 
-  it('shows Doctor checks directly without domain accordions', () => {
+  it('copies the unchanged error text from the nested error details', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    render(<PopupHost />)
+
+    act(() => {
+      showErrorDetailPopup({ error: providerError })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    const detailDialog = screen.getByText('private stack').closest('[role="dialog"]')
+    await user.click(within(detailDialog as HTMLElement).getByRole('button', { name: 'Copy' }))
+
+    expect(writeText).toHaveBeenCalledWith(
+      ['Error name: ProviderError', 'Error message: failed', 'Stack: private stack'].join('\n')
+    )
+  })
+
+  it('shows a completed AI diagnosis as the initially expanded list item', () => {
+    mocks.cacheReady = false
     mocks.doctorState = completedDoctorState([passingVersionResult])
 
     renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
 
-    expect(screen.getByText('Version and release channel')).toBeVisible()
+    const diagnostics = screen.getByRole('region', { name: 'System diagnostics' })
+    expect(within(diagnostics).getByText('1 of 1 completed · 0 items need attention')).toBeVisible()
+    expect(within(diagnostics).getByRole('button', { name: /AI diagnosis/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(diagnostics).getByText(aiDiagnosis.explanation)).toBeVisible()
+  })
+
+  it('switches from AI diagnosis to an expanded Doctor item in the same accordion', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([lowDiskResult])
+
+    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+
+    const aiTrigger = screen.getByRole('button', { name: /AI diagnosis/ })
+    const doctorTrigger = screen.getByRole('button', { name: /Available disk space/ })
+    expect(aiTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(doctorTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Available disk space is low.')).not.toBeInTheDocument()
+
+    await user.click(doctorTrigger)
+
+    expect(aiTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(doctorTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByText(aiDiagnosis.explanation)).not.toBeInTheDocument()
+    expect(await screen.findByText('Available disk space is low.')).toBeVisible()
     expect(screen.queryByRole('button', { name: /Installation/ })).not.toBeInTheDocument()
   })
 
@@ -312,7 +437,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
+    await user.click(getStartAiDiagnosisButton())
 
     await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
   })
@@ -362,7 +487,7 @@ describe('ErrorDetailContent diagnostics', () => {
       onOpenDiagnosticReport
     })
 
-    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
+    await user.click(getStartAiDiagnosisButton())
     expect(await screen.findByText('private AI diagnosis')).toBeInTheDocument()
     const footer = screen.getByRole('group', { name: 'Error Details' })
     expect(

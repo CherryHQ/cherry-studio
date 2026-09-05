@@ -127,6 +127,13 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
 
+  useEffect(
+    () => () => {
+      onBusyChange?.(false)
+    },
+    [onBusyChange]
+  )
+
   const changeDescription = (nextDescription: string) => {
     onDescriptionChange(nextDescription)
   }
@@ -386,9 +393,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
           <>
             <Button
               ref={result.status === 'uploaded' ? primaryActionRef : undefined}
-              variant={retainedBundleId ? 'destructive' : 'outline'}
+              variant={retainedBundleId && !savedUpload ? 'destructive' : 'outline'}
               onClick={() => void requestClose()}>
-              {t(retainedBundleId ? 'common.delete' : 'settings.about.diagnostics.actions.close')}
+              {t(retainedBundleId && !savedUpload ? 'common.delete' : 'settings.about.diagnostics.actions.close')}
             </Button>
             {result.status !== 'uploaded' && retainedBundleId ? (
               <Button variant="outline" onClick={() => void openManualForm()}>

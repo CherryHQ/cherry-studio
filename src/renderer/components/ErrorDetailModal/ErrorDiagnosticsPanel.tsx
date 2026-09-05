@@ -1,4 +1,5 @@
-import { Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import { Accordion, Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckList, DoctorConfirmationView } from '@renderer/components/doctor'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
@@ -15,6 +16,7 @@ interface ErrorDiagnosticsPanelProps {
   readonly cachedDiagnosis?: DiagnosisResult
   readonly diagnosisContext?: DiagnosisContext
   readonly error?: SerializedError
+  readonly onCloseBlockedChange?: (blocked: boolean) => void
   readonly onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   readonly onNavigate?: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
@@ -29,6 +31,7 @@ export function ErrorDiagnosticsPanel({
   cachedDiagnosis,
   diagnosisContext,
   error,
+  onCloseBlockedChange,
   onDiagnosisComplete,
   onNavigate = ignoreNavigation,
   onReportProblem
@@ -49,6 +52,19 @@ export function ErrorDiagnosticsPanel({
     (interaction.kind === 'run' && interaction.tier === 'live')
   const confirmationTitle =
     interaction.kind === 'confirm-evidence' ? t('settings.doctor.confirm_evidence.title') : t('settings.doctor.title')
+  const hasAiDiagnosis = Boolean(error || cachedDiagnosis)
+  const completedChecks = controller.viewModel.rows.filter((row) => row.status !== 'pending').length
+  const summary =
+    controller.viewModel.rows.length > 0
+      ? `${t('settings.doctor.summary.progress', {
+          completed: completedChecks,
+          total: controller.viewModel.rows.length
+        })} · ${t('settings.doctor.summary.problems', { count: controller.viewModel.problemCount })}`
+      : undefined
+
+  useEffect(() => {
+    onCloseBlockedChange?.(controller.isCloseBlocked)
+  }, [controller.isCloseBlocked, onCloseBlockedChange])
 
   useEffect(() => {
     if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
@@ -76,12 +92,11 @@ export function ErrorDiagnosticsPanel({
   }, [controller])
 
   return (
-    <section aria-labelledby="error-system-diagnostics-heading">
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="error-system-diagnostics-heading" className="font-medium text-sm">
-            {t('settings.doctor.title')}
-          </h2>
+    <>
+      <DiagnosticsPanel
+        title={t('settings.doctor.title')}
+        description={summary}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -92,19 +107,28 @@ export function ErrorDiagnosticsPanel({
             onClick={() => void controller.run('live')}>
             {t('settings.doctor.actions.run_network')}
           </Button>
-        </div>
-
-        {error || cachedDiagnosis ? (
-          <AiDiagnosisSectionWithStatus
-            key={blockId ?? error?.message ?? 'error-diagnosis'}
-            error={error}
-            status={diagnosisStatus}
-            onStatusChange={setDiagnosisStatus}
-            diagnosisContext={diagnosisContext}
-            blockId={blockId}
-            onDiagnosisComplete={handleDiagnosisComplete}
-            cachedDiagnosis={cachedDiagnosis}
-          />
+        }
+        bodyClassName="space-y-3 pb-3">
+        {hasAiDiagnosis || controller.viewModel.rows.length > 0 ? (
+          <Accordion
+            type="single"
+            collapsible
+            defaultValue={hasAiDiagnosis ? 'ai-diagnosis' : undefined}
+            className="border-border border-t bg-background px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
+            {hasAiDiagnosis ? (
+              <AiDiagnosisSectionWithStatus
+                key={blockId ?? error?.message ?? 'error-diagnosis'}
+                error={error}
+                status={diagnosisStatus}
+                onStatusChange={setDiagnosisStatus}
+                diagnosisContext={diagnosisContext}
+                blockId={blockId}
+                onDiagnosisComplete={handleDiagnosisComplete}
+                cachedDiagnosis={cachedDiagnosis}
+              />
+            ) : null}
+            {controller.viewModel.rows.length > 0 ? <DoctorCheckList controller={controller} /> : null}
+          </Accordion>
         ) : null}
 
         {controller.viewModel.isStale ? (
@@ -129,9 +153,7 @@ export function ErrorDiagnosticsPanel({
           <Alert type="info" showIcon description={t('settings.doctor.messages.relaunch_required')} />
         ) : null}
 
-        {controller.viewModel.rows.length > 0 ? (
-          <DoctorCheckList controller={controller} />
-        ) : (
+        {controller.viewModel.rows.length === 0 ? (
           <Alert
             type="info"
             showIcon
@@ -146,8 +168,8 @@ export function ErrorDiagnosticsPanel({
                 : 'settings.doctor.empty.description'
             )}
           />
-        )}
-      </div>
+        ) : null}
+      </DiagnosticsPanel>
 
       <Dialog open={isConfirming} onOpenChange={(open) => !open && cancelConfirmation()}>
         <DialogContent
@@ -164,6 +186,6 @@ export function ErrorDiagnosticsPanel({
           />
         </DialogContent>
       </Dialog>
-    </section>
+    </>
   )
 }

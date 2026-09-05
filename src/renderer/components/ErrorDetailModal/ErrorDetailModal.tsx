@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
@@ -36,7 +36,7 @@ import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/err
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { ArrowLeft, FileUp } from 'lucide-react'
+import { Copy, FileUp } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,6 +54,10 @@ interface ErrorDetailContentProps {
   onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
+}
+
+interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
+  readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
 }
 
 const truncateLargeData = (
@@ -500,7 +504,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
 // --- Main Content Component ---
 
-const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
+const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   diagnosisContext,
   diagnosticReport,
@@ -508,12 +512,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   onDiagnosisComplete,
   onOpenDiagnosticReport,
   cachedDiagnosis,
-  onDoctorNavigate
+  onDoctorNavigate,
+  onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
-  const [activeView, setActiveView] = useState<'overview' | 'details'>('overview')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
 
   const copyErrorDetails = useCallback(() => {
@@ -554,19 +557,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   }, [diagnosticReport, diagnosisContext, error, onOpenDiagnosticReport, t])
 
   const showDetails = () => {
-    setActiveView('details')
-    requestAnimationFrame(() => {
-      containerRef.current?.scrollTo({ top: 0 })
-      detailsHeadingRef.current?.focus()
-    })
-  }
-
-  const showOverview = () => {
-    setActiveView('overview')
-    requestAnimationFrame(() => {
-      containerRef.current?.scrollTo({ top: 0 })
-      viewDetailsButtonRef.current?.focus()
-    })
+    setDetailsOpen(true)
   }
 
   const renderErrorDetails = (error?: SerializedError) => {
@@ -587,25 +578,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 
   return (
     <>
-      <DialogHeader className="flex-row items-center gap-2 pr-8">
-        {activeView === 'details' ? (
-          <Tooltip content={t('error.diagnostics.back_to_overview')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('error.diagnostics.back_to_overview')}
-              onClick={showOverview}>
-              <ArrowLeft className="size-4" />
-            </Button>
-          </Tooltip>
-        ) : null}
-        <DialogTitle ref={detailsHeadingRef} tabIndex={-1}>
-          {t('error.detail')}
-        </DialogTitle>
+      <DialogHeader className="pr-8">
+        <DialogTitle>{t('error.detail')}</DialogTitle>
       </DialogHeader>
-      <ErrorDetailContainer ref={containerRef}>
-        <div hidden={activeView !== 'overview'} className="space-y-4">
+      <ErrorDetailContainer>
+        <div className="space-y-4">
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
@@ -619,43 +596,78 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
             cachedDiagnosis={cachedDiagnosis}
             diagnosisContext={diagnosisContext}
             error={error}
+            onCloseBlockedChange={onDoctorCloseBlockedChange}
             onDiagnosisComplete={onDiagnosisComplete}
             onNavigate={onDoctorNavigate}
             onReportProblem={onOpenDiagnosticReport}
           />
         </div>
-
-        {activeView === 'details' ? <div className="space-y-4">{renderErrorDetails(error)}</div> : null}
       </ErrorDetailContainer>
 
       {diagnosticReport && onOpenDiagnosticReport ? (
-        <div role="group" aria-label={t('error.detail')} className="my-2 mt-4 flex justify-end">
+        <div role="group" aria-label={t('error.detail')} className="flex justify-end">
           <Button variant="emphasis" onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}
           </Button>
         </div>
       ) : null}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent
+          size="xl"
+          closeLabel={t('common.close')}
+          className="max-h-[calc(100vh-2rem)] overflow-hidden"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            viewDetailsButtonRef.current?.focus()
+          }}>
+          <DialogHeader className="pr-8">
+            <DialogTitle>{t('error.detail')}</DialogTitle>
+          </DialogHeader>
+          <ErrorDetailContainer>
+            <div className="space-y-4">{renderErrorDetails(error)}</div>
+          </ErrorDetailContainer>
+          <DialogFooter>
+            <Button variant="outline" disabled={!error} onClick={copyErrorDetails}>
+              <Copy size={14} />
+              {t('common.copy')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
 
 type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
 
-const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => (
-  <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
-    <DialogContent
-      closeLabel={i18n.t('common.close')}
-      className="sm:max-w-none"
-      style={{
-        width: 'min(60vw, calc(100vw - 2rem))',
-        maxWidth: 'min(1200px, calc(100vw - 2rem))',
-        minWidth: 'min(600px, calc(100vw - 2rem))'
+const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
+  const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
+  const close = useCallback(() => {
+    if (!doctorCloseBlocked) resolve()
+  }, [doctorCloseBlocked, resolve])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
       }}>
-      <ErrorDetailContent {...props} />
-    </DialogContent>
-  </Dialog>
-)
+      <DialogContent
+        size="xl"
+        closeLabel={i18n.t('common.close')}
+        closeOnOverlayClick={!doctorCloseBlocked}
+        showCloseButton={!doctorCloseBlocked}
+        className="max-h-[calc(100vh-2rem)] overflow-hidden"
+        onEscapeKeyDown={(event) => {
+          if (doctorCloseBlocked) event.preventDefault()
+        }}>
+        <ErrorDetailContent {...props} onDoctorCloseBlockedChange={setDoctorCloseBlocked} />
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
 

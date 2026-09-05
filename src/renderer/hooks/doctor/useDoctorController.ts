@@ -5,7 +5,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { buildDoctorViewModel, defaultExpandedDoctorDomains, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
+import { buildDoctorViewModel, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
@@ -76,7 +76,6 @@ export function useDoctorController({
   )
   const [now, setNow] = useState(Date.now)
   const autoRunRequestedRef = useRef(false)
-  const expandedRunIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (sharedCacheReady) return
@@ -107,12 +106,6 @@ export function useDoctorController({
     session.interaction.kind === 'bundle-operation' ||
     session.interaction.kind === 'report-operation'
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
-
-  useEffect(() => {
-    if (!viewModel.report || expandedRunIdRef.current === viewModel.report.runId) return
-    expandedRunIdRef.current = viewModel.report.runId
-    dispatch({ type: 'set-expanded-domains', domains: defaultExpandedDoctorDomains(viewModel.groups) })
-  }, [viewModel.groups, viewModel.report])
 
   useEffect(() => {
     if (session.interaction.kind !== 'run') return
@@ -355,8 +348,6 @@ export function useDoctorController({
     run,
     session,
     setDescription: (description: string) => dispatch({ type: 'set-description', description }),
-    setExpandedDomains: (domains: readonly (typeof session.expandedDomains)[number][]) =>
-      dispatch({ type: 'set-expanded-domains', domains }),
     setPanel,
     setPanelInteraction,
     toggleDevTools,

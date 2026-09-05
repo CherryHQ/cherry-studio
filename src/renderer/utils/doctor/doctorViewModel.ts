@@ -113,18 +113,17 @@ function pendingRowsForTier(tier: DoctorRunTier): readonly DoctorRowViewModel[] 
 export function defaultExpandedDoctorDomains(
   groups: readonly DoctorGroupViewModel[]
 ): readonly DisplayedDoctorDomain[] {
-  return groups
-    .filter((group) =>
-      group.rows.some(
-        (row) =>
-          row.status === 'warn' ||
-          row.status === 'fail' ||
-          row.status === 'error' ||
-          row.status === 'skip' ||
-          (row.status === 'pass' && row.actions.length > 0)
-      )
-    )
-    .map((group) => group.domain)
+  return groups.filter((group) => group.rows.some(isDoctorRowExpandedByDefault)).map((group) => group.domain)
+}
+
+export function isDoctorRowExpandedByDefault(row: DoctorRowViewModel): boolean {
+  return (
+    row.status === 'warn' ||
+    row.status === 'fail' ||
+    row.status === 'error' ||
+    row.status === 'skip' ||
+    row.actions.length > 0
+  )
 }
 
 export function buildDoctorViewModel(

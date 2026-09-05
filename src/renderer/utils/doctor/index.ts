@@ -5,6 +5,15 @@ export {
   DOCTOR_NAVIGATION_LABEL_KEYS,
   DOCTOR_STATUS_LABEL_KEYS
 } from './doctorContent'
-export type { DisplayedDoctorDomain } from './doctorViewModel'
-export { buildDoctorViewModel, defaultExpandedDoctorDomains } from './doctorViewModel'
+export {
+  buildDoctorViewModel,
+  defaultExpandedDoctorDomains,
+  type DisplayedDoctorDomain,
+  type DoctorGroupStatus,
+  type DoctorGroupViewModel,
+  type DoctorRowStatus,
+  type DoctorRowViewModel,
+  type DoctorViewModel,
+  isDoctorRowExpandedByDefault
+} from './doctorViewModel'
 export { formatDoctorReportForCopy } from './formatDoctorCopy'

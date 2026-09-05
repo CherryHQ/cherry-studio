@@ -14,6 +14,7 @@ import {
   Scrollbar,
   Skeleton
 } from '@cherrystudio/ui'
+import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -231,25 +232,20 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
   if (viewModel.status === 'running') {
     const completed = viewModel.rows.filter((row) => row.status !== 'pending').length
     return (
-      <div className="space-y-2 rounded-xl bg-secondary p-4 text-secondary-foreground" role="status" aria-live="polite">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-medium text-sm">
-            {t(
-              viewModel.tier === 'live'
-                ? 'settings.doctor.summary.running_full'
-                : 'settings.doctor.summary.running_basic'
-            )}
-          </p>
-          <span className="text-muted-foreground text-xs">
-            {t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })}
-          </span>
-        </div>
+      <DiagnosticsPanel
+        role="status"
+        aria-live="polite"
+        title={t(
+          viewModel.tier === 'live' ? 'settings.doctor.summary.running_full' : 'settings.doctor.summary.running_basic'
+        )}
+        description={t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })}
+        bodyClassName="px-4 pb-4">
         <div className="grid grid-cols-3 gap-2">
           <Skeleton className="h-2" />
           <Skeleton className="h-2" />
           <Skeleton className="h-2" />
         </div>
-      </div>
+      </DiagnosticsPanel>
     )
   }
 
@@ -263,34 +259,30 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
       ['error', 'settings.doctor.summary.error'],
       ['skip', 'settings.doctor.summary.skip']
     ] as const
+    const title =
+      viewModel.problemCount > 0
+        ? t('settings.doctor.summary.problems', { count: viewModel.problemCount })
+        : viewModel.summary.error > 0 || viewModel.summary.skip > 0
+          ? t('settings.doctor.summary.incomplete')
+          : t(
+              viewModel.report.tier === 'quick'
+                ? 'settings.doctor.summary.basic_healthy'
+                : 'settings.doctor.summary.live_healthy'
+            )
     return (
-      <div className="space-y-4 rounded-xl bg-secondary p-4 text-secondary-foreground">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-medium text-sm">
-              {viewModel.problemCount > 0
-                ? t('settings.doctor.summary.problems', { count: viewModel.problemCount })
-                : viewModel.summary.error > 0 || viewModel.summary.skip > 0
-                  ? t('settings.doctor.summary.incomplete')
-                  : t(
-                      viewModel.report.tier === 'quick'
-                        ? 'settings.doctor.summary.basic_healthy'
-                        : 'settings.doctor.summary.live_healthy'
-                    )}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {t('settings.doctor.summary.version', { version: viewModel.report.basics.version })}
-            </p>
-          </div>
-          {appUpdateState.downloading ? (
+      <DiagnosticsPanel
+        title={title}
+        description={t('settings.doctor.summary.version', { version: viewModel.report.basics.version })}
+        actions={
+          appUpdateState.downloading ? (
             <Badge variant="outline">
               {t('settings.doctor.actions.downloading_update', {
                 progress: Math.round(appUpdateState.downloadProgress)
               })}
             </Badge>
-          ) : null}
-        </div>
-
+          ) : undefined
+        }
+        bodyClassName="space-y-4 px-4 pb-4">
         {summaryItems.some(([key]) => viewModel.summary[key] > 0) ? (
           <div className="flex flex-wrap gap-2">
             {summaryItems.map(([key, label]) =>
@@ -330,7 +322,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             </>
           ) : null}
         </dl>
-      </div>
+      </DiagnosticsPanel>
     )
   }
   return null

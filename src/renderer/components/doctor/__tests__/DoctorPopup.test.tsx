@@ -366,7 +366,7 @@ describe('DoctorPopup', () => {
     expect(await screen.findByText('Running full checks, including network and services…')).toBeVisible()
   })
 
-  it('renders backend findings safely and keeps healthy domains collapsed', async () => {
+  it('renders backend findings safely and keeps standalone checks grouped by domain', async () => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'completed',
@@ -431,18 +431,26 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    expect(await screen.findByRole('button', { name: /settings\.doctor\.domains\.storage/ })).toHaveAttribute(
-      'aria-expanded',
-      'true'
-    )
-    const healthyGroup = screen.getByRole('button', { name: /settings\.doctor\.domains\.install/ })
-    expect(healthyGroup).toHaveAttribute('aria-expanded', 'false')
-    await user.click(healthyGroup)
-    const healthyCheck = screen
-      .getByText('settings.doctor.checks.install-version-channel.title')
-      .closest('[data-ui="doctor.check-row"]')
-    expect(healthyCheck).not.toBeNull()
-    expect(within(healthyCheck as HTMLElement).getAllByText('settings.doctor.status.pass')[0]).toBeVisible()
+    const storageGroup = await screen.findByRole('button', {
+      name: /settings\.doctor\.domains\.storage.*settings\.doctor\.status\.fail/
+    })
+    const installGroup = screen.getByRole('button', {
+      name: /settings\.doctor\.domains\.install.*settings\.doctor\.status\.pass/
+    })
+    expect(storageGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(installGroup).toHaveAttribute('aria-expanded', 'false')
+
+    const failingCheck = screen.getByRole('button', {
+      name: /settings\.doctor\.checks\.storage-disk-space\.title.*settings\.doctor\.status\.fail/
+    })
+    expect(failingCheck).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(installGroup)
+
+    const healthyCheck = screen.getByRole('button', {
+      name: /settings\.doctor\.checks\.install-version-channel\.title.*settings\.doctor\.status\.pass/
+    })
+    expect(healthyCheck).toHaveAttribute('aria-expanded', 'true')
 
     expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
   })
