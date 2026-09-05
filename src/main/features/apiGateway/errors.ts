@@ -12,14 +12,41 @@ const GATEWAY_PROVIDER_ERROR_KIND = 'upstream_provider'
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
+function findHttpStatus(error: unknown, seen = new Set<object>()): number | undefined {
+  if (error === null || typeof error !== 'object' || seen.has(error)) return undefined
+  seen.add(error)
+
+  const candidate = error as {
+    status?: unknown
+    statusCode?: unknown
+    lastError?: unknown
+    cause?: unknown
+    errors?: unknown
+  }
+  if (typeof candidate.status === 'number') return candidate.status
+  if (typeof candidate.statusCode === 'number') return candidate.statusCode
+
+  const terminalStatus = findHttpStatus(candidate.lastError, seen) ?? findHttpStatus(candidate.cause, seen)
+  if (terminalStatus !== undefined) return terminalStatus
+  if (!Array.isArray(candidate.errors)) return undefined
+
+  for (let index = candidate.errors.length - 1; index >= 0; index -= 1) {
+    const status = findHttpStatus(candidate.errors[index], seen)
+    if (status !== undefined) return status
+  }
+  return undefined
+}
+
 export function withGatewayProviderContext(
   error: SerializedError,
   providerId: string,
   modelId: string
 ): SerializedError {
-  if (typeof error.statusCode !== 'number') return error
+  const statusCode = findHttpStatus(error)
+  if (statusCode === undefined) return error
   return {
     ...error,
+    statusCode,
     gatewayErrorKind: GATEWAY_PROVIDER_ERROR_KIND,
     requestedProviderId: providerId,
     requestedModelId: modelId

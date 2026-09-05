@@ -753,6 +753,34 @@ describe('processMessage (error & pause)', () => {
     expect(error).toEqual(originalError)
   })
 
+  it('preserves the terminal upstream status from a serialized retry error', async () => {
+    const { response, listener } = await startStreaming()
+    const terminalError = {
+      name: 'AI_APICallError',
+      message: 'rate limited',
+      stack: null,
+      statusCode: 429
+    }
+    const error = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      lastError: terminalError,
+      errors: [{ name: 'AI_APICallError', message: 'unavailable', stack: null, statusCode: 503 }, terminalError]
+    }
+    const originalError = structuredClone(error)
+
+    void listener.onError({ status: 'error', error } as any)
+
+    await expect(response).rejects.toMatchObject({
+      statusCode: 429,
+      gatewayErrorKind: 'upstream_provider',
+      requestedProviderId: 'openai',
+      requestedModelId: 'gpt-4'
+    })
+    expect(error).toEqual(originalError)
+  })
+
   it('streaming: an error after commitment emits a dialect error frame, not the raw SerializedError', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)

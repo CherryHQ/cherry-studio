@@ -198,10 +198,11 @@ A streaming request has two error regimes:
 
 - **Before commitment:** `processMessage` has not returned its `Response` yet.
   Adapter-generated startup frames remain buffered. A provider error rejects
-  with the original serialized error, so the route returns its real HTTP status
-  and dialect envelope (for example, HTTP 400 or 503). An idle-timeout pause
-  rejects as HTTP 504. AI SDK `start`, step, metadata, partial tool-input, and
-  tool-output chunks do not commit the response.
+  with a gateway-local copy carrying requested-route context, so the route
+  returns its real HTTP status and safe recovery guidance in the dialect
+  envelope (for example, HTTP 400 or 503). An idle-timeout pause rejects as HTTP
+  504. AI SDK `start`, step, metadata, partial tool-input, and tool-output chunks
+  do not commit the response.
 - **After commitment:** once text/reasoning output, an available tool call, a
   finish chunk, or clean completion commits HTTP 200, headers can no longer
   change. A later error or pause therefore emits the dialect's terminal SSE
