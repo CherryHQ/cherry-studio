@@ -34,11 +34,19 @@ describe('provider reasoning contracts', () => {
     })
   })
 
-  it('keeps Kimi K3 reasoning within the provider-supported effort vocabulary', () => {
-    const moonshotWire = override('moonshot', 'kimi-k3').reasoningContracts?.['openai-chat-completions']?.wire
+  it.each(['kimi-k3', 'kimi-k3-fast'])(
+    'keeps Moonshot %s reasoning within its supported effort vocabulary',
+    (modelId) => {
+      const moonshotWire = override('moonshot', modelId).reasoningContracts?.['openai-chat-completions']?.wire
+
+      expect(moonshotWire?.auto?.effortMap).toEqual({ auto: 'high' })
+      expect(moonshotWire?.effort?.operations).toEqual([{ target: 'reasoningEffort', value: { source: 'effort' } }])
+    }
+  )
+
+  it('keeps DashScope Kimi K3 reasoning within the provider-supported effort vocabulary', () => {
     const dashscopeSupport = override('dashscope', 'kimi-k3').reasoningContracts?.['openai-chat-completions']?.support
 
-    expect(moonshotWire?.auto?.effortMap).toEqual({ auto: 'high' })
     expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
   })
 

@@ -43,11 +43,11 @@ export default openaiCompatible({
     // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
     // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
     { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
-    ...['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
+    ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
       modelId,
       parameterSupport: fixedSamplingParameterSupport,
       reasoningContracts: {
-        'openai-chat-completions': { wire: modelId === 'kimi-k3' ? k3EffortWire : effortWire }
+        'openai-chat-completions': { wire: modelId === 'kimi-k2.6' ? effortWire : k3EffortWire }
       }
     }))
   ]
