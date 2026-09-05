@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -122,6 +123,28 @@ describe('ErrorBlock', () => {
 
     expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('offers network settings for a client-certificate authentication failure', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'StreamError',
+          message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED',
+          stack: 'Error: net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
+    await user.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
   })
 
   it('ignores non-serializable provider data when classifying an error', () => {

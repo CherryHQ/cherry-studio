@@ -248,6 +248,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Proxy / SSL certificate errors
   if (
+    msg.includes('err_ssl_client_auth_cert_needed') ||
     isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
