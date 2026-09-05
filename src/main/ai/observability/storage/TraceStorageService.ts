@@ -121,8 +121,8 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   }
 
   /**
-   * Activate only when developer_mode is enabled at startup.
-   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   * Establish the startup state before NodeTraceService runs. Runtime developer-mode changes are
+   * coordinated by NodeTraceService so storage and the global tracer transition in a safe order.
    */
   protected async onReady() {
     const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
@@ -138,10 +138,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // Keep activation cheap. Trace directories are created lazily on first file write.
   }
 
-  /**
-   * Only called during app shutdown (auto-deactivation in _doStop).
-   * Runtime deactivation is not supported — developer_mode changes require restart.
-   */
+  /** Clear process-local trace state when tracing is disabled or the app shuts down. */
   async onDeactivate() {
     this.store.clear()
     this.clearPendingEvents()

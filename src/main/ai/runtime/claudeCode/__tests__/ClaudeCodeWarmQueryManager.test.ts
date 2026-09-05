@@ -8,14 +8,16 @@ const {
   applicationGetMock,
   traceModeEnabledMock,
   prepareTraceMock,
-  ensureTraceIdMock
+  ensureTraceIdMock,
+  getTraceGenerationMock
 } = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
   prepareTraceMock: vi.fn(),
-  ensureTraceIdMock: vi.fn()
+  ensureTraceIdMock: vi.fn(),
+  getTraceGenerationMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -72,11 +74,16 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.useFakeTimers()
     applicationGetMock.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeTraceBridgeService') {
-        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+        return {
+          isTraceModeEnabled: traceModeEnabledMock,
+          prepareTrace: prepareTraceMock,
+          getTraceGeneration: getTraceGenerationMock
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
     traceModeEnabledMock.mockReturnValue(false)
+    getTraceGenerationMock.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -484,7 +491,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
     }
-    prepareTraceMock.mockResolvedValue(traceEnv)
+    prepareTraceMock.mockResolvedValue({ generation: 1, env: traceEnv })
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     buildWarmRequestMock.mockResolvedValueOnce({
@@ -507,15 +514,63 @@ describe('ClaudeCodeWarmQueryManager', () => {
     )
 
     // What the driver asks with for a traced turn: same options, trace env merged.
+    getTraceGenerationMock.mockReturnValue(1)
     const consumed = await manager.consume({
       key: 'session-1',
       options: {
         model: 'sonnet',
         resume: 'sdk-1',
         env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
-      } as any
+      } as any,
+      traceGeneration: 1
     })
     expect(consumed?.warmQuery).toBe(warm)
+  })
+
+  it('does not adopt a warm process after its trace generation changes', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    getTraceGenerationMock.mockReturnValue(1)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    getTraceGenerationMock.mockReturnValue(2)
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a warm process when its trace generation is no longer admitted at spawn time', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    let spawnProcess: ((options: any) => unknown) | undefined
+    startupMock.mockImplementationOnce(async ({ options }: { options: any }) => {
+      spawnProcess = options.spawnClaudeCodeProcess
+      return warm
+    })
+    getTraceGenerationMock.mockReturnValue(1)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { TRACEPARENT: 'trace' } } as any,
+      traceGeneration: 1
+    })
+
+    expect(spawnProcess).toBeDefined()
+    getTraceGenerationMock.mockReturnValue(null)
+    expect(() => spawnProcess?.({})).toThrow('trace generation is no longer admitted')
+    expect(warm.close).not.toHaveBeenCalled()
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of

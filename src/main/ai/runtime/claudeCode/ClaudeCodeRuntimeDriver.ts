@@ -64,8 +64,8 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import { createTraceGuardedSpawnProcess } from './ClaudeCodeWarmQueryManager'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -378,7 +378,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.trace
     ).catch((error) => {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
@@ -391,19 +392,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
-    const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
       ...request.options,
-      ...(traceEnv
-        ? {
-            env: {
-              ...request.options.env,
-              ...traceEnv
-            }
-          }
-        : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: createTraceGuardedSpawnProcess(request.traceGeneration)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -412,6 +404,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       key: request.key,
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
+      traceGeneration: request.traceGeneration,
       connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
@@ -461,11 +454,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     void this.runQueryLoop()
     return this
-  }
-
-  private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
-    if (!this.input.trace) return undefined
-    return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
