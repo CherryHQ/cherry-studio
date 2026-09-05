@@ -59,6 +59,7 @@ import type {
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
+import { AgentRuntimeInputDeliveryError } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
@@ -310,20 +311,21 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
 export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: Array<{ message: SDKUserMessage; onConsumed?: () => void }> = []
+  private readonly messages: Array<{ message: SDKUserMessage; onDelivered?: () => void }> = []
   private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
+  private previousDeliveryAcknowledgement?: () => void
   private closed = false
 
-  push(message: SDKUserMessage, onConsumed?: () => void): boolean {
+  push(message: SDKUserMessage, onDelivered?: () => void): boolean {
     if (this.closed) return false
     if (this.waitResolve) {
       const resolve = this.waitResolve
       this.waitResolve = undefined
-      onConsumed?.()
+      this.previousDeliveryAcknowledgement = onDelivered
       resolve({ value: message, done: false })
       return true
     }
-    this.messages.push({ message, onConsumed })
+    this.messages.push({ message, onDelivered })
     return true
   }
 
@@ -339,9 +341,12 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
     return {
       next: () => {
+        const acknowledgePreviousDelivery = this.previousDeliveryAcknowledgement
+        this.previousDeliveryAcknowledgement = undefined
+        acknowledgePreviousDelivery?.()
         const next = this.messages.shift()
         if (next) {
-          next.onConsumed?.()
+          this.previousDeliveryAcknowledgement = next.onDelivered
           return Promise.resolve({ value: next.message, done: false })
         }
         if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
@@ -351,6 +356,14 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
       }
     }
   }
+}
+
+type PendingInputDelivery = {
+  queue: SdkInputQueue
+  message: SDKUserMessage
+  promise: Promise<void>
+  resolve: () => void
+  reject: (error: unknown) => void
 }
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
@@ -384,6 +397,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private pendingInputClaims = 0
   private reservedInputClaim?: { active: boolean }
   private initialResumedInputClaimed: boolean
+  private pendingInputMaterialization = false
+  private pendingInputDelivery?: PendingInputDelivery
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -538,6 +553,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     }
     let sdkMessage: SDKUserMessage
+    if (requiresInputClaim) this.pendingInputMaterialization = true
     try {
       sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
@@ -545,25 +561,43 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       sdkMessage = { ...sdkMessage, session_id: this.resumeToken ?? '' }
     } catch (error) {
+      this.pendingInputMaterialization = false
       if (requiresInputClaim) this.pendingInputClaims -= 1
       throw error
     }
+    this.pendingInputMaterialization = false
     this.lastSdkUserMessage = sdkMessage
-    if (!requiresInputClaim) this.adapter?.beginTurn()
-    const queued = this.sdkInputQueue.push(
-      sdkMessage,
-      requiresInputClaim
-        ? () => {
-            this.pendingInputClaims -= 1
-            this.initialResumedInputClaimed = true
-            this.adapter?.beginTurn()
-          }
-        : undefined
-    )
-    if (!queued) {
-      if (requiresInputClaim) this.pendingInputClaims -= 1
-      throw new Error('Claude Code connection closed before input could be queued')
+    if (!requiresInputClaim) {
+      this.adapter?.beginTurn()
+      if (!this.sdkInputQueue.push(sdkMessage)) {
+        throw new Error('Claude Code connection closed before input could be queued')
+      }
+      return
     }
+
+    const queue = this.sdkInputQueue
+    let resolveDelivery!: () => void
+    let rejectDelivery!: (error: unknown) => void
+    const deliveryPromise = new Promise<void>((resolve, reject) => {
+      resolveDelivery = resolve
+      rejectDelivery = reject
+    })
+    const delivery = {
+      queue,
+      message: sdkMessage,
+      promise: deliveryPromise,
+      resolve: resolveDelivery,
+      reject: rejectDelivery
+    }
+    this.pendingInputDelivery = delivery
+    const queued = queue.push(sdkMessage, () => this.acknowledgeInputDelivery(delivery))
+    if (!queued) {
+      const error = new AgentRuntimeInputDeliveryError(
+        new Error('Claude Code connection closed before input could be queued')
+      )
+      this.rejectInputDelivery(error)
+    }
+    await delivery.promise
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -742,6 +776,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const query = this.query
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
+    this.rejectInputDelivery(
+      new AgentRuntimeInputDeliveryError(new Error('Claude Code connection closed before input could be delivered'))
+    )
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
     this.teardownSession()
@@ -845,6 +882,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // recovered loop is still streaming.
         return await this.runQueryLoop()
       }
+      this.sdkInputQueue.close()
+      this.rejectInputDelivery(new AgentRuntimeInputDeliveryError(error))
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -886,7 +925,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!reason) return false
     // Error results advance `resumeToken` before throwing. The pending input's session id proves the
     // failed request actually resumed prior history rather than merely reporting a new session id.
-    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
+    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id && this.pendingInputClaims === 0) {
+      return false
+    }
     if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
       logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
         sessionId: this.input.sessionId,
@@ -909,16 +950,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     })
     this.sdkInputQueue.close()
     this.sdkInputQueue = new SdkInputQueue()
-    if (this.lastSdkUserMessage) {
-      this.sdkInputQueue.push(
-        { ...this.lastSdkUserMessage, session_id: '' },
-        this.pendingInputClaims > 0
-          ? () => {
-              this.pendingInputClaims -= 1
-              this.initialResumedInputClaimed = true
-              this.adapter?.beginTurn()
-            }
-          : undefined
+    const replayMessage = this.pendingInputMaterialization
+      ? undefined
+      : (this.pendingInputDelivery?.message ?? this.lastSdkUserMessage)
+    if (replayMessage) {
+      const queue = this.sdkInputQueue
+      const delivery = this.pendingInputDelivery
+      queue.push(
+        { ...replayMessage, session_id: '' },
+        delivery ? () => this.acknowledgeInputDelivery(delivery, queue) : undefined
       )
     }
     this.query = createClaudeQuery({
@@ -926,6 +966,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       options: { ...this.spawnOptions, resume: undefined }
     })
     return true
+  }
+
+  private acknowledgeInputDelivery(delivery: PendingInputDelivery, queue = delivery.queue): void {
+    if (this.pendingInputDelivery !== delivery || this.sdkInputQueue !== queue) return
+    this.pendingInputDelivery = undefined
+    this.pendingInputClaims -= 1
+    this.initialResumedInputClaimed = true
+    this.adapter?.beginTurn()
+    delivery.resolve()
+  }
+
+  private rejectInputDelivery(error: unknown): void {
+    const delivery = this.pendingInputDelivery
+    if (!delivery) return
+    this.pendingInputDelivery = undefined
+    this.pendingInputClaims -= 1
+    delivery.reject(error)
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {

@@ -57,14 +57,15 @@ import { v7 as uuidv7 } from 'uuid'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
-import type {
-  AgentRuntimeConnection,
-  AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
-  AgentRuntimeToolApprovalRequest,
-  AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
-  AgentSessionUsageCapture
+import {
+  type AgentRuntimeConnection,
+  type AgentRuntimeEvent,
+  AgentRuntimeInputDeliveryError,
+  type AgentRuntimeReconcileResult,
+  type AgentRuntimeToolApprovalRequest,
+  type AgentRuntimeTraceContext,
+  type AgentRuntimeUserInput,
+  type AgentSessionUsageCapture
 } from '../runtime/types'
 import {
   finalizeInterruptedParts,
@@ -2437,6 +2438,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
+    let deliveryRetries = 0
     while (this.isCurrentEntry(entry) && this.currentTurn(entry) === turn && this.isTurnLive(entry, turn)) {
       const connection = this.currentConnection(entry)
       if (!connection) {
@@ -2455,15 +2457,28 @@ export class AgentSessionRuntimeService extends BaseService {
           cancelInputReservation?.()
           continue
         }
-        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
         await connection.send({
           message: turn.userMessage,
           systemReminder: turn.systemReminder === true
         })
+        if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
         return
       } catch (error) {
         cancelInputReservation?.()
         if (this.currentConnection(entry) !== connection) continue
+        if (error instanceof AgentRuntimeInputDeliveryError) {
+          if (deliveryRetries === 0 && this.isTurnLive(entry, turn)) {
+            deliveryRetries += 1
+            this.closeConnectionAsync(entry)
+            continue
+          }
+          this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+          this.handleRuntimeError(entry, error.cause ?? error)
+          this.closeConnectionAsync(entry)
+          throw error
+        }
+        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
         throw error
       }
     }
