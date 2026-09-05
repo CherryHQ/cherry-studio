@@ -40,8 +40,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    */
   approvalEmitter?: ToolApprovalEmitterHolder
   /**
-   * Session-scoped holder for mid-turn steers. The PreToolUse steer hook drains it (injecting the
-   * steer text as `additionalContext`); the connection's `redirect()` fills it. Shared by sessionId
+   * Session-scoped holder for mid-turn steers. The steer hooks drain it (injecting the steer text
+   * as `additionalContext`); the connection's `redirect()` fills it. Shared by sessionId
    * so a warm-pooled query's hook and the live connection reference the same holder.
    */
   steerHolder?: SteerHolder

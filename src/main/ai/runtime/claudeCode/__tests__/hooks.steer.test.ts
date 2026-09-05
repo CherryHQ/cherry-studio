@@ -28,7 +28,7 @@ function makeSteer(text: string): AgentRuntimeUserInput {
   } as unknown as AgentRuntimeUserInput
 }
 
-function makeHooks() {
+function hooksFor(event: 'PreToolUse' | 'PostToolBatch'): HookCallback[] {
   const table = buildClaudeCodeHooks({
     sessionId: SESSION_ID,
     cwd: '/tmp',
@@ -39,17 +39,29 @@ function makeHooks() {
     supportsImages: false,
     agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
   })
-  const pick = (event: 'PreToolUse' | 'PostToolBatch'): HookCallback => {
-    const matchers = table?.[event]
-    if (!matchers?.length) throw new Error(`no hooks registered for ${event}`)
-    const found = matchers[0].hooks[matchers[0].hooks.length - 1]
-    return found
-  }
-  return { table, pick }
+  const matchers = table?.[event]
+  if (!matchers?.length) throw new Error(`no hooks registered for ${event}`)
+  return matchers.flatMap((matcher) => matcher.hooks)
 }
 
-async function runHook(hook: HookCallback, eventName: string): Promise<HookJSONOutput> {
-  return hook({ hook_event_name: eventName } as never, undefined, { signal: new AbortController().signal })
+/**
+ * Runs every hook the table registers for `event` — no test may depend on the steer hook's position
+ * in that list. The other hooks are inert for a bare event payload, so the merged output is the
+ * steer hook's own.
+ */
+async function fireEvent(
+  event: 'PreToolUse' | 'PostToolBatch',
+  payload: Record<string, unknown> = {}
+): Promise<HookJSONOutput> {
+  const outputs: HookJSONOutput[] = []
+  for (const hook of hooksFor(event)) {
+    const out = await hook({ hook_event_name: event, ...payload } as never, undefined, {
+      signal: new AbortController().signal
+    })
+    if (Object.keys(out).length > 0) outputs.push(out)
+  }
+  if (outputs.length > 1) throw new Error(`${outputs.length} hooks answered ${event}`)
+  return outputs[0] ?? {}
 }
 
 beforeEach(() => {
@@ -58,18 +70,12 @@ beforeEach(() => {
 })
 
 describe('steer injection hooks', () => {
-  it('registers the steer hook on both PreToolUse and PostToolBatch', () => {
-    const { table } = makeHooks()
-    expect(table?.PreToolUse?.[0].hooks.length).toBeGreaterThan(0)
-    expect(table?.PostToolBatch?.[0].hooks.length).toBeGreaterThan(0)
-  })
-
   it('PostToolBatch injects a pending steer as additionalContext and drains the queue', async () => {
     holder.pending = [makeSteer('change direction')]
     const onInjected = vi.fn()
     holder.onInjected = onInjected
 
-    const out = await runHook(makeHooks().pick('PostToolBatch'), 'PostToolBatch')
+    const out = await fireEvent('PostToolBatch')
 
     expect((out as { continue?: boolean }).continue).toBe(true)
     const specific = (out as { hookSpecificOutput: { hookEventName: string; additionalContext?: string } })
@@ -83,7 +89,7 @@ describe('steer injection hooks', () => {
   it('PreToolUse still injects a pending steer (regression)', async () => {
     holder.pending = [makeSteer('via pre-tool-use')]
 
-    const out = await runHook(makeHooks().pick('PreToolUse'), 'PreToolUse')
+    const out = await fireEvent('PreToolUse')
 
     const specific = (out as { hookSpecificOutput: { hookEventName: string; additionalContext?: string } })
       .hookSpecificOutput
@@ -94,10 +100,9 @@ describe('steer injection hooks', () => {
 
   it('injects once: the queue is drained at the first boundary that fires', async () => {
     holder.pending = [makeSteer('only once')]
-    const { pick } = makeHooks()
 
-    const first = await runHook(pick('PostToolBatch'), 'PostToolBatch')
-    const second = await runHook(pick('PreToolUse'), 'PreToolUse')
+    const first = await fireEvent('PostToolBatch')
+    const second = await fireEvent('PreToolUse')
 
     expect(first).toHaveProperty('hookSpecificOutput')
     expect(second).toEqual({})
@@ -107,18 +112,24 @@ describe('steer injection hooks', () => {
     const empty = { message: { data: { parts: [{ type: 'file' }] } } } as unknown as AgentRuntimeUserInput
     holder.pending = [empty]
 
-    const out = await runHook(makeHooks().pick('PostToolBatch'), 'PostToolBatch')
+    const out = await fireEvent('PostToolBatch')
 
     expect(out).toEqual({})
     expect(holder.pending).toEqual([empty])
   })
 
-  it('ignores hook events it is not bound to', async () => {
-    holder.pending = [makeSteer('still waiting')]
+  it.each(['PostToolBatch', 'PreToolUse'] as const)(
+    'leaves the steer queued when %s fires inside a subagent',
+    async (event) => {
+      holder.pending = [makeSteer('for the top-level turn')]
+      const onInjected = vi.fn()
+      holder.onInjected = onInjected
 
-    const out = await runHook(makeHooks().pick('PostToolBatch'), 'PreToolUse')
+      const out = await fireEvent(event, { agent_id: 'agent_worker_1' })
 
-    expect(out).toEqual({})
-    expect(holder.pending).toHaveLength(1)
-  })
+      expect(out).toEqual({})
+      expect(holder.pending).toHaveLength(1)
+      expect(onInjected).not.toHaveBeenCalled()
+    }
+  )
 })
