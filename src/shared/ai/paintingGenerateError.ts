@@ -21,12 +21,23 @@ export type PaintingGenerateErrorCode =
   | 'REQ_ERROR_NO_BALANCE'
   | 'OPERATION_FAILED'
   | 'GENERATE_FAILED'
+  | 'IMAGE_OUTPUT_EMPTY'
+  | 'IMAGE_OUTPUT_INVALID'
+  | 'IMAGE_OUTPUT_UNSUPPORTED'
   | 'IMAGE_MIX_FAILED'
   | 'CUSTOM_SIZE_REQUIRED'
   | 'CUSTOM_SIZE_RANGE'
   | 'CUSTOM_SIZE_DIVISIBLE'
   | 'CUSTOM_SIZE_PIXELS'
   | 'REMOTE_ERROR'
+
+export const generatedImageRejectionReasons = ['invalid_image_data', 'unsupported_media_type'] as const
+export type GeneratedImageRejectionReason = (typeof generatedImageRejectionReasons)[number]
+
+export interface GeneratedImageValidation {
+  receivedCount: number
+  rejected: Array<{ index: number; reason: GeneratedImageRejectionReason }>
+}
 
 export interface PaintingGenerateErrorOptions {
   message?: string

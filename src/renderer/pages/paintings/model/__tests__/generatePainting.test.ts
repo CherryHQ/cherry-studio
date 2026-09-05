@@ -77,6 +77,37 @@ describe('generatePainting', () => {
     expect(payload).not.toHaveProperty('size')
   })
 
+  it.each([
+    {
+      validation: { receivedCount: 0, rejected: [] },
+      expectedCode: 'IMAGE_OUTPUT_EMPTY'
+    },
+    {
+      validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' }] },
+      expectedCode: 'IMAGE_OUTPUT_INVALID'
+    },
+    {
+      validation: {
+        receivedCount: 2,
+        rejected: [
+          { index: 0, reason: 'invalid_image_data' },
+          { index: 1, reason: 'unsupported_media_type' }
+        ]
+      },
+      expectedCode: 'IMAGE_OUTPUT_UNSUPPORTED'
+    }
+  ] as const)('surfaces $expectedCode without issuing another paid request', async ({ validation, expectedCode }) => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.image.generate' ? { files: [], validation } : undefined
+    )
+
+    await expect(generatePainting(makeOptions())).rejects.toMatchObject({
+      name: 'PaintingGenerateError',
+      code: expectedCode
+    })
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.image.generate')).toHaveLength(1)
+  })
+
   // A provider failure now crosses IpcApi as an IpcError (name 'IpcError'), which no longer
   // satisfies runPainting's `name === 'AbortError'` silent-cancel check — generatePainting's
   // `.catch` re-derives a real AbortError only when the user aborted, else re-throws the original.

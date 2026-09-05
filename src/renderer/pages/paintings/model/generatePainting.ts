@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
+import { createPaintingGenerateError, type GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
@@ -37,6 +38,16 @@ export interface GeneratePaintingOptions {
   readonly inputImages?: string[]
 }
 
+function invalidOutputError(validation: GeneratedImageValidation) {
+  if (validation.receivedCount === 0) {
+    return createPaintingGenerateError('IMAGE_OUTPUT_EMPTY')
+  }
+  if (validation.rejected.some(({ reason }) => reason === 'unsupported_media_type')) {
+    return createPaintingGenerateError('IMAGE_OUTPUT_UNSUPPORTED')
+  }
+  return createPaintingGenerateError('IMAGE_OUTPUT_INVALID')
+}
+
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
   return runPainting(async () => {
     const requestId = crypto.randomUUID()
@@ -66,6 +77,9 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
 
     if (opts.signal.aborted) {
       throw new DOMException('Image generation aborted', 'AbortError')
+    }
+    if (result.files.length === 0 && result.validation) {
+      throw invalidOutputError(result.validation)
     }
     if (result.files.length === 0) {
       return undefined

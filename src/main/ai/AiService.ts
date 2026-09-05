@@ -27,6 +27,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -42,8 +43,11 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
+import { fileTypeFromBuffer } from 'file-type'
+import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -88,6 +92,7 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
 
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
@@ -277,6 +282,7 @@ export interface AiImageRequest extends AiBaseRequest {
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
   files: FileEntry[]
+  validation?: GeneratedImageValidation
 }
 
 /**
@@ -851,28 +857,50 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
-
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+    let result: Awaited<ReturnType<typeof aiCoreGenerateImage>>
+    try {
+      result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        ...imageParams,
+        onProviderCall: createProviderCallHandler(imageUsageContext)
+      })
+    } catch (error) {
+      if (NoImageGeneratedError.isInstance(error)) {
+        return { files: [], validation: { receivedCount: 0, rejected: [] } }
       }
-
-      filteredCount += 1
+      throw error
     }
 
-    if (filteredCount > 0) {
+    const images = result.images ?? []
+    const dataUrls: Base64String[] = []
+    const rejected: GeneratedImageValidation['rejected'] = []
+    for (const [index, image] of images.entries()) {
+      const mediaType = image.mediaType || 'image/png'
+      if (!mediaType.startsWith('image/')) {
+        rejected.push({ index, reason: 'unsupported_media_type' })
+      } else if (!image.base64 || !GENERATED_IMAGE_BASE64_SCHEMA.safeParse(image.base64).success) {
+        rejected.push({ index, reason: 'invalid_image_data' })
+      } else {
+        try {
+          const detectedType = await fileTypeFromBuffer(Buffer.from(image.base64, 'base64'))
+          if (!detectedType?.mime.startsWith('image/')) {
+            rejected.push({ index, reason: 'invalid_image_data' })
+          } else {
+            dataUrls.push(`data:${detectedType.mime};base64,${image.base64}`)
+          }
+        } catch {
+          rejected.push({ index, reason: 'invalid_image_data' })
+        }
+      }
+    }
+
+    const validation =
+      images.length === 0 || rejected.length > 0 ? { receivedCount: images.length, rejected } : undefined
+    if (validation) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
         providerId: sdkConfig.providerId,
         modelId: sdkConfig.modelId,
-        filteredCount
+        validation
       })
     }
     const fileManager = application.get('FileManager')
@@ -882,7 +910,7 @@ export class AiService extends BaseService {
       )
     )
 
-    return { files }
+    return { files, ...(validation && { validation }) }
   }
 
   /**
