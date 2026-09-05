@@ -1,6 +1,21 @@
 import { t } from '@main/i18n'
 import type { MenuItemConstructorOptions } from 'electron'
-import { Menu } from 'electron'
+import { BrowserWindow, Menu } from 'electron'
+
+// Without an owner Electron picks one itself — the focused window, else any
+// window — and on Windows a menu owned by another window is not dismissed by
+// clicks in the one it appears over. Webview guests resolve through their host.
+function ownerWindow(w: Electron.WebContents): BrowserWindow | undefined {
+  const direct = BrowserWindow.fromWebContents(w)
+  if (direct) {
+    return direct
+  }
+  const host = w.hostWebContents
+  if (!host || host.isDestroyed()) {
+    return undefined
+  }
+  return BrowserWindow.fromWebContents(host) ?? undefined
+}
 
 class ContextMenu {
   public contextMenu(w: Electron.WebContents) {
@@ -20,7 +35,7 @@ class ContextMenu {
           ]
         }
         const menu = Menu.buildFromTemplate(template)
-        menu.popup()
+        menu.popup({ window: ownerWindow(w) })
       }
     })
   }
