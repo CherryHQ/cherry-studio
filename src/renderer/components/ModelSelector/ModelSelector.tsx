@@ -549,6 +549,14 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
+  const focusedListItemIndex = useMemo(
+    () => listItems.findIndex((item) => item.key === focusedItemKey),
+    [focusedItemKey, listItems]
+  )
+  const keepMountedIndexes = useMemo(
+    () => (focusedListItemIndex >= 0 ? [focusedListItemIndex] : []),
+    [focusedListItemIndex]
+  )
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -1020,6 +1028,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
+                keepMountedIndexes={keepMountedIndexes}
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
                 overscan={6}>
