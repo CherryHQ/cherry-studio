@@ -1189,6 +1189,53 @@ describe('MessageGroup', () => {
     expect(updateMessageUiState).toHaveBeenCalledWith('model-b', { foldSelected: true })
   })
 
+  it('keeps another model selected while the active reply continues streaming', async () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const setActiveBranch = vi.fn().mockResolvedValue(undefined)
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const streamingMessage = {
+      ...createMessage('model-a', 0, 'fold'),
+      isActiveBranch: true,
+      status: 'pending'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const otherMessage = {
+      ...createMessage('model-b', 1, 'fold'),
+      isActiveBranch: false
+    }
+
+    const { container, rerender } = render(<MessageGroup messages={[streamingMessage, otherMessage]} />)
+    const lastMenuCall = mocks.MessageGroupMenuBar.mock.calls.at(-1) as unknown as [
+      {
+        setSelectedMessage: (message: MessageListItem) => void
+      }
+    ]
+    const menuProps = lastMenuCall[0]
+
+    act(() => {
+      menuProps.setSelectedMessage(otherMessage)
+    })
+
+    await waitFor(() => expect(container.querySelector('#message-model-b')).toHaveClass('selected'))
+
+    rerender(<MessageGroup messages={[{ ...streamingMessage }, { ...otherMessage }]} />)
+
+    expect(container.querySelector('#message-model-b')).toHaveClass('selected')
+    expect(container.querySelector('#message-model-a')).not.toHaveClass('selected')
+    expect(setActiveBranch).toHaveBeenCalledOnce()
+    expect(setActiveBranch).toHaveBeenCalledWith('model-b')
+  })
+
   it('shows the context indicator on the active branch instead of stale useful UI state', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'grid',
