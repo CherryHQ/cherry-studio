@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import userEvent from '@testing-library/user-event'
 import * as React from 'react'
@@ -12,11 +12,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { UserEvent } from '@testing-library/user-event'
-import userEvent from '@testing-library/user-event'
-import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
 
