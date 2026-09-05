@@ -2,6 +2,7 @@ import { openaiCompatible } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
+const k3EffortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'high' })
 
 const fixedSamplingParameterSupport = {
   temperature: { supported: false },
@@ -46,7 +47,7 @@ export default openaiCompatible({
       modelId,
       parameterSupport: fixedSamplingParameterSupport,
       reasoningContracts: {
-        'openai-chat-completions': { wire: effortWire }
+        'openai-chat-completions': { wire: modelId === 'kimi-k3' ? k3EffortWire : effortWire }
       }
     }))
   ]

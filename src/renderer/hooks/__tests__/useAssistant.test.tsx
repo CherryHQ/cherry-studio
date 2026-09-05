@@ -1,6 +1,7 @@
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import type { Model } from '@shared/data/types/model'
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useAssistants } from '../useAssistant'
@@ -202,5 +203,53 @@ describe('useAssistant', () => {
     expect(result.current.setModel).toBe(firstSetModel)
     expect(result.current.updateAssistant).toBe(firstUpdateAssistant)
     expect(result.current.updateAssistantSettings).toBe(firstUpdateAssistantSettings)
+  })
+
+  it('normalizes a stored medium effort when switching the assistant to Kimi K3', async () => {
+    const updateTrigger = vi.fn().mockResolvedValue({ id: 'assistant-1' })
+    mockUseMutation.mockImplementation((_method, path) => ({
+      trigger: path === '/assistants/:id' ? updateTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/assistants/:id') {
+        return queryResult({
+          id: 'assistant-1',
+          name: 'Assistant 1',
+          modelId: 'moonshot::kimi-k2-6',
+          settings: { reasoning_effort: 'medium' },
+          mcpServerIds: [],
+          knowledgeBaseIds: []
+        })
+      }
+      return queryResult()
+    })
+    const kimiK3 = {
+      id: 'moonshot::kimi-k3',
+      providerId: 'moonshot',
+      apiModelId: 'kimi-k3',
+      name: 'Kimi K3',
+      capabilities: ['reasoning'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
+        selectableEfforts: ['low', 'high', 'max', 'none']
+      }
+    } as Model
+    const { result } = renderHook(() => useAssistant('assistant-1'))
+
+    await act(() => result.current.setModel(kimiK3))
+
+    expect(updateTrigger).toHaveBeenCalledWith({
+      params: { id: 'assistant-1' },
+      body: {
+        modelId: 'moonshot::kimi-k3',
+        settings: { reasoning_effort: 'high' }
+      }
+    })
   })
 })

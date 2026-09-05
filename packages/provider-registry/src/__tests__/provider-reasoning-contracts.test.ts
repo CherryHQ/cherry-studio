@@ -34,6 +34,14 @@ describe('provider reasoning contracts', () => {
     })
   })
 
+  it('keeps Kimi K3 reasoning within the provider-supported effort vocabulary', () => {
+    const moonshotWire = override('moonshot', 'kimi-k3').reasoningContracts?.['openai-chat-completions']?.wire
+    const dashscopeSupport = override('dashscope', 'kimi-k3').reasoningContracts?.['openai-chat-completions']?.support
+
+    expect(moonshotWire?.auto?.effortMap).toEqual({ auto: 'high' })
+    expect(dashscopeSupport?.controls).toEqual([{ default: 'max', kind: 'effort', values: ['none', 'max'] }])
+  })
+
   // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
   // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
   // degrades to `high`.

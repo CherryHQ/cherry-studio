@@ -89,6 +89,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
     ['deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     ['deepseek-v3.1', [{ kind: 'toggle' }]],
+    ['kimi-k3', [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }]],
     ['qwen3-32b', [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }]],
     // always-think SKU: budget only, no toggle
     ['qwen3-235b-a22b-thinking-2507', [{ kind: 'budget', min: 0, max: 81_920 }]],

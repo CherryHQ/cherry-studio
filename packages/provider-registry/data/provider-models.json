@@ -17966,7 +17966,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "high"
               },
               "operations": [
                 {
