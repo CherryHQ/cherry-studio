@@ -79,3 +79,42 @@ describe('isDshCompatibleModel', () => {
     expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
   })
 })
+
+describe('endpoint candidate walk (#19184)', () => {
+  it('falls through to a later declared endpoint when the first has no dsh protocol', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['ollama', 'openai-chat-completions'] })
+    expect(resolveDshApi(provider, model)).toBe('openai-completions')
+    expect(isDshCompatibleModel(provider, model)).toBe(true)
+  })
+
+  it('falls through to the provider default when no declared endpoint maps natively', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic' },
+        'openai-embeddings': { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-embeddings'] })
+    expect(resolveDshApi(provider, model)).toBe('anthropic-messages')
+  })
+
+  it('still prefers the first declared endpoint when it maps', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' },
+        'anthropic-messages': { adapterFamily: 'anthropic' }
+      }
+    })
+    expect(
+      resolveDshApi(provider, makeModel({ endpointTypes: ['anthropic-messages', 'openai-chat-completions'] }))
+    ).toBe('anthropic-messages')
+  })
+})

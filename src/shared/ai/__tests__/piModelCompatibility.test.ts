@@ -136,3 +136,52 @@ describe('resolvePiApi', () => {
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
   })
 })
+
+describe('endpoint candidate walk (#19184)', () => {
+  it('falls through to a later declared endpoint when the first has no pi protocol', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+      }
+    })
+    // First declared endpoint (ollama) has no pi protocol; the second does.
+    const model = makeModel({ endpointTypes: ['ollama', 'openai-chat-completions'] })
+    expect(resolvePiApi(provider, model)).toBe('openai-completions')
+    expect(isPiCompatibleModel(provider, model)).toBe(true)
+  })
+
+  it('falls through to the provider default when no declared endpoint maps', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic' },
+        'openai-embeddings': { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-embeddings'] })
+    expect(resolvePiApi(provider, model)).toBe('anthropic-messages')
+    expect(isPiCompatibleModel(provider, model)).toBe(true)
+  })
+
+  it('still prefers the first declared endpoint when it maps', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' },
+        'anthropic-messages': { adapterFamily: 'anthropic' }
+      }
+    })
+    expect(
+      resolvePiApi(provider, makeModel({ endpointTypes: ['anthropic-messages', 'openai-chat-completions'] }))
+    ).toBe('anthropic-messages')
+  })
+
+  it('returns undefined when no candidate maps', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'azure' } }
+    })
+    expect(resolvePiApi(provider, makeModel({ endpointTypes: ['ollama'] }))).toBeUndefined()
+  })
+})
