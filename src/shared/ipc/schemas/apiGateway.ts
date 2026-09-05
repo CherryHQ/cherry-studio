@@ -8,8 +8,13 @@ import { defineRoute } from '../define'
  * whether shutdown completed or is deferred by a lease. Handlers turn service throws into
  * `{ success: false, error }`; running state and config remain on their data-layer channels.
  */
+const runtimeAddressSchema = z.object({ host: z.string(), port: z.number().int().min(0).max(65535) })
+
 const statusResultSchema: z.ZodType<ApiGatewayStatusResult> = z.union([
-  z.object({ success: z.literal(true) }),
+  z.object({
+    success: z.literal(true),
+    address: runtimeAddressSchema
+  }),
   z.object({ success: z.literal(false), error: z.string() })
 ])
 
@@ -19,6 +24,7 @@ const stopResultSchema: z.ZodType<ApiGatewayStopResult> = z.union([
 ])
 
 export const apiGatewayRequestSchemas = {
+  'api_gateway.get_runtime_address': defineRoute({ input: z.void(), output: runtimeAddressSchema.nullable() }),
   'api_gateway.start': defineRoute({ input: z.void(), output: statusResultSchema }),
   'api_gateway.stop': defineRoute({ input: z.void(), output: stopResultSchema }),
   'api_gateway.restart': defineRoute({ input: z.void(), output: statusResultSchema })

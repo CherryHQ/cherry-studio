@@ -420,7 +420,7 @@ describe('useLaunchDialogController', () => {
     function renderGatewayLaunch(
       getApiKey: ReturnType<typeof vi.fn>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
-      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(gatewayProvider),
       selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
     ) {
       const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)
@@ -487,7 +487,12 @@ describe('useLaunchDialogController', () => {
 
     it('re-verifies the gateway and rewrites the config with its key before running', async () => {
       const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
-      const { result } = renderGatewayLaunch(getApiKey)
+      const runningProvider = {
+        ...gatewayProvider,
+        endpointConfigs: { anthropic: { baseUrl: 'http://127.0.0.1:24444' } }
+      } as Provider
+      const ensureRunning = vi.fn().mockResolvedValue(runningProvider)
+      const { result } = renderGatewayLaunch(getApiKey, gatewayModelsById, ensureRunning)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
@@ -501,7 +506,7 @@ describe('useLaunchDialogController', () => {
         modelId: 'deepseek::deepseek-chat',
         configBlob: { permissionMode: 'plan' },
         writePrimaryModel: true,
-        gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
+        gateway: { provider: runningProvider, apiKey: 'cs-sk-current' }
       })
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
       // The rebuild must complete before the CLI is spawned.

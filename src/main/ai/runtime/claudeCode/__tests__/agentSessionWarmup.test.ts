@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayStart: vi.fn(),
   apiGatewayEnsureRunning: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
+  apiGatewayGetRuntimeAddress: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
@@ -78,6 +79,7 @@ vi.mock('@application', () => ({
           start: mocks.apiGatewayStart,
           ensureRunning: mocks.apiGatewayEnsureRunning,
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
+          getRuntimeAddress: mocks.apiGatewayGetRuntimeAddress,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders,
           getInternalRequestToken: mocks.apiGatewayGetInternalRequestToken
         }
@@ -169,12 +171,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
-    mocks.apiGatewayEnsureRunning.mockResolvedValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({
       enabled: true,
       host: '127.0.0.1',
       port: 23333,
       apiKey: 'gateway-key'
+    })
+    mocks.apiGatewayGetRuntimeAddress.mockImplementation(() => {
+      if (!mocks.apiGatewayIsRunning()) return null
+      const config = mocks.apiGatewayGetCurrentConfig()
+      return { host: config.host, port: config.port }
+    })
+    mocks.apiGatewayEnsureRunning.mockImplementation(async () => {
+      mocks.apiGatewayIsRunning.mockReturnValue(true)
+      return mocks.apiGatewayGetRuntimeAddress()
     })
     mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
       'x-cherry-agent-session-id': 'session-1',
@@ -737,7 +747,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       apiKey: 'gateway-key'
     })
     mocks.apiGatewayIsRunning.mockReturnValue(false)
-    mocks.apiGatewayEnsureRunning.mockImplementation(async () => mocks.apiGatewayIsRunning.mockReturnValue(true))
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -1009,10 +1018,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({
       enabled: true,
-      host: '127.0.0.2',
+      host: '127.0.0.1',
       port: 23333,
       apiKey: 'gateway-key'
     })
+    mocks.apiGatewayGetRuntimeAddress.mockReturnValue({ host: '127.0.0.2', port: 24444 })
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
     mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
 
@@ -1021,7 +1031,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     if (!request || !current.ok) throw new Error('expected materialized request and current config')
     expect(request.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'http://127.0.0.2:23333',
+      ANTHROPIC_BASE_URL: 'http://127.0.0.2:24444',
       NO_PROXY: 'localhost,127.0.0.1,::1,[::1],127.0.0.2',
       no_proxy: 'localhost,127.0.0.1,::1,[::1],127.0.0.2'
     })

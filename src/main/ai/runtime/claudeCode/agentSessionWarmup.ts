@@ -701,8 +701,9 @@ function deriveRouteFacts(
   if (shouldUseGateway) {
     const apiGatewayService = application.get('ApiGatewayService')
     const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
+    const runtimeAddress = apiGatewayService.getRuntimeAddress()
+    const host = runtimeAddress?.host || config.host || '127.0.0.1'
+    const port = runtimeAddress?.port || config.port || 23333
     return {
       branch: 'gateway',
       baseUrl: gatewayClientOrigin(host, port),
