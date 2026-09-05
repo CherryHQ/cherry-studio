@@ -2,11 +2,16 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
+import { isMessageOnlyConversationUrl } from '@renderer/utils/sidebar'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useTabs } from './useTabs'
+
+const WORKSPACE_ENTRY_ROUTES = new Set(['/app/chat', '/app/agents', '/app/translate'])
+
+const getRoutePathname = (url: string): string => url.split(/[?#]/, 1)[0]
 
 function useOpenSettingsRoute() {
   const { tabs, openTab, setActiveTab, updateTab } = useTabs()
@@ -94,12 +99,13 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  *   re-attached (openTabInMainWindow rebuilt the window around it); same
  *   request-id dedupe, delivered to `attachTab`.
  *
- * Settings paths land in the singleton settings tab; everything else goes
- * through `openTab`'s exact-URL dedupe.
+ * Settings paths land in the singleton settings tab. Bare Chat, Work, and
+ * Translation entries reuse the most recently visited tab in that workspace;
+ * specific routes and all other paths go through `openTab`'s exact-URL dedupe.
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openTab } = useTabs()
+  const { attachTab, openTab, setActiveTab, tabs } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -107,11 +113,28 @@ export function useMainWindowNavigation() {
     (to: string) => {
       if (isSettingsPath(to)) {
         openSettingsRoute(to)
-      } else {
-        openTab(to)
+        return
       }
+
+      if (WORKSPACE_ENTRY_ROUTES.has(to)) {
+        const existingWorkspaceTab = tabs
+          .filter(
+            (tab) => tab.type === 'route' && getRoutePathname(tab.url) === to && !isMessageOnlyConversationUrl(tab.url)
+          )
+          .reduce<(typeof tabs)[number] | undefined>(
+            (latest, tab) => (!latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest),
+            undefined
+          )
+
+        if (existingWorkspaceTab) {
+          setActiveTab(existingWorkspaceTab.id)
+          return
+        }
+      }
+
+      openTab(to)
     },
-    [openSettingsRoute, openTab]
+    [openSettingsRoute, openTab, setActiveTab, tabs]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

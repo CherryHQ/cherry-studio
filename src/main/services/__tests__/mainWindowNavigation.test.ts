@@ -31,12 +31,15 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 import {
   acknowledgeMainWindowNavigation,
+  clearMainWindowDeliveryState,
   isAllowedRoute,
-  markMainRendererReadyForTabAttach,
+  markMainRendererReadyForDelivery,
   openRouteInMainWindow,
   openSettingsInMainWindow,
   openTabInMainWindow,
-  resetMainRendererTabAttachDelivery
+  resetMainRendererDelivery,
+  startMainWindowNavigation,
+  stopMainWindowNavigation
 } from '../mainWindowNavigation'
 
 const aliveWindow = {
@@ -55,11 +58,11 @@ describe('mainWindowNavigation', () => {
   })
 
   afterEach(() => {
-    // Flush any queued tabs so the module-level delivery state does not leak.
+    // Flush any queued routes or tabs so module-level delivery state does not leak.
     windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
     windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
-    markMainRendererReadyForTabAttach('main-1')
-    resetMainRendererTabAttachDelivery()
+    markMainRendererReadyForDelivery('main-1')
+    resetMainRendererDelivery()
   })
 
   describe('acknowledgeMainWindowNavigation', () => {
@@ -96,8 +99,18 @@ describe('mainWindowNavigation', () => {
   })
 
   describe('openRouteInMainWindow', () => {
+    it('does not repopulate delivery state after the owning service stops', () => {
+      stopMainWindowNavigation()
+
+      openRouteInMainWindow('/app/chat')
+
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      startMainWindowNavigation()
+    })
+
     it('sends the open_route_requested event and focuses when the main window is alive', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
 
       openRouteInMainWindow('/knowledge')
 
@@ -105,6 +118,80 @@ describe('mainWindowNavigation', () => {
         to: '/knowledge'
       })
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
+    })
+
+    it('queues a route until a live main renderer reports ready', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/chat')
+
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
+
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'navigation.open_route_requested', {
+        to: '/app/chat'
+      })
+    })
+
+    it('preserves distinct queued routes while the renderer is unavailable', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/chat')
+      openRouteInMainWindow('/app/agents')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/chat' }],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+    })
+
+    it('preserves a repeated route when another command occurs between the requests', () => {
+      const queuedTab = { id: 'queued-tab', type: 'route', url: '/app/chat', title: 'Chat' } as const
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/agents')
+      openTabInMainWindow(queuedTab)
+      openRouteInMainWindow('/app/agents')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }],
+        ['main-1', 'tab.attached', queuedTab],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+    })
+
+    it('coalesces only adjacent exact duplicate routes', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/agents')
+      openRouteInMainWindow('/app/agents')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+    })
+
+    it('queues a route when the renderer starts reloading after it reported ready', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
+      windowManagerMock.getWindow.mockReturnValue({
+        isDestroyed: () => false,
+        webContents: { isLoadingMainFrame: () => true, isCrashed: () => false }
+      })
+
+      openRouteInMainWindow('/app/translate')
+
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+      windowManagerMock.getWindow.mockReturnValue(aliveWindow)
+      markMainRendererReadyForDelivery('main-1')
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'navigation.open_route_requested', {
+        to: '/app/translate'
+      })
     })
 
     it('creates the main window with navigation init data when none exists', () => {
@@ -116,6 +203,24 @@ describe('mainWindowNavigation', () => {
         to: '/knowledge',
         requestId: expect.any(Number)
       })
+    })
+
+    it('preserves tab-then-route order across a renderer rebuild', () => {
+      const queuedTab = { id: 'queued-tab', type: 'route', url: '/app/chat', title: 'Chat' } as const
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      openTabInMainWindow(queuedTab)
+
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+      openRouteInMainWindow('/app/agents')
+
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'tab.attached', queuedTab],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenLastCalledWith()
     })
 
     it('uses a fresh request id for repeated cold-start navigations', () => {
@@ -152,6 +257,7 @@ describe('mainWindowNavigation', () => {
 
     it('delivers via the event when the main window is alive', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
 
       openSettingsInMainWindow('/settings/about')
 
@@ -167,7 +273,7 @@ describe('mainWindowNavigation', () => {
 
     it('sends the tab.attached event and raises the main window when its renderer is ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       openTabInMainWindow(tab)
 
@@ -190,7 +296,7 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
@@ -200,8 +306,8 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
     })
@@ -211,9 +317,24 @@ describe('mainWindowNavigation', () => {
 
       openTabInMainWindow(tab)
       openTabInMainWindow(tab)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
+    })
+
+    it('refreshes a duplicate tab payload without moving it behind a later route', () => {
+      const renamedTab = { ...tab, title: 'Renamed chat' }
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openTabInMainWindow(tab)
+      openRouteInMainWindow('/app/agents')
+      openTabInMainWindow(renamedTab)
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'tab.attached', renamedTab],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
     })
 
     it('delivers queued tabs to the live window id at flush time', () => {
@@ -222,7 +343,7 @@ describe('mainWindowNavigation', () => {
       openTabInMainWindow(tab)
       // Window was rebuilt between enqueue and ready: resolve at flush time.
       windowManagerMock.getWindowId.mockReturnValue('main-2')
-      markMainRendererReadyForTabAttach('main-2')
+      markMainRendererReadyForDelivery('main-2')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-2', 'tab.attached', tab)
     })
@@ -231,7 +352,7 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
       windowManagerMock.getWindowType.mockReturnValue('sub-window' as WindowType)
 
-      markMainRendererReadyForTabAttach('sub-1')
+      markMainRendererReadyForDelivery('sub-1')
       openTabInMainWindow(tab)
 
       // Still queued: the non-main ready cannot have armed delivery.
@@ -240,7 +361,7 @@ describe('mainWindowNavigation', () => {
 
     it('re-queues during a reload even when the ready flag is armed', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
       windowManagerMock.getWindow.mockReturnValue({
         isDestroyed: () => false,
         webContents: { isLoadingMainFrame: () => true, isCrashed: () => false }
@@ -252,7 +373,7 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       // Once the new frame mounts, its ready report flushes the re-queued tab.
       windowManagerMock.getWindow.mockReturnValue(aliveWindow)
-      markMainRendererReadyForTabAttach('main-1')
+      markMainRendererReadyForDelivery('main-1')
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
     })
 
@@ -261,11 +382,21 @@ describe('mainWindowNavigation', () => {
 
       openTabInMainWindow(tab)
       // Window destroyed / webContents reloading — readiness dropped, queue kept.
-      resetMainRendererTabAttachDelivery()
+      resetMainRendererDelivery()
       windowManagerMock.getWindowId.mockReturnValue('main-2')
-      markMainRendererReadyForTabAttach('main-2')
+      markMainRendererReadyForDelivery('main-2')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-2', 'tab.attached', tab)
+    })
+
+    it('clears queued deliveries when the coordinator lifecycle ends', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openTabInMainWindow(tab)
+      clearMainWindowDeliveryState()
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
     })
 
     it('rebuilds the main window with tab-attach init data when none exists', () => {
@@ -277,6 +408,23 @@ describe('mainWindowNavigation', () => {
         tab,
         requestId: expect.any(Number)
       })
+    })
+
+    it('preserves route-then-tab order across a renderer rebuild', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      openRouteInMainWindow('/app/chat')
+
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+      openTabInMainWindow(tab)
+
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/chat' }],
+        ['main-1', 'tab.attached', tab]
+      ])
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenLastCalledWith()
     })
   })
 
