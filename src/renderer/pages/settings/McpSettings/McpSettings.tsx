@@ -431,6 +431,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
     error: t('settings.mcp.runtimeStatus.error', 'Error')
   }[server.isActive ? runtimeStatus.state : 'disabled']
+  const focusRuntimeErrorField = () => form.setFocus(serverType === 'stdio' ? 'command' : 'env')
 
   const fieldsProps = {
     form,
@@ -452,6 +453,27 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
             onChange={() => setIsFormChanged(true)}
             className="flex w-full min-w-0 flex-col gap-4 pb-6 [&_[data-slot=select-trigger]]:bg-background [&_input[data-slot=form-control]]:bg-background [&_textarea[data-slot=form-control]]:bg-background"
             id="mcp-settings-form">
+            {runtimeError && (
+              <Alert
+                type="error"
+                showIcon
+                message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
+                description={
+                  <div className="space-y-1">
+                    <div>{runtimeStatus.errorCode ? `${runtimeStatus.errorCode}: ${runtimeError}` : runtimeError}</div>
+                    {runtimeStatus.errorPath && (
+                      <code className="block break-all text-xs">{runtimeStatus.errorPath}</code>
+                    )}
+                  </div>
+                }
+                action={
+                  <Button type="button" variant="outline" size="sm" onClick={focusRuntimeErrorField}>
+                    {t('common.edit')}
+                  </Button>
+                }
+                className="shadow-none"
+              />
+            )}
             <McpFormSection>
               <McpIdentityFields {...fieldsProps} />
             </McpFormSection>

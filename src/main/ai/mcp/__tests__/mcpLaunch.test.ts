@@ -110,4 +110,16 @@ describe('resolveLaunchCommand', () => {
     await expect(resolve('   ')).rejects.toThrow(/MCP stdio command cannot be empty/)
     expect(commandMock.findCommandInShellEnv).not.toHaveBeenCalled()
   })
+
+  it.each(['${MCP_COMMAND}', 'C:\\%MCP_HOME%\\server.exe', 'YOUR_MCP_COMMAND'])(
+    'rejects unresolved command placeholder %s before launch',
+    async (command) => {
+      await expect(resolve(command)).rejects.toMatchObject({
+        message: expect.stringMatching(/unresolved placeholder/i),
+        code: 'MCP_UNRESOLVED_PLACEHOLDER',
+        path: command
+      })
+      expect(commandMock.findCommandInShellEnv).not.toHaveBeenCalled()
+    }
+  )
 })

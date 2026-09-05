@@ -38,6 +38,8 @@ const RUNNERS: Record<string, Runner> = {
   uv: uvRunner
 }
 
+const UNRESOLVED_COMMAND_PLACEHOLDER = /\$\{[A-Za-z_][A-Za-z0-9_]*\}|%[A-Za-z_][A-Za-z0-9_]*%|^YOUR_[A-Z0-9_]+$/
+
 export type LaunchCommand = {
   command: string
   args: string[]
@@ -66,6 +68,12 @@ export async function resolveLaunchCommand({
   const normalizedCommand = command.trim()
   if (!normalizedCommand) {
     throw new Error('MCP stdio command cannot be empty')
+  }
+  if (UNRESOLVED_COMMAND_PLACEHOLDER.test(normalizedCommand)) {
+    throw Object.assign(new Error(`MCP stdio command contains an unresolved placeholder: '${normalizedCommand}'`), {
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: normalizedCommand
+    })
   }
 
   const runner = RUNNERS[normalizedCommand]

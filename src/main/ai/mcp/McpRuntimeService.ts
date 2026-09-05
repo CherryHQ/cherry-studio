@@ -217,7 +217,12 @@ export class McpRuntimeService extends BaseService {
     return mcpServerService.getById(serverId)
   }
 
-  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+  public setServerStatus(
+    serverId: string,
+    state: McpRuntimeState,
+    error?: unknown,
+    details?: Record<string, number | string>
+  ): void {
     // A late writer racing removal (e.g. a connectivity check's error path) must not
     // resurrect the status entry doRemoveServer deleted for a removed server.
     if (this.removedServerIds.has(serverId)) {
@@ -226,6 +231,13 @@ export class McpRuntimeService extends BaseService {
 
     const lastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
+    const errorProperties = error && typeof error === 'object' ? (error as { code?: unknown; path?: unknown }) : {}
+    const code = details?.code ?? errorProperties.code
+    const errorCode =
+      state === 'error' && (typeof code === 'string' || typeof code === 'number') ? String(code) : undefined
+    const path = details?.path ?? errorProperties.path
+    const errorPath =
+      state === 'error' && (typeof path === 'string' || typeof path === 'number') ? String(path) : undefined
 
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
@@ -234,14 +246,22 @@ export class McpRuntimeService extends BaseService {
     // guard every status touch (ping/list/prewarm hot paths) would broadcast IPC to all
     // windows. lastCheckedAt has no UI consumer, so leaving it stale on no-op writes is safe.
     const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
-    if (current && current.state === state && current.lastError === lastError) {
+    if (
+      current &&
+      current.state === state &&
+      current.lastError === lastError &&
+      current.errorCode === errorCode &&
+      current.errorPath === errorPath
+    ) {
       return
     }
 
     const status: McpRuntimeStatus = {
       state,
       lastCheckedAt: Date.now(),
-      ...(lastError !== undefined ? { lastError } : {})
+      ...(lastError !== undefined ? { lastError } : {}),
+      ...(errorCode !== undefined ? { errorCode } : {}),
+      ...(errorPath !== undefined ? { errorPath } : {})
     }
     cacheService.setShared(key, status)
   }
@@ -458,6 +478,7 @@ export class McpRuntimeService extends BaseService {
     })
 
     const args = [...(server.args || [])]
+    let transportErrorDetails: Record<string, number | string> | undefined
     const createServerTransport = (typeOverride?: McpServerType) =>
       createTransport({
         sdk,
@@ -466,7 +487,10 @@ export class McpRuntimeService extends BaseService {
         typeOverride,
         authProvider,
         logger: getServerLogger(server),
-        onServerLog: (entry) => this.emitServerLog(server, entry)
+        onServerLog: (entry) => this.emitServerLog(server, entry),
+        onTransportError: (details) => {
+          transportErrorDetails = details
+        }
       })
 
     try {
@@ -508,7 +532,7 @@ export class McpRuntimeService extends BaseService {
       })
       return client
     } catch (error) {
-      this.setServerStatus(server.id, 'error', error)
+      this.setServerStatus(server.id, 'error', error, transportErrorDetails)
       getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
       this.emitServerLog(server, {
         timestamp: Date.now(),

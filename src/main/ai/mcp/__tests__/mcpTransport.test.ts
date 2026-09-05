@@ -196,6 +196,32 @@ describe('createTransport', () => {
     })
   })
 
+  it('reports structured details for a Windows spawn permission error', async () => {
+    const entries: McpServerLogEntry[] = []
+    const onTransportError = vi.fn()
+    const command = 'C:\\Program Files\\MCP\\server.exe'
+    const transport = (await create(
+      { type: 'stdio', command },
+      { onServerLog: (entry) => entries.push(entry), onTransportError }
+    )) as unknown as FakeStdioTransport
+    const error = Object.assign(new Error(`spawn ${command} EPERM`), {
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+
+    transport.onerror?.(error)
+
+    expect(onTransportError).toHaveBeenCalledWith({
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+    expect(entries[0]?.data).toMatchObject({ code: 'EPERM', path: command })
+  })
+
   it('runs an in-memory row we cannot start in-process through the connection it declares', async () => {
     // Legacy rows kept `inMemory` alongside a command; before, they connected via that command.
     hasInMemoryImplementation.mockReturnValueOnce(false)
