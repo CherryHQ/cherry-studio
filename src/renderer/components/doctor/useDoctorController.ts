@@ -30,12 +30,15 @@ import { buildDoctorViewModel, defaultExpandedDoctorDomains } from './doctorView
 
 const logger = loggerService.withContext('DoctorController')
 const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
+type DoctorAutoRunPolicy = 'when-idle' | 'when-not-running'
 
 interface UseDoctorControllerOptions {
+  readonly autoRunPolicy?: DoctorAutoRunPolicy
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
   readonly onInstallUpdate: (releaseInfo: UpdateInfo) => void
   readonly onNavigate: (target: DoctorNavigateTarget) => void
+  readonly onReportProblem?: (description: string) => void
 }
 
 function assertNever(value: never): never {
@@ -63,10 +66,12 @@ function fixRequestFor(
 }
 
 export function useDoctorController({
+  autoRunPolicy = 'when-idle',
   initialPanel,
   initialDescription,
   onInstallUpdate,
-  onNavigate
+  onNavigate,
+  onReportProblem
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
   const cachedDoctorState = useSharedCacheValue('doctor.state')
@@ -131,10 +136,12 @@ export function useDoctorController({
   )
 
   useEffect(() => {
-    if (!sharedCacheReady || doctorState.status !== 'idle' || autoRunRequestedRef.current) return
+    const shouldAutoRun =
+      doctorState.status === 'idle' || (autoRunPolicy === 'when-not-running' && doctorState.status !== 'running')
+    if (!sharedCacheReady || !shouldAutoRun || autoRunRequestedRef.current) return
     autoRunRequestedRef.current = true
     void run('quick')
-  }, [doctorState.status, run, sharedCacheReady])
+  }, [autoRunPolicy, doctorState.status, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (doctorState.status !== 'running' || doctorState.tier !== 'live') return
@@ -248,13 +255,20 @@ export function useDoctorController({
           }
           return
         case 'report':
+          const reportDescription =
+            session.descriptionDraft.trim() ||
+            t('settings.doctor.report.check_description', {
+              checkId,
+              title: t(DOCTOR_CHECK_CONTENT[checkId].title)
+            })
+          if (onReportProblem) {
+            onReportProblem(reportDescription)
+            return
+          }
           if (session.descriptionDraft.trim().length === 0) {
             dispatch({
               type: 'set-description',
-              description: t('settings.doctor.report.check_description', {
-                checkId,
-                title: t(DOCTOR_CHECK_CONTENT[checkId].title)
-              })
+              description: reportDescription
             })
           }
           dispatch({ type: 'set-panel', panel: 'report' })
@@ -268,6 +282,7 @@ export function useDoctorController({
       appUpdateState.info,
       onInstallUpdate,
       onNavigate,
+      onReportProblem,
       performFix,
       session.descriptionDraft,
       t,
