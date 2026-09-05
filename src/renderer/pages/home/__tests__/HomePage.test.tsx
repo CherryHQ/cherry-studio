@@ -144,6 +144,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
 
   return {
+    useCache: () => [undefined, vi.fn()],
     usePersistCache: (key: string) => {
       const [value, setValue] = React.useState<unknown>(() => {
         if (homeMocks.persistCacheValues.has(key)) {

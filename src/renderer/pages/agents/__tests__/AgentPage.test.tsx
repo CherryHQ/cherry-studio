@@ -187,6 +187,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
 
   return {
+    useCache: () => [undefined, vi.fn()],
     useSharedCache: () => [null, vi.fn()],
     usePersistCache: (key: string) => {
       const initialValue = (() => {
