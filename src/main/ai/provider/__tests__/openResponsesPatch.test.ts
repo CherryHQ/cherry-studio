@@ -80,6 +80,27 @@ describe('patched @ai-sdk/open-responses', () => {
     ])
   })
 
+  it('exposes unknown events as bounded raw diagnostics without creating message parts', async () => {
+    const unknownEvent = { type: 'vendor.progress', sequence_number: 7, status: 'waiting' }
+    const chunks = await collect(
+      (
+        await sseModel([unknownEvent]).doStream({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+          includeRawChunks: true
+        })
+      ).stream
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'raw').map((chunk) => chunk.rawValue)).toEqual([unknownEvent])
+    expect(
+      chunks.some((chunk) =>
+        ['text-start', 'text-delta', 'text-end', 'reasoning-start', 'reasoning-delta', 'reasoning-end'].includes(
+          chunk.type
+        )
+      )
+    ).toBe(false)
+  })
+
   it('does not drop ordinary text solely because its item id resembles a keep-alive marker', async () => {
     const chunks = await collect(
       (
