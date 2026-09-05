@@ -1,6 +1,7 @@
 import '@data/services/AgentSessionMessageService'
 
 import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -23,10 +24,11 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
-import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
@@ -184,7 +186,7 @@ describe('AgentService', () => {
       const presetProviderId = 'startup-preset'
       const customProviderId = 'startup-custom'
       const presetModelId = createUniqueModelId(presetProviderId, 'claude-sonnet-4-5')
-      const customModelId = createUniqueModelId(customProviderId, 'custom-reasoner')
+      const customModelId = createUniqueModelId(customProviderId, 'gpt-oss-120b')
 
       dbh.db
         .insert(userProviderTable)
@@ -198,13 +200,7 @@ describe('AgentService', () => {
           {
             providerId: customProviderId,
             name: 'Startup Custom',
-            defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-            endpointConfigs: {
-              [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-                baseUrl: 'https://example.com/v1',
-                adapterFamily: 'openai-compatible'
-              }
-            },
+            presetProviderId: 'groq',
             orderKey: generateOrderKeyBetween(null, null)
           }
         ])
@@ -224,7 +220,8 @@ describe('AgentService', () => {
           {
             id: customModelId,
             providerId: customProviderId,
-            modelId: 'custom-reasoner',
+            modelId: 'gpt-oss-120b',
+            presetModelId: 'gpt-oss-120b',
             name: 'Custom Reasoner',
             capabilities: [MODEL_CAPABILITY.REASONING],
             reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }] },
@@ -234,51 +231,69 @@ describe('AgentService', () => {
         ])
         .run()
 
+      const getPathMock = vi.mocked(application.getPath)
+      const originalGetPathImplementation = getPathMock.getMockImplementation()
+      getPathMock.mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : key === 'app.root'
+            ? resolve(process.cwd(), filename ?? '')
+            : (originalGetPathImplementation?.(key, filename) ?? `/mock/${key}${filename ? `/${filename}` : ''}`)
+      )
+      providerRegistryService.clearCache()
+
       const dbService = application.get('DbService')
       const getDbMock = vi.mocked(dbService.getDb)
       getDbMock.mockImplementation(() => {
         throw new Error('Database is not initialized, please call init() first!')
       })
 
-      const [presetCreated, customCreated] = (() => {
+      const [presetCreated, customCreated, presetModel, customModel] = (() => {
         try {
-          return dbh.db.transaction(
-            (tx) =>
-              [
-                agentService.createAgentTx(tx, 'startup-preset-agent', {
-                  id: 'startup-preset-agent',
-                  type: 'claude-code',
-                  name: 'Preset Agent',
-                  description: '',
-                  instructions: '',
-                  model: presetModelId,
-                  configuration: { reasoning_effort: 'high' }
-                }),
-                agentService.createAgentTx(tx, 'startup-custom-agent', {
-                  id: 'startup-custom-agent',
-                  type: 'claude-code',
-                  name: 'Custom Agent',
-                  description: '',
-                  instructions: '',
-                  model: customModelId,
-                  configuration: { reasoning_effort: 'low' }
-                })
-              ] as const
-          )
+          return dbh.db.transaction((tx) => {
+            const presetCreated = agentService.createAgentTx(tx, 'startup-preset-agent', {
+              id: 'startup-preset-agent',
+              type: 'claude-code',
+              name: 'Preset Agent',
+              description: '',
+              instructions: '',
+              model: presetModelId,
+              configuration: { reasoning_effort: 'high' }
+            })
+            const customCreated = agentService.createAgentTx(tx, 'startup-custom-agent', {
+              id: 'startup-custom-agent',
+              type: 'claude-code',
+              name: 'Custom Agent',
+              description: '',
+              instructions: '',
+              model: customModelId,
+              configuration: { reasoning_effort: 'low' }
+            })
+            return [
+              presetCreated,
+              customCreated,
+              modelService.findByIdTx(tx, presetModelId),
+              modelService.findByIdTx(tx, customModelId)
+            ] as const
+          })
         } finally {
           getDbMock.mockImplementation(() => dbh.db)
+          if (originalGetPathImplementation) getPathMock.mockImplementation(originalGetPathImplementation)
+          providerRegistryService.clearCache()
         }
       })()
 
       expect(presetCreated?.modelName).toBe('Preset Reasoner')
       expect(customCreated?.modelName).toBe('Custom Reasoner')
 
-      const presetModel = modelService.findByIdTx(dbh.db, presetModelId)
-      const customModel = modelService.findByIdTx(dbh.db, customModelId)
       expect(presetModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
       expect(presetModel?.reasoning?.controls).toEqual([{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }])
       expect(customModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
-      expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'high'] }])
+      expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+      expect(customModel?.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
       expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
       expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')
     })
