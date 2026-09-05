@@ -89,7 +89,7 @@ function createPanelController(): DoctorController {
       problemCount: 0,
       rows: [],
       status: 'canceled',
-      summary: { appBug: 0, error: 0, optional: 0, skip: 0, transient: 0, userFixable: 0 }
+      summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 0 }
     }
   } as unknown as DoctorController
 }
@@ -100,7 +100,7 @@ function EvidenceFocusHarness() {
   const baseController = createController()
   const controller = {
     ...baseController,
-    cancelFixConfirmation: () => setInteraction({ kind: 'idle' }),
+    cancelConfirmation: () => setInteraction({ kind: 'idle' }),
     confirmEvidence: () => {
       if (interaction.kind !== 'confirm-evidence') return
       setRevealedEvidence([interaction.checkId])
@@ -117,7 +117,7 @@ function EvidenceFocusHarness() {
       ...baseController.viewModel,
       rows: baseController.viewModel.groups.flatMap((group) => group.rows),
       status: 'completed',
-      summary: { appBug: 0, error: 0, optional: 0, skip: 0, transient: 0, userFixable: 1 }
+      summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 1 }
     }
   } as DoctorController
 

@@ -42,7 +42,6 @@ export interface DoctorViewModel {
     readonly transient: number
     readonly error: number
     readonly skip: number
-    readonly optional: number
   }
   readonly canCancel: boolean
   readonly isStale: boolean
@@ -51,8 +50,8 @@ export interface DoctorViewModel {
 const DOMAIN_ORDER = [...new Set(DOCTOR_CHECK_IDS.map((id) => DOCTOR_CHECK_CATALOG[id].domain))]
 
 function resultActions(result: DoctorCheckResult): readonly DoctorAction[] {
-  if (result.status === 'skip' || result.status === 'error') return []
-  return result.actions ?? []
+  if (result.status !== 'warn' && result.status !== 'fail') return []
+  return result.actions
 }
 
 function groupStatus(rows: readonly DoctorRowViewModel[]): DoctorGroupStatus {
@@ -156,12 +155,10 @@ export function buildDoctorViewModel(
         counts.error += 1
       } else if (result.status === 'skip') {
         counts.skip += 1
-      } else if (result.actions && result.actions.length > 0) {
-        counts.optional += 1
       }
       return counts
     },
-    { userFixable: 0, appBug: 0, transient: 0, error: 0, skip: 0, optional: 0 }
+    { userFixable: 0, appBug: 0, transient: 0, error: 0, skip: 0 }
   )
 
   return {

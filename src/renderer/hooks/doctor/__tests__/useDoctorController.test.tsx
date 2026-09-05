@@ -111,7 +111,7 @@ describe('useDoctorController', () => {
   })
 
   it('starts one basic check without a partial check list when no result exists', async () => {
-    renderHook(() => useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() }))
+    renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
@@ -124,9 +124,7 @@ describe('useDoctorController', () => {
   it('waits for shared-cache hydration before deciding that no report exists', async () => {
     mocks.cacheReady = false
     mocks.doctorState = undefined
-    const { rerender } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const { rerender } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
 
@@ -167,7 +165,6 @@ describe('useDoctorController', () => {
     const options = {
       autoRunPolicy: 'when-not-running' as const,
       initialPanel: 'checks' as const,
-      onInstallUpdate: vi.fn(),
       onNavigate: vi.fn()
     }
     const { rerender } = renderHook(() => useDoctorController(options))
@@ -188,7 +185,6 @@ describe('useDoctorController', () => {
       useDoctorController({
         autoRunPolicy: 'when-not-running',
         initialPanel: 'checks',
-        onInstallUpdate: vi.fn(),
         onNavigate: vi.fn()
       })
     )
@@ -220,7 +216,6 @@ describe('useDoctorController', () => {
       useDoctorController({
         autoRunPolicy: 'when-not-running',
         initialPanel: 'checks',
-        onInstallUpdate: vi.fn(),
         onNavigate: vi.fn()
       })
     )
@@ -240,7 +235,6 @@ describe('useDoctorController', () => {
       useDoctorController({
         initialPanel: 'checks',
         initialDescription: 'confirmed safe description',
-        onInstallUpdate: vi.fn(),
         onNavigate: vi.fn()
       })
     )
@@ -258,7 +252,6 @@ describe('useDoctorController', () => {
     const { result } = renderHook(() =>
       useDoctorController({
         initialPanel: 'checks',
-        onInstallUpdate: vi.fn(),
         onNavigate: vi.fn(),
         onReportProblem
       })
@@ -272,38 +265,13 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('requires inline confirmation for destructive fixes before sending the exact backend request', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
-    mocks.request.mockResolvedValue({ status: 'fixed', result: { id: 'storage-disk-space', status: 'pass' } })
-    const { result } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
-
-    await act(async () =>
-      result.current.executeAction('storage-disk-space', { kind: 'fix', fixId: 'cleanup' }, 'run-1')
-    )
-    expect(result.current.session.interaction.kind).toBe('confirm-fix')
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.fix', expect.anything())
-
-    await act(async () => result.current.confirmFix())
-
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
-      runId: 'run-1',
-      checkId: 'storage-disk-space',
-      fixId: 'cleanup'
-    })
-    expect(result.current.session.interaction.kind).toBe('idle')
-  })
-
   it('runs low-risk fixes directly and keeps the backend result authoritative', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     mocks.request.mockResolvedValue({
       status: 'requires_relaunch',
       result: { id: 'permission-screen-capture', status: 'pass', durationMs: 1 }
     })
-    const { result } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await act(async () =>
       result.current.executeAction('permission-screen-capture', { kind: 'fix', fixId: 'request' }, 'run-1')
@@ -327,18 +295,14 @@ describe('useDoctorController', () => {
       startedAt: '2026-09-04T08:59:00.000Z',
       results: []
     }
-    const quick = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const quick = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await act(async () => quick.result.current.cancel())
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
     quick.unmount()
 
     mocks.doctorState = { ...mocks.doctorState, tier: 'live' }
-    const live = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const live = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
     await act(async () => live.result.current.cancel())
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'run-1' })
@@ -346,9 +310,7 @@ describe('useDoctorController', () => {
 
   it('opens the displayed app data directory without copying it into Doctor state', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
-    const { result } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await act(async () => result.current.openPath('/Users/local/CherryStudio'))
 
@@ -361,9 +323,7 @@ describe('useDoctorController', () => {
     mocks.request.mockImplementation(async (route: string) =>
       route === 'app.get_info' ? { logsPath: '/Users/local/CherryStudio/logs' } : undefined
     )
-    const { result } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await act(async () => result.current.openLogsPath())
 
@@ -374,10 +334,7 @@ describe('useDoctorController', () => {
   it('executes every non-fix backend action with its exact public contract', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const onNavigate = vi.fn()
-    const onInstallUpdate = vi.fn()
-    const releaseInfo = { version: '2.1.0' }
-    Object.assign(mocks.appUpdateState, { downloaded: true, info: releaseInfo })
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onInstallUpdate, onNavigate }))
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate }))
 
     await act(async () =>
       result.current.executeAction('provider-api-key-present', { kind: 'navigate', target: '/settings/provider' })
@@ -388,14 +345,10 @@ describe('useDoctorController', () => {
         url: 'https://cherry-ai.com/status'
       })
     )
-    await act(async () => result.current.executeAction('provider-cherry-account', { kind: 'open_cherry_account' }))
-    await act(async () => result.current.executeAction('install-update-available', { kind: 'install_update' }))
     await act(async () => result.current.executeAction('config-hardware-acceleration', { kind: 'relaunch' }))
 
     expect(onNavigate).toHaveBeenCalledWith('/settings/provider')
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://cherry-ai.com/status')
-    expect(mocks.request).toHaveBeenCalledWith('cherry_cloud.login.start')
-    expect(onInstallUpdate).toHaveBeenCalledWith(releaseInfo)
     expect(mocks.request).toHaveBeenCalledWith('app.relaunch')
   })
 })

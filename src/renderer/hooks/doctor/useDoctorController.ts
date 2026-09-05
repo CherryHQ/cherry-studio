@@ -10,13 +10,11 @@ import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
   type DoctorCheckId,
-  type DoctorFixMeta,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
   type DoctorRunTier,
   type DoctorState
 } from '@shared/types/doctor'
-import type { UpdateInfo } from 'builder-util-runtime'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +34,6 @@ interface UseDoctorControllerOptions {
   readonly autoRunPolicy?: DoctorAutoRunPolicy
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
-  readonly onInstallUpdate: (releaseInfo: UpdateInfo) => void
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -49,27 +46,20 @@ function fixRequestFor(
   runId: string,
   checkId: DoctorCheckId,
   action: Extract<DoctorAction, { kind: 'fix' }>
-): { readonly meta: DoctorFixMeta; readonly request: DoctorFixRequest } | undefined {
-  const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find(
-    (candidate) => candidate.id === action.fixId
-  )
-  if (!meta) return undefined
+): DoctorFixRequest | undefined {
+  if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
   return {
-    meta,
-    request: {
-      runId,
-      checkId,
-      fixId: action.fixId,
-      ...(action.target ? { target: action.target } : {})
-    } as DoctorFixRequest
-  }
+    runId,
+    checkId,
+    fixId: action.fixId,
+    ...(action.target ? { target: action.target } : {})
+  } as DoctorFixRequest
 }
 
 export function useDoctorController({
   autoRunPolicy = 'when-idle',
   initialPanel,
   initialDescription,
-  onInstallUpdate,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
@@ -116,8 +106,7 @@ export function useDoctorController({
     session.interaction.kind === 'action' ||
     session.interaction.kind === 'bundle-operation' ||
     session.interaction.kind === 'report-operation'
-  const canChangePanel =
-    !isCloseBlocked && session.interaction.kind !== 'confirm-fix' && session.interaction.kind !== 'confirm-evidence'
+  const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
   useEffect(() => {
     if (!viewModel.report || expandedRunIdRef.current === viewModel.report.runId) return
@@ -222,13 +211,9 @@ export function useDoctorController({
       switch (action.kind) {
         case 'fix': {
           if (!runId) return
-          const fix = fixRequestFor(runId, checkId, action)
-          if (!fix) return
-          if (fix.meta.risk === 'confirm') {
-            dispatch({ type: 'confirm-fix', request: fix.request })
-            return
-          }
-          await performFix(fix.request)
+          const request = fixRequestFor(runId, checkId, action)
+          if (!request) return
+          await performFix(request)
           return
         }
         case 'navigate':
@@ -255,20 +240,6 @@ export function useDoctorController({
           } finally {
             dispatch({ type: 'finish-interaction', kind: 'action' })
           }
-          return
-        case 'open_cherry_account':
-          dispatch({ type: 'start-interaction', interaction: { kind: 'action', actionKind: action.kind, checkId } })
-          try {
-            await ipcApi.request('cherry_cloud.login.start')
-          } catch (error) {
-            logger.error('Failed to start Cherry account login', error as Error)
-            toast.error(t('settings.doctor.messages.account_failed'))
-          } finally {
-            dispatch({ type: 'finish-interaction', kind: 'action' })
-          }
-          return
-        case 'install_update':
-          if (appUpdateState.downloaded && appUpdateState.info) onInstallUpdate(appUpdateState.info)
           return
         case 'relaunch':
           dispatch({ type: 'start-interaction', interaction: { kind: 'action', actionKind: action.kind, checkId } })
@@ -304,23 +275,8 @@ export function useDoctorController({
           return assertNever(action)
       }
     },
-    [
-      appUpdateState.downloaded,
-      appUpdateState.info,
-      onInstallUpdate,
-      onNavigate,
-      onReportProblem,
-      performFix,
-      session.descriptionDraft,
-      t,
-      viewModel.isStale
-    ]
+    [onNavigate, onReportProblem, performFix, session.descriptionDraft, t, viewModel.isStale]
   )
-
-  const confirmFix = useCallback(async () => {
-    if (session.interaction.kind !== 'confirm-fix') return
-    await performFix(session.interaction.request)
-  }, [performFix, session.interaction])
 
   const openPath = useCallback(
     async (path: string) => {
@@ -388,9 +344,8 @@ export function useDoctorController({
     appUpdateState,
     cancel,
     canChangePanel,
-    cancelFixConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
+    cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
     confirmEvidence,
-    confirmFix,
     executeAction,
     isInteracting,
     isCloseBlocked,

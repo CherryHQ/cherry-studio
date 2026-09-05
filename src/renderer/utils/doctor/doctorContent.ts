@@ -53,10 +53,7 @@ export const DOCTOR_NAVIGATION_LABEL_KEYS = {
 export const DOCTOR_FIX_LABEL_KEYS = {
   'permission-screen-capture': { request: 'settings.doctor.fixes.request_screen_capture' },
   'permission-accessibility': { request: 'settings.doctor.fixes.request_accessibility' },
-  'storage-disk-space': { cleanup: 'settings.doctor.fixes.cleanup_storage' },
-  'storage-diagnostic-data-size': { clear: 'settings.doctor.fixes.clear_diagnostic_data' },
   'config-boot-config-valid': { repair: 'settings.doctor.fixes.repair_boot_config' },
-  'config-hardware-acceleration': { enable: 'settings.doctor.fixes.enable_hardware_acceleration' },
   'mcp-servers-connected': { restart: 'settings.doctor.fixes.restart_mcp' }
 } as const satisfies DoctorFixLabelMap
 
@@ -67,7 +64,10 @@ export const DOCTOR_CHECK_CONTENT = {
   },
   'install-update-available': {
     title: 'settings.doctor.checks.install-update-available.title',
-    details: { available: 'settings.doctor.checks.install-update-available.detail.available' }
+    details: {
+      available: 'settings.doctor.checks.install-update-available.detail.available',
+      unsupported: 'settings.doctor.checks.install-update-available.detail.unsupported'
+    }
   },
   'install-native-modules': {
     title: 'settings.doctor.checks.install-native-modules.title',
@@ -75,7 +75,10 @@ export const DOCTOR_CHECK_CONTENT = {
   },
   'permission-screen-capture': {
     title: 'settings.doctor.checks.permission-screen-capture.title',
-    details: { denied: 'settings.doctor.checks.permission-screen-capture.detail.denied' }
+    details: {
+      denied: 'settings.doctor.checks.permission-screen-capture.detail.denied',
+      restricted: 'settings.doctor.checks.permission-screen-capture.detail.restricted'
+    }
   },
   'permission-accessibility': {
     title: 'settings.doctor.checks.permission-accessibility.title',
@@ -94,7 +97,10 @@ export const DOCTOR_CHECK_CONTENT = {
   },
   'storage-diagnostic-data-size': {
     title: 'settings.doctor.checks.storage-diagnostic-data-size.title',
-    details: { large: 'settings.doctor.checks.storage-diagnostic-data-size.detail.large' }
+    details: {
+      large: 'settings.doctor.checks.storage-diagnostic-data-size.detail.large',
+      large_partial: 'settings.doctor.checks.storage-diagnostic-data-size.detail.large_partial'
+    }
   },
   'config-boot-config-valid': {
     title: 'settings.doctor.checks.config-boot-config-valid.title',
@@ -123,7 +129,10 @@ export const DOCTOR_CHECK_CONTENT = {
   },
   'provider-api-key-present': {
     title: 'settings.doctor.checks.provider-api-key-present.title',
-    details: { missing: 'settings.doctor.checks.provider-api-key-present.detail.missing' }
+    details: {
+      missing: 'settings.doctor.checks.provider-api-key-present.detail.missing',
+      provider_unavailable: 'settings.doctor.checks.provider-api-key-present.detail.provider_unavailable'
+    }
   },
   'provider-cherry-account': {
     title: 'settings.doctor.checks.provider-cherry-account.title',
@@ -211,7 +220,10 @@ export const DOCTOR_CHECK_CONTENT = {
   },
   'mcp-launch-commands': {
     title: 'settings.doctor.checks.mcp-launch-commands.title',
-    details: { unresolved: 'settings.doctor.checks.mcp-launch-commands.detail.unresolved' }
+    details: {
+      query_failed: 'settings.doctor.checks.mcp-launch-commands.detail.query_failed',
+      unresolved: 'settings.doctor.checks.mcp-launch-commands.detail.unresolved'
+    }
   },
   'runtime-managed-tools': {
     title: 'settings.doctor.checks.runtime-managed-tools.title',
