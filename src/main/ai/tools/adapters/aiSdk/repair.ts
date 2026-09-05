@@ -1,4 +1,4 @@
-import { asSchema, safeValidateTypes } from '@ai-sdk/provider-utils'
+import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-utils'
 import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
@@ -27,14 +27,6 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   modelId: string
   /** Reuse the request's usage middleware so repair is its own invocation. */
   getUsagePlugins?: () => AiPlugin[]
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
 }
 
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
@@ -67,14 +59,14 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       if (direct.success) return direct.value
       // Double-encoded arguments — the one malformation a re-parse alone canonicalizes.
       if (typeof value !== 'string') return undefined
-      const reparsed = await safeValidateTypes({ value: parseJson(value), schema })
+      const reparsed = await safeParseJSON({ text: value, schema })
       return reparsed.success ? reparsed.value : undefined
     }
 
     const inputStr = typeof toolCall.input === 'string' ? toolCall.input : JSON.stringify(toolCall.input)
 
-    const parsedInput = parseJson(inputStr)
-    const canonicalInput = parsedInput === undefined ? undefined : await canonicalize(parsedInput)
+    const parsedInput = await safeParseJSON({ text: inputStr })
+    const canonicalInput = parsedInput.success ? await canonicalize(parsedInput.value) : undefined
     if (canonicalInput !== undefined) {
       logger.info('Repaired tool call without AI', {
         toolName: toolCall.toolName,
