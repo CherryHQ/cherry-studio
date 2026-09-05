@@ -1594,6 +1594,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Cargando notas…",
   "knowledge.data_source.add_dialog.note.mode.create": "Nueva nota",
   "knowledge.data_source.add_dialog.note.mode.import": "Notas de importación",
+  "knowledge.data_source.add_dialog.picker.all_text_files": "Todos los archivos de texto",
+  "knowledge.data_source.add_dialog.picker.documents": "Documentos",
   "knowledge.data_source.add_dialog.sources.directory": "Carpeta",
   "knowledge.data_source.add_dialog.sources.file": "Archivo",
   "knowledge.data_source.add_dialog.sources.note": "Nota",

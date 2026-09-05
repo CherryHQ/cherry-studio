@@ -1594,6 +1594,8 @@
   "knowledge.data_source.add_dialog.note.loading": "正在載入筆記…",
   "knowledge.data_source.add_dialog.note.mode.create": "新筆記",
   "knowledge.data_source.add_dialog.note.mode.import": "匯入說明",
+  "knowledge.data_source.add_dialog.picker.all_text_files": "所有文字檔案",
+  "knowledge.data_source.add_dialog.picker.documents": "文件",
   "knowledge.data_source.add_dialog.sources.directory": "資料夾",
   "knowledge.data_source.add_dialog.sources.file": "檔案",
   "knowledge.data_source.add_dialog.sources.note": "筆記",

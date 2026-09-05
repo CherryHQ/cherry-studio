@@ -1594,6 +1594,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Đang tải ghi chú…",
   "knowledge.data_source.add_dialog.note.mode.create": "Ghi chú mới",
   "knowledge.data_source.add_dialog.note.mode.import": "Ghi chú nhập khẩu",
+  "knowledge.data_source.add_dialog.picker.all_text_files": "Tất cả tệp văn bản",
+  "knowledge.data_source.add_dialog.picker.documents": "Tài liệu",
   "knowledge.data_source.add_dialog.sources.directory": "Thư mục",
   "knowledge.data_source.add_dialog.sources.file": "Tệp",
   "knowledge.data_source.add_dialog.sources.note": "Ghi chú",

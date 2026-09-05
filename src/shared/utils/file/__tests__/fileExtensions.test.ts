@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
+import {
+  documentExts,
+  knowledgeDirectoryDefaultExtSet,
+  knowledgeFileProcessingExts,
+  knowledgeIndexableFileExtSet,
+  knowledgeSupportedFileExts,
+  textExts
+} from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: artifact reservation keyed
 // off a different list than routing did, so `.xls`'s processed `.md` artifact was never
@@ -43,5 +50,32 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     // Deliberately absent from documentExts: that list feeds officeparser on the AI
     // attachment path, which does not handle the legacy binary PowerPoint format.
     expect(document.has('.ppt')).toBe(false)
+  })
+
+  it('indexes every curated reader plus any plaintext extension, and no binary office format', () => {
+    for (const ext of knowledgeSupportedFileExts) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+    // Plaintext needs no extractor — the text reader reads it directly.
+    for (const ext of ['.py', '.log', '.rs', '.yaml']) {
+      expect(textExts.includes(ext)).toBe(true)
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+    // Binary formats without a text layer stay out (no plaintext, no curated reader).
+    for (const ext of ['.odt', '.odp', '.ods']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(false)
+    }
+  })
+
+  it('drops graphics/UI-layout markup from the bulk directory default but keeps it explicitly pickable', () => {
+    // A folder embed should not sweep in an icon set or a UI layout as raw markup...
+    for (const ext of ['.svg', '.xib', '.storyboard', '.xaml']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+      expect(knowledgeDirectoryDefaultExtSet.has(ext)).toBe(false)
+    }
+    // ...but genuine documents and plaintext stay in the directory default.
+    for (const ext of ['.pdf', '.md', '.yaml', '.py']) {
+      expect(knowledgeDirectoryDefaultExtSet.has(ext)).toBe(true)
+    }
   })
 })

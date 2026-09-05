@@ -6,7 +6,9 @@ export {
   customTextExts,
   documentExts,
   imageExts,
+  knowledgeDirectoryDefaultExtSet,
   knowledgeFileProcessingExts,
+  knowledgeIndexableFileExtSet,
   knowledgeSupportedFileExts,
   textExts,
   videoExts

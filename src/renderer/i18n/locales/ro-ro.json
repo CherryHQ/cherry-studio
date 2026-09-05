@@ -1594,6 +1594,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Se încarcă notițele…",
   "knowledge.data_source.add_dialog.note.mode.create": "Notă nouă",
   "knowledge.data_source.add_dialog.note.mode.import": "Note de import",
+  "knowledge.data_source.add_dialog.picker.all_text_files": "Toate fișierele text",
+  "knowledge.data_source.add_dialog.picker.documents": "Documente",
   "knowledge.data_source.add_dialog.sources.directory": "Director",
   "knowledge.data_source.add_dialog.sources.file": "Fișier",
   "knowledge.data_source.add_dialog.sources.note": "Notă",
