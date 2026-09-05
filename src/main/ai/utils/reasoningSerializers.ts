@@ -136,12 +136,18 @@ function resolveModeEffort(
 ): ReasoningEffort | undefined {
   if (selection === 'default' || selection === 'none') return undefined
   const mapped = mode.effortMap?.[selection] ?? selection
-  if (selection !== 'auto' || mapped === 'auto') return mapped
+  if (selection !== 'auto') return mapped
+
+  // A profile with no auto mode resolves to its effort one, which has no tier to stand for `auto`.
+  // The model's own default is the only one; without it `auto` keeps its plain meaning — omit the
+  // value and let the provider decide, rather than send the literal `auto` no vendor accepts.
+  const tier = mapped === 'auto' ? model.reasoning?.defaultEffort : mapped
+  if (tier === undefined || tier === 'auto') return undefined
 
   const declared = declaredEfforts(model)
-  const projected = nearestThinkingOption(mapped, declared)
+  const projected = nearestThinkingOption(tier, declared)
   const nearest = declared.find((effort) => effort === projected)
-  return nearest ? (mode.effortMap?.[nearest] ?? nearest) : mapped
+  return nearest ? (mode.effortMap?.[nearest] ?? nearest) : tier
 }
 
 function resolveModeBudget(

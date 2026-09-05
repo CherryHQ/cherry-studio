@@ -117,6 +117,37 @@ describe('automatic effort against a model that does not declare it', () => {
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'high' })
   })
 
+  // A profile with no auto mode resolves to its effort one, which carries no tier for `auto`.
+  // DashScope's Kimi K3 is shaped this way and would otherwise receive the literal string `auto`.
+  describe('a profile whose effort mode has to stand in for auto', () => {
+    const effortOnly = {
+      effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+    } satisfies ReasoningWireProfile
+
+    it("falls back to the model's own default tier", () => {
+      const model = makeModel({
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'max'] }],
+          selectableEfforts: ['none', 'max'],
+          defaultEffort: 'max'
+        }
+      })
+      const invocation = resolveReasoningInvocation({ selection: 'auto', model, profile: effortOnly })
+
+      expect(encodeReasoningInvocation(invocation)).toEqual({ reasoning_effort: 'max' })
+    })
+
+    it('omits the mode when the model declares no default, letting the provider decide', () => {
+      const invocation = resolveReasoningInvocation({
+        selection: 'auto',
+        model: withEfforts('low', 'high'),
+        profile: effortOnly
+      })
+
+      expect(invocation).toMatchObject({ kind: 'omit', emissions: [] })
+    })
+  })
+
   // The projection lands on a canonical tier; the map's vendor translation must still apply to it.
   it('translates the projected tier through the same effortMap', () => {
     const invocation = resolveReasoningInvocation({
