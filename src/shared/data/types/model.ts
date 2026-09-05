@@ -186,39 +186,6 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
   return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}`
 }
 
-/** Resolve the stored model ID, falling back to its creation-time snapshot. */
-export function resolveUniqueModelId(
-  modelId: string | null | undefined,
-  modelSnapshot: { id: string; provider: string } | null | undefined
-): UniqueModelId | undefined {
-  if (isUniqueModelId(modelId)) return modelId
-  if (!modelSnapshot) return undefined
-
-  try {
-    return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
-  } catch {
-    return undefined
-  }
-}
-
-/** Return true only when two persisted references identify distinct models. */
-export function areDifferentModelIdentities(
-  left: {
-    modelId: string | null | undefined
-    modelSnapshot: { id: string; provider: string } | null | undefined
-  },
-  right: {
-    modelId: string | null | undefined
-    modelSnapshot: { id: string; provider: string } | null | undefined
-  }
-): boolean {
-  const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
-  const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
-  if (leftModelId === undefined || rightModelId === undefined) return false
-
-  return leftModelId !== rightModelId
-}
-
 /**
  * Parse a UniqueModelId into its components — splits on the FIRST separator.
  * Same permissive semantics as `isUniqueModelId`: empty `providerId` or

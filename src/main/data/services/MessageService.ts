@@ -43,8 +43,9 @@ import {
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
-import { areDifferentModelIdentities, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
+import { areDifferentModelIdentities } from '@shared/utils/model'
 import { isToolUIPart } from 'ai'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 

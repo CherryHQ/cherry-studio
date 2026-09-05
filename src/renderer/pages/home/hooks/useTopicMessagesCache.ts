@@ -24,7 +24,7 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { areDifferentModelIdentities } from '@shared/data/types/model'
+import { areDifferentModelIdentities } from '@shared/utils/model'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 

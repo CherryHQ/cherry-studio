@@ -1,1 +1,1 @@
-export { resolveUniqueModelId } from '@shared/data/types/model'
+export { resolveUniqueModelId } from '@shared/utils/model'

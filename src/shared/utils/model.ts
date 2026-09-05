@@ -13,8 +13,41 @@
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+
+/** Resolve the stored model ID, falling back to its creation-time snapshot. */
+export function resolveUniqueModelId(
+  modelId: string | null | undefined,
+  modelSnapshot: { id: string; provider: string } | null | undefined
+): UniqueModelId | undefined {
+  if (isUniqueModelId(modelId)) return modelId
+  if (!modelSnapshot) return undefined
+
+  try {
+    return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
+  } catch {
+    return undefined
+  }
+}
+
+/** Return true only when two persisted references identify distinct models. */
+export function areDifferentModelIdentities(
+  left: {
+    modelId: string | null | undefined
+    modelSnapshot: { id: string; provider: string } | null | undefined
+  },
+  right: {
+    modelId: string | null | undefined
+    modelSnapshot: { id: string; provider: string } | null | undefined
+  }
+): boolean {
+  const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
+  const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
+  if (leftModelId === undefined || rightModelId === undefined) return false
+
+  return leftModelId !== rightModelId
+}
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
