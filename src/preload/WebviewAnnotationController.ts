@@ -786,7 +786,7 @@ export class WebviewAnnotationController {
   }
 
   handleKeyDown(event: KeyboardEvent) {
-    if (!this.enabled || !event.isTrusted || event.key !== 'Escape' || this.isOverlayEvent(event)) return false
+    if (!this.enabled || !event.isTrusted || event.key !== 'Escape') return false
     event.preventDefault()
     event.stopImmediatePropagation()
     if (this.marqueeOrigin || this.marqueeRect) {
@@ -815,7 +815,14 @@ export class WebviewAnnotationController {
       return
     }
 
-    const iframes = new Set(Array.from(document.querySelectorAll('iframe')))
+    const iframes = new Set<HTMLIFrameElement>()
+    const collectIframes = (root: Document | ShadowRoot) => {
+      for (const element of root.querySelectorAll('*')) {
+        if (element instanceof HTMLIFrameElement) iframes.add(element)
+        if (element.shadowRoot) collectIframes(element.shadowRoot)
+      }
+    }
+    collectIframes(document)
     for (const [iframe, shield] of this.iframeShields) {
       if (iframes.has(iframe)) continue
       shield.remove()

@@ -42,6 +42,7 @@ const privateController = (controller: WebviewAnnotationController) =>
     editorElement: Element | null
     editorRequestId: string | null
     handleClick: (event: MouseEvent) => void
+    handleWindowKeyDown: (event: KeyboardEvent) => void
     handlePointerCancel: (event: PointerEvent) => void
     handlePointerDown: (event: PointerEvent) => void
     handlePointerMove: (event: PointerEvent) => void
@@ -157,14 +158,14 @@ const trustedMouseEvent = (target: EventTarget, path?: EventTarget[], clientX = 
     target
   }) as unknown as MouseEvent
 
-const trustedKeyboardEvent = (key: string) =>
+const trustedKeyboardEvent = (key: string, target: EventTarget = document, path?: EventTarget[]) =>
   ({
-    composedPath: () => [document, window],
+    composedPath: () => path ?? (target === document ? [document, window] : [target, document, window]),
     isTrusted: true,
     key,
     preventDefault: vi.fn(),
     stopImmediatePropagation: vi.fn(),
-    target: document
+    target
   }) as unknown as KeyboardEvent
 
 describe('WebviewAnnotationController selectors', () => {
@@ -802,6 +803,44 @@ describe('WebviewAnnotationController interactions', () => {
     delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint
   })
 
+  it('shields iframe input inside open shadow roots and cleans it up with the host', () => {
+    const pageClick = vi.fn()
+    const host = document.createElement('section')
+    host.id = 'frame-host'
+    const shadowRoot = host.attachShadow({ mode: 'open' })
+    const iframe = document.createElement('iframe')
+    iframe.id = 'shadow-frame'
+    iframe.addEventListener('click', pageClick)
+    shadowRoot.appendChild(iframe)
+    document.body.appendChild(host)
+    mockRect(iframe, 0, 0, window.innerWidth, window.innerHeight)
+    const internals = privateController(controller)
+
+    internals.updatePositions()
+    const shield = internals.iframeShields.get(iframe)
+    expect(shield).toBeDefined()
+    Object.defineProperty(internals.overlayRoot!, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => shield)
+    })
+    const shieldPath = [internals.overlayHost!, document.documentElement, document, window]
+    const click = trustedMouseEvent(internals.overlayHost!, shieldPath, 100, 100)
+
+    internals.handleClick(click)
+
+    expect(click.preventDefault).toHaveBeenCalledOnce()
+    expect(click.stopImmediatePropagation).toHaveBeenCalledOnce()
+    expect(pageClick).not.toHaveBeenCalled()
+    expect(internals.editorElement).toBe(iframe)
+    saveEditor(controller, emissions, 'Shadow frame note')
+    expect(readSnapshot(controller, emissions)[0].element.selector).toBe('#frame-host >>> #shadow-frame')
+
+    host.remove()
+    internals.updatePositions()
+    expect(internals.iframeShields.has(iframe)).toBe(false)
+    expect(shield?.isConnected).toBe(false)
+  })
+
   it('removes iframe input shields when annotation selection is disabled or deactivated', () => {
     const iframe = document.createElement('iframe')
     iframe.id = 'disposable-frame'
@@ -857,6 +896,50 @@ describe('WebviewAnnotationController interactions', () => {
     )
 
     expect(internals.editorAnnotationId).toBe(annotationId)
+  })
+
+  it('owns Escape from a focused closed-shadow pin before relaying keys to the host', () => {
+    controller.dispose()
+    const unhandledKeyDown = vi.fn()
+    emissions = []
+    controller = new WebviewAnnotationController((event) => emissions.push(event), unhandledKeyDown)
+    configure(controller)
+    const target = document.createElement('button')
+    target.id = 'pin-escape-target'
+    document.body.appendChild(target)
+    mockRect(target, 100, 100, 80, 40)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: target })
+    saveEditor(controller, emissions, 'Escape from the pin')
+    const annotationId = readSnapshot(controller, emissions)[0].id
+    const pin = internals.pinLayer?.querySelector<HTMLButtonElement>(`[data-annotation-id="${annotationId}"]`)
+    Object.defineProperty(internals.overlayRoot!, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => pin)
+    })
+    internals.handleClick(
+      trustedMouseEvent(
+        internals.overlayHost!,
+        [internals.overlayHost!, document.documentElement, document, window],
+        100,
+        100
+      )
+    )
+    pin?.focus()
+    expect(document.activeElement).toBe(internals.overlayHost)
+    const closedShadowPath = [internals.overlayHost!, document.documentElement, document, window]
+
+    const closeEditor = trustedKeyboardEvent('Escape', internals.overlayHost!, closedShadowPath)
+    internals.handleWindowKeyDown(closeEditor)
+    expect(closeEditor.preventDefault).toHaveBeenCalledOnce()
+    expect(internals.editorElement).toBeNull()
+    expect(controller.getState().enabled).toBe(true)
+
+    const disable = trustedKeyboardEvent('Escape', internals.overlayHost!, closedShadowPath)
+    internals.handleWindowKeyDown(disable)
+    expect(disable.preventDefault).toHaveBeenCalledOnce()
+    expect(controller.getState().enabled).toBe(false)
+    expect(unhandledKeyDown).not.toHaveBeenCalled()
   })
 
   it('re-resolves an annotated element after DOM replacement', () => {
