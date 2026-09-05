@@ -5,6 +5,7 @@ import {
   FileEntryIdSchema,
   FileEntrySchema,
   FileHandleSchema,
+  FilePathHandleSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
 import {
@@ -46,21 +47,35 @@ const batchCreateResultSchema = z.strictObject({
   failed: z.array(z.strictObject({ sourceRef: z.string(), error: z.string() }))
 })
 
+const fullBinaryReadOptionsSchema = z.strictObject({ mode: z.literal('full'), encoding: z.literal('binary') })
+
+// Explicit `never` keys reject `withContentHash` in the derived type too — union
+// assignability would otherwise let the key slip in via the hashed branch.
 const binaryReadOptionsSchema = z.discriminatedUnion('mode', [
-  z.strictObject({ mode: z.literal('full'), encoding: z.literal('binary') }),
+  fullBinaryReadOptionsSchema.extend({ withContentHash: z.never().optional() }),
   z.strictObject({
     mode: z.literal('range'),
     offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    length: z.number().int().positive().max(FILE_IPC_MAX_READ_CHUNK_BYTES)
+    length: z.number().int().positive().max(FILE_IPC_MAX_READ_CHUNK_BYTES),
+    withContentHash: z.never().optional()
   })
 ])
 
-const binaryReadInputSchema = z.strictObject({ handle: FileHandleSchema, options: binaryReadOptionsSchema })
+// withContentHash binds an xxh3 hash to the returned bytes for a later write_if_unchanged
+// (same-second mtime ambiguity on FAT32/SMB/NFS); only the path arm computes it.
+const binaryReadInputSchema = z.union([
+  z.strictObject({ handle: FileHandleSchema, options: binaryReadOptionsSchema }),
+  z.strictObject({
+    handle: FilePathHandleSchema,
+    options: fullBinaryReadOptionsSchema.extend({ withContentHash: z.literal(true) })
+  })
+])
 
 const binaryReadResultSchema = z.strictObject({
   content: uint8ArraySchema,
   mime: z.string().min(1),
-  version: FileVersionSchema
+  version: FileVersionSchema,
+  contentHash: ContentHashSchema.optional()
 })
 
 const writeIfUnchangedInputSchema = z.strictObject({
@@ -140,6 +155,12 @@ export const fileRequestSchemas = {
   'file.rename': defineRoute({
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
+  }),
+  // Create-only raw-path copy: an existing destination rejects with EEXIST,
+  // never overwrites. Callers must generate fresh destination names.
+  'file.copy': defineRoute({
+    input: z.strictObject({ sourcePath: AbsoluteFilePathSchema, destPath: AbsoluteFilePathSchema }),
+    output: z.void()
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),

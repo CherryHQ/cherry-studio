@@ -32,6 +32,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
+import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -45,6 +46,7 @@ import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBu
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -56,9 +58,18 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
-import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import {
+  materializePiProviderStream,
+  type PiProviderInjection,
+  resolvePiProviderInjectionForSession,
+  usesPiGateway
+} from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
-import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
+import {
+  capturePiConnectionSnapshot,
+  type PiConnectionSnapshot,
+  PiInvalidConnectionSnapshotError
+} from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
@@ -72,6 +83,18 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
+
+function quoteShellWord(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
+}
+
+/** Preserve pi's own PATH prefix while appending directories resolved by the user's login shell. */
+export function buildPiLoginPathPrefix(
+  loginPath: string | undefined,
+  platform: NodeJS.Platform = process.platform
+): string | undefined {
+  return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
+}
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
@@ -160,6 +183,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
+      try {
+        return await resolvePiProviderInjectionForSession(
+          this.input.sessionId,
+          snapshot.provider,
+          snapshot.model,
+          snapshot.enabledApiKeys
+        )
+      } catch (error) {
+        if (error instanceof ApiGatewayNotRunningError) {
+          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+        }
+        throw error
+      }
+    }
+
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
     // the final snapshot check below.
@@ -169,6 +208,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    // Gateway startup and first-key creation change its fingerprint, so settle them before the
+    // authoritative snapshot. The actual injection is resolved again from that snapshot below.
+    if (usesPiGateway(discoverySnapshot.provider)) {
+      await resolveInjection(discoverySnapshot)
+    }
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -186,11 +230,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = resolvePiProviderInjectionFromSnapshot(
-      initialSnapshot.provider,
-      initialSnapshot.model,
-      initialSnapshot.enabledApiKeys
-    )
+    const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
@@ -230,6 +270,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
+      if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
       // from the same store the claude driver reads. These are injected explicitly
@@ -442,8 +484,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const session = this.session
     if (!session?.isStreaming) return false
 
-    // buildAgentUserContent intentionally flattens attachments to absolute paths for filesystem agents;
-    // pi's native image channel stays unused until Cherry models multimodal agent attachments end-to-end.
+    // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
+    // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
+    // attachments end-to-end.
     const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
     const pending: PendingSteer = { input }
     this.pendingSteers.push(pending)

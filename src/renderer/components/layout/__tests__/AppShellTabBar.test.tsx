@@ -56,8 +56,16 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogoRef: () => undefined,
-  useMiniAppLogo: () => undefined
+  getMiniAppsLogoRef: (logo?: string) => (logo === 'google' ? {} : undefined),
+  useMiniAppLogo: (logo?: string) => {
+    if (logo !== 'google') return undefined
+
+    return Object.assign(() => null, {
+      Avatar: ({ size, shape }: { size: number; shape: string }) => (
+        <span data-testid="preset-mini-app-avatar" data-shape={shape} style={{ width: size, height: size }} />
+      )
+    })
+  }
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -216,6 +224,30 @@ describe('AppShellTabBar', () => {
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+  })
+
+  it('renders preset and installed mini app icons at the same circular size', () => {
+    const presetMiniAppTab = createTab('preset-mini-app', {
+      url: '/app/mini-app/google',
+      title: 'Preset Mini App',
+      icon: 'google'
+    })
+    const miniAppTab = createTab('installed-mini-app', {
+      url: '/app/mini-app/com.example.installed',
+      title: 'Installed Mini App',
+      icon: 'file:///files/installed.webp'
+    })
+
+    renderTabBar({ tabs: [presetMiniAppTab, miniAppTab], activeTabId: miniAppTab.id })
+
+    const presetIcon = screen.getByTestId('preset-mini-app-avatar')
+    const tab = screen.getByRole('button', { name: 'Installed Mini App' })
+    const image = tab.querySelector('img')
+    expect(presetIcon).toHaveAttribute('data-shape', 'circle')
+    expect(presetIcon).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image).toHaveClass('rounded-full', 'object-cover')
+    expect(image).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image?.style.backgroundColor).toBe('')
   })
 
   it('shows the focused tab as a Back control with a visible detach action', async () => {

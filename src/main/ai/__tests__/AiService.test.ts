@@ -1,8 +1,9 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
 
@@ -36,6 +37,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
   fallbackModelIds: ['fallback::model']
 }))
 const mockGetImageGenerationSupport = vi.fn()
+const mockResolveImageTransport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockIsRegistryProvider = vi.fn()
 const mockListModelsFromProvider = vi.fn()
@@ -80,7 +82,10 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
 }))
 
 vi.mock('../utils/customFetch', () => ({
-  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
+  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
+  // The inline health-check probe resolves the real provider config, which
+  // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
+  customFetch: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -104,6 +109,17 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
     isRegistryProvider: (...args: unknown[]) => mockIsRegistryProvider(...args)
   }
 }))
+
+// Inline health-check probes resolve the transport through this module. Keep
+// `hasImageTransport` real (routing tests depend on the true registry) and stub
+// only the transport resolution so submit never reaches the network.
+vi.mock('../provider/custom/imageTransportRegistry', async (importOriginal) => {
+  const actual = await importOriginal<typeof ImageTransportRegistryModule>()
+  return {
+    ...actual,
+    resolveImageTransport: (...args: unknown[]) => mockResolveImageTransport(...args)
+  }
+})
 
 vi.mock('../provider/listModels', async (importOriginal) => {
   const actual = await importOriginal<typeof ListModelsModule>()
@@ -1642,6 +1658,132 @@ describe('AiService tool approval', () => {
     expect(imageSpy).not.toHaveBeenCalled()
   })
 
+  // Edit-only image models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+  // `generate` mode — the bare default leaves the job path without a transport
+  // descriptor and the check failed before any provider request.
+  it('probes edit-only image models with their declared mode, an inline input image, and materialized param defaults', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-edit-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-edit-image',
+      name: 'Test Edit Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    // Defaults must be materialized main-side: qwen-mt-image's source/target langs and
+    // wanx2.1-imageedit's function are REQUIRED vendor params the transport omits
+    // when the bag is empty, so a bare `paramValues: {}` probe still fails server-side.
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: {
+            addWatermark: { default: false, type: 'switch' },
+            sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' },
+            targetLang: { default: 'en', options: ['en', 'zh'], type: 'enum' }
+          },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+        }
+      }
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-edit-image' })
+
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('test-provider', 'test-edit-image')
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        inputImages: [expect.stringContaining('data:image/png;base64,')],
+        paramValues: { addWatermark: false, sourceLang: 'auto', targetLang: 'en' }
+      })
+    )
+  })
+
+  // Transport models route their job through a handler that re-selects a serving
+  // key, dropping the health check's apiKeyOverride — the probe could run with a
+  // different rotated credential than the one being reported. The check probes
+  // inline instead, resolving the config WITH the caller's key.
+  it('probes transport image models inline with the caller API-key override', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit',
+      name: 'Qwen Image Edit',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+        }
+      }
+    })
+    const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
+    mockResolveImageTransport.mockReturnValueOnce({ submit })
+
+    await service.checkModel({
+      uniqueModelId: 'ppio::qwen-image-edit',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
+    expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'qwen-image-edit',
+        modelDescriptor: {
+          id: 'qwen-image-edit',
+          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+          isSync: true,
+          mode: 'edit'
+        },
+        providerParams: { sourceLang: 'auto' },
+        files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
+      })
+    )
+  })
+
+  it('keeps generate-capable image probes mode-less', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-image',
+      name: 'Test Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        generate: {
+          supports: { numImages: { default: 1, max: 4, min: 1, type: 'range' } },
+          vendorTransport: { endpoint: '/v1/images/generations' }
+        }
+      }
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+
+    expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ mode: expect.anything() }))
+    expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ inputImages: expect.anything() }))
+    // Generate-capable models still materialize their generate-mode defaults.
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { numImages: 1 } }))
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
@@ -2171,6 +2313,10 @@ describe('AiService.listModels', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
     const service = createService()
     const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
@@ -2198,11 +2344,32 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
-    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
+      throwOnError: undefined
+    })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'openai',
       presetProviderId: null
     })
+  })
+
+  it('does not impose a service-level timeout on model listing', async () => {
+    vi.useFakeTimers()
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+    )
+    mockListProviderRegistryModels.mockReturnValue([])
+
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+
+    await vi.advanceTimersByTimeAsync(31_000)
+    await result
+
+    expect(mockListProviderRegistryModels).toHaveBeenCalledTimes(1)
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

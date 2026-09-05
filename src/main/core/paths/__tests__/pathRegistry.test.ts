@@ -36,6 +36,9 @@ describe('buildPathRegistry', () => {
 
     expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
     expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+    expect(registry['feature.cherry_account.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'cherry-account.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {
@@ -158,6 +161,46 @@ describe('buildPathRegistry', () => {
       path.join('/mock/userData', 'Data', 'DeepSeekHarness', 'Workspace')
     )
     expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
+  })
+
+  it('exposes the mini app package root under userData/Data', () => {
+    expect(buildPathRegistry()['feature.mini_app.packages']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', 'packages')
+    )
+  })
+
+  it('keeps mini app data OUTSIDE the package tree', () => {
+    // `packages/<id>` is wholesale-renamed on update and hashed by `hashTree`; a save
+    // file inside it would die with the next update and churn `contentHash` per write.
+    expect(buildPathRegistry()['feature.mini_app.data']).toBe(path.join('/mock/userData', 'Data', 'MiniApps', 'data'))
+  })
+
+  it('exposes the publish journal directory as its own key', () => {
+    // Its own key, not a filename under `packages`: the journal is a DIRECTORY of per-app
+    // files, and `getPath`'s filename argument names a file, not a subtree.
+    expect(buildPathRegistry()['feature.mini_app.publish_journal']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', '.publish-journal')
+    )
+  })
+
+  it('ships builtin packages inside the bundle and never auto-creates them', () => {
+    expect(buildPathRegistry()['feature.mini_app.builtin']).toBe(path.join('/mock/app/resources', 'builtin-mini-apps'))
+    expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
+    // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
+    expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
+  })
+
+  it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
+    expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+    // The settings file must sit under the dir handed to the CLI as `--gemini_dir`,
+    // in the fixed `antigravity-cli/` subdir the binary itself resolves.
+    expect(registry['feature.cli.antigravity.settings.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
   })
 })
 

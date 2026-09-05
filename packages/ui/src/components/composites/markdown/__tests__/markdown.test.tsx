@@ -10,7 +10,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from '../markdown'
-import { withChatPlugins } from '../presets'
+import { withChatPlugins, withFullMarkdown } from '../presets'
 
 describe('Markdown (static)', () => {
   it('renders a heading with the prefixed id', () => {
@@ -24,6 +24,14 @@ describe('Markdown (static)', () => {
     const { container } = render(<Markdown id="m1">{'# Hello World\n\n# Hello World\n\n# !!!'}</Markdown>)
     const headings = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
     expect(headings).toEqual(['heading-m1--hello-world', 'heading-m1--hello-world-1', 'heading-m1--section'])
+  })
+
+  it('preserves an id-only HTML anchor as an in-page target', () => {
+    const { container } = render(
+      <Markdown id="custom-anchor">{'[Jump](#custom-anchor)\n\n<a id="custom-anchor"></a>Target'}</Markdown>
+    )
+
+    expect(container.querySelector('#user-content-custom-anchor')).not.toBeNull()
   })
 
   it('renders fenced code blocks', () => {
@@ -49,6 +57,26 @@ describe('Markdown (static)', () => {
       expect(alerts[index].querySelector('svg.octicon')?.getAttribute('aria-hidden')).toBe('true')
       expect(alerts[index].textContent).toContain(`${type} content`)
     })
+  })
+
+  it('renders highlight syntax and definition lists used by Markdown previews', () => {
+    const { container } = render(<Markdown id="extended-markdown">{'==Important==\n\nTerm\n: Definition'}</Markdown>)
+
+    expect(container.querySelector('mark')?.textContent).toBe('Important')
+    expect(container.querySelector('dl')).not.toBeNull()
+    expect(container.querySelector('dt')?.textContent).toBe('Term')
+    expect(container.querySelector('dd')?.textContent?.trim()).toBe('Definition')
+  })
+
+  it('renders single-dollar inline math when the full preview preset enables it', () => {
+    const { container } = render(
+      <Markdown id="inline-math" plugins={withFullMarkdown({ singleDollarMath: true })}>
+        {'Inline: $a^2 + b^2 = c^2$'}
+      </Markdown>
+    )
+
+    expect(container.querySelector('.katex')).not.toBeNull()
+    expect(container.textContent).not.toContain('$a^2 + b^2 = c^2$')
   })
 
   it('keeps generated SVG max-width through the full sanitize pipeline', () => {
@@ -159,6 +187,46 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('script')).toBeNull()
     expect(container.innerHTML).not.toContain('javascript:')
     expect(container.innerHTML).not.toContain('alert(2)')
+  })
+
+  it('preserves file hrefs without bypassing hardening for other links and images', () => {
+    const { container } = render(
+      <Markdown
+        id="file-links"
+        preserveFileLinkHrefs
+        components={{
+          a: ({ children, href }) => <a href={href}>{children}</a>
+        }}>
+        {
+          '[Relative](./docs/guide.md)\n\n[Windows](C:/Users/Alice/README.md)\n\n[CDN](//cdn.example.com/page)\n\n![CDN image](//cdn.example.com/image.png)\n\n[Unsafe](javascript:alert(1))\n\n<span data-markdown-file-href="javascript:alert(2)">Forged</span>'
+        }
+      </Markdown>
+    )
+
+    const links = container.querySelectorAll('a')
+    expect(links).toHaveLength(3)
+    expect(links[0].getAttribute('href')).toBe('./docs/guide.md')
+    expect(links[1].getAttribute('href')).toBe('C:/Users/Alice/README.md')
+    expect(links[2].getAttribute('href')).toBe('https://cdn.example.com/page')
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://cdn.example.com/image.png')
+  })
+
+  it('does not preserve a control-character-obfuscated external href as a file link', () => {
+    const obfuscatedHref = '\u0001//attacker.example/path'
+    const { container } = render(
+      <Markdown
+        id="obfuscated-external-link"
+        preserveFileLinkHrefs
+        components={{
+          a: ({ children, href }) => <a href={href}>{children}</a>
+        }}>
+        {`<a href="${obfuscatedHref}">External</a>`}
+      </Markdown>
+    )
+
+    expect(container.textContent).toContain('External')
+    expect(container.querySelector('a[href]')).toBeNull()
+    expect(container.innerHTML).not.toContain('attacker.example')
   })
 
   it('forwards an extra rehype plugin', () => {

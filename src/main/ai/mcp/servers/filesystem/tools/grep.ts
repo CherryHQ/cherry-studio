@@ -123,15 +123,6 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   // literal search pattern instead of the preprocessor flag (arg-injection → RCE).
   rgArgs.push('--', data.pattern, validPath)
 
-  try {
-    // No `g` flag: this regex is reused with `.test(line)` per line, and a global
-    // regex carries `lastIndex` across calls — that silently skips matches on
-    // subsequent lines. Case-insensitive matching only.
-    regex = new RegExp(data.pattern, 'i')
-  } catch (error) {
-    throw new Error(`Invalid regex pattern: ${data.pattern}`)
-  }
-
   async function searchFile(filePath: string): Promise<void> {
     if (matches.length >= MAX_GREP_MATCHES) {
       truncated = true
@@ -300,6 +291,15 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   }
 
   if (!usedRipgrep) {
+    try {
+      // No `g` flag: this regex is reused with `.test(line)` per line, and a global
+      // regex carries `lastIndex` across calls — that silently skips matches on
+      // subsequent lines. Case-insensitive matching only.
+      regex = new RegExp(data.pattern, 'i')
+    } catch {
+      throw new Error(`Invalid regex pattern: ${data.pattern}`)
+    }
+
     const stats = await fs.stat(validPath)
     if (stats.isFile()) {
       await searchFile(validPath)

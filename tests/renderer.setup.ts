@@ -3,8 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { createRequire } from 'node:module'
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
+import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
+
+vi.stubGlobal('__APP_EDITION__', 'global')
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
@@ -162,8 +165,12 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui/components/composites/markdown/styles', () => ({}))
 
 // Mock @cherrystudio/ui globally for renderer tests
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  // Real implementation: its filtering/normalization contract is what callers
+  // are tested against, and a stub would drift from it.
+  const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -252,6 +259,8 @@ vi.mock('@cherrystudio/ui', () => {
             )
           )
         : null,
+    InputNumber,
+    InputGroupInputNumber,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -697,8 +706,18 @@ vi.mock('@cherrystudio/ui', () => {
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
-    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    Dropzone: ({
+      children,
+      getFilesFromEvent: _getFilesFromEvent,
+      maxFiles: _maxFiles,
+      multiple: _multiple,
+      noClick: _noClick,
+      noKeyboard: _noKeyboard,
+      onDrop: _onDrop,
+      onError: _onError,
+      validator: _validator,
+      ...props
+    }) => React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
     DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
@@ -925,6 +944,7 @@ vi.mock('@cherrystudio/ui', () => {
       secondaryLabel,
       onSecondary,
       preset,
+      compact: _compact,
       ...props
     }) =>
       React.createElement(
@@ -986,6 +1006,7 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
+    DescriptionSwitch: MockCherrystudioUI.DescriptionSwitch,
     Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -1003,6 +1024,14 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
     TabsContent: ({ children, value, ...props }) =>
       React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
+    // InputGroup primitives — flattened: the input and its addons render side by side
+    InputGroup: ({ children, ...props }) => React.createElement('div', { ...props, role: 'group' }, children),
+    InputGroupInput: (props) => React.createElement('input', props),
+    InputGroupAddon: ({ children, align, ...props }) =>
+      React.createElement('div', { ...props, 'data-align': align }, children),
+    InputGroupButton: ({ children, variant, size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button' }, children),
+    InputGroupText: ({ children, ...props }) => React.createElement('span', props, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
