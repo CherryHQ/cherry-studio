@@ -516,6 +516,7 @@ const CodeViewer = ({
             '--gutter-width': `${gutterDigits}ch`,
             '--line-height': `${estimateSize()}px`,
             fontSize,
+            scrollbarColor: 'auto',
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'
