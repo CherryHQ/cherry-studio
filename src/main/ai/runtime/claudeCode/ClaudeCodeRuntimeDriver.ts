@@ -430,7 +430,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
-    this.spawnOptions = options
+    this.spawnOptions = consumedWarmQuery
+      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
+      : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
     this.createQuery = createClaudeQuery
@@ -738,11 +740,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
           error: surfacedError,
-          ...(isProcessFailure && this.processDiagnostics?.terminalReason
-            ? {
-                diagnosticReference: this.processDiagnostics.reference,
-                terminalReason: this.processDiagnostics.terminalReason
-              }
+          ...(isProcessFailure && this.processDiagnostics
+            ? { diagnosticReference: this.processDiagnostics.reference }
             : {})
         })
       }

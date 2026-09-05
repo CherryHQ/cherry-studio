@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
+  processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
 }))
@@ -341,6 +342,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
@@ -482,11 +484,83 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(JSON.stringify(event.value)).not.toContain('sk-ant-private')
     expect(mockMainLoggerService.error).toHaveBeenCalledWith(
       'Claude Code query loop failed',
-      expect.objectContaining({
-        diagnosticReference: 'warm-diagnostic-ref',
-        terminalReason: expect.stringContaining('sk-ant-private')
-      })
+      expect.objectContaining({ diagnosticReference: 'warm-diagnostic-ref' })
     )
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('sk-ant-private')
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('/missing/claude')
+    void connection.close()
+  })
+
+  it('binds resume recovery process diagnostics to the consumed warm holder', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const warmDiagnostics = { reference: 'warm-retry-ref' }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', resume: 'stale-token' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.consumeWarmQuery.mockResolvedValue({
+      warmQuery: { query: vi.fn(() => staleQuery) },
+      processDiagnostics: warmDiagnostics
+    })
+    mocks.createClaudeQuery.mockReturnValue(freshQuery)
+    mocks.processManagerSpawn.mockImplementation((_options, diagnostics) => {
+      Object.assign(diagnostics, {
+        terminalReason: 'Authentication failed: api_key=sk-ant-private',
+        category: 'auth',
+        exitCode: 1
+      })
+      return {}
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    await connection.send({ message: userMessage() })
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledOnce())
+    const recoveryOptions = mocks.createClaudeQuery.mock.calls[0][0].options
+    recoveryOptions.spawnClaudeCodeProcess({} as any)
+    freshQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'fresh-session',
+      usage: {},
+      errors: ['Claude Code process exited with code 1']
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'error')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen).toContainEqual({
+      type: 'error',
+      error: expect.objectContaining({
+        claudeCodeExitCategory: 'auth',
+        diagnosticReference: 'warm-retry-ref'
+      })
+    })
+    expect(mocks.processManagerSpawn).toHaveBeenCalledWith(expect.anything(), warmDiagnostics)
     void connection.close()
   })
 
