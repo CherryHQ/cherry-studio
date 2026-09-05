@@ -170,7 +170,7 @@
     "@ai-sdk/huggingface": "^1.0.74",
     "@ai-sdk/mistral": "^3.0.30",
     "@ai-sdk/open-responses": "1.0.34",
-    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/openai": "^3.0.108",
     "@ai-sdk/openai-compatible": "2.0.72",
     "@ai-sdk/perplexity": "^3.0.29",
     "@ai-sdk/provider": "^3.0.15",

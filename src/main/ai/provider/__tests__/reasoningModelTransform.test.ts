@@ -63,6 +63,10 @@ describe('isOpenAIReasoningModelId', () => {
     expect(isOpenAIReasoningModelId('gpt-5.2')).toBe(true)
   })
 
+  it('identifies GPT-6 Astra', () => {
+    expect(isOpenAIReasoningModelId('gpt-6-astra')).toBe(true)
+  })
+
   it('excludes gpt-5-chat', () => {
     expect(isOpenAIReasoningModelId('gpt-5-chat')).toBe(false)
   })
@@ -91,6 +95,13 @@ describe('applyReasoningModelMaxTokensConversion', () => {
 
   it('converts for GPT-5 models', () => {
     const body = { model: 'gpt-5', max_tokens: 128000 }
+    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    expect(result.max_completion_tokens).toBe(128000)
+    expect(result.max_tokens).toBeUndefined()
+  })
+
+  it('converts for GPT-6 Astra', () => {
+    const body = { model: 'gpt-6-astra', max_tokens: 128000 }
     const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
     expect(result.max_completion_tokens).toBe(128000)
     expect(result.max_tokens).toBeUndefined()
@@ -174,6 +185,39 @@ describe('wire-body regression through real construction paths', () => {
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
     expect(body.max_completion_tokens).toBe(1000)
+    expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('rewrites max_tokens for GPT-6 Astra through the OpenAI-compatible Chat path', async () => {
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    expect(config.providerId).toBe('openai-compatible')
+
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const executor = await createExecutor(
+      config.providerId as Parameters<typeof createExecutor>[0],
+      { ...config.providerSettings, fetch: fetchSpy } as Parameters<typeof createExecutor>[1]
+    )
+    const languageModel = await executor.languageModel('gpt-6-astra')
+
+    await languageModel.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 128000
+    })
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body.max_completion_tokens).toBe(128000)
     expect(body.max_tokens).toBeUndefined()
   })
 

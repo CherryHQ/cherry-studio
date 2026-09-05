@@ -16749,6 +16749,62 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "family": "gpt",
+      "id": "gpt-6-astra",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6 Astra",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": false,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "audio-recognition", "audio-generation", "structured-output"],
       "contextWindow": 128000,
       "id": "gpt-audio",
@@ -21660,5 +21716,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "2f0039fd6893970f"
+  "version": "edec3fd18e89e77d"
 }
