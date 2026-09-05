@@ -2435,7 +2435,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
-    this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
     while (this.isCurrentEntry(entry) && this.currentTurn(entry) === turn && this.isTurnLive(entry, turn)) {
@@ -2456,6 +2455,7 @@ export class AgentSessionRuntimeService extends BaseService {
           cancelInputReservation?.()
           continue
         }
+        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
         await connection.send({
           message: turn.userMessage,
           systemReminder: turn.systemReminder === true

@@ -397,6 +397,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
     this.initialResumedInputClaimed = !input.resumeToken
+    // A resumed query can emit stale top-level content as soon as its loop starts.
+    if (input.resumeToken) {
+      this.reservedInputClaim = { active: true }
+      this.pendingInputClaims = 1
+    }
   }
 
   async start(): Promise<this> {

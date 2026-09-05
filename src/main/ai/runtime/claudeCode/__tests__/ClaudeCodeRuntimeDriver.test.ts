@@ -3217,6 +3217,60 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('drops stale parentless content before the first resumed input is reserved', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    let sdkInput!: AsyncIterable<any>
+    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+      sdkInput = prompt
+      return query
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-before-host-reservation'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_start' },
+      session_id: 'resume-before-host-reservation'
+    })
+    queryQueue.push({
+      type: 'system',
+      subtype: 'commands_changed',
+      session_id: 'resume-before-host-reservation',
+      commands: ['/help']
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'supported-commands')) {
+      seen.push((await events.next()).value)
+    }
+
+    connection.reserveInput?.()
+    await connection.send({ message: userMessage() })
+    await sdkInput[Symbol.asyncIterator]().next()
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_start' },
+      session_id: 'resume-after-host-input'
+    })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-after-host-input', usage: {} })
+
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state' }))
+    expect(seen.filter((event) => event?.chunk?.type === 'text-delta')).toHaveLength(1)
+    void connection.close()
+  })
+
   it('drops stale turn-scoped system messages while resumed input awaits SDK consumption', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
