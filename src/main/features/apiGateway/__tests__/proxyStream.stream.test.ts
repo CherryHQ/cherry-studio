@@ -731,7 +731,7 @@ describe('processMessage (streaming)', () => {
 })
 
 describe('processMessage (error & pause)', () => {
-  it('rejects the original provider error before semantic commitment', async () => {
+  it('rejects the original provider error with gateway context before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
     const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }
 
@@ -739,6 +739,12 @@ describe('processMessage (error & pause)', () => {
     void listener.onError({ status: 'error', error } as any)
 
     await expect(response).rejects.toBe(error)
+    expect(error).toMatchObject({
+      statusCode: 400,
+      gatewayErrorKind: 'upstream_provider',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
   })
 
   it('streaming: an error after commitment emits a dialect error frame, not the raw SerializedError', async () => {
@@ -761,7 +767,10 @@ describe('processMessage (error & pause)', () => {
 
     const text = await readAll(res.body)
     expect(text).toContain('"error"')
-    expect(text).toContain('Provider rejected the request')
+    expect(text).toContain(
+      'Provider \\"openai\\" rate limited model \\"gpt-4\\". Retry later or check the provider quota.'
+    )
+    expect(text).not.toContain('Provider rejected the request')
     expect(text).not.toContain('secret stack')
     expect(text).not.toContain('SECRET PROMPT')
     expect(text).not.toContain('secret body')
@@ -802,6 +811,41 @@ describe('processMessage (error & pause)', () => {
     } as any)
 
     await expect(resPromise).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it('streaming Agent request preserves a pre-commit upstream 401 with safe provider and model context', async () => {
+    useGatewayModel('deepseek/deepseek-v4-flash-0731', ENDPOINT_TYPE.OPENAI_CHAT, 'openrouter')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const resPromise = processMessage({
+      params: {
+        model: 'openrouter:deepseek/deepseek-v4-flash-0731',
+        max_tokens: 64,
+        messages: [{ role: 'user', content: 'hello' }],
+        stream: true
+      },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    void captured.listener!.onError({
+      status: 'error',
+      error: {
+        name: 'AI_APICallError',
+        message: 'User not found',
+        stack: 'secret stack',
+        statusCode: 401,
+        url: 'https://openrouter.ai/api/v1/chat/completions',
+        requestBodyValues: { messages: ['SECRET REQUEST'] }
+      }
+    } as any)
+
+    await expect(resPromise).rejects.toMatchObject({
+      statusCode: 401,
+      providerId: 'openrouter',
+      modelId: 'deepseek/deepseek-v4-flash-0731'
+    })
   })
 
   it('non-streaming: an idle-timeout pause rejects with a 504 (truncation is not a 200)', async () => {
