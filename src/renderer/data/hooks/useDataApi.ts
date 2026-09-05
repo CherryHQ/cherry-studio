@@ -938,7 +938,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   path: CursorPaginatedPath<TPath>,
   options?: Omit<InfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
 ) {
-  const { mutate } = useSWRConfig()
+  const { cache, mutate } = useSWRConfig()
   const limit = options?.limit ?? 10
   const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
   const getKey = useMemo(
@@ -949,23 +949,61 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
 
   return useCallback(
     async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {
-      const pages = (await mutate(infiniteCacheKey, value as never, { revalidate: false })) as
-        | ResponseForPath<TPath, 'GET'>[]
-        | undefined
+      type Page = ResponseForPath<TPath, 'GET'>
+
+      let previousPages: Page[] | undefined
+      const pages = (await mutate(
+        infiniteCacheKey,
+        value as never,
+        {
+          revalidate: false,
+          populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
+            previousPages = currentPages
+            if (Array.isArray(nextPages)) {
+              // SWR Infinite stores its loaded page count beside the aggregate data.
+              const nextState = { ...cache.get(infiniteCacheKey), _l: nextPages.length }
+              cache.set(infiniteCacheKey, nextState)
+            }
+            return nextPages
+          }
+        } as never
+      )) as ResponseForPath<TPath, 'GET'>[] | undefined
       if (!Array.isArray(pages)) return pages
 
+      const collectPageEntries = (cachedPages: Page[] | undefined) => {
+        const entries: Array<{ key: InfiniteQueryKey; page: Page; serializedKey: string }> = []
+        if (!cachedPages) return entries
+
+        let previousPage: CursorPaginationResponse<unknown> | null = null
+        for (let index = 0; index < cachedPages.length; index++) {
+          const page = cachedPages[index]
+          const key = getKey(index, previousPage)
+          if (!key) break
+          entries.push({ key, page, serializedKey: unstable_serialize(key) })
+          previousPage = page as CursorPaginationResponse<unknown>
+        }
+        return entries
+      }
+
+      const previousPageEntries = collectPageEntries(previousPages)
+      const nextPageEntries = collectPageEntries(pages)
+      const nextPageKeys = new Set(nextPageEntries.map((entry) => entry.serializedKey))
       const pageMutations: Promise<unknown>[] = []
-      let previousPage: CursorPaginationResponse<unknown> | null = null
-      for (let index = 0; index < pages.length; index++) {
-        const page = pages[index]
-        const pageKey = getKey(index, previousPage)
-        pageMutations.push(mutate(pageKey, page, { revalidate: false }))
-        previousPage = page as CursorPaginationResponse<unknown>
+      for (const { key, page } of nextPageEntries) {
+        pageMutations.push(mutate(key, page, { revalidate: false }))
+      }
+      for (const { key, serializedKey } of previousPageEntries) {
+        if (nextPageKeys.has(serializedKey)) continue
+        pageMutations.push(
+          mutate(key, undefined, { revalidate: false }).then(() => {
+            cache.delete(serializedKey)
+          })
+        )
       }
       await Promise.all(pageMutations)
       return pages
     },
-    [getKey, infiniteCacheKey, mutate]
+    [cache, getKey, infiniteCacheKey, mutate]
   )
 }
 
