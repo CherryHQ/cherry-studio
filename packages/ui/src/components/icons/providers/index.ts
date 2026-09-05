@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-08-26T09:13:47.814Z
+ * Generated at: 2026-09-05T12:46:07.766Z
  * Total icons: 159
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -12,6 +12,7 @@ export { AbacusIcon as Abacus } from './abacus'
 export { AiOnlyIcon as AiOnly } from './ai-only'
 export { AiStudioIcon as AiStudio } from './ai-studio'
 export { Ai21Icon as Ai21 } from './ai21'
+export { AigatewayIcon as Aigateway } from './aigateway'
 export { AihubmixIcon as Aihubmix } from './aihubmix'
 export { AionlabsIcon as Aionlabs } from './aionlabs'
 export { AlayanewIcon as Alayanew } from './alayanew'
