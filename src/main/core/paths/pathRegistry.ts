@@ -111,7 +111,7 @@ export function buildPathRegistry() {
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
-    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
@@ -137,6 +137,17 @@ export function buildPathRegistry() {
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
+    // Code CLI session data. `root` is handed to the binary as `--gemini_dir`; the
+    // CLI itself resolves its settings under the fixed `antigravity-cli/` subdir.
+    'feature.cli.antigravity.root': path.join(appUserDataData, 'CodeCli', 'Antigravity'),
+    'feature.cli.antigravity.settings.file': path.join(
+      appUserDataData,
+      'CodeCli',
+      'Antigravity',
+      'antigravity-cli',
+      'settings.json'
+    ),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -149,6 +160,9 @@ export function buildPathRegistry() {
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
+    // Cherry Cloud account credentials (device identity is retained when the session is cleared)
+    'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
+
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
 
@@ -159,6 +173,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
@@ -187,6 +202,22 @@ export function buildPathRegistry() {
     'feature.files.data': path.join(appUserDataData, 'Files'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
+
+    // Mini apps
+    // Installed mini app packages, one directory per appId
+    'feature.mini_app.packages': path.join(appUserDataData, 'MiniApps', 'packages'),
+    // Rollback snapshots, PARALLEL to packages/ — `.` is a legal appId character, so a
+    // snapshot held beside the install trees is also a legal appId's own directory
+    'feature.mini_app.snapshots': path.join(appUserDataData, 'MiniApps', 'snapshots'),
+    // Per-app data (saves), OUTSIDE the package tree — updates rename packages/<id> wholesale
+    'feature.mini_app.data': path.join(appUserDataData, 'MiniApps', 'data'),
+    // Publish journals, one `<appId>.json` per app
+    'feature.mini_app.publish_journal': path.join(appUserDataData, 'MiniApps', '.publish-journal'),
+    // Builtin packages ship INSIDE the app bundle, so this one is not under userData
+    'feature.mini_app.builtin': path.join(appRootResources, 'builtin-mini-apps'),
+    // Per-app activity logs, one `<appId>/activity.<day>.log` tree each — under the logs
+    // directory, NOT the app's data: "clear data" must not erase what the app did
+    'feature.mini_app.logs': path.join(LOGS_DIR, 'mini-apps'),
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
@@ -232,14 +263,17 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
-    'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
+    'external.openclaw.config': path.join(sysHome, '.openclaw'),
+    'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.hermes.default_home': isWin
+      ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
+      : path.join(sysHome, '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac
-        ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
-        : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
+        ? path.join(sysHome, 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+        : path.join(sysHome, '.config', 'obsidian', 'obsidian.json')
   } as const)
 }
 
@@ -282,9 +316,11 @@ const NO_ENSURE = [
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces'

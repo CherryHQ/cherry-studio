@@ -1,13 +1,25 @@
 import { defineProvider } from './types'
 
-// api-docs.deepseek.com/zh-cn/guides/thinking_mode documents ONE effort table for V4 Flash and V4
-// Pro ("deepseek-v4-flash 与 deepseek-v4-pro 一致"). `xhigh` is sent as `max` because DeepSeek
-// degrades its own `xhigh` to `high`, leaving `max` as the only way to reach the top level.
+// api-docs.deepseek.com/zh-cn/guides/thinking_mode documents one effort table for V4 Flash and V4
+// Pro ("deepseek-v4-flash 与 deepseek-v4-pro 一致"). `xhigh` remains a compatibility input alias,
+// but is not advertised by the model metadata and is sent as the supported top-level `max` value.
 const v4EffortMap = {
   minimal: 'low' as const,
   low: 'low' as const,
   medium: 'high' as const,
   xhigh: 'max' as const
+}
+
+const v4FlashPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.014 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.44 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.32 }
+}
+
+const v4ProPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.044 },
+  input: { currency: 'USD' as const, perMillionTokens: 1.32 },
+  output: { currency: 'USD' as const, perMillionTokens: 3.96 }
 }
 
 // Targets name `@ai-sdk/deepseek` provider options, not wire fields: the SDK's zod schema takes
@@ -47,6 +59,7 @@ const v4ResponsesEffortWire = {
 export default defineProvider({
   id: 'deepseek',
   name: 'deepseek',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -92,10 +105,11 @@ export default defineProvider({
   // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
-    { modelId: 'deepseek-reasoner', endpointTypes: ['openai-chat-completions'] },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4FlashPeakPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
@@ -104,6 +118,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-flash-vision-exp',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4FlashPeakPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
@@ -112,6 +127,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4ProPeakPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }

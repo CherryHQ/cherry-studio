@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import { CirclePause } from 'lucide-react'
 import {
@@ -56,6 +57,7 @@ function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
 
 function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const { t } = useTranslation()
+  const showAiDisclaimer = props.showAiDisclaimer && getAppEdition() === 'cn'
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
   const intentRef = useRef<ComposerDeferredIntent>({})
@@ -172,7 +174,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }, [Runtime, getFallbackDraft, props, requestRuntime])
 
   if (Runtime && runtimeReady && !isComposing) {
-    return <Runtime {...props} initialTextSelection={selectionRef.current} deferredIntent={intentRef.current} />
+    return (
+      <Runtime
+        {...props}
+        showAiDisclaimer={showAiDisclaimer}
+        initialTextSelection={selectionRef.current}
+        deferredIntent={intentRef.current}
+      />
+    )
   }
 
   const updateSelection = () => {
@@ -376,6 +385,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               <div className="relative">{inputbarElement}</div>
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

@@ -3,6 +3,7 @@ import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
   ComposerToolProvider,
+  type ComposerToolsRegistryApi,
   type ComposerToolState,
   useComposerToolProviderDispatch,
   useComposerToolProviderLaunchers,
@@ -15,8 +16,7 @@ import type {
   ToolContext,
   ToolDefinition,
   ToolRenderContext,
-  ToolStateKey,
-  ToolStateMap
+  ToolStateKey
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
@@ -25,7 +25,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -68,11 +68,81 @@ interface ComposerToolRuntimeBootstrapProps {
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
 type AnyToolRenderContext = ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
 
-const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; context: AnyToolRenderContext }) => {
-  const Runtime = tool.composer?.runtime
-  if (!Runtime) return null
-  return <Runtime context={context} />
+interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProps {
+  tool: AnyToolDefinition
+  toolState: ComposerToolState
+  toolActions: ToolActionMap
+  launcher: AnyToolRenderContext['launcher']
+  toolsRegistry: ComposerToolsRegistryApi
+  t: ReturnType<typeof useTranslation>['t']
 }
+
+const ComposerToolRuntimeEntry = ({
+  tool,
+  toolState,
+  toolActions,
+  launcher,
+  toolsRegistry,
+  scope,
+  assistant,
+  model,
+  session,
+  t
+}: ComposerToolRuntimeEntryProps) => {
+  const context = useMemo<AnyToolRenderContext>(() => {
+    const state: Record<string, unknown> = {}
+    for (const key of tool.dependencies?.state ?? []) state[key] = toolState[key]
+
+    const actions: Record<string, unknown> = {}
+    for (const key of tool.dependencies?.actions ?? []) {
+      const action = toolActions[key]
+      if (action) actions[key] = action
+    }
+
+    return {
+      scope,
+      assistant,
+      model,
+      session,
+      state,
+      actions,
+      launcher,
+      t
+    } as AnyToolRenderContext
+  }, [assistant, launcher, model, scope, session, t, tool, toolActions, toolState])
+
+  useEffect(() => {
+    if (!tool.composer?.menuItems) return
+    return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
+  }, [context, tool, toolsRegistry])
+
+  const Runtime = tool.composer?.runtime
+  return Runtime ? <Runtime context={context} /> : null
+}
+
+const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previous, next) => {
+  if (
+    previous.tool !== next.tool ||
+    previous.launcher !== next.launcher ||
+    previous.toolsRegistry !== next.toolsRegistry ||
+    previous.scope !== next.scope ||
+    previous.assistant !== next.assistant ||
+    previous.model !== next.model ||
+    previous.session !== next.session ||
+    previous.t !== next.t
+  ) {
+    return false
+  }
+
+  for (const key of next.tool.dependencies?.state ?? []) {
+    if (!Object.is(previous.toolState[key], next.toolState[key])) return false
+  }
+  for (const key of next.tool.dependencies?.actions ?? []) {
+    if (!Object.is(previous.toolActions[key], next.toolActions[key])) return false
+  }
+
+  return true
+})
 
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
@@ -102,7 +172,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
       if (!cache.has(toolKey)) {
         cache.set(toolKey, {
-          registerLaunchers: (entries) => toolsRegistry.registerLaunchers(toolKey, entries)
+          registerLaunchers: (entries, footerActions) =>
+            toolsRegistry.registerLaunchers(toolKey, entries, footerActions)
         })
       }
 
@@ -111,76 +182,23 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     [toolsRegistry]
   )
 
-  const buildRenderContext = useCallback(
-    <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
-      tool: ToolDefinition<S, A>
-    ): ToolRenderContext<S, A> => {
-      const deps = tool.dependencies
-
-      const state = (deps?.state || ([] as unknown as S)).reduce(
-        (acc, key) => {
-          acc[key] = toolState[key]
-          return acc
-        },
-        {} as Pick<ToolStateMap, S[number]>
-      )
-
-      const runtimeActions = (deps?.actions || ([] as unknown as A)).reduce(
-        (acc, key) => {
-          const actionValue = toolActions[key]
-          if (actionValue) {
-            acc[key] = actionValue
-          }
-          return acc
-        },
-        {} as Pick<ToolActionMap, A[number]>
-      )
-
-      return {
-        scope,
-        assistant,
-        model,
-        session,
-        state,
-        actions: runtimeActions,
-        launcher: getLauncherApiForTool(tool.key),
-        t
-      } as ToolRenderContext<S, A>
-    },
-    [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
-  )
-
-  const toolRuntimeEntries = useMemo(
-    () =>
-      availableTools.map((tool) => ({
-        tool,
-        context: buildRenderContext(tool)
-      })),
-    [availableTools, buildRenderContext]
-  )
-
-  useEffect(() => {
-    const disposeCallbacks: Array<() => void> = []
-
-    for (const { tool, context } of toolRuntimeEntries) {
-      if (tool.composer?.menuItems) {
-        const launchers = tool.composer.menuItems.createItems(context)
-        const dispose = toolsRegistry.registerLaunchers(tool.key, launchers)
-        disposeCallbacks.push(dispose)
-      }
-    }
-
-    return () => {
-      disposeCallbacks.forEach((dispose) => dispose())
-    }
-  }, [toolRuntimeEntries, toolsRegistry])
-
   return (
     <>
-      {toolRuntimeEntries.map(({ tool, context }) => {
-        if (!tool.composer?.runtime) return null
-        return <ComposerToolRuntimeSlot key={`${tool.key}-composer-runtime`} tool={tool} context={context} />
-      })}
+      {availableTools.map((tool) => (
+        <MemoizedComposerToolRuntimeEntry
+          key={`${tool.key}-composer-runtime`}
+          tool={tool}
+          toolState={toolState}
+          toolActions={toolActions}
+          launcher={getLauncherApiForTool(tool.key)}
+          toolsRegistry={toolsRegistry}
+          scope={scope}
+          assistant={assistant}
+          model={model}
+          session={session}
+          t={t}
+        />
+      ))}
     </>
   )
 }
@@ -188,6 +206,25 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
 export { ComposerToolDerivedStateProvider }
+
+export const ComposerToolFooterActionsSync = () => {
+  const { getFooterActions, version } = useComposerToolProviderLaunchers()
+  const quickPanel = useQuickPanel()
+  const { symbol, updateFooterActions } = quickPanel
+
+  useLayoutEffect(() => {
+    if (!symbol) {
+      updateFooterActions([])
+      return
+    }
+
+    updateFooterActions(getFooterActions(symbol))
+
+    return () => updateFooterActions([])
+  }, [getFooterActions, symbol, updateFooterActions, version])
+
+  return null
+}
 
 const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
 
