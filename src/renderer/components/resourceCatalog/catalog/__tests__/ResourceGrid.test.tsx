@@ -530,6 +530,35 @@ describe('ResourceGrid empty state copy', () => {
     }
   })
 
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'settings.skills.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('settings.skills.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('settings.skills.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('settings.skills.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('settings.skills.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses the generic resource empty copy when there is no search', () => {
     renderResourceGrid()
 

@@ -83,6 +83,8 @@ interface Props {
   /** Settings variant only: page heading rendered above the search row. */
   title?: ReactNode
   description?: ReactNode
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
 }
 
 function getGridColumnCount(width: number) {
@@ -213,7 +215,9 @@ export const ResourceGrid: FC<Props> = ({
   toolbarLeading,
   variant = 'library',
   title,
-  description
+  description,
+  toolbarFooter,
+  allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
@@ -222,7 +226,13 @@ export const ResourceGrid: FC<Props> = ({
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const responsiveColumnCount = useGridColumnCount(scrollRef)
-  const columnCount = isSettings ? 1 : responsiveColumnCount
+  const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
+  const columnCount = isSettings
+    ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
+    : responsiveColumnCount
+  const layoutLabel = t(
+    columnCount === 1 ? 'settings.skills.layout.two_columns' : 'settings.skills.layout.single_column'
+  )
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
@@ -385,6 +395,38 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
+        {toolbarFooter || (isSettings && allowColumnToggle) ? (
+          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-border-subtle border-b">
+            {toolbarFooter}
+            {isSettings && allowColumnToggle && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={layoutLabel}
+                title={layoutLabel}
+                disabled={responsiveColumnCount < 2}
+                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                <svg
+                  width={20}
+                  height={20}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden="true">
+                  <rect x={2} y={5} width={columnCount === 1 ? 20 : 8} height={5} rx={1} />
+                  <rect x={2} y={14} width={columnCount === 1 ? 20 : 8} height={5} rx={1} />
+                  {columnCount === 2 && (
+                    <>
+                      <rect x={14} y={5} width={8} height={5} rx={1} />
+                      <rect x={14} y={14} width={8} height={5} rx={1} />
+                    </>
+                  )}
+                </svg>
+              </Button>
+            )}
+          </div>
+        ) : null}
         {showGroupToolbar && (
           <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
             <div
