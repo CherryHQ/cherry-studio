@@ -4862,6 +4862,7 @@
   "settings.shortcuts.show_app": "Hiện/Ẩn ứng dụng",
   "settings.shortcuts.show_settings": "Mở Cài đặt",
   "settings.shortcuts.title": "Phím tắt",
+  "settings.shortcuts.toggle_dev_tools": "Bật Công Cụ Dành Cho Nhà Phát Triển",
   "settings.shortcuts.toggle_left_sidebar": "Bật/tắt thanh bên trái",
   "settings.shortcuts.toggle_new_context": "Ngữ cảnh rõ ràng",
   "settings.shortcuts.toggle_right_sidebar": "Bật/tắt thanh bên phải",

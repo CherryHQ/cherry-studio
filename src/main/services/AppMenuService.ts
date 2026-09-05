@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
@@ -17,7 +18,15 @@ import {
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
 
-const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
+const logger = loggerService.withContext('AppMenuService')
+
+const appMenuCommands: CommandId[] = [
+  'app.settings.open',
+  'app.zoom.in',
+  'app.zoom.out',
+  'app.zoom.reset',
+  'app.devtools.toggle'
+]
 
 const appMenuShortcutCommands = new Set(appMenuCommands)
 
@@ -65,7 +74,8 @@ export class AppMenuService extends BaseService {
       'app.settings.open': t('settings.title'),
       'app.zoom.reset': t('appMenu.resetZoom'),
       'app.zoom.in': t('appMenu.zoomIn'),
-      'app.zoom.out': t('appMenu.zoomOut')
+      'app.zoom.out': t('appMenu.zoomOut'),
+      'app.devtools.toggle': t('appMenu.toggleDevTools')
     })
     const getCommandItem = (command: CommandId): NativeCommandMenuItem => {
       const item = commandItems.get(command)
@@ -123,7 +133,9 @@ export class AppMenuService extends BaseService {
         children: [
           { type: 'role', role: 'reload', label: t('appMenu.reload') },
           { type: 'role', role: 'forceReload', label: t('appMenu.forceReload') },
-          { type: 'role', role: 'toggleDevTools', label: t('appMenu.toggleDevTools') },
+          // Not the `toggleDevTools` role: it resolves through the focused WebContents,
+          // which a hidden MiniApp guest keeps owning. The renderer picks the target.
+          getCommandItem('app.devtools.toggle'),
           { type: 'separator' },
           getCommandItem('app.zoom.reset'),
           getCommandItem('app.zoom.in'),
@@ -180,7 +192,22 @@ export class AppMenuService extends BaseService {
 
     const template = toElectronMenuTemplate(items, {
       executeCommand: (command, context) => {
-        application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
+        const window = context.browserWindow as BrowserWindow | undefined
+        const commandService = application.get('CommandService')
+        if (commandService.hasHandler(command)) {
+          commandService.execute(command, window)
+          return
+        }
+        // Renderer-scoped: main owns no handler, and the menu already claimed the
+        // accelerator, so the key never reaches the renderer on its own.
+        const windowId = window
+          ? application.get('WindowManager').getWindowIdByWebContents(window.webContents)
+          : undefined
+        if (!windowId) {
+          logger.warn(`No window to run renderer command: ${command}`)
+          return
+        }
+        application.get('IpcApiService').send(windowId, 'app.command.execute', { command })
       }
     })
     const menu = Menu.buildFromTemplate(template)

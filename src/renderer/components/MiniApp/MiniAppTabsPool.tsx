@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
-import { useCommandContextKey } from '@renderer/hooks/command'
+import { useCommandContextKey, useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -251,6 +251,12 @@ const MiniAppTabsPool: React.FC = () => {
   }, [])
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
   useCommandContextKey('webview.focused', focusedAppId !== null)
+
+  const devToolsAppId = shouldShow ? (focusedAppId === paneSplitId && paneSplitId ? paneSplitId : currentMiniAppId) : ''
+
+  useCommandHandler('app.devtools.toggle', () => webviewRefs.current.get(devToolsAppId)?.openDevTools(), {
+    enabled: Boolean(devToolsAppId)
+  })
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {

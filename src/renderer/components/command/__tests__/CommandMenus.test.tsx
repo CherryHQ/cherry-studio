@@ -237,7 +237,9 @@ describe('CommandContextMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     preferenceValues['menu.presentation_mode'] = 'native'
+    // Keep the setup's IpcApi bridge: CommandProvider subscribes to `app.command.execute`.
     window.api = {
+      ...window.api,
       command: {
         showNativePopupMenu: showNativePopupMenuMock
       }

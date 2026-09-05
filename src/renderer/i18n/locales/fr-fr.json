@@ -4862,6 +4862,7 @@
   "settings.shortcuts.show_app": "Afficher l'application",
   "settings.shortcuts.show_settings": "Ouvrir les paramètres",
   "settings.shortcuts.title": "Raccourcis",
+  "settings.shortcuts.toggle_dev_tools": "Basculer les outils de développement",
   "settings.shortcuts.toggle_left_sidebar": "Basculer la barre latérale gauche",
   "settings.shortcuts.toggle_new_context": "Effacer le contexte",
   "settings.shortcuts.toggle_right_sidebar": "Basculer la barre latérale droite",

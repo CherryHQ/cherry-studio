@@ -4862,6 +4862,7 @@
   "settings.shortcuts.show_app": "Εμφάνιση εφαρμογής",
   "settings.shortcuts.show_settings": "Άνοιγμα των ρυθμίσεων",
   "settings.shortcuts.title": "Συντομοί δρομολόγια",
+  "settings.shortcuts.toggle_dev_tools": "Εναλλαγή Εργαλείων Προγραμματιστή",
   "settings.shortcuts.toggle_left_sidebar": "Εναλλαγή αριστερής πλευρικής γραμμής",
   "settings.shortcuts.toggle_new_context": "Άδειασμα σενάριων",
   "settings.shortcuts.toggle_right_sidebar": "Εναλλαγή δεξιάς πλευρικής γραμμής",

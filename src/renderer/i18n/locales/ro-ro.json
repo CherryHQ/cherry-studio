@@ -4862,6 +4862,7 @@
   "settings.shortcuts.show_app": "Afișează/Ascunde aplicația",
   "settings.shortcuts.show_settings": "Deschide setările",
   "settings.shortcuts.title": "Comenzi rapide de la tastatură",
+  "settings.shortcuts.toggle_dev_tools": "Comută instrumentele pentru dezvoltatori",
   "settings.shortcuts.toggle_left_sidebar": "Comută bara laterală stângă",
   "settings.shortcuts.toggle_new_context": "Șterge contextul",
   "settings.shortcuts.toggle_right_sidebar": "Comută bara laterală dreaptă",
