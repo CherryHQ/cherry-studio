@@ -28,6 +28,7 @@ export function HelpMenu({
   const firstActionRef = useRef<HTMLButtonElement>(null)
   const menuOpenRef = useRef(false)
   const onOverlayOpenChangeRef = useRef(onOverlayOpenChange)
+  const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null)
 
   useEffect(() => {
     onOverlayOpenChangeRef.current = onOverlayOpenChange
@@ -49,12 +50,8 @@ export function HelpMenu({
   }
 
   const runAfterClose = (action: () => void | Promise<void>) => {
+    pendingActionRef.current = action
     handleMenuOpenChange(false)
-    window.setTimeout(() => {
-      void Promise.resolve()
-        .then(action)
-        .catch((error) => logger.error('Failed to run help menu action', error as Error))
-    }, 0)
   }
 
   const openDocs = () => {
@@ -112,6 +109,15 @@ export function HelpMenu({
           side="right"
           sideOffset={8}
           className="w-52 rounded-xl p-1.5"
+          onCloseAutoFocus={(event) => {
+            const action = pendingActionRef.current
+            if (!action) return
+            pendingActionRef.current = null
+            event.preventDefault()
+            void Promise.resolve()
+              .then(action)
+              .catch((error) => logger.error('Failed to run help menu action', error as Error))
+          }}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             firstActionRef.current?.focus()
