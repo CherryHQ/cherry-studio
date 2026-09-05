@@ -12,6 +12,22 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
+  private lastDeliveryError: unknown = null
+  private deliveryPromise: Promise<void> | null = null
+  private resolveDeliverySettled: (() => void) | null = null
+  private rejectDeliverySettled: ((e: unknown) => void) | null = null
+
+  get deliveryError(): unknown {
+    return this.lastDeliveryError
+  }
+
+  async waitForDelivery(): Promise<void> {
+    const start = Date.now()
+    while (!this.deliveryPromise && Date.now() - start < 300) {
+      await new Promise<void>((r) => setTimeout(r, 5))
+    }
+    if (this.deliveryPromise) return this.deliveryPromise
+  }
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -27,6 +43,15 @@ export class ChannelAdapterListener implements StreamListener {
   ) {
     const responseKey = this.responseOptions?.replyToMessageId ?? 'unthreaded'
     this.id = `channel:${adapter.channelId}:${this.platformChatId}:${responseKey}`
+  }
+
+  private createDeliveryTracker(): void {
+    this.deliveryPromise = new Promise<void>((resolve, reject) => {
+      this.resolveDeliverySettled = resolve
+      this.rejectDeliverySettled = reject
+    })
+    // Mark as handled to avoid Vitest unhandled rejection when onDone throws before waitForDelivery is awaited
+    this.deliveryPromise.catch(() => {})
   }
 
   /** Deliver a final message using the inbound message's response context. */
@@ -63,53 +88,80 @@ export class ChannelAdapterListener implements StreamListener {
         chatId: this.platformChatId,
         status: result.status
       })
+      this.createDeliveryTracker()
+      this.resolveDeliverySettled?.()
       return
     }
 
+    this.createDeliveryTracker()
     try {
-      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.completeStream(text)
       if (!handled) {
         await this.deliver(text)
       }
+      this.lastDeliveryError = null
+      this.resolveDeliverySettled?.()
     } catch (err) {
+      this.lastDeliveryError = err
       logger.error('Failed to deliver message to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err
       })
+      this.rejectDeliverySettled?.(err)
+      throw err
     }
   }
 
   // oxlint-disable-next-line no-unused-vars
   async onPaused(_result: StreamPausedResult): Promise<void> {
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
-    if (!text) return
+    if (!text) {
+      this.createDeliveryTracker()
+      this.resolveDeliverySettled?.()
+      return
+    }
 
+    this.createDeliveryTracker()
     try {
       const handled = await this.completeStream(text)
       if (!handled) {
         await this.deliver(text + '\n\n_(stopped)_')
       }
+      this.lastDeliveryError = null
+      this.resolveDeliverySettled?.()
     } catch (err) {
+      this.lastDeliveryError = err
       logger.error('Failed to deliver paused message to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err
       })
+      this.rejectDeliverySettled?.(err)
+      throw err
     }
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
-    if (this.suppressErrorMessage) return
+    if (this.suppressErrorMessage) {
+      this.createDeliveryTracker()
+      this.resolveDeliverySettled?.()
+      return
+    }
+    this.createDeliveryTracker()
     try {
       await this.deliver(`Error: ${result.error.message ?? 'Unknown error'}`)
+      this.lastDeliveryError = null
+      this.resolveDeliverySettled?.()
     } catch (err) {
+      this.lastDeliveryError = err
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err
       })
+      this.rejectDeliverySettled?.(err)
+      throw err
     }
   }
 
