@@ -1,4 +1,4 @@
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import { DoctorCheckResults, DoctorConfirmationView } from '@renderer/components/doctor/DoctorCheckResults'
 import { useDoctorController } from '@renderer/components/doctor/useDoctorController'
 import type { SerializedError } from '@renderer/types/error'
@@ -53,6 +53,12 @@ export function ErrorDiagnosticsPanel({
   const isLiveRun =
     (controller.viewModel.status === 'running' && controller.viewModel.tier === 'live') ||
     (interaction.kind === 'run' && interaction.tier === 'live')
+  const confirmationTitle =
+    interaction.kind === 'confirm-fix'
+      ? t('settings.doctor.confirm_fix.title')
+      : interaction.kind === 'confirm-evidence'
+        ? t('settings.doctor.confirm_evidence.title')
+        : t('settings.doctor.title')
 
   useEffect(() => {
     if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
@@ -72,9 +78,17 @@ export function ErrorDiagnosticsPanel({
     [onDiagnosisComplete]
   )
 
+  const cancelConfirmation = useCallback(() => {
+    const currentInteraction = controller.session.interaction
+    if (currentInteraction.kind !== 'confirm-fix' && currentInteraction.kind !== 'confirm-evidence') return
+    restoreActionCheckRef.current =
+      currentInteraction.kind === 'confirm-fix' ? currentInteraction.request.checkId : currentInteraction.checkId
+    controller.cancelFixConfirmation()
+  }, [controller])
+
   return (
     <section aria-labelledby="error-system-diagnostics-heading">
-      <div hidden={isConfirming} className="space-y-3">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="error-system-diagnostics-heading" className="font-medium text-sm">
             {t('settings.doctor.title')}
@@ -132,14 +146,21 @@ export function ErrorDiagnosticsPanel({
         )}
       </div>
 
-      {isConfirming ? (
-        <DoctorConfirmationView
-          controller={controller}
-          onResolve={(checkId) => {
-            restoreActionCheckRef.current = checkId
-          }}
-        />
-      ) : null}
+      <Dialog open={isConfirming} onOpenChange={(open) => !open && cancelConfirmation()}>
+        <DialogContent
+          aria-describedby={undefined}
+          closeOnOverlayClick={false}
+          showCloseButton={false}
+          className="max-h-[calc(100vh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <DialogTitle className="sr-only">{confirmationTitle}</DialogTitle>
+          <DoctorConfirmationView
+            controller={controller}
+            onResolve={(checkId) => {
+              restoreActionCheckRef.current = checkId
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
