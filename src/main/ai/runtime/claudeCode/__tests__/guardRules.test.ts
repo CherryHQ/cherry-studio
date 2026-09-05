@@ -13,12 +13,18 @@ import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>()
+  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>(),
+  evaluateUserDataSqliteGuard: vi.fn<() => Promise<{ ruleId: 'user-data-sqlite-write'; reason: string } | undefined>>()
 }))
 
 vi.mock('../skillDependencies', () => ({
   SKILL_TOOL_NAME: 'Skill',
   checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
+
+vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
+  USER_DATA_SQLITE_GUARD_REASON: 'Access to SQLite files inside Cherry Studio user data is blocked.',
+  evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
@@ -57,6 +63,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   beforeEach(() => {
     mocks.checkSkillRuntimeDependencies.mockReset()
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
+    mocks.evaluateUserDataSqliteGuard.mockReset()
+    mocks.evaluateUserDataSqliteGuard.mockResolvedValue(undefined)
   })
 
   it('is structurally valid', () => {
@@ -486,6 +494,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
     })
+  })
+
+  describe('user-data-sqlite-write', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+      'enforces a policy denial under %s',
+      async (permissionMode) => {
+        mocks.evaluateUserDataSqliteGuard.mockResolvedValue({
+          ruleId: 'user-data-sqlite-write',
+          reason: 'protected SQLite'
+        })
+
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', permissionMode, input: { file_path: '/user-data/app.sqlite' } }))
+        ).resolves.toEqual({
+          effect: 'deny',
+          ruleId: 'user-data-sqlite-write',
+          reason: 'Access to SQLite files inside Cherry Studio user data is blocked.'
+        })
+        expect(mocks.evaluateUserDataSqliteGuard).toHaveBeenCalledWith(
+          expect.objectContaining({ runtime: 'claude-code', toolName: 'Write' })
+        )
+      }
+    )
   })
 
   describe('workspace-escape', () => {

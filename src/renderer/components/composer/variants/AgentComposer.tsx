@@ -20,7 +20,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -772,7 +772,7 @@ const AgentComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
@@ -916,6 +916,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -1128,18 +1129,19 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  // Skills live in their own submenu (opened as the `agent-skills` launcher), with a pinned footer
-  // that opens the agent's skills config. The customize-toolbar action stays in the root panel.
-  const skillManageFooterItem = useMemo<QuickPanelListItem>(
-    () => ({
+  const skillManageFooterAction = useMemo<ComposerToolFooterAction>(() => {
+    const label = t('plugins.manage_skills')
+    return {
       id: 'agent-skills:manage',
-      label: t('plugins.manage_skills'),
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      order: 10,
+      label,
+      ariaLabel: label,
+      tooltip: label,
       icon: <Settings2 size={16} />,
-      fixedToBottom: true,
       action: () => openResourceEditDialog({ kind: 'agent', id: agentId, initialTab: 'tools.skills' })
-    }),
-    [agentId, t]
-  )
+    }
+  }, [agentId, t])
 
   const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
@@ -1150,8 +1152,6 @@ const AgentComposerInner = ({
       }),
     [availableSkills, insertSkillToken, skillLabel]
   )
-  const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
-
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
@@ -1169,7 +1169,7 @@ const AgentComposerInner = ({
         })
         quickPanel.open({
           title: skillLabel,
-          list: skillPanelItems,
+          list: skillItems,
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
@@ -1178,11 +1178,11 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillLabel, skillPanelItems])
+  }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
-    [skillsLauncher, toolsRegistry]
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1191,10 +1191,13 @@ const AgentComposerInner = ({
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
-    updateQuickPanelList(skillPanelItems)
-  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
+    updateQuickPanelList(skillItems)
+  }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -1801,7 +1804,6 @@ const AgentComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
-          rootPanelAdditionalItems={rootPanelTrailingItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}

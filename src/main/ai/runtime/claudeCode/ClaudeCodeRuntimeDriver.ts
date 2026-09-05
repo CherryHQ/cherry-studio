@@ -65,6 +65,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -609,6 +610,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
+   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
+   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   */
+  private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
+    const totalTokens =
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
+    if (totalTokens <= 0) return
+    const model = this.adapterModelId ?? this.input.modelId
+    const maxTokens = effectiveContextWindowTokens(model)
+    this.eventQueue.push({
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens,
+        maxTokens,
+        percentage: Math.min(100, (totalTokens / maxTokens) * 100),
+        model
+      }
+    })
+  }
+
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
@@ -672,6 +696,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
+        }
+
+        // A top-level message_start's input usage IS the current context occupancy — forward it so
+        // the ring advances per provider call, not only on the host's post-turn pull.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_start' &&
+          message.parent_tool_use_id == null
+        ) {
+          this.emitLiveContextUsage(message.event.message?.usage)
         }
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
