@@ -1,7 +1,9 @@
 import { mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
+import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import type * as FileUtils from '@main/utils/file'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -217,6 +219,124 @@ describe('DeepSeek Harness config transaction', () => {
     })
     expect(settings['agent-default-model']).toEqual({ provider: identity.route, model: 'claude-sonnet' })
     expect(settings['agent-presets']).toEqual({ default: 'code' })
+  })
+
+  it('migrates legacy sibling model maps without disabling the managed route', async () => {
+    const settingsPath = path.join(dir, 'settings.yaml')
+    await writeFile(
+      settingsPath,
+      `shared-models: &shared-models\n  - id: shared-model\n    name: Shared model\nllm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models: &legacy-models\n        # first legacy model\n        first-model:\n          name: First model\n          contextWindow: 4096\n        second-model:\n          id: second-model\n          name: Second model\n      headers:\n        X-Keep: keep\n    mirrored-legacy-route:\n      apiKeyEnv: MIRRORED_KEY\n      api: openai-completions\n      baseURL: https://mirrored.example/v1\n      models: *legacy-models\n    list-route:\n      apiKeyEnv: LIST_KEY\n      api: openai-completions\n      baseURL: https://list.example/v1\n      models:\n        - id: list-model\n          name: List model\n    aliased-list-route:\n      apiKeyEnv: ALIASED_LIST_KEY\n      api: openai-completions\n      baseURL: https://aliased.example/v1\n      models: *shared-models\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    const firstWrite = await readFile(settingsPath, 'utf8')
+    const settings = parse(firstWrite)
+    const dshRuntime = (await import(
+      pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-llm-pi-ai')).href
+    )) as { Config: (input: unknown) => unknown }
+    expect(firstWrite).toContain('# first legacy model')
+    expect(firstWrite).toContain('&legacy-models')
+    expect(firstWrite).toContain('models: *legacy-models')
+    expect(settings['llm-pi-ai'].providers['legacy-route']).toEqual({
+      apiKeyEnv: 'LEGACY_KEY',
+      api: 'openai-completions',
+      baseURL: 'https://legacy.example/v1',
+      models: [
+        { id: 'first-model', name: 'First model', contextWindow: 4096 },
+        { id: 'second-model', name: 'Second model' }
+      ],
+      headers: { 'X-Keep': 'keep' }
+    })
+    expect(settings['llm-pi-ai'].providers['list-route'].models).toEqual([{ id: 'list-model', name: 'List model' }])
+    expect(settings['llm-pi-ai'].providers['mirrored-legacy-route'].models).toEqual(
+      settings['llm-pi-ai'].providers['legacy-route'].models
+    )
+    expect(settings['llm-pi-ai'].providers['aliased-list-route'].models).toEqual([
+      { id: 'shared-model', name: 'Shared model' }
+    ])
+    expect(settings['llm-pi-ai'].providers[projection().route].models).toContainEqual(
+      expect.objectContaining({ id: 'claude-sonnet' })
+    )
+    expect(() => dshRuntime.Config(settings['llm-pi-ai'])).not.toThrow()
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(await readFile(settingsPath, 'utf8')).toBe(firstWrite)
+  })
+
+  it('materializes aliased legacy models and accepts an aliased matching id', async () => {
+    const settingsPath = path.join(dir, 'settings.yaml')
+    await writeFile(
+      settingsPath,
+      `model-template: &model-template\n  # template field note\n  name: Template model\nmodel-id: &model-id aliased-id\nllm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models:\n        aliased-model: *model-template\n        aliased-id:\n          id: *model-id\n          name: Aliased id model\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    const settingsText = await readFile(settingsPath, 'utf8')
+    const settings = parse(settingsText)
+    expect(settingsText).toContain('# template field note')
+    expect(settings['llm-pi-ai'].providers['legacy-route'].models).toEqual([
+      { id: 'aliased-model', name: 'Template model' },
+      { id: 'aliased-id', name: 'Aliased id model' }
+    ])
+    expect(settings['model-template']).toEqual({ name: 'Template model' })
+  })
+
+  it('does not change an individually anchored model referenced outside provider models', async () => {
+    const credentialsPath = path.join(dir, '.credentials.yaml')
+    const settingsPath = path.join(dir, 'settings.yaml')
+    const originalCredentials = 'EXTERNAL_KEY: keep\n'
+    const originalSettings = `llm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models:\n        anchored-model: &anchored-model\n          name: Anchored model\nunrelated-model: *anchored-model\n`
+    await writeFile(credentialsPath, originalCredentials, { mode: 0o600 })
+    await writeFile(settingsPath, originalSettings, { mode: 0o600 })
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow(
+      'route legacy-route legacy model anchored-model anchor anchored-model is referenced outside provider models'
+    )
+    expect(await readFile(credentialsPath, 'utf8')).toBe(originalCredentials)
+    expect(await readFile(settingsPath, 'utf8')).toBe(originalSettings)
+  })
+
+  it('does not change an anchored legacy map that is also referenced outside provider models', async () => {
+    const credentialsPath = path.join(dir, '.credentials.yaml')
+    const settingsPath = path.join(dir, 'settings.yaml')
+    const originalCredentials = 'EXTERNAL_KEY: keep\n'
+    const originalSettings = `llm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      models: &legacy-models\n        legacy-model:\n          name: Legacy model\nunrelated-backup: *legacy-models\n`
+    await writeFile(credentialsPath, originalCredentials, { mode: 0o600 })
+    await writeFile(settingsPath, originalSettings, { mode: 0o600 })
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow(
+      'route legacy-route legacy models anchor legacy-models is referenced outside provider models'
+    )
+    expect(await readFile(credentialsPath, 'utf8')).toBe(originalCredentials)
+    expect(await readFile(settingsPath, 'utf8')).toBe(originalSettings)
+  })
+
+  it.each([
+    {
+      name: 'a scalar model entry',
+      models: '        legacy-model: invalid\n',
+      error: 'route legacy-route legacy model legacy-model must be a mapping'
+    },
+    {
+      name: 'a conflicting declared model id',
+      models: '        legacy-model:\n          id: different-model\n',
+      error: 'route legacy-route legacy model legacy-model declares conflicting id "different-model"'
+    }
+  ])('rejects $name without writing either config file', async ({ models, error }) => {
+    const credentialsPath = path.join(dir, '.credentials.yaml')
+    const settingsPath = path.join(dir, 'settings.yaml')
+    const originalCredentials = 'EXTERNAL_KEY: keep\n'
+    const originalSettings = `llm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      models:\n${models}`
+    await writeFile(credentialsPath, originalCredentials, { mode: 0o600 })
+    await writeFile(settingsPath, originalSettings, { mode: 0o600 })
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow(error)
+    expect(await readFile(credentialsPath, 'utf8')).toBe(originalCredentials)
+    expect(await readFile(settingsPath, 'utf8')).toBe(originalSettings)
   })
 
   it('preserves sibling credential entries without validating their names or values', async () => {
