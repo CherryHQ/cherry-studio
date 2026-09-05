@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -36,6 +36,21 @@ describe('isDshCompatibleModel', () => {
     })
     expect(resolveDshApi(provider, makeModel({}))).toBe('anthropic-messages')
     expect(isDshCompatibleModel(provider, makeModel({}))).toBe(true)
+  })
+
+  it('uses the supported provider default before the model fallback order', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(resolveDshApi(provider, model)).toBe('openai-completions')
   })
 
   it('accepts gateway-routable models whose endpoint has no native dsh family', () => {

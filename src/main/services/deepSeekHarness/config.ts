@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
@@ -345,15 +346,15 @@ export function resolveDeepSeekHarnessEndpoint(
   provider: Provider,
   model: Model
 ): { endpoint: EndpointType; protocol: DeepSeekHarnessProtocol; baseUrl: string } {
-  const isSupported = (endpoint: EndpointType | undefined): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
-    Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
-  const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
-  const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  const endpoint = declaredModelEndpoints
-    ? declaredModelEndpoints.find(hasBaseUrl)
-    : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : DIRECT_ENDPOINTS.find(hasBaseUrl)
+  // DSH's direct adapter needs a concrete host, so only expose endpoint
+  // configurations that can actually be serialized into its route. Feeding
+  // those to the shared resolver keeps provider-default/model declarations in
+  // lockstep with normal AI requests while retaining the direct-host guard.
+  const endpointConfigs = Object.fromEntries(
+    Object.entries(provider.endpointConfigs ?? {}).filter(([, config]) => Boolean(config?.baseUrl))
+  ) as Provider['endpointConfigs']
+  const endpoint = resolveCanonicalEndpoint({ ...provider, endpointConfigs }, model, undefined, DIRECT_ENDPOINTS)
+    .endpointType as (typeof DIRECT_ENDPOINTS)[number] | undefined
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl

@@ -12,11 +12,11 @@
  * equivalent are unsupported for pi agents.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -42,6 +42,14 @@ export type PiApi =
   | 'openai-responses'
   | 'azure-openai-responses'
   | 'google-generative-ai'
+
+/** Endpoint protocols that can be materialized by the Pi runtime. */
+export const PI_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const
 
 /**
  * Map a Cherry endpoint (`endpointType` + resolved `adapterFamily`) to the pi
@@ -90,15 +98,13 @@ export function mapEndpointToPiApi(
 }
 
 /**
- * The effective chat endpoint the runtime would use: the model's first
- * declared endpoint, else the provider default. Mirrors
+ * The effective chat endpoint the runtime would use: a supported provider
+ * default, then the model's first declared endpoint, else the provider default. Mirrors
  * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
  * renderer, which has no main-only resolver, can reuse it).
  */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  return resolveCanonicalEndpoint(provider, model, undefined, PI_ENDPOINT_TYPES).endpointType
 }
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
