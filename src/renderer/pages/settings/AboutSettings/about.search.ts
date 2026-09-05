@@ -11,11 +11,5 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.general.auto_check_update.title',
     groupKey: 'settings.about.label',
     aliases: ['update', '更新']
-  },
-  {
-    anchorId: 'diagnostics',
-    titleKey: 'settings.doctor.entry.title',
-    groupKey: 'settings.about.label',
-    aliases: ['diagnostics', 'bundle', '诊断', '诊断包']
   }
 ]
