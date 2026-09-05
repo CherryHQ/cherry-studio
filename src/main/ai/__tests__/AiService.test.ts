@@ -30,6 +30,10 @@ const mockBuildFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
+const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
+  void options
+  return [] as unknown[]
+})
 const mockReadRetryPolicy = vi.fn(() => ({
   enabled: true,
   maxAttempts: 3,
@@ -200,6 +204,10 @@ vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
 
 vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
   buildFallbackModels: (options: unknown) => mockBuildFallbackModels(options)
+}))
+
+vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
+  buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
 }))
 
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
@@ -1334,7 +1342,178 @@ describe('AiService tool approval', () => {
 
     // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('wires API key failover when model retry is disabled', async () => {
+    const service = createService()
+    const keyFallback = vi.fn()
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback])
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: []
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      chatId: 'topic-1',
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyFallbacks: [keyFallback],
+        retryPolicy: expect.objectContaining({ enabled: false })
+      })
+    )
+  })
+
+  it('honors explicit retries with API key failover when model retry is disabled', async () => {
+    const service = createService()
+    const keyFallback = vi.fn()
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
+    mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { maxRetries: 2 },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      chatId: 'topic-1',
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { maxRetries: 2, signal: new AbortController().signal }
+    } as never)
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      requestOptions: { maxRetries: 2 }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(2)
+    for (const [retryOptions] of mockCreateRetryableWrap.mock.calls) {
+      expect(retryOptions).toEqual(
+        expect.objectContaining({
+          apiKeyFallbacks: [keyFallback],
+          retryPolicy: {
+            enabled: true,
+            maxAttempts: 2,
+            backoffEnabled: true,
+            fallbackModelIds: []
+          }
+        })
+      )
+    }
+    expect(mockBuildFallbackModels).toHaveBeenCalledTimes(2)
+    for (const [fallbackOptions] of mockBuildFallbackModels.mock.calls) {
+      expect(fallbackOptions).toEqual(
+        expect.objectContaining({
+          retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 2, fallbackModelIds: [] })
+        })
+      )
+    }
+  })
+
+  it('switches tool-call repair to the activated fallback credential', async () => {
+    const service = createService()
+    const primaryRepair = vi.fn().mockResolvedValue(null)
+    const fallbackRepair = vi.fn().mockResolvedValue(null)
+    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as never)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { repairToolCall: primaryRepair },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { repairToolCall: typeof fallbackRepair }) => void
+      onPrimaryActivated: () => void
+    }
+    const agentOptions = mockCreateAgent.mock.calls[0][0] as {
+      agentSettings: { experimental_repairToolCall: (options: never) => Promise<null> }
+    }
+    const repair = agentOptions.agentSettings.experimental_repairToolCall
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onFallbackActivated({ repairToolCall: fallbackRepair })
+    await repair({} as never)
+    expect(fallbackRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onPrimaryActivated()
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledTimes(2)
+  })
+
+  it('passes an explicit API key override to key-pool resolution', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'matched', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      apiKeyOverride: 'sk-selected'
+    } as never)
+
+    expect(mockBuildApiKeyFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-selected' }) })
+    )
   })
 
   it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
@@ -1408,6 +1587,7 @@ describe('AiService tool approval', () => {
     } as never)
 
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
   })
 

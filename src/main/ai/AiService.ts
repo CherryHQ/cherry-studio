@@ -60,7 +60,14 @@ import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
+import {
+  Agent,
+  buildAgentParams,
+  buildApiKeyFallbackModels,
+  buildFallbackModels,
+  createRetryableWrap,
+  readRetryPolicy
+} from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
@@ -146,6 +153,17 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
         icon: assistant.emoji
       }
     : undefined
+}
+
+function resolveTextRetryPolicy(
+  configured: ReturnType<typeof readRetryPolicy>,
+  requestMaxRetries: number | undefined,
+  hasApiKeyFallbacks: boolean
+): ReturnType<typeof readRetryPolicy> {
+  if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
+    return configured
+  }
+  return { ...configured, enabled: true, maxAttempts: requestMaxRetries, fallbackModelIds: [] }
 }
 
 function createCaptureContext(input: {
@@ -602,10 +620,31 @@ export class AiService extends BaseService {
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
     let wrapModel: ReturnType<typeof createRetryableWrap>
     if (!retryDisabledForRequest) {
-      const retryPolicy = readRetryPolicy()
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
       wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
@@ -616,8 +655,25 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
-          retryPolicy
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
         }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
+        },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
         // PersistenceListener strips it before the message is saved.
@@ -635,7 +691,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0 } : options,
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -696,12 +752,33 @@ export class AiService extends BaseService {
     })
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel: ReturnType<typeof createRetryableWrap>
     if (request.requestOptions?.maxRetries !== 0) {
-      const retryPolicy = readRetryPolicy()
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
       wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
@@ -712,8 +789,25 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
-          retryPolicy
-        })
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
+        }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
+        }
       })
     }
 
@@ -729,7 +823,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system: request.system ?? system,
-      options: wrapModel ? { ...options, maxRetries: 0 } : options,
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
