@@ -222,6 +222,69 @@ describe('useWebviewAnnotationSession', () => {
     })
   })
 
+  it('keeps annotation mode disabled when delivering the toggle rejects', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => stateChanged(webview, sessionOne, false, 0))
+    vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+
+    await act(async () => {
+      await result.current.toggle()
+    })
+
+    expect(result.current.enabled).toBe(false)
+  })
+
+  it('keeps the count and editor when delivering clear rejects', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => {
+      stateChanged(webview, sessionOne, true, 2)
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        comment: 'Retry this draft',
+        canDelete: true,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
+    })
+    vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+
+    await act(async () => {
+      await result.current.clear()
+    })
+
+    expect(result.current.count).toBe(2)
+    expect(result.current.editor?.draft).toBe('Retry this draft')
+  })
+
+  it('keeps the editor open when delivering cancel rejects', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => {
+      stateChanged(webview, sessionOne, true, 1)
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        comment: 'Retry this draft',
+        canDelete: true,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
+    })
+    vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+
+    await act(async () => {
+      await result.current.cancelEditor()
+    })
+
+    expect(result.current.editor?.draft).toBe('Retry this draft')
+  })
+
   it('commits guest state ahead of unrelated suspended Activity work', () => {
     const webview = createWebview()
     const webviewRef = createWebviewRef(webview)
@@ -413,6 +476,40 @@ describe('useWebviewAnnotationSession', () => {
         await vi.advanceTimersByTimeAsync(2_001)
         await copyRejection
       })
+      expect(request).not.toHaveBeenCalled()
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects immediately and clears the timeout when snapshot delivery rejects', async () => {
+    vi.useFakeTimers()
+    try {
+      const webview = createWebview()
+      const webviewRef = createWebviewRef(webview)
+      const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+      act(() => stateChanged(webview))
+      vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+
+      let copyResult: Promise<void>
+      act(() => {
+        copyResult = result.current.copy()
+      })
+      const outcome = copyResult!.then(
+        () => 'resolved',
+        (error: Error) => error.message
+      )
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(await Promise.race([outcome, Promise.resolve('pending')])).toBe(
+        'Failed to request webview annotation snapshot'
+      )
+      expect(result.current.copying).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
       expect(request).not.toHaveBeenCalled()
       expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
     } finally {

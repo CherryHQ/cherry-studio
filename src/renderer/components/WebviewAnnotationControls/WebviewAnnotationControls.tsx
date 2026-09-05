@@ -21,7 +21,7 @@ import {
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
@@ -46,13 +46,17 @@ export function WebviewAnnotationControls({
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [clearConfirmTargetId, setClearConfirmTargetId] = useState<string | null>(null)
+  const keepClearConfirmOpenRef = useRef(false)
   const locale = useMemo<WebviewAnnotationLocale>(
     () => ({
       edit: t('webview.annotation.edit')
     }),
     [t]
   )
-  useEffect(() => setClearConfirmTargetId(null), [target.id])
+  useEffect(() => {
+    keepClearConfirmOpenRef.current = false
+    setClearConfirmTargetId(null)
+  }, [target.id])
   const {
     enabled,
     count,
@@ -85,10 +89,21 @@ export function WebviewAnnotationControls({
     }
   }
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (clearConfirmTargetId !== target.id) return
-    if (!clear()) return
+    if (!(await clear())) {
+      keepClearConfirmOpenRef.current = true
+      return
+    }
     setClearConfirmTargetId(null)
+  }
+
+  const handleClearOpenChange = (open: boolean) => {
+    if (!open && keepClearConfirmOpenRef.current) {
+      keepClearConfirmOpenRef.current = false
+      return
+    }
+    setClearConfirmTargetId(open ? target.id : null)
   }
 
   const disabled = !isWebviewReady || !isHostActive || !ready
@@ -114,7 +129,11 @@ export function WebviewAnnotationControls({
 
   return (
     <>
-      <Popover open={Boolean(editor)} onOpenChange={(open) => !open && cancelEditor()}>
+      <Popover
+        open={Boolean(editor)}
+        onOpenChange={(open) => {
+          if (!open) void cancelEditor()
+        }}>
         <div className="flex items-center gap-0.5">
           <Tooltip content={annotationLabel} placement="bottom">
             <Button
@@ -122,7 +141,7 @@ export function WebviewAnnotationControls({
               variant="ghost"
               size="icon-sm"
               disabled={disabled}
-              onClick={toggle}
+              onClick={() => void toggle()}
               className={cn(controlButtonClassName(enabled), count > 0 && 'h-7 w-auto gap-1 px-1.5')}
               aria-label={annotationLabel}
               aria-pressed={enabled}>
@@ -188,7 +207,7 @@ export function WebviewAnnotationControls({
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault()
-                  saveEditor()
+                  void saveEditor()
                 }
               }}
             />
@@ -199,14 +218,19 @@ export function WebviewAnnotationControls({
             )}
             <div className="flex justify-end gap-2">
               {editor.canDelete && (
-                <Button type="button" variant="destructive" size="sm" className="mr-auto" onClick={deleteEditor}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="mr-auto"
+                  onClick={() => void deleteEditor()}>
                   {t('webview.annotation.delete')}
                 </Button>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={cancelEditor}>
+              <Button type="button" variant="outline" size="sm" onClick={() => void cancelEditor()}>
                 {t('webview.annotation.cancel')}
               </Button>
-              <Button type="button" size="sm" disabled={!editor.draft.trim()} onClick={saveEditor}>
+              <Button type="button" size="sm" disabled={!editor.draft.trim()} onClick={() => void saveEditor()}>
                 {t('webview.annotation.save')}
               </Button>
             </div>
@@ -216,7 +240,7 @@ export function WebviewAnnotationControls({
 
       <ConfirmDialog
         open={clearConfirmTargetId === target.id}
-        onOpenChange={(open) => setClearConfirmTargetId(open ? target.id : null)}
+        onOpenChange={handleClearOpenChange}
         title={t('webview.annotation.clear_title')}
         description={t('webview.annotation.clear_description')}
         confirmText={t('webview.annotation.clear')}
