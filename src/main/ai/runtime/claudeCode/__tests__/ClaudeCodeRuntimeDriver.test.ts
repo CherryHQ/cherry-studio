@@ -2945,6 +2945,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       modelId: 'claude-code::sonnet' as any,
       resumeToken: 'stale-token'
     })
+    const events = connection.events[Symbol.asyncIterator]()
     const message = {
       ...userMessage(),
       data: {
@@ -2973,6 +2974,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
 
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-before-materialization' })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'data-conversation-reset' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'resume-token', token: 'fresh-before-materialization' }
+    })
+
     prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
     await expect(readWrittenSdkInput(retrySpawn.prompt)).resolves.toMatchObject({
@@ -2984,6 +2993,36 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     await sending
+    void connection.close()
+  })
+
+  it('rejects a fresh send when the query fails before writing its consumed input', async () => {
+    const queryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => queryResult.promise }
+      }
+    }
+    let sdkInput!: AsyncIterable<any>
+    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+      sdkInput = prompt
+      return query
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message: userMessage() })
+    await expect(sdkInput[Symbol.asyncIterator]().next()).resolves.toMatchObject({ done: false })
+    queryResult.reject(new Error('fresh transport failed before input write'))
+
+    await expect(sending).rejects.toThrow('fresh transport failed before input write')
     void connection.close()
   })
 
@@ -3015,6 +3054,63 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryResult.reject(new Error('transport failed before input write'))
 
     await expect(sending).rejects.toThrow('transport failed before input write')
+    void connection.close()
+  })
+
+  it('rejects a later resumed send when the query fails before writing its consumed input', async () => {
+    const firstQueryResult = createDeferred<IteratorResult<any>>()
+    const secondQueryResult = createDeferred<IteratorResult<any>>()
+    const queryIterator = {
+      next: vi
+        .fn()
+        .mockImplementationOnce(() => firstQueryResult.promise)
+        .mockImplementationOnce(() => secondQueryResult.promise)
+    }
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return queryIterator
+      }
+    }
+    let sdkInput!: AsyncIterable<any>
+    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+      sdkInput = prompt
+      return query
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-before-first-write'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const inputIterator = sdkInput[Symbol.asyncIterator]()
+
+    connection.reserveInput?.()
+    const firstSending = connection.send({ message: userMessage() })
+    await expect(inputIterator.next()).resolves.toMatchObject({ done: false })
+    const secondInput = inputIterator.next()
+    await firstSending
+    firstQueryResult.resolve({
+      value: { type: 'result', subtype: 'success', session_id: 'resume-after-first-write', usage: {} },
+      done: false
+    })
+    let runtimeEvent: IteratorResult<any>
+    do {
+      runtimeEvent = await events.next()
+    } while (runtimeEvent.value?.type !== 'turn-complete')
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message: { ...userMessage(), id: 'user-2' } })
+    await expect(secondInput).resolves.toMatchObject({
+      value: { type: 'user', session_id: 'resume-after-first-write' },
+      done: false
+    })
+    secondQueryResult.reject(new Error('later transport failed before input write'))
+
+    await expect(sending).rejects.toThrow('later transport failed before input write')
     void connection.close()
   })
 

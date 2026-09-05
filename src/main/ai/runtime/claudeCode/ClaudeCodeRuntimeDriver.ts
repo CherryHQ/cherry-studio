@@ -526,7 +526,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   reserveInput(): () => void {
-    if (this.initialResumedInputClaimed || this.reservedInputClaim?.active) return () => {}
+    if (this.reservedInputClaim?.active) return () => {}
     const claim = { active: true }
     this.reservedInputClaim = claim
     this.pendingInputClaims += 1
@@ -543,7 +543,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const requiresInputClaim = !this.initialResumedInputClaimed
+    const requiresInputClaim = !this.initialResumedInputClaimed || this.reservedInputClaim?.active === true
     if (requiresInputClaim) {
       if (this.reservedInputClaim?.active) {
         this.reservedInputClaim.active = false
@@ -552,6 +552,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.pendingInputClaims += 1
       }
     }
+    // Recovery during materialization rebases this input onto a query whose first message is unscoped.
+    const resumeRecoveryRetriedBeforeMaterialization = this.resumeRecoveryRetried
     let sdkMessage: SDKUserMessage
     if (requiresInputClaim) this.pendingInputMaterialization = true
     try {
@@ -559,7 +561,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
-      sdkMessage = { ...sdkMessage, session_id: this.resumeToken ?? '' }
+      sdkMessage = {
+        ...sdkMessage,
+        session_id:
+          resumeRecoveryRetriedBeforeMaterialization === this.resumeRecoveryRetried ? (this.resumeToken ?? '') : ''
+      }
     } catch (error) {
       this.pendingInputMaterialization = false
       if (requiresInputClaim) this.pendingInputClaims -= 1
