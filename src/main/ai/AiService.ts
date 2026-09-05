@@ -27,6 +27,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -277,6 +278,7 @@ export interface AiImageRequest extends AiBaseRequest {
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
   files: FileEntry[]
+  validation?: GeneratedImageValidation
 }
 
 /**
@@ -856,23 +858,28 @@ export class AiService extends BaseService {
       onProviderCall: createProviderCallHandler(imageUsageContext)
     })
 
+    const images = result.images ?? []
     const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+    const rejected: GeneratedImageValidation['rejected'] = []
+    for (const [index, image] of images.entries()) {
+      const mediaType = image.mediaType || 'image/png'
+      if (!mediaType.startsWith('image/')) {
+        rejected.push({ index, reason: 'unsupported_media_type' })
+      } else if (!image.base64) {
+        rejected.push({ index, reason: 'invalid_image_data' })
+      } else {
+        dataUrls.push(`data:${mediaType};base64,${image.base64}`)
       }
-
-      filteredCount += 1
     }
 
-    if (filteredCount > 0) {
+    const validation =
+      images.length === 0 || rejected.length > 0 ? { receivedCount: images.length, rejected } : undefined
+    if (validation) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
         providerId: sdkConfig.providerId,
         modelId: sdkConfig.modelId,
-        filteredCount
+        validation
       })
     }
     const fileManager = application.get('FileManager')
@@ -882,7 +889,7 @@ export class AiService extends BaseService {
       )
     )
 
-    return { files }
+    return { files, ...(validation && { validation }) }
   }
 
   /**

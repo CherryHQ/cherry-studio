@@ -529,7 +529,13 @@ describe('AiService', () => {
       data: 'data:image/png;base64,abc123',
       cleanupPolicy: 'delete_when_unreferenced'
     })
-    expect(result).toEqual({ files: [fileEntry] })
+    expect(result).toEqual({
+      files: [fileEntry],
+      validation: {
+        receivedCount: 2,
+        rejected: [{ index: 1, reason: 'invalid_image_data' }]
+      }
+    })
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
@@ -603,6 +609,86 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  describe('generateImage — output validation', () => {
+    it('reports why every provider image was rejected without issuing another request', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: '', mediaType: 'image/png' },
+          { base64: '', mediaType: 'text/html' }
+        ]
+      })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 2,
+          rejected: [
+            { index: 0, reason: 'invalid_image_data' },
+            { index: 1, reason: 'unsupported_media_type' }
+          ]
+        }
+      })
+      expect(mockGenerateImage).toHaveBeenCalledOnce()
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('keeps valid images from a mixed response and reports only the rejected entries', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: '', mediaType: 'image/png' },
+          { base64: 'valid-bytes', mediaType: 'image/webp' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'webp', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledWith({
+        source: 'base64',
+        data: 'data:image/webp;base64,valid-bytes',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(mockGenerateImage).toHaveBeenCalledOnce()
+    })
   })
 
   // The direct (non-job) image path observes the actual ImageModel doGenerate

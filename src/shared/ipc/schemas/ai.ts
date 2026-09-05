@@ -1,4 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { generatedImageRejectionReasons } from '@shared/ai/paintingGenerateError'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -22,7 +23,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
@@ -182,9 +183,17 @@ export const aiRequestSchemas = {
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
-    // Pin the output to the named `FileEntry` so declaration-emit references the alias
-    // instead of trying to name FileEntry's module-private phantom path brand (TS4023).
-    output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
+    output: z.object({
+      files: z.array(FileEntrySchema),
+      validation: z
+        .object({
+          receivedCount: z.number().int().nonnegative(),
+          rejected: z.array(
+            z.object({ index: z.number().int().nonnegative(), reason: z.enum(generatedImageRejectionReasons) })
+          )
+        })
+        .optional()
+    })
   }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
