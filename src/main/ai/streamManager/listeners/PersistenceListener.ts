@@ -18,7 +18,6 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
-  hasRenderableContent,
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
@@ -35,16 +34,6 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
-  /**
-   * When true, a terminal `success` whose parts carry no renderable content
-   * (e.g. a lone `step-start` left by an empty AI SDK stream) is persisted as
-   * `error` instead. Defaults to `!backend.canPersistEmptySuccessTerminal` so a
-   * backend that declares empty success valid (agents) is not downgraded unless
-   * the caller explicitly opts in. The agent runtime's explicit
-   * `rejectEmptySuccess: false` is still honoured but no longer required for
-   * the backend capability to take effect.
-   */
-  rejectEmptySuccess?: boolean
   /**
    * Called when persistence fails after a terminal event. The DB row is already driven to
    * `error`; this lets the caller surface that error while the manager suppresses the original
@@ -100,39 +89,11 @@ export class PersistenceListener implements StreamListener {
     status: 'success' | 'paused' | 'error',
     runtimeTiming: MessageRuntimeTiming | undefined
   ): Promise<void> {
-    // Strip live-only status parts (e.g. data-retry), then empty
-    // text/reasoning parts so neither can reach storage. Applied for all
-    // statuses. The `finalMessage`
-    // guard is for the typed-undefined error path (no finalMessage).
-    const strippedParts = finalMessage
-      ? dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[]))
-      : undefined
-
-    // Reject "success" streams that ended without any renderable output (e.g. a
-    // CherryIN gateway returning an empty stream that only left a `step-start`
-    // marker). Persist as a terminal `error` so the turn never renders as an
-    // empty success bubble. Check AFTER stripping so empty text/reasoning parts
-    // don't count as content. Tool-only turns keep success — tool parts render.
-    // `rejectEmptySuccess` defaults to the inverse of the backend capability so
-    // a backend that declares empty success valid (agents) is not downgraded
-    // unless the caller explicitly opts in. Treat an absent finalMessage as
-    // empty parts so a genuinely empty stream is downgraded to error rather than
-    // leaving the SQLite placeholder `pending` forever.
-    const rejectEmptySuccess = this.opts.rejectEmptySuccess ?? !this.opts.backend.canPersistEmptySuccessTerminal
-    const partsForEmptyCheck = strippedParts ?? []
-    const shouldDowngradeEmptySuccess =
-      status === 'success' && rejectEmptySuccess && !hasRenderableContent(partsForEmptyCheck)
-    const effectiveStatus = shouldDowngradeEmptySuccess ? 'error' : status
-
-    const canPersistEmpty =
-      effectiveStatus === 'success'
-        ? this.opts.backend.canPersistEmptySuccessTerminal
-        : this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!finalMessage && !this.opts.backend.canPersistEmptyTerminal) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status: effectiveStatus
+        status
       })
       return
     }
@@ -140,7 +101,10 @@ export class PersistenceListener implements StreamListener {
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
-          parts: finalizeInterruptedParts(strippedParts as CherryMessagePart[], effectiveStatus)
+          parts: finalizeInterruptedParts(
+            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
+            status
+          )
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
@@ -152,20 +116,20 @@ export class PersistenceListener implements StreamListener {
     try {
       await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
-        status: effectiveStatus,
+        status,
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status: effectiveStatus
+        status
       })
     } catch (err) {
       logger.error('Failed to persist assistant message', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status: effectiveStatus,
+        status,
         err
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
@@ -194,7 +158,7 @@ export class PersistenceListener implements StreamListener {
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     }
 
-    if (effectiveStatus === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,

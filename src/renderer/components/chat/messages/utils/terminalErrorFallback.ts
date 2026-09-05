@@ -1,4 +1,4 @@
-import { hasRenderableContent, isHiddenMarkerPart, isRenderablePart } from '@shared/data/messageRenderability'
+import { hasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 function isDismissedNoResponseMarker(part: CherryMessagePart): boolean {
@@ -12,11 +12,13 @@ function isDismissedNoResponseMarker(part: CherryMessagePart): boolean {
  * Appends a localized "no response" error part to assistant messages that ended
  * without any visible content: a `success` status whose parts are all hidden
  * transport markers or empty structured payloads, or an `error` status that has
- * neither visible content nor a `data-error` part. The error branch now also
+ * neither visible content nor a `data-error` part. The error branch also
  * requires `!hasVisiblePart` so an error turn that already shows answer content
  * (e.g. streamed text before the failure) does not get a misleading "No response"
  * block. Shared by the agents and home message list adapters. Returns the input
- * map by reference when nothing changes.
+ * map by reference when nothing changes. This is a display fallback for
+ * historical / abnormal chains; the authoritative empty-success → error
+ * transition is owned by `AiStreamManager`.
  */
 export function withTerminalErrorFallback(
   messages: CherryUIMessage[],
@@ -41,12 +43,10 @@ export function withTerminalErrorFallback(
       ...parts,
       {
         type: 'data-error',
-        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
+        data: { name: 'NoResponseError', message: noResponseMessage, stack: null, i18nKey: 'no_response' }
       }
     ]
   }
 
   return next
 }
-
-export { hasRenderableContent, isHiddenMarkerPart, isRenderablePart }

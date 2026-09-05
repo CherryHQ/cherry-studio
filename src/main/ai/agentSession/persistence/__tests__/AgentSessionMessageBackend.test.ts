@@ -41,33 +41,4 @@ describe('AgentSessionMessageBackend', () => {
     expect(mocks.markTerminalError).toHaveBeenCalledWith('session-1', 'assistant-1')
     expect(onPersistFailed).toHaveBeenCalledOnce()
   })
-
-  it('terminalizes an empty successful Agent reply on its reserved placeholder', async () => {
-    const backend = new AgentSessionMessageBackend({
-      sessionId: 'session-1',
-      assistantMessageId: 'assistant-1'
-    })
-    const listener = new PersistenceListener({
-      topicId: 'agent-session:session-1',
-      backend,
-      onPersistFailed: vi.fn(),
-      rejectEmptySuccess: false
-    })
-
-    await listener.onDone({ status: 'success', finalMessage: undefined })
-
-    expect(mocks.saveMessage).toHaveBeenCalledWith(
-      {
-        sessionId: 'session-1',
-        message: {
-          id: 'assistant-1',
-          role: 'assistant',
-          status: 'error',
-          data: { parts: [] },
-          modelId: undefined
-        }
-      },
-      { publishDataChange: true }
-    )
-  })
 })

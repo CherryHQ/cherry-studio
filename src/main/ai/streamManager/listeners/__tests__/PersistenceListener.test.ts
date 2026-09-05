@@ -150,74 +150,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     ])
   })
 
-  it('persists an empty terminal stream (step-start only) as status=error, not an empty success', async () => {
-    const listener = makeListener('openai::gpt-4o')
-
-    const finalMessage = {
-      id: 'ignored',
-      role: 'assistant',
-      parts: [{ type: 'step-start' }]
-    } as unknown as CherryUIMessage
-
-    await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
-
-    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
-    const payload = appendAssistantMessageMock.mock.calls[0][1]
-    expect(payload.status).toBe('error')
-  })
-
-  it('persists a success whose only parts are empty text/reasoning as status=error', async () => {
-    const listener = makeListener()
-
-    const finalMessage = {
-      id: 'ignored',
-      role: 'assistant',
-      parts: [
-        { type: 'text', text: '' },
-        { type: 'reasoning', text: '   \n ', state: 'done' }
-      ]
-    } as unknown as CherryUIMessage
-
-    await listener.onDone({ finalMessage, status: 'success' })
-
-    const payload = appendAssistantMessageMock.mock.calls[0][1]
-    expect(payload.status).toBe('error')
-    expect(payload.data.parts).toEqual([])
-  })
-
-  it('persists a success with no parts at all as status=error', async () => {
-    const listener = makeListener()
-
-    await listener.onDone({
-      finalMessage: { id: 'ignored', role: 'assistant', parts: [] } as unknown as CherryUIMessage,
-      status: 'success'
-    })
-
-    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
-    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('error')
-  })
-
-  it('keeps status=success for an empty-parts terminal when rejectEmptySuccess is off', async () => {
-    const listener = new PersistenceListener({
-      topicId: 'abc',
-      rejectEmptySuccess: false,
-      backend: new TemporaryChatBackend({
-        topicId: 'abc',
-        messageId: 'assistant-message-id',
-        messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
-      }),
-      onPersistFailed: vi.fn()
-    })
-
-    await listener.onDone({
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] } as unknown as CherryUIMessage,
-      status: 'success'
-    })
-
-    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
-    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('success')
-  })
-
   it('keeps status=success when hidden markers accompany real content', async () => {
     const listener = makeListener()
 
@@ -441,19 +373,6 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('finalizes an empty successful stream as error instead of leaving it pending', async () => {
-    const listener = makeMessageServiceListener()
-
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
-
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: { parts: [] },
-      status: 'error',
-      runtimeStats: undefined
-    })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
-  })
-
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
@@ -590,29 +509,6 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       data: { parts: [{ type: 'text', text: 'hi' }] },
       status: 'success',
       runtimeStats: { runtimeTiming, contextTokens: 13 }
-    })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
-  })
-
-  it('finalizes an empty terminal stream as status=error so the placeholder is never an empty success', async () => {
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
-    })
-
-    const finalMessage = {
-      id: 'ignored',
-      role: 'assistant',
-      parts: [{ type: 'step-start' }]
-    } as unknown as CherryUIMessage
-
-    await listener.onDone({ finalMessage, status: 'success' })
-
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: { parts: [{ type: 'step-start' }] },
-      status: 'error',
-      runtimeStats: undefined
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })

@@ -8,7 +8,6 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
-import { hasRenderableContent as sharedHasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -112,9 +111,6 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
-/** Shared renderability predicate — single source of truth for hidden-marker + empty structured payload checks. */
-export const hasRenderableContent = sharedHasRenderableContent
-
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
@@ -133,9 +129,6 @@ export interface PersistenceBackend {
    * still write terminal status when a stream is paused before producing chunks.
    */
   readonly canPersistEmptyTerminal?: boolean
-
-  /** True only when an empty successful response is itself a valid terminal result. */
-  readonly canPersistEmptySuccessTerminal?: boolean
 
   persistAssistant(input: PersistAssistantInput): void | Promise<void>
 

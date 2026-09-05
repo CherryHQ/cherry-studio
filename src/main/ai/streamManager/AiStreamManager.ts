@@ -30,6 +30,7 @@ import type {
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { hasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -292,6 +293,19 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
   const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
   return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
+}
+
+function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean {
+  if (!finalMessage) return false
+  const parts = finalMessage.parts as CherryMessagePart[]
+  if (!parts || parts.length === 0) return true
+  // Strip transient and empty text/reasoning parts the same way PersistenceListener does,
+  // then check shared renderability (hidden markers + empty structured payloads).
+  const stripped = parts.filter((part) => part.type !== 'data-retry').filter((part) => {
+    if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
+    return true
+  })
+  return !hasRenderableContent(stripped as CherryMessagePart[])
 }
 
 /**
@@ -1966,6 +1980,14 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (isEmptySuccessTurn(exec.finalMessage as CherryUIMessage | undefined)) {
+      const noResponseError: SerializedError = {
+        name: 'NoResponseError',
+        message: 'No response',
+        stack: null,
+        i18nKey: 'no_response'
+      }
+      await this.onExecutionError(topicId, modelId, noResponseError, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }

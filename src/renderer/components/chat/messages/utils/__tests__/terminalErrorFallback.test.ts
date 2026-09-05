@@ -29,7 +29,7 @@ describe('withTerminalErrorFallback', () => {
     expect(next).not.toBe(partsByMessageId)
     expect(next.m1).toEqual([
       stepStart,
-      { type: 'data-error', data: { name: 'AgentRuntimeError', message: 'No response', stack: null } }
+      { type: 'data-error', data: { name: 'NoResponseError', message: 'No response', stack: null, i18nKey: 'no_response' } }
     ])
   })
 
