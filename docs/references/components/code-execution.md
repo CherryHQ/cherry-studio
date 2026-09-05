@@ -4,6 +4,7 @@ sources:
   - src/renderer/components/CodeBlockView
   - src/renderer/services/PyodideService.ts
   - src/renderer/workers/pyodide.worker.ts
+  - src/main/services/PythonService.ts
 ---
 
 # Code Execution
@@ -41,13 +42,25 @@ CodeBlockView
 
 `PyodideService` owns worker initialization, request IDs, response resolvers,
 timeouts, reset, and termination. Initialization is shared across calls and may
-retry up to five times. A run timeout rejects that request's resolver; it does
-not interrupt Python already executing inside the worker.
+retry up to five times.
+
+Runs are serialized through an internal promise queue. Pyodide executes Python
+synchronously on the worker thread and the worker keeps one module-level output
+buffer, so a second run reaches the worker only after the previous one settles,
+and each run's timeout is measured from the moment it leaves the queue rather
+than from when it was requested. A run that times out terminates the worker —
+the only way to release a thread pinned by runaway Python — and the next queued
+run lazily rebuilds it through `initialize()`.
 
 The service also listens for the legacy
 `IpcChannel.Python_ExecutionRequest` renderer event and replies on
 `Python_ExecutionResponse`, allowing a main-process caller to use the same
-worker.
+worker. `PythonService` in the main process holds the caller-facing budget for
+those requests and broadcasts `Python_ExecutionCancel` with the request id when
+it expires. The renderer skips the request if it is still queued, and terminates
+the worker if it is already running, so a caller told that its run timed out
+never leaves Python executing behind it. `runScript` takes an optional
+`AbortSignal` to carry that cancellation.
 
 ## Worker behavior
 
@@ -69,8 +82,8 @@ injected into the Python globals.
 
 `PyodideService.formatOutput` prefers stdout, otherwise formats the expression
 result, then appends stderr/errors. A run with no output returns
-`Execution completed with no output.` Initialization, timeout, and internal
-failures resolve to user-visible text instead of rejecting the UI call.
+`Execution completed with no output.` Initialization, timeout, cancellation, and
+internal failures resolve to user-visible text instead of rejecting the UI call.
 
 Matplotlib's patched `show()` saves the current figure to an in-memory PNG data
 URL. `CodeBlockView` displays that image together with any text result.
@@ -90,7 +103,14 @@ The UI contract is covered by:
 pnpm test:renderer src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
 ```
 
+Serialization, timeout-terminates-worker, and the cross-process cancel handshake
+are covered by:
+
+```bash
+pnpm exec vitest run --project renderer src/renderer/services/__tests__/PyodideService.test.ts
+pnpm exec vitest run --project main src/main/services/__tests__/PythonService.test.ts
+```
+
 Changes to the service or worker also require a manual run that covers initial
 runtime download, package loading, timeout reporting, stdout/stderr, and
-Matplotlib image output; those layers currently have no dedicated automated
-tests.
+Matplotlib image output; the worker layer has no dedicated automated tests.

@@ -19,9 +19,10 @@ export enum IpcChannel {
   StorageMonitor_GetHealth = 'storage-monitor:get-health',
   StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
-  // Python: main→renderer(pyodide)→main reverse RPC
+  // Python: main→renderer(pyodide)→main reverse RPC, plus the main→renderer cancel leg
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
+  Python_ExecutionCancel = 'python:execution-cancel',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

@@ -35,6 +35,7 @@ class PyodideService {
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
+  private queue: Promise<unknown> = Promise.resolve()
 
   /**
    * 初始化 Pyodide Worker
@@ -133,11 +134,30 @@ class PyodideService {
    * @param timeout 超时时间（毫秒）
    * @returns 格式化后的执行结果
    */
-  public async runScript(
+  public runScript(
     script: string,
     context: Record<string, any> = {},
-    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
+    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN,
+    signal?: AbortSignal
   ): Promise<PyodideExecutionResult> {
+    // Worker 内的 Pyodide 同步执行且共享输出缓冲，必须串行处理请求
+    const run = () => this.executeScript(script, context, timeout, signal)
+    const task = this.queue.then(run, run)
+    this.queue = task
+    return task
+  }
+
+  private async executeScript(
+    script: string,
+    context: Record<string, any>,
+    timeout: number,
+    signal?: AbortSignal
+  ): Promise<PyodideExecutionResult> {
+    // 调用方（如 main 侧超时）在排队期间已取消：直接跳过，不产生任何副作用
+    if (signal?.aborted) {
+      return { text: 'Python execution cancelled' }
+    }
+
     // 确保Pyodide已初始化
     try {
       await this.initialize()
@@ -152,26 +172,45 @@ class PyodideService {
       return { text }
     }
 
+    // 初始化期间到达的取消不会触发之后才注册的 abort 监听器，必须在此补查
+    if (signal?.aborted) {
+      return { text: 'Python execution cancelled' }
+    }
+
     try {
       const output = await new Promise<PyodideOutput>((resolve, reject) => {
         const id = uuid()
 
-        // 设置消息超时
+        // 超时说明 Python 代码卡死了 worker 线程，只能销毁重建才能释放 CPU
         const timeoutId = setTimeout(() => {
+          signal?.removeEventListener('abort', onAbort)
           this.resolvers.delete(id)
+          this.terminate()
           reject(new Error('Python execution timed out'))
         }, timeout)
+
+        // 执行中被取消与超时同责：销毁 worker 立即停止副作用
+        const onAbort = () => {
+          clearTimeout(timeoutId)
+          this.resolvers.delete(id)
+          this.terminate()
+          reject(new Error('Python execution cancelled'))
+        }
 
         this.resolvers.set(id, {
           resolve: (output) => {
             clearTimeout(timeoutId)
+            signal?.removeEventListener('abort', onAbort)
             resolve(output)
           },
           reject: (error) => {
             clearTimeout(timeoutId)
+            signal?.removeEventListener('abort', onAbort)
             reject(error)
           }
         })
+
+        signal?.addEventListener('abort', onAbort, { once: true })
 
         this.worker?.postMessage({
           id,
@@ -280,9 +319,26 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
     error?: string
   }
 
+  const abortControllers = new Map<string, AbortController>()
+
+  window.electron.ipcRenderer.on(IpcChannel.Python_ExecutionCancel, (_, requestId: string) => {
+    const controller = abortControllers.get(requestId)
+    if (controller) {
+      abortControllers.delete(requestId)
+      controller.abort()
+    }
+  })
+
   window.electron.ipcRenderer.on(IpcChannel.Python_ExecutionRequest, async (_, request: PythonExecutionRequest) => {
+    const controller = new AbortController()
+    abortControllers.set(request.id, controller)
     try {
-      const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
+      const { text } = await pyodideService.runScript(
+        request.script,
+        request.context,
+        request.timeout,
+        controller.signal
+      )
       const response: PythonExecutionResponse = {
         id: request.id,
         result: text
@@ -294,6 +350,8 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
         error: error instanceof Error ? error.message : String(error)
       }
       window.electron.ipcRenderer.send(IpcChannel.Python_ExecutionResponse, response)
+    } finally {
+      abortControllers.delete(request.id)
     }
   })
 }
