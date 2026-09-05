@@ -69,23 +69,6 @@ export class ClaudeCodeResultError extends Error {
   }
 }
 
-/**
- * The Claude subprocess accepted a provider response as `end_turn`, but the only useful content is
- * a leaked DSML closing fragment in thinking. At this boundary the missing tool name/input cannot
- * be reconstructed safely; failing the query prevents Claude's internal no-output continuation
- * loop from repeatedly advancing the corrupt transcript.
- */
-export class MalformedDsmlToolCallError extends Error {
-  readonly exitCode = 1
-
-  constructor() {
-    super(
-      'The provider returned an incomplete DSML tool call. The Agent turn was stopped to avoid a no-output continuation loop; retry the turn or use an endpoint with native tool-call support.'
-    )
-    this.name = 'MalformedDsmlToolCallError'
-  }
-}
-
 function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
   const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
   const isErrorResult =
@@ -105,8 +88,6 @@ const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
-const DSML_TERMINAL_CLOSING_SEQUENCE_RE =
-  /<\/｜{1,2}DSML｜{1,2}invoke\s*>[\s\S]*<\/｜{1,2}DSML｜{1,2}tool_calls\s*>\s*$/
 
 // ── Internal types ──────────────────────────────────────────────────
 
@@ -270,26 +251,6 @@ function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
   }
   if (typeof value.is_error === 'boolean') summary.is_error = value.is_error
   return summary
-}
-
-function isMalformedDsmlThinkingOnlyTurn(message: SDKAssistantMessage): boolean {
-  if (message.message?.stop_reason !== 'end_turn' || !Array.isArray(message.message.content)) return false
-
-  let hasVisibleText = false
-  let hasToolUse = false
-  let hasDsmlClosingFragment = false
-
-  for (const block of message.message.content) {
-    if (block.type === 'tool_use' || block.type === 'server_tool_use' || block.type === 'mcp_tool_use') {
-      hasToolUse = true
-    } else if (block.type === 'text') {
-      hasVisibleText ||= block.text.trim().length > 0
-    } else if (block.type === 'thinking') {
-      hasDsmlClosingFragment ||= DSML_TERMINAL_CLOSING_SEQUENCE_RE.test(block.thinking)
-    }
-  }
-
-  return hasDsmlClosingFragment && !hasVisibleText && !hasToolUse
 }
 
 /**
@@ -1059,11 +1020,6 @@ export class ClaudeCodeStreamAdapter {
     if (message.aborted) {
       ctx.sawAbortedMessage = true
       logger.warn('Assistant message was truncated by an interrupt')
-    }
-
-    if (isMalformedDsmlThinkingOnlyTurn(message)) {
-      logger.warn('Stopping malformed DSML thinking-only end_turn before the SDK can continue it')
-      throw new MalformedDsmlToolCallError()
     }
 
     if (!message.message?.content) return

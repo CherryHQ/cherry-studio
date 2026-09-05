@@ -16,7 +16,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { ClaudeCodeResultError, ClaudeCodeStreamAdapter, MalformedDsmlToolCallError } = await import('../streamAdapter')
+const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
@@ -590,78 +590,6 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
     expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: 'plan' })
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
-  })
-
-  it.each([
-    '</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>',
-    '</｜｜DSML｜｜parameter>\n</｜｜DSML｜｜invoke>\n</｜｜DSML｜｜tool_calls>'
-  ])('stops a thinking-only end_turn containing a malformed DSML fragment', (thinking) => {
-    const { adapter, parts } = createAdapter()
-
-    expect(() =>
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: null,
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: {
-          role: 'assistant',
-          stop_reason: 'end_turn',
-          content: [{ type: 'thinking', thinking, signature: 'sig' }]
-        }
-      } as any)
-    ).toThrow(MalformedDsmlToolCallError)
-    expect(parts).toEqual([])
-  })
-
-  it.each([
-    'I should explain what DSML means.',
-    'The parser should preserve a lone </｜DSML｜tool_calls> tag in quoted input.',
-    'Quoted sequence: </｜DSML｜invoke></｜DSML｜tool_calls> followed by an explanation.'
-  ])('does not reject an ordinary thinking-only end_turn that mentions DSML syntax', (thinking) => {
-    const { adapter } = createAdapter()
-
-    expect(() =>
-      adapter.handleMessage({
-        type: 'assistant',
-        parent_tool_use_id: null,
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: {
-          role: 'assistant',
-          stop_reason: 'end_turn',
-          content: [{ type: 'thinking', thinking, signature: 'sig' }]
-        }
-      } as any)
-    ).not.toThrow()
-  })
-
-  it('does not reject a DSML-looking turn that contains visible text or a structured tool call', () => {
-    const malformedThinking = {
-      type: 'thinking',
-      thinking: '</｜DSML｜invoke></｜DSML｜tool_calls>',
-      signature: 'sig'
-    }
-    const assistantMessage = (content: unknown[]) =>
-      ({
-        type: 'assistant',
-        parent_tool_use_id: null,
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        message: { role: 'assistant', stop_reason: 'end_turn', content }
-      }) as any
-
-    expect(() =>
-      createAdapter().adapter.handleMessage(assistantMessage([malformedThinking, { type: 'text', text: 'Visible' }]))
-    ).not.toThrow()
-    expect(() =>
-      createAdapter().adapter.handleMessage(
-        assistantMessage([
-          malformedThinking,
-          { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a.md' } }
-        ])
-      )
-    ).not.toThrow()
   })
 
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
