@@ -16,11 +16,22 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const messageServiceMocks = vi.hoisted(() => ({
+  findLaunchToolCallId: vi.fn()
+}))
+
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
+    findLaunchToolCallId: messageServiceMocks.findLaunchToolCallId
+  }
+}))
+
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  messageServiceMocks.findLaunchToolCallId.mockReturnValue(null)
 })
 
 /**
@@ -1807,6 +1818,38 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Resumed review'
       })
 
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it('recovers the launch root from the database when the adapter starts fresh', () => {
+      // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
+      // must land on the persisted launch tool-use id, not the resuming call.
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      expect(messageServiceMocks.findLaunchToolCallId).toHaveBeenCalledWith('session-1', 'subagent-1')
       const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
       expect(last).toEqual({
         type: 'background-tasks',
