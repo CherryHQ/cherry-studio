@@ -64,7 +64,6 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { createTraceGuardedSpawnProcess } from './ClaudeCodeWarmQueryManager'
 import {
