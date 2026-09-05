@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   translations: {
     'settings.about.diagnostics.actions.cancel': 'Cancel',
     'settings.about.diagnostics.actions.close': 'Close',
+    'common.delete': 'Delete',
+    'common.loading': 'Loading...',
     'settings.about.diagnostics.actions.reveal': 'Show in folder',
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
@@ -111,6 +113,8 @@ const submissionUnknownResult: Extract<OutputFor<'diagnostics.bundle.upload'>, {
   status: 'submission_unknown'
 }
 
+const busyResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }> = { status: 'busy' }
+
 const savedUploadResult: Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }> = {
   bundleId,
   fileName: 'saved-diagnostics.zip',
@@ -129,8 +133,8 @@ async function completeReview(user: ReturnType<typeof userEvent.setup>, descript
 }
 
 async function closeResultDialog(user: ReturnType<typeof userEvent.setup>) {
-  const closeButton = (await screen.findAllByRole('button', { name: 'Close' })).find(
-    (button) => button.textContent === 'Close'
+  const closeButton = (await screen.findAllByRole('button', { name: 'Delete' })).find(
+    (button) => button.textContent === 'Delete'
   )
   expect(closeButton).toBeDefined()
   await user.click(closeButton!)
@@ -513,6 +517,27 @@ describe('DiagnosticUploadDialog', () => {
     expect(await screen.findByText(reportId)).toBeInTheDocument()
   })
 
+  it('presents a busy upload result and lets the user retry the original submission', async () => {
+    let uploadAttempts = 0
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return uploadAttempts++ === 0 ? busyResult : uploadedResult
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Another diagnostic bundle operation is already in progress'
+    )
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText(reportId)).toBeInTheDocument()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(2)
+  })
+
   it('saves a retained upload on demand and then exposes its selected filename and location', async () => {
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
@@ -559,6 +584,9 @@ describe('DiagnosticUploadDialog', () => {
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId })
     expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save locally' })).not.toBeInTheDocument()
     resolveDiscard({ status })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
