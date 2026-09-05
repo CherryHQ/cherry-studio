@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
+import { PortalContainerProvider, usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
@@ -31,8 +32,11 @@ vi.mock('motion/react', async () => {
     }
 
   return {
-    AnimatePresence: ({ children }: { children: React.ReactNode }) =>
-      ReactActual.createElement(ReactActual.Fragment, null, children),
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => {
+      const exitingChildren = ReactActual.useRef<React.ReactNode>(null)
+      if (children) exitingChildren.current = children
+      return ReactActual.createElement(ReactActual.Fragment, null, children || exitingChildren.current)
+    },
     motion: {
       aside: createMotionComponent('aside'),
       div: createMotionComponent('div')
@@ -156,6 +160,40 @@ describe('PageSidePanel', () => {
       expect(trigger).toHaveFocus()
     })
 
+    it('does not move focus back into a panel that started closing before its initial focus frame', () => {
+      let pendingFrame: FrameRequestCallback | undefined
+      let canceledFrame: number | undefined
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        pendingFrame = callback
+        return 1
+      })
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((handle) => {
+        canceledFrame = handle
+      })
+
+      function TestPanel() {
+        const [open, setOpen] = React.useState(false)
+        return (
+          <>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open panel
+            </button>
+            <PageSidePanel open={open} onClose={() => setOpen(false)} />
+          </>
+        )
+      }
+
+      render(<TestPanel />)
+      const trigger = screen.getByRole('button', { name: 'Open panel' })
+      trigger.focus()
+      fireEvent.click(trigger)
+      fireEvent.pointerDown(screen.getByLabelText('Close'))
+
+      if (canceledFrame !== 1) pendingFrame?.(0)
+
+      expect(trigger).toHaveFocus()
+    })
+
     it('calls onClose on Escape key', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
@@ -171,17 +209,173 @@ describe('PageSidePanel', () => {
       fireEvent.keyDown(dialog, { key: 'Enter' })
       expect(onClose).not.toHaveBeenCalled()
     })
+
+    it('keeps tab focus inside the modal panel', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+      expect(first).toHaveFocus()
+
+      fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+      expect(last).toHaveFocus()
+    })
+
+    it('ignores hidden inputs when wrapping focus', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+          <input type="hidden" name="selection" value="hidden-value" readOnly />
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+
+      expect(first).toHaveFocus()
+    })
+
+    it('keeps the modal focus scope local to a scoped portal', () => {
+      const controls: { first: HTMLButtonElement | null; last: HTMLButtonElement | null } = {
+        first: null,
+        last: null
+      }
+
+      function ScopedPanel() {
+        const [container, setContainer] = React.useState<HTMLDivElement | null>(null)
+        return (
+          <div aria-hidden="true">
+            <div ref={setContainer}>
+              <PortalContainerProvider container={container}>
+                <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+                  <button
+                    ref={(element) => {
+                      controls.first = element
+                    }}
+                    type="button">
+                    First
+                  </button>
+                  <button
+                    ref={(element) => {
+                      controls.last = element
+                    }}
+                    type="button">
+                    Last
+                  </button>
+                </PageSidePanel>
+              </PortalContainerProvider>
+            </div>
+          </div>
+        )
+      }
+
+      render(<ScopedPanel />)
+      if (!controls.first || !controls.last) throw new Error('Expected panel controls to render')
+      controls.last.focus()
+      fireEvent.keyDown(controls.last, { key: 'Tab' })
+
+      expect(controls.first).toHaveFocus()
+    })
+
+    it('wraps Shift+Tab from the initially focused panel to the last control', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+        </PageSidePanel>
+      )
+      const dialog = screen.getByRole('dialog')
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      dialog.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+
+      expect(last).toHaveFocus()
+    })
+
+    it('includes contenteditable controls in the modal focus scope', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <div contentEditable role="textbox" aria-label="Editor" />
+        </PageSidePanel>
+      )
+      const dialog = screen.getByRole('dialog')
+      const editor = screen.getByRole('textbox', { name: 'Editor' })
+
+      dialog.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+
+      expect(editor).toHaveFocus()
+    })
+
+    it('includes native summary controls in the modal focus scope', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <details>
+            <summary>More settings</summary>
+          </details>
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const summary = screen.getByText('More settings')
+
+      first.focus()
+      fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+
+      expect(summary).toHaveFocus()
+    })
+
+    it('keeps nested portal controls in an unclipped modal focus scope', async () => {
+      function PortalAction() {
+        const container = usePortalContainer()
+        return container ? createPortal(<button type="button">Portal action</button>, container) : null
+      }
+
+      function ScopedPanel() {
+        const [container, setContainer] = React.useState<HTMLDivElement | null>(null)
+        return (
+          <div ref={setContainer}>
+            <PortalContainerProvider container={container}>
+              <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+                <button type="button">Panel action</button>
+                <PortalAction />
+              </PageSidePanel>
+            </PortalContainerProvider>
+          </div>
+        )
+      }
+
+      render(<ScopedPanel />)
+      const dialog = await screen.findByRole('dialog')
+      const portalAction = screen.getByRole('button', { name: 'Portal action' })
+      const portalHost = document.querySelector('[data-slot="page-side-panel-portal"]')
+
+      expect(portalHost).toContainElement(portalAction)
+      expect(dialog).not.toContainElement(portalAction)
+      expect(portalHost?.parentElement).toBe(dialog.parentElement)
+
+      portalAction.focus()
+      fireEvent.keyDown(portalAction, { key: 'Tab' })
+      expect(screen.getByRole('button', { name: 'Panel action' })).toHaveFocus()
+    })
   })
 
   describe('content slots', () => {
     it('renders header content', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} header={<span>My Header</span>} />)
       expect(screen.getByText('My Header')).toBeInTheDocument()
-    })
-
-    it('renders a standard title with the shared title class', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} title="My Title" />)
-      expect(screen.getByText('My Title')).toHaveClass('font-semibold', 'text-base', 'text-foreground')
     })
 
     it('renders children in body', () => {

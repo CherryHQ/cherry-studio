@@ -168,6 +168,12 @@ Prefer the loading, disabled, invalid, selected, and open states already exposed
 explain a state or spatial transition, remain restrained, and respect `prefers-reduced-motion`. Do not introduce
 page-local motion that competes with content or contradicts the shared component behavior.
 
+### Shared control density
+
+Shared form controls that need more than one density expose a coherent `size` contract (`sm`, `default`, `lg`).
+Callers choose a variant instead of overriding internal height, padding, or type size. Exact dimensions stay in the
+component implementation.
+
 ## 7. Layout and responsive behavior
 
 Use Tailwind's numeric spacing scale and standard breakpoints. Layout should respond to available space and content

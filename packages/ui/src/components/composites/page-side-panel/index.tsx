@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
+import { PortalContainerProvider, usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { XIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -58,13 +58,23 @@ function PageSidePanel({
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
+  const portalHostId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const portalHostRef = useRef<HTMLDivElement>(null)
+  const [portalHost, setPortalHost] = React.useState<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
   const scopedContainer = usePortalContainer()
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
+  const handlePanelRef = useCallback((element: HTMLDivElement | null) => {
+    panelRef.current = element
+  }, [])
+  const handlePortalHostRef = useCallback((element: HTMLDivElement | null) => {
+    portalHostRef.current = element
+    setPortalHost(element)
+  }, [])
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -75,17 +85,74 @@ function PageSidePanel({
     [onClose]
   )
 
+  const handlePanelKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Escape') {
+        handleClose(event)
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+
+      const focusableSelector =
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
+      const focusable = [panelRef.current, portalHostRef.current].flatMap((root) => {
+        if (!root) return []
+        return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
+          const isContentEditable =
+            element.hasAttribute('contenteditable') && element.getAttribute('contenteditable') !== 'false'
+          if (
+            (!isContentEditable && element.tabIndex < 0) ||
+            (element instanceof HTMLInputElement && element.type === 'hidden')
+          ) {
+            return false
+          }
+
+          for (let current: HTMLElement | null = element; current && current !== root; ) {
+            if (current.hidden || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) {
+              return false
+            }
+            const style = window.getComputedStyle(current)
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+              return false
+            }
+            current = current.parentElement
+          }
+
+          return true
+        })
+      })
+      if (focusable.length === 0) {
+        event.preventDefault()
+        panelRef.current.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && (document.activeElement === panelRef.current || document.activeElement === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    },
+    [handleClose]
+  )
+
   useEffect(() => {
     if (open) {
       closedByPointerDownRef.current = false
       triggerRef.current = document.activeElement as HTMLElement | null
-      requestAnimationFrame(() => {
+      const focusFrame = requestAnimationFrame(() => {
         panelRef.current?.focus()
       })
-    } else {
-      triggerRef.current?.focus()
-      triggerRef.current = null
+      return () => cancelAnimationFrame(focusFrame)
     }
+
+    triggerRef.current?.focus()
+    triggerRef.current = null
+    return undefined
   }, [open])
 
   const panel = (
@@ -103,15 +170,14 @@ function PageSidePanel({
             onClick={handleClose}
           />
           <motion.aside
-            ref={panelRef}
+            ref={handlePanelRef}
             key="panel"
             role="dialog"
             aria-modal="true"
             aria-labelledby={headerContent ? headerId : undefined}
+            aria-owns={portalHostId}
             tabIndex={-1}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') handleClose(e)
-            }}
+            onKeyDown={handlePanelKeyDown}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
@@ -123,57 +189,60 @@ function PageSidePanel({
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
-            {hasHeader && (
-              <div
-                data-slot="page-side-panel-header"
-                className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
-                  {headerContent}
+            <PortalContainerProvider container={portalHost}>
+              {hasHeader && (
+                <div
+                  data-slot="page-side-panel-header"
+                  className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
+                  <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                    {headerContent}
+                  </div>
+                  {showCloseButton && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onPointerDown={(event) => {
+                        closedByPointerDownRef.current = true
+                        handleClose(event)
+                      }}
+                      onClick={(event) => {
+                        if (closedByPointerDownRef.current) {
+                          closedByPointerDownRef.current = false
+                          event.preventDefault()
+                          event.stopPropagation()
+                          return
+                        }
+                        handleClose(event)
+                      }}
+                      aria-label={closeLabel}
+                      data-slot="page-side-panel-close"
+                      className={cn(
+                        'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                        closeButtonClassName
+                      )}>
+                      <XIcon size={16} />
+                    </Button>
+                  )}
                 </div>
-                {showCloseButton && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onPointerDown={(event) => {
-                      closedByPointerDownRef.current = true
-                      handleClose(event)
-                    }}
-                    onClick={(event) => {
-                      if (closedByPointerDownRef.current) {
-                        closedByPointerDownRef.current = false
-                        event.preventDefault()
-                        event.stopPropagation()
-                        return
-                      }
-                      handleClose(event)
-                    }}
-                    aria-label={closeLabel}
-                    data-slot="page-side-panel-close"
-                    className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
-                      closeButtonClassName
-                    )}>
-                    <XIcon size={16} />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
 
-            <Scrollbar
-              data-slot="page-side-panel-body"
-              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
-              {children}
-            </Scrollbar>
+              <Scrollbar
+                data-slot="page-side-panel-body"
+                className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+                {children}
+              </Scrollbar>
 
-            {footer && (
-              <div
-                data-slot="page-side-panel-footer"
-                className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
-                {footer}
-              </div>
-            )}
+              {footer && (
+                <div
+                  data-slot="page-side-panel-footer"
+                  className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
+                  {footer}
+                </div>
+              )}
+            </PortalContainerProvider>
           </motion.aside>
+          <div ref={handlePortalHostRef} id={portalHostId} data-slot="page-side-panel-portal" className="contents" />
         </>
       )}
     </AnimatePresence>

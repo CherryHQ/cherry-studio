@@ -40,7 +40,8 @@ const selectTriggerVariants = cva(
       },
       size: {
         sm: 'px-3 gap-2 h-8',
-        default: 'px-3 gap-2 h-9'
+        default: 'px-3 gap-2 h-9',
+        lg: 'px-3 gap-2 h-10'
       }
     },
     defaultVariants: {
@@ -98,7 +99,7 @@ function SelectTrigger({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> &
   Omit<VariantProps<typeof selectTriggerVariants>, 'state'> & {
-    size?: 'sm' | 'default'
+    size?: 'sm' | 'default' | 'lg'
   }) {
   const selectContext = React.use(SelectContext)
   const state = props.disabled ? 'disabled' : props['aria-invalid'] ? 'error' : 'default'
