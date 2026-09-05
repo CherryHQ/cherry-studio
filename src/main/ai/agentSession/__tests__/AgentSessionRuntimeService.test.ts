@@ -99,7 +99,7 @@ const baseTurnInput = {
 }
 const switchedModelId = 'claude-code::claude-opus-4-5' as any
 
-function userMessage(id: string, knowledgeBaseIds: string[] = []) {
+function userMessage(id: string, knowledgeBaseIds: string[] = [], text = 'hello') {
   return {
     id,
     topicId: 'agent-session:session-1',
@@ -107,7 +107,7 @@ function userMessage(id: string, knowledgeBaseIds: string[] = []) {
     role: 'user',
     data: {
       parts: [
-        { type: 'text', text: 'hello' },
+        { type: 'text', text },
         ...(knowledgeBaseIds.length ? [{ type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }] : [])
       ]
     },
@@ -3329,7 +3329,7 @@ describe('AgentSessionRuntimeService', () => {
       const second = service.beginTurn({
         ...baseTurnInput,
         assistantMessageId: 'assistant-2',
-        userMessage: userMessage('user-2')
+        userMessage: userMessage('user-2', [], 'Try again')
       })
       await persistenceListener(second).onDone({
         status: 'success',
@@ -3338,7 +3338,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       expect(mocks.maybeRenameAgentSession).toHaveBeenCalledOnce()
-      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'Try again', {
         id: 'assistant-2',
         role: 'assistant',
         parts: [{ type: 'text', text: 'recovered' }]

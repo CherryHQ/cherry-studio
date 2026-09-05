@@ -289,7 +289,7 @@ export class TopicNamingService {
    *
    * @param agentId    Agent id, used for failure logging context only.
    * @param sessionId  Cherry Studio session id.
-   * @param userText   Plain text of the persisted user turn, extracted by
+   * @param userText   Plain text of the successful user turn, extracted by
    *                   AgentSessionRuntimeService from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
    */
@@ -319,7 +319,9 @@ export class TopicNamingService {
       const session = this.getAgentSession(sessionId, 'initial')
       if (!session || !session.agentId) return
       if (session.isNameManuallyEdited) return
-      if (!canAutoRenameAgentSessionName(session.name, userText)) return
+      const firstUserMessage = agentSessionMessageService.getFirstUserMessage(sessionId)
+      const firstUserText = firstUserMessage ? getMainTextContentFromMessageData(firstUserMessage.data) : undefined
+      if (!canAutoRenameAgentSessionName(session.name, firstUserText)) return
       const uniqueModelId = this.resolveNamingModelId()
 
       const structuredConversation: StructuredMessage[] = [
@@ -337,7 +339,7 @@ export class TopicNamingService {
       const nextName = sanitizeConversationTitle(title)
       const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
-      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
+      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, firstUserText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
