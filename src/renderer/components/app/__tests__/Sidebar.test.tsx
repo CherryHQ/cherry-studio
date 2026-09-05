@@ -178,8 +178,8 @@ vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
 }))
 
-vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
-  default: { show: mocks.showDoctor }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: mocks.showDoctor }
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({

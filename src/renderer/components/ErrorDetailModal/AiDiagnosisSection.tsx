@@ -38,13 +38,6 @@ const AiDiagnosisSectionWithStatus = memo(
       }
     }, [])
 
-    useEffect(() => {
-      if (status === 'loading' && !cachedDiagnosis) {
-        void runDiagnosis()
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- the host chooses whether the initial state should run
-    }, [])
-
     const runDiagnosis = useCallback(async () => {
       if (!error) return
       cancelledRef.current = false
@@ -150,6 +143,12 @@ const AiDiagnosisSectionWithStatus = memo(
               {t('common.retry')}
             </Button>
           </div>
+        ) : null}
+
+        {status === 'idle' ? (
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => void runDiagnosis()}>
+            {t('error.diagnosis.ai_button')}
+          </Button>
         ) : null}
       </div>
     )

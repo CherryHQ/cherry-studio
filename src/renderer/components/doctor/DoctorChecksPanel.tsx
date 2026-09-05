@@ -79,7 +79,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     }
   }
 
-  if (interaction.kind === 'confirm-fix' || interaction.kind === 'confirm-evidence') {
+  if (interaction.kind === 'confirm-evidence') {
     return (
       <DoctorConfirmationView
         controller={controller}
@@ -261,8 +261,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
       ['appBug', 'settings.doctor.summary.app_bug'],
       ['transient', 'settings.doctor.summary.transient'],
       ['error', 'settings.doctor.summary.error'],
-      ['skip', 'settings.doctor.summary.skip'],
-      ['optional', 'settings.doctor.summary.optional']
+      ['skip', 'settings.doctor.summary.skip']
     ] as const
     return (
       <div className="space-y-4 rounded-xl bg-secondary p-4 text-secondary-foreground">

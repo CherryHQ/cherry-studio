@@ -78,11 +78,7 @@ vi.mock('@renderer/components/feedback/DiagnosticBundlePanel', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, params?: Record<string, unknown>) =>
-      mocks.translations[key] ??
-      (key === 'settings.doctor.confirm_fix.reclaimable'
-        ? `settings.doctor.confirm_fix.reclaimable ${String(params?.size)}`
-        : key)
+    t: (key: string) => mocks.translations[key] ?? key
   })
 }))
 
@@ -370,7 +366,7 @@ describe('DoctorPopup', () => {
     expect(await screen.findByText('Running full checks, including network and services…')).toBeVisible()
   })
 
-  it('renders backend findings safely and confirms a destructive fix inside the Doctor dialog', async () => {
+  it('renders backend findings safely and keeps healthy domains collapsed', async () => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'completed',
@@ -417,7 +413,7 @@ describe('DoctorPopup', () => {
               { key: 'normalCacheBytes', value: 80 * 1024 * 1024, dataClass: 'public' },
               { key: 'diagnosticDataBytes', value: 220 * 1024 * 1024, dataClass: 'public' }
             ],
-            actions: [{ kind: 'fix', fixId: 'cleanup' }]
+            actions: []
           },
           {
             id: 'logs-recent-findings',
@@ -429,10 +425,6 @@ describe('DoctorPopup', () => {
         summary: { pass: 1, warn: 0, fail: 1, skip: 0, error: 1 }
       }
     }
-    mocks.request.mockResolvedValue({
-      status: 'fixed',
-      result: { id: 'storage-disk-space', status: 'pass', durationMs: 1 }
-    })
     render(<PopupHost />)
 
     act(() => {
@@ -452,20 +444,7 @@ describe('DoctorPopup', () => {
     expect(healthyCheck).not.toBeNull()
     expect(within(healthyCheck as HTMLElement).getAllByText('settings.doctor.status.pass')[0]).toBeVisible()
 
-    await user.click(await screen.findByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.title')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.storage_disk_space_scope')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.reclaimable 300 MB')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.irreversible')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.duration')
-    expect(screen.getByRole('status').closest('[tabindex="-1"]')).toHaveFocus()
     expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' })).toHaveFocus()
-    )
   })
 
   it('blocks every dismiss path while the report panel is busy', async () => {

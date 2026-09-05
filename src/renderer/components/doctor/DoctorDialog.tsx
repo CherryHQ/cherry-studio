@@ -1,12 +1,9 @@
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { type DoctorPanel, useDoctorController } from '@renderer/hooks/doctor'
-import { loggerService } from '@renderer/services/LoggerService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
-import type { UpdateInfo } from 'builder-util-runtime'
 import { ArrowLeft } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +16,6 @@ const DiagnosticUploadPanel = lazy(() =>
     default: module.DiagnosticUploadPanel
   }))
 )
-const logger = loggerService.withContext('DoctorDialog')
 const PANEL_DESCRIPTION_KEYS = {
   checks: 'settings.doctor.panel_descriptions.checks',
   export: 'settings.doctor.panel_descriptions.export',
@@ -60,23 +56,9 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
     (target: DoctorNavigateTarget) => void finishHandoff(() => openSettingsTab(target)),
     [finishHandoff]
   )
-  const installUpdate = useCallback(
-    (releaseInfo: UpdateInfo) => {
-      void finishHandoff(() => {
-        void import('@renderer/components/UpdateDialogPopup')
-          .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-          .catch((error) => {
-            logger.error('Failed to open the update dialog from system diagnostics', error as Error)
-            toast.error(t('settings.doctor.messages.action_failed'))
-          })
-      })
-    },
-    [finishHandoff, t]
-  )
   const controller = useDoctorController({
     initialDescription,
     initialPanel,
-    onInstallUpdate: installUpdate,
     onNavigate: navigate
   })
   const { setPanelInteraction } = controller

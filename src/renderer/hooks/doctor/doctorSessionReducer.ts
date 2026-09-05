@@ -5,15 +5,12 @@ export type DoctorPanel = 'checks' | 'export' | 'report'
 
 export type DoctorInteraction =
   | { readonly kind: 'idle' }
-  | { readonly kind: 'confirm-fix'; readonly request: DoctorFixRequest }
   | { readonly kind: 'confirm-evidence'; readonly checkId: DoctorCheckId }
   | { readonly kind: 'fixing'; readonly request: DoctorFixRequest }
   | {
       readonly kind: 'action'
       readonly checkId?: DoctorCheckId
-      readonly actionKind:
-        | Exclude<DoctorAction['kind'], 'fix' | 'navigate' | 'install_update' | 'report'>
-        | 'toggle_dev_tools'
+      readonly actionKind: Exclude<DoctorAction['kind'], 'fix' | 'navigate' | 'report'> | 'toggle_dev_tools'
     }
   | { readonly kind: 'run'; readonly tier: DoctorRunTier; readonly pendingUntil: number }
   | { readonly kind: 'cancel' }
@@ -35,7 +32,6 @@ export type DoctorSessionAction =
   | { readonly type: 'set-expanded-domains'; readonly domains: readonly DisplayedDoctorDomain[] }
   | { readonly type: 'reveal-evidence'; readonly checkId: DoctorCheckId }
   | { readonly type: 'mark-relaunch-required' }
-  | { readonly type: 'confirm-fix'; readonly request: DoctorFixRequest }
   | { readonly type: 'confirm-evidence'; readonly checkId: DoctorCheckId }
   | { readonly type: 'cancel-confirmation' }
   | { readonly type: 'start-interaction'; readonly interaction: Exclude<DoctorInteraction, { kind: 'idle' }> }
@@ -72,14 +68,10 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
         : { ...state, revealedEvidence: [...state.revealedEvidence, action.checkId] }
     case 'mark-relaunch-required':
       return { ...state, relaunchRequired: true }
-    case 'confirm-fix':
-      return { ...state, interaction: { kind: 'confirm-fix', request: action.request } }
     case 'confirm-evidence':
       return { ...state, interaction: { kind: 'confirm-evidence', checkId: action.checkId } }
     case 'cancel-confirmation':
-      return state.interaction.kind === 'confirm-fix' || state.interaction.kind === 'confirm-evidence'
-        ? { ...state, interaction: { kind: 'idle' } }
-        : state
+      return state.interaction.kind === 'confirm-evidence' ? { ...state, interaction: { kind: 'idle' } } : state
     case 'start-interaction':
       return { ...state, interaction: action.interaction }
     case 'finish-interaction':

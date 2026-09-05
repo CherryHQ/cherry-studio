@@ -4,7 +4,6 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
-import { loggerService } from '@renderer/services/LoggerService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -37,7 +36,6 @@ import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/err
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import type { UpdateInfo } from 'builder-util-runtime'
 import { ArrowLeft, FileUp } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,8 +45,6 @@ import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from '.
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
 
-const logger = loggerService.withContext('ErrorDetailModal')
-
 interface ErrorDetailContentProps {
   error?: SerializedError
   diagnosisContext?: DiagnosisContext
@@ -57,7 +53,6 @@ interface ErrorDetailContentProps {
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
-  onDoctorInstallUpdate?: (releaseInfo: UpdateInfo) => void
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
@@ -513,7 +508,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   onDiagnosisComplete,
   onOpenDiagnosticReport,
   cachedDiagnosis,
-  onDoctorInstallUpdate,
   onDoctorNavigate
 }) => {
   const { t } = useTranslation()
@@ -626,7 +620,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
             diagnosisContext={diagnosisContext}
             error={error}
             onDiagnosisComplete={onDiagnosisComplete}
-            onInstallUpdate={onDoctorInstallUpdate}
             onNavigate={onDoctorNavigate}
             onReportProblem={onOpenDiagnosticReport}
           />
@@ -647,10 +640,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   )
 }
 
-type ErrorDetailPopupParams = Omit<
-  ErrorDetailContentProps,
-  'onDoctorInstallUpdate' | 'onDoctorNavigate' | 'onOpenDiagnosticReport'
->
+type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
 
 const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => (
   <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
@@ -678,15 +668,6 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
   void ErrorDetailPopup.show({
     ...params,
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
-    onDoctorInstallUpdate: (releaseInfo) =>
-      finishHandoff(() => {
-        void import('@renderer/components/UpdateDialogPopup')
-          .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-          .catch((error) => {
-            logger.error('Failed to open the update dialog from error diagnostics', error as Error)
-            toast.error(i18n.t('settings.doctor.messages.action_failed'))
-          })
-      }),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
         void DoctorPopup.show({ initialPanel: 'report', initialDescription })

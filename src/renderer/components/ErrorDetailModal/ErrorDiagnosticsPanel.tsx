@@ -1,10 +1,9 @@
 import { Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
-import { DoctorCheckResults, DoctorConfirmationView } from '@renderer/components/doctor'
+import { DoctorCheckList, DoctorConfirmationView } from '@renderer/components/doctor'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckId, DoctorNavigateTarget } from '@shared/types/doctor'
-import type { UpdateInfo } from 'builder-util-runtime'
 import { RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,14 +16,12 @@ interface ErrorDiagnosticsPanelProps {
   readonly diagnosisContext?: DiagnosisContext
   readonly error?: SerializedError
   readonly onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
-  readonly onInstallUpdate?: (releaseInfo: UpdateInfo) => void
   readonly onNavigate?: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
 
 type DiagnosisStatus = 'idle' | 'loading' | 'done' | 'error'
 
-const ignoreInstallUpdate = () => undefined
 const ignoreNavigation = () => undefined
 
 export function ErrorDiagnosticsPanel({
@@ -33,33 +30,25 @@ export function ErrorDiagnosticsPanel({
   diagnosisContext,
   error,
   onDiagnosisComplete,
-  onInstallUpdate = ignoreInstallUpdate,
   onNavigate = ignoreNavigation,
   onReportProblem
 }: ErrorDiagnosticsPanelProps) {
   const { t } = useTranslation()
-  const [diagnosisStatus, setDiagnosisStatus] = useState<DiagnosisStatus>(
-    cachedDiagnosis ? 'done' : error ? 'loading' : 'idle'
-  )
+  const [diagnosisStatus, setDiagnosisStatus] = useState<DiagnosisStatus>(cachedDiagnosis ? 'done' : 'idle')
   const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
   const controller = useDoctorController({
     autoRunPolicy: 'when-not-running',
     initialPanel: 'checks',
-    onInstallUpdate,
     onNavigate,
     onReportProblem
   })
   const { interaction } = controller.session
-  const isConfirming = interaction.kind === 'confirm-fix' || interaction.kind === 'confirm-evidence'
+  const isConfirming = interaction.kind === 'confirm-evidence'
   const isLiveRun =
     (controller.viewModel.status === 'running' && controller.viewModel.tier === 'live') ||
     (interaction.kind === 'run' && interaction.tier === 'live')
   const confirmationTitle =
-    interaction.kind === 'confirm-fix'
-      ? t('settings.doctor.confirm_fix.title')
-      : interaction.kind === 'confirm-evidence'
-        ? t('settings.doctor.confirm_evidence.title')
-        : t('settings.doctor.title')
+    interaction.kind === 'confirm-evidence' ? t('settings.doctor.confirm_evidence.title') : t('settings.doctor.title')
 
   useEffect(() => {
     if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
@@ -81,10 +70,9 @@ export function ErrorDiagnosticsPanel({
 
   const cancelConfirmation = useCallback(() => {
     const currentInteraction = controller.session.interaction
-    if (currentInteraction.kind !== 'confirm-fix' && currentInteraction.kind !== 'confirm-evidence') return
-    restoreActionCheckRef.current =
-      currentInteraction.kind === 'confirm-fix' ? currentInteraction.request.checkId : currentInteraction.checkId
-    controller.cancelFixConfirmation()
+    if (currentInteraction.kind !== 'confirm-evidence') return
+    restoreActionCheckRef.current = currentInteraction.checkId
+    controller.cancelConfirmation()
   }, [controller])
 
   return (
@@ -142,7 +130,7 @@ export function ErrorDiagnosticsPanel({
         ) : null}
 
         {controller.viewModel.rows.length > 0 ? (
-          <DoctorCheckResults controller={controller} />
+          <DoctorCheckList controller={controller} />
         ) : (
           <Alert
             type="info"
