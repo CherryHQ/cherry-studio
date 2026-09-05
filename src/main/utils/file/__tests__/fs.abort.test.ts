@@ -41,4 +41,22 @@ describe('readChunk cancellation', () => {
     resolveRead({ bytesRead: 0, buffer: new Uint8Array(4) })
     await expect(closeMock.mock.results[0].value).resolves.toBeUndefined()
   })
+
+  it('settles on abort while opening and closes a handle that arrives late', async () => {
+    let resolveOpen!: (handle: { close: typeof closeMock; read: typeof readMock }) => void
+    const pendingOpen = new Promise<{ close: typeof closeMock; read: typeof readMock }>((resolve) => {
+      resolveOpen = resolve
+    })
+    openMock.mockReturnValue(pendingOpen)
+    const controller = new AbortController()
+
+    const operation = readChunk('/notes/pending-open.md' as AbsoluteFilePath, 0, 4, controller.signal)
+    controller.abort()
+
+    await expect(operation).rejects.toMatchObject({ name: 'AbortError' })
+    expect(closeMock).not.toHaveBeenCalled()
+
+    resolveOpen({ close: closeMock, read: readMock })
+    await vi.waitFor(() => expect(closeMock).toHaveBeenCalledOnce())
+  })
 })

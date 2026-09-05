@@ -29,6 +29,22 @@ describe('validateNotesSearchTree', () => {
     ])
   })
 
+  it('enforces the node budget before traversing a broad child list', () => {
+    let parseCount = 0
+    const root = { children: [{}, {}, {}, {}] }
+    const result = validateNotesSearchTree([root], {
+      maxDepth: 10,
+      maxNodes: 2,
+      parseNode: (value) => {
+        parseCount += 1
+        return parseNode(value)
+      }
+    })
+
+    expect(result.issues).toEqual([expect.objectContaining({ message: 'Notes search tree exceeds 2 total nodes' })])
+    expect(parseCount).toBe(1)
+  })
+
   it('reports malformed nodes through the extracted predicate', () => {
     expect(validateNotesSearchTree([null], { maxDepth: 10, maxNodes: 10, parseNode }).issues).toEqual([
       { message: 'not a node', path: [0] }

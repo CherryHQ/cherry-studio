@@ -111,7 +111,25 @@ export async function readChunk(
   signal?: AbortSignal
 ): Promise<Uint8Array<ArrayBuffer>> {
   signal?.throwIfAborted()
-  const fileHandle = await fsOpen(path, 'r')
+  const openOperation = fsOpen(path, 'r')
+  let fileHandle: FileHandle
+  try {
+    fileHandle = await waitForAbort(openOperation, signal)
+  } catch (error) {
+    // A cancellation can win while open(2) is still pending. The promise is
+    // still observed so a handle that arrives later is closed promptly.
+    if (signal?.aborted) {
+      void openOperation.then(
+        (lateHandle) =>
+          lateHandle.close().catch((closeError) => {
+            logger.warn('readChunk: failed to close a late-opened file handle', { path, closeError })
+          }),
+        () => undefined
+      )
+    }
+    throw error
+  }
+  signal?.throwIfAborted()
   let closeInBackground = false
   try {
     const buffer = new Uint8Array(length)
