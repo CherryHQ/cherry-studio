@@ -11,7 +11,12 @@
  */
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
+import {
+  useDataChange,
+  useInfiniteFlatItems,
+  useMutation,
+  useWriteInfiniteCache
+} from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -112,6 +117,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
+  })
+  const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
+    params: { sessionId },
+    query: { deferToolOutputs: true },
+    limit: PAGE_SIZE
   })
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
   const locallyRemovedIdsRef = useRef({ ids: new Set<string>(), sessionId })
@@ -256,7 +266,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     async (messageId: string): Promise<void> => {
       const deleteKey = `${sessionId}:${messageId}`
       if (locallyRemovedIds.has(messageId)) {
-        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
         return
       }
       const inFlightDelete = inFlightDeletePromisesRef.current.get(deleteKey)
@@ -266,7 +276,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const deletePromise = (async () => {
         await deleteMessageTrigger({ params: { sessionId, messageId } })
         locallyRemovedIds.add(messageId)
-        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
       })()
       inFlightDeletePromisesRef.current.set(deleteKey, deletePromise)
       try {
@@ -275,7 +285,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
         inFlightDeletePromisesRef.current.delete(deleteKey)
       }
     },
-    [deleteMessageTrigger, locallyRemovedIds, mutate, pages, sessionId]
+    [deleteMessageTrigger, locallyRemovedIds, pages, sessionId, writeSessionMessagesCache]
   )
 
   return {

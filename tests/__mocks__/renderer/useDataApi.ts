@@ -371,6 +371,29 @@ function defaultMockUseInfiniteQuery<TPath extends ApiPath>(_path: TPath, _optio
  */
 export const mockUseInfiniteQuery = vi.fn(defaultMockUseInfiniteQuery)
 
+export const mockUseWriteInfiniteCache = vi.fn(
+  <TPath extends ApiPath>(path: TPath, options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>) => {
+    const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
+    return useMemo(
+      () =>
+        vi.fn(async (value: unknown) => {
+          const current = mockInfiniteQueryStore.get(key)
+          const next =
+            typeof value === 'function'
+              ? await (
+                  value as (
+                    pages: MockInfinitePages<unknown> | undefined
+                  ) => MockInfinitePages<unknown> | undefined | Promise<MockInfinitePages<unknown> | undefined>
+                )(current)
+              : await value
+          if (next !== undefined) setMockInfiniteQueryPages(key, next as MockInfinitePages<unknown>)
+          return next ?? current
+        }),
+      [key]
+    )
+  }
+)
+
 /**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
@@ -512,6 +535,7 @@ export const MockUseDataApi = {
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
+  useWriteInfiniteCache: mockUseWriteInfiniteCache,
   prefetch: mockPrefetch
 }
 
@@ -534,6 +558,7 @@ export const MockUseDataApiUtils = {
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
+    mockUseWriteInfiniteCache.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
     mockInfiniteQueryStore.clear()

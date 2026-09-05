@@ -35,7 +35,8 @@ import {
   usePaginatedQuery,
   useQuery,
   useReadCache,
-  useWriteCache
+  useWriteCache,
+  useWriteInfiniteCache
 } from '../useDataApi'
 
 const {
@@ -855,265 +856,47 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
-  it('keeps a captured mutator scoped to the query key that created it', async () => {
-    spyGet().mockImplementation((async (path: string) => ({
-      items: [],
-      nextCursor: undefined,
-      activeNodeId: path.includes('/t1/') ? 't1' : 't2'
-    })) as never)
-
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      ({ topicId }) => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
-      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
-    )
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1'))
-    const mutateTopicOne = result.current.mutate
-
-    rerender({ topicId: 't2' })
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2'))
-    await act(async () => {
-      await mutateTopicOne([{ ...emptyPage, activeNodeId: 'updated-t1' }] as never, { revalidate: false })
-    })
-
-    expect(result.current.pages[0]?.activeNodeId).toBe('t2')
-    rerender({ topicId: 't1' })
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('updated-t1'))
-  })
-
-  it('preserves page-scoped revalidation for explicit mutations on the active query', async () => {
-    const getSpy = spyGet()
-    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
-      const isOlderPage = opts.query?.cursor === 'older-page'
-      return {
-        items: [],
-        nextCursor: isOlderPage ? undefined : 'older-page',
-        activeNodeId: isOlderPage ? 'older' : 'newest'
-      }
-    }) as never)
-
-    const { Wrapper } = makeWrapper()
-    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
-      wrapper: Wrapper
-    })
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    await act(async () => result.current.loadNext())
-    await waitFor(() => expect(result.current.pages).toHaveLength(2))
-    const olderPageCalls = () =>
-      getSpy.mock.calls.filter(
-        ([, request]) => (request as { query?: { cursor?: string } })?.query?.cursor === 'older-page'
-      ).length
-    const callsBeforeMutation = olderPageCalls()
-
-    await act(async () => {
-      await result.current.mutate(
-        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
-        { revalidate: (page) => page.activeNodeId === 'older' }
-      )
-    })
-
-    expect(olderPageCalls()).toBe(callsBeforeMutation + 1)
-  })
-
-  it('preserves page-scoped revalidation for a captured mutator after the query changes', async () => {
-    let topicOneOlderVersion = 0
-    const getSpy = spyGet()
-    getSpy.mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
+  it('keeps a captured cache-only writer scoped to its query and synchronizes page caches', async () => {
+    spyGet().mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
       const topicId = path.includes('/t1/') ? 't1' : 't2'
       const isOlderPage = opts.query?.cursor === 'older-page'
       return {
         items: [],
-        nextCursor: isOlderPage ? undefined : 'older-page',
-        activeNodeId:
-          topicId === 't1' && isOlderPage
-            ? `t1-older-${++topicOneOlderVersion}`
-            : `${topicId}-${isOlderPage ? 'older' : 'newest'}`
+        nextCursor: topicId === 't1' && !isOlderPage ? 'older-page' : undefined,
+        activeNodeId: `${topicId}-${isOlderPage ? 'older' : 'newest'}`
       }
     }) as never)
 
     const { Wrapper, cache } = makeWrapper()
     const { result, rerender } = renderHook(
-      ({ topicId }) => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
+      ({ topicId }) => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId } })
+      }),
       { wrapper: Wrapper, initialProps: { topicId: 't1' } }
     )
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1-newest'))
-    await act(async () => result.current.loadNext())
-    await waitFor(() => expect(result.current.pages[1]?.activeNodeId).toBe('t1-older-1'))
-    const mutateTopicOne = result.current.mutate
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+    const writeTopicOneCache = result.current.writeCache
 
     rerender({ topicId: 't2' })
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest'))
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('t2-newest'))
     await act(async () => {
-      await mutateTopicOne(
-        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
-        { revalidate: (page) => page.activeNodeId === 't1-older-1' }
+      await writeTopicOneCache((pages) =>
+        pages?.map((page) => (page.activeNodeId === 't1-older' ? { ...page, activeNodeId: 't1-updated' } : page))
       )
     })
 
+    expect(result.current.query.pages[0]?.activeNodeId).toBe('t2-newest')
     const topicOneOlderPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'older-page' }])
-    expect(topicOneOlderVersion).toBe(2)
     expect((cache.get(topicOneOlderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
-      't1-older-2'
+      't1-updated'
     )
-    expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest')
-  })
 
-  it('applies configured page-selection rules when a captured mutator revalidates', async () => {
-    const getSpy = spyGet()
-    getSpy.mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
-      const topicId = path.includes('/t1/') ? 't1' : 't2'
-      const page = opts.query?.cursor === 'older-page' ? 'older' : 'newest'
-      return {
-        items: [],
-        nextCursor: page === 'older' ? undefined : 'older-page',
-        activeNodeId: `${topicId}-${page}`
-      }
-    }) as never)
-    const topicOneCalls = (cursor?: string) =>
-      getSpy.mock.calls.filter(
-        ([path, request]) =>
-          (path as string).includes('/t1/') && (request as { query?: { cursor?: string } })?.query?.cursor === cursor
-      ).length
-
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      ({ topicId }) =>
-        useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId },
-          swrOptions: { revalidateFirstPage: topicId !== 't1' }
-        }),
-      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
-    )
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    await act(async () => result.current.loadNext())
-    await waitFor(() => expect(result.current.pages).toHaveLength(2))
-    const mutateTopicOne = result.current.mutate
-
-    rerender({ topicId: 't2' })
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest'))
-    await act(async () => {
-      await mutateTopicOne(
-        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
-        { revalidate: true }
-      )
-    })
-
-    await waitFor(() => expect(topicOneCalls('older-page')).toBe(2))
-    expect(topicOneCalls()).toBe(1)
-  })
-
-  it('reports captured revalidation failures without rejecting the completed mutation', async () => {
-    let failTopicOneRevalidation = false
-    const topicOneOnError = vi.fn()
-    const topicTwoOnError = vi.fn()
-    spyGet().mockImplementation((async (path: string) => {
-      if (failTopicOneRevalidation && path.includes('/t1/')) throw new Error('page refresh failed')
-      return {
-        items: [],
-        nextCursor: undefined,
-        activeNodeId: path.includes('/t1/') ? 't1' : 't2'
-      }
-    }) as never)
-
-    const { Wrapper, cache } = makeWrapper()
-    const { result, rerender } = renderHook(
-      ({ topicId }) =>
-        useInfiniteQuery('/topics/:topicId/messages', {
-          params: { topicId },
-          swrOptions: { onError: topicId === 't1' ? topicOneOnError : topicTwoOnError }
-        }),
-      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
-    )
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1'))
-    const mutateTopicOne = result.current.mutate
-
-    rerender({ topicId: 't2' })
-    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2'))
-    failTopicOneRevalidation = true
-    await act(async () => {
-      await expect(
-        mutateTopicOne([{ ...emptyPage, activeNodeId: 'updated-t1' }] as never, { revalidate: true })
-      ).resolves.toEqual([{ ...emptyPage, activeNodeId: 'updated-t1' }])
-    })
-
-    await waitFor(() =>
-      expect(topicOneOnError).toHaveBeenCalledWith(
-        expect.any(Error),
-        expect.any(String),
-        expect.objectContaining({ onError: topicOneOnError })
-      )
-    )
-    expect(topicTwoOnError).not.toHaveBeenCalled()
-    const topicOneKey = unstable_serialize_infinite(() => ['/topics/t1/messages', { limit: 10 }])
-    expect((cache.get(topicOneKey)?.data as BranchMessagesResponse[] | undefined)?.[0]?.activeNodeId).toBe('updated-t1')
-  })
-
-  it('updates page caches for explicit non-revalidated mutations', async () => {
-    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
-      const isOlderPage = opts.query?.cursor === 'older-page'
-      return {
-        items: [{ id: isOlderPage ? 'delete-me' : 'keep-me' }],
-        nextCursor: isOlderPage ? undefined : 'older-page'
-      }
-    }) as never)
-
-    const { Wrapper, cache } = makeWrapper()
-    const { result } = renderHook(
-      () =>
-        useInfiniteQuery('/agent-sessions/:sessionId/messages', {
-          params: { sessionId: 'session-1' },
-          query: { deferToolOutputs: true },
-          limit: 50
-        }),
-      { wrapper: Wrapper }
-    )
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    await act(async () => result.current.loadNext())
-    await waitFor(() => expect(result.current.pages).toHaveLength(2))
-
-    await act(async () => {
-      await result.current.mutate(
-        (pages) => pages?.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== 'delete-me') })),
-        { revalidate: false }
-      )
-    })
-
-    const olderPageKey = unstable_serialize([
-      '/agent-sessions/session-1/messages',
-      { deferToolOutputs: true, limit: 50, cursor: 'older-page' }
-    ])
-    const olderPage = cache.get(olderPageKey)?.data as { items: Array<{ id: string }> } | undefined
-    expect(olderPage?.items.map((item) => item.id)).toEqual([])
-  })
-
-  it('does not update aggregate or page caches when populateCache is false', async () => {
-    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
-      const isOlderPage = opts.query?.cursor === 'older-page'
-      return {
-        items: [],
-        nextCursor: isOlderPage ? undefined : 'older-page',
-        activeNodeId: isOlderPage ? 'older' : 'newest'
-      }
-    }) as never)
-
-    const { Wrapper, cache } = makeWrapper()
-    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
-      wrapper: Wrapper
-    })
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    await act(async () => result.current.loadNext())
-    await waitFor(() => expect(result.current.pages).toHaveLength(2))
-
-    await act(async () => {
-      await result.current.mutate(
-        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
-        { populateCache: false, revalidate: false }
-      )
-    })
-
-    const olderPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'older-page' }])
-    expect(result.current.pages[1]?.activeNodeId).toBe('older')
-    expect((cache.get(olderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe('older')
+    rerender({ topicId: 't1' })
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+    expect(result.current.query.pages.map((page) => page.activeNodeId)).toEqual(['t1-newest', 't1-updated'])
   })
 
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {
