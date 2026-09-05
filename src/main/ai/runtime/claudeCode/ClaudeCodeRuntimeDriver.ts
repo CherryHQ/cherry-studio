@@ -19,12 +19,14 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { type AgentRuntimeContextSnapshot, resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
 import {
   appendAgentAttachmentPaths,
   buildAgentUserContent,
   wrapAgentSessionDeliveryContent
 } from '@main/ai/runtime/agentUserContent'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { appendRuntimeContextReminderText, wrapRuntimeContextReminder, wrapSteerReminder } from '@main/ai/steerReminder'
+import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -34,6 +36,7 @@ import {
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -341,6 +344,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private runtimeContext?: AgentRuntimeContextSnapshot
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -439,6 +443,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
+    this.runtimeContext = request.settings.runtimeContext
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
     registerMcpSessionCatalogSync(
@@ -478,8 +483,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter?.beginTurn()
 
+    const turnContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: this.isCherryWebSearchEnabled()
+    })
+
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
+      runtimeContext: turnContext,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.lastSdkUserMessage = sdkMessage
@@ -1076,6 +1087,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private invocationLane(parentToolUseId: string | null | undefined): string {
     return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
   }
+
+  private isCherryWebSearchEnabled(): boolean {
+    return this.toolPolicySnapshot?.isDisabled?.(toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)) === false
+  }
 }
 
 /**
@@ -1100,13 +1115,21 @@ async function toSdkUserMessage(
   resumeToken?: string,
   systemReminder = false,
   {
+    runtimeContext,
     supportsAttachmentReads = false,
     supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+  }: {
+    runtimeContext?: string
+    supportsAttachmentReads?: boolean
+    supportsImages?: boolean
+  } = {}
 ): Promise<SDKUserMessage> {
   let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
     content = applySteerReminder(content)
+  }
+  if (runtimeContext) {
+    content = appendRuntimeContextReminder(content, runtimeContext)
   }
 
   return {
@@ -1115,6 +1138,16 @@ async function toSdkUserMessage(
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }
+}
+
+function appendRuntimeContextReminder(
+  content: SDKUserMessage['message']['content'],
+  runtimeContext: string
+): SDKUserMessage['message']['content'] {
+  if (Array.isArray(content)) {
+    return [...content, { type: 'text', text: wrapRuntimeContextReminder(runtimeContext) }]
+  }
+  return appendRuntimeContextReminderText(content, runtimeContext)
 }
 
 /**

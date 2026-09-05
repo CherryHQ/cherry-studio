@@ -6,8 +6,8 @@
  * replaced with Main-process equivalents:
  *
  *   - `{{username}}` / `{{language}}` → `PreferenceService` (`app.user.name`,
- *      `app.language`)
- *   - `{{system}}`   → Node `os.platform()`
+ *      `app.language`, falling back to `defaultLanguage`)
+ *   - `{{system}}`   → `getDeviceType()` (`mac` / `windows` / `linux`)
  *   - `{{arch}}`     → Node `os.arch()`
  *   - `{{model_name}}` → supplied by caller (no Redux default-model fallback)
  */
@@ -16,6 +16,9 @@ import os from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getDeviceType } from '@main/utils/system'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
+import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('utils:prompt')
 
@@ -33,6 +36,14 @@ const supportedVariables = [
 
 export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
   supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+
+/** Request-time local date for Web Search query grounding. Not a module-load snapshot. */
+export function buildWebSearchDateContext(now: Date): string {
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `<current-date>${year}-${month}-${day}</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.`
+}
 
 export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
@@ -81,7 +92,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{system}}')) {
     try {
-      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, os.platform())
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, getDeviceType())
     } catch (error) {
       logger.error('Failed to resolve {{system}}', error as Error)
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
@@ -90,7 +101,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{language}}')) {
     try {
-      const language = application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
+      const language = application.get('PreferenceService').get('app.language') || defaultLanguage
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
     } catch (error) {
       logger.error('Failed to resolve {{language}}', error as Error)
@@ -113,3 +124,6 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   return userSystemPrompt
 }
+
+export const buildRuntimeContextPrompt = (modelName?: string, template?: string): Promise<string> =>
+  replacePromptVariables(template?.trim() ? template : RUNTIME_CONTEXT_PROMPT_PRESET, modelName)

@@ -2,6 +2,7 @@ import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type * as PromptModule from '@main/utils/prompt'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -130,7 +131,13 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: mocks.getAppLanguage }))
-vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/prompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof PromptModule>()
+  return {
+    ...actual,
+    replacePromptVariables: mocks.replacePromptVariables
+  }
+})
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
@@ -923,9 +930,12 @@ describe('PiRuntimeConnection', () => {
   it('send routes normal messages to prompt', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('hello'))
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
 
-    expect(mocks.prompt).toHaveBeenCalledWith('hello', undefined)
+    const content = mocks.prompt.mock.calls[0][0] as string
+    expect(content).toContain('hello')
+    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
+    expect(mocks.prompt).toHaveBeenCalledWith(content, undefined)
     expect(mocks.compact).not.toHaveBeenCalled()
   })
 
@@ -942,7 +952,7 @@ describe('PiRuntimeConnection', () => {
     } as never
 
     conn.send(delivery)
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
 
     const content = mocks.prompt.mock.calls[0][0] as string
     const boundary = content.match(/CHERRY_SESSION_DELIVERY boundary="([a-f0-9]+)"/)?.[1]
@@ -974,20 +984,14 @@ describe('PiRuntimeConnection', () => {
   it('wraps a systemReminder send as a steer reminder and never treats it as /compact', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact', true))
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
 
     expect(mocks.compact).not.toHaveBeenCalled()
-    expect(mocks.prompt).toHaveBeenCalledWith(
-      [
-        '<system-reminder>',
-        'The user sent the following message:',
-        '/compact',
-        '',
-        'Please address this message and continue with your tasks.',
-        '</system-reminder>'
-      ].join('\n'),
-      undefined
-    )
+    const content = mocks.prompt.mock.calls[0][0] as string
+    expect(content).toContain('The user sent the following message:')
+    expect(content).toContain('/compact')
+    expect(content).toContain('Please address this message and continue with your tasks.')
+    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
   })
 
   it('completes the host turn after a manual compact succeeds', async () => {

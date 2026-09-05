@@ -3,7 +3,7 @@ import {
   type ImportAssistantPhraseDto,
   ImportAssistantPhraseSchema
 } from '@shared/data/api/schemas/assistants'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type Assistant, LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { type Prompt, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 
 export interface ImportedAssistantDraft {
@@ -98,7 +98,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
       prompt,
       emoji: readString(record.emoji) || '🤖',
       description: readString(record.description),
-      settings: DEFAULT_ASSISTANT_SETTINGS,
+      settings: LEGACY_ASSISTANT_SETTINGS,
       regularPhrases: readRegularPhrases(record.regularPhrases)
     },
     groupName

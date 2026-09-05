@@ -1,6 +1,6 @@
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it } from 'vitest'
 
@@ -33,10 +33,10 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
-        // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
-        // NOT NULL settings column always sees a complete object. Per-field
+        // Migrator merges legacy fields onto LEGACY_ASSISTANT_SETTINGS while keeping
+        // newly introduced behavior disabled for pre-existing assistants. Per-field
         // sanitiser keeps only legacy values that validate against the v2 schema.
-        settings: { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.7, mcpMode: 'manual', enableWebSearch: true }
+        settings: { ...LEGACY_ASSISTANT_SETTINGS, temperature: 0.7, mcpMode: 'manual', enableWebSearch: true }
       })
       expect(result.mcpServers).toStrictEqual([
         { assistantId: 'ast-1', mcpServerId: 'srv-1' },
@@ -48,8 +48,8 @@ describe('AssistantMappings', () => {
     it('should handle minimal assistant (only required fields)', () => {
       const result = transformAssistant({ id: 'ast-2', name: 'Minimal' })
 
-      // Migrator supplies the same defaults that AssistantService.create() would: empty strings
-      // for prompt/description (mirroring DB DEFAULT) and the product-chosen emoji + settings.
+      // Migrator supplies complete values while preserving legacy behavior: empty strings
+      // for prompt/description, the product-chosen emoji, and runtime context disabled.
       expect(result.assistant).toStrictEqual({
         id: 'ast-2',
         name: 'Minimal',
@@ -57,7 +57,7 @@ describe('AssistantMappings', () => {
         emoji: '🌟',
         description: '',
         modelId: null,
-        settings: DEFAULT_ASSISTANT_SETTINGS
+        settings: LEGACY_ASSISTANT_SETTINGS
       })
       expect(result.mcpServers).toStrictEqual([])
       expect(result.knowledgeBases).toStrictEqual([])
@@ -159,8 +159,8 @@ describe('AssistantMappings', () => {
       expect(result.assistant.prompt).toBe('')
       expect(result.assistant.emoji).toBe('🌟')
       expect(result.assistant.description).toBe('')
-      // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
-      expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+      // Nullish legacy inputs retain the migration defaults.
+      expect(result.assistant.settings).toStrictEqual(LEGACY_ASSISTANT_SETTINGS)
       expect(result.legacyTagName).toBeNull()
     })
 
@@ -205,7 +205,7 @@ describe('AssistantMappings', () => {
         enableWebSearch: true
       })
       expect(result.assistant.settings).toStrictEqual({
-        ...DEFAULT_ASSISTANT_SETTINGS,
+        ...LEGACY_ASSISTANT_SETTINGS,
         mcpMode: 'auto',
         enableWebSearch: true
       })
@@ -225,7 +225,7 @@ describe('AssistantMappings', () => {
         mcpMode: 'prompt' as never
       })
       expect(result.assistant.settings).toStrictEqual({
-        ...DEFAULT_ASSISTANT_SETTINGS,
+        ...LEGACY_ASSISTANT_SETTINGS,
         // Valid value preserved.
         temperature: 0.5,
         // Booleans validated independently — false survives.
@@ -268,7 +268,7 @@ describe('AssistantMappings', () => {
       // Garbage stays out.
       expect(
         transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } as never }).assistant.settings
-      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+      ).toStrictEqual(LEGACY_ASSISTANT_SETTINGS)
     })
   })
 })

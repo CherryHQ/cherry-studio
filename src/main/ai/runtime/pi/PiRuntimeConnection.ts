@@ -17,10 +17,15 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import {
+  type AgentRuntimeContextSnapshot,
+  buildAgentRuntimePrompt,
+  captureAgentRuntimeContextSnapshot,
+  resolveAgentTurnContextPrompt
+} from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { appendRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { customFetch } from '@main/ai/utils/customFetch'
@@ -170,6 +175,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Steers accepted by pi but not yet observed as delivered. pi emits the delivery boundary as a
    *  user `message_start`; default steering mode is one-at-a-time, so the delivery drain is mode-aware. */
   private readonly pendingSteers: PendingSteer[] = []
+  private runtimeContext?: AgentRuntimeContextSnapshot
 
   readonly events = this.eventQueue
 
@@ -233,6 +239,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
+    this.runtimeContext = captureAgentRuntimeContextSnapshot(agent, initialSnapshot.model.name)
 
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
@@ -474,7 +481,31 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     this.promptRunActive = true
-    void session.prompt(content, options).then(
+    if (!this.runtimeContext && !this.isCherryWebSearchEnabled()) {
+      void session.prompt(content, options).then(
+        () => this.finishPromptRun(),
+        (error) => this.finishPromptRun(error)
+      )
+      return
+    }
+    void this.enqueuePromptWithRuntimeContext(session, content, options)
+  }
+
+  private isCherryWebSearchEnabled(): boolean {
+    return !this.disabledTools.has(buildPiMcpToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
+  }
+
+  private async enqueuePromptWithRuntimeContext(
+    session: AgentSession,
+    content: string,
+    options: { streamingBehavior: 'followUp' } | undefined
+  ): Promise<void> {
+    const runtimeContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: this.isCherryWebSearchEnabled()
+    })
+    const payload = runtimeContext ? appendRuntimeContextReminderText(content, runtimeContext) : content
+    await session.prompt(payload, options).then(
       () => this.finishPromptRun(),
       (error) => this.finishPromptRun(error)
     )

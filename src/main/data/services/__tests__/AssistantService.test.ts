@@ -752,6 +752,25 @@ describe('AssistantDataService', () => {
   })
 
   describe('createFromImport', () => {
+    it('keeps runtime context disabled when legacy import settings are omitted', async () => {
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt'
+      })
+
+      expect(result.settings.enableRuntimeContext).toBe(false)
+    })
+
+    it('preserves explicitly enabled runtime context from an import request', async () => {
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableRuntimeContext: true }
+      })
+
+      expect(result.settings.enableRuntimeContext).toBe(true)
+    })
+
     it('imports contextual prompts as restricted bindings in legacy array order', async () => {
       const result = assistantDataService.createFromImport({
         name: 'Imported assistant',

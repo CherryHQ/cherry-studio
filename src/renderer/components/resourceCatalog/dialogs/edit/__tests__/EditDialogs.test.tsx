@@ -1,6 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -154,6 +155,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
 vi.mock('@renderer/components/PromptEditorField', () => ({
   default: ({
     actions,
+    editorActions,
     label,
     labelAddon,
     value,
@@ -165,6 +167,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     maxHeight
   }: {
     actions?: ReactNode
+    editorActions?: ReactNode
     label?: ReactNode
     labelAddon?: ReactNode
     value: string
@@ -181,13 +184,16 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         {labelAddon}
         {actions}
       </div>
-      <textarea
-        aria-label="Prompt editor"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        style={{ minHeight, maxHeight }}
-      />
+      <div>
+        {editorActions}
+        <textarea
+          aria-label="Prompt editor"
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          style={{ minHeight, maxHeight }}
+        />
+      </div>
       <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
@@ -436,6 +442,12 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
           'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
           'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
+          'library.config.prompt.runtime_context.configure': 'Configure runtime context prompt',
+          'library.config.prompt.runtime_context.description':
+            'Append current date, time, device, language, model, and user details to the system prompt.',
+          'library.config.prompt.runtime_context.label': 'Runtime context',
+          'library.config.prompt.runtime_context.prompt_label': 'Runtime context prompt',
+          'library.config.prompt.runtime_context.reset': 'Restore preset',
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -545,6 +557,7 @@ const ASSISTANT: Assistant = {
     enableMaxToolCalls: true,
     enableWebSearch: false,
     enableGenerateImage: false,
+    enableRuntimeContext: false,
     customParameters: []
   },
   modelId: 'provider::old-model',
@@ -1217,6 +1230,34 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('auto-saves the Agent runtime context toggle', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('System Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Configure runtime context prompt' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Runtime context' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          configuration: expect.objectContaining({ runtime_context_enabled: true })
+        })
+      })
+    )
+
+    const promptEditor = screen.getByRole('textbox', { name: 'Runtime context prompt' })
+    expect(promptEditor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
+    fireEvent.change(promptEditor, { target: { value: 'Agent runtime: {{datetime}}' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          configuration: expect.objectContaining({ runtime_context_prompt: 'Agent runtime: {{datetime}}' })
+        })
+      })
+    )
+  })
+
   it('generates agent instructions from the agent name when instructions are blank', async () => {
     fetchGenerateMock.mockResolvedValue('Generated agent instructions')
     render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} />)
@@ -1556,6 +1597,34 @@ describe('edit dialogs', () => {
 
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('2')
+  })
+
+  it('auto-saves the Assistant runtime context toggle', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('System Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Configure runtime context prompt' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Runtime context' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({ enableRuntimeContext: true })
+        })
+      })
+    )
+
+    const promptEditor = screen.getByRole('textbox', { name: 'Runtime context prompt' })
+    expect(promptEditor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
+    fireEvent.change(promptEditor, { target: { value: 'Assistant runtime: {{datetime}}' } })
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({ runtimeContextPrompt: 'Assistant runtime: {{datetime}}' })
+        })
+      })
+    )
   })
 
   it('generates an assistant prompt from its name when the prompt is blank', async () => {

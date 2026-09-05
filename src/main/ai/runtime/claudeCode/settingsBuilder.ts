@@ -30,7 +30,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, captureAgentRuntimeContextSnapshot } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
   assertAgentSessionWorkspaceDirectory,
@@ -115,6 +115,8 @@ export interface ClaudeCodeSessionOptions {
   supportsImages?: boolean
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Display name of the exact connection-scoped model selected by the request builder. */
+  runtimeContextModelName?: string
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
   maxOutputTokens?: number
   /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
@@ -304,6 +306,7 @@ export async function buildClaudeCodeSessionSettings(
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
+  const runtimeContext = captureAgentRuntimeContextSnapshot(agent, options?.runtimeContextModelName)
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
@@ -336,6 +339,7 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(runtimeContext ? { runtimeContext } : {}),
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),

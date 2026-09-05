@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getAppLanguage } from '@main/i18n'
-import { replacePromptVariables } from '@main/utils/prompt'
+import { buildRuntimeContextPrompt, buildWebSearchDateContext, replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { languageEnglishNameMap } from '@shared/utils/languages'
@@ -31,6 +31,42 @@ When you finish producing the file(s) the user asked for, call the \`${REPORT_AR
 export interface AgentRuntimePrompt {
   base: AgentPromptBase
   append: string
+}
+
+/** Unresolved runtime-context inputs captured with a long-lived agent connection. */
+export type AgentRuntimeContextSnapshot = {
+  template?: string
+  modelName?: string
+}
+
+export function captureAgentRuntimeContextSnapshot(
+  agent: Pick<AgentEntity, 'configuration' | 'modelName'> & { model?: AgentEntity['model'] },
+  modelName?: string
+): AgentRuntimeContextSnapshot | undefined {
+  if (!agent.configuration?.runtime_context_enabled) return undefined
+  return {
+    template: agent.configuration.runtime_context_prompt,
+    modelName: modelName ?? agent.modelName ?? agent.model ?? undefined
+  }
+}
+
+export function resolveAgentRuntimeContextPrompt(
+  snapshot: AgentRuntimeContextSnapshot | undefined
+): Promise<string | undefined> {
+  if (!snapshot) return Promise.resolve(undefined)
+  return buildRuntimeContextPrompt(snapshot.modelName, snapshot.template)
+}
+
+/** Per-turn reminder body: optional runtime context plus Web Search current-date grounding. */
+export async function resolveAgentTurnContextPrompt(input: {
+  snapshot?: AgentRuntimeContextSnapshot
+  webSearchEnabled: boolean
+  now?: Date
+}): Promise<string | undefined> {
+  const runtimeContext = await resolveAgentRuntimeContextPrompt(input.snapshot)
+  const dateContext = input.webSearchEnabled ? buildWebSearchDateContext(input.now ?? new Date()) : undefined
+  if (runtimeContext && dateContext) return `${runtimeContext}\n\n${dateContext}`
+  return runtimeContext ?? dateContext
 }
 
 export interface BuildAgentRuntimePromptOptions {
