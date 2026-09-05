@@ -356,7 +356,7 @@ describe('useDoctorController', () => {
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onInstallUpdate, onNavigate }))
 
     await act(async () =>
-      result.current.executeAction('provider-api-key-present', { kind: 'navigate', target: 'provider' })
+      result.current.executeAction('provider-api-key-present', { kind: 'navigate', target: '/settings/provider' })
     )
     await act(async () =>
       result.current.executeAction('network-endpoint-update', {
@@ -368,7 +368,7 @@ describe('useDoctorController', () => {
     await act(async () => result.current.executeAction('install-update-available', { kind: 'install_update' }))
     await act(async () => result.current.executeAction('config-hardware-acceleration', { kind: 'relaunch' }))
 
-    expect(onNavigate).toHaveBeenCalledWith('provider')
+    expect(onNavigate).toHaveBeenCalledWith('/settings/provider')
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://cherry-ai.com/status')
     expect(mocks.request).toHaveBeenCalledWith('cherry_cloud.login.start')
     expect(onInstallUpdate).toHaveBeenCalledWith(releaseInfo)
