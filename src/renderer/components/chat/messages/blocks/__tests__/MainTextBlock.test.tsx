@@ -3,6 +3,7 @@ import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/comp
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
+import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -207,8 +208,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-// Mock citation utilities
-vi.mock('@renderer/utils/citation', () => ({
+// Mock citation utilities. Only the tag-emitting entry points are stubbed — the marker pattern and
+// the code-block-aware walker stay real so the strip path under test behaves like production.
+vi.mock('@renderer/utils/citation', async (importOriginal) => ({
+  ...(await importOriginal<typeof CitationUtils>()),
   toTooltipCitation: vi.fn((citation: Citation) => citation),
   withCitationTags: vi.fn((content: string, citations: any[]) => {
     if (citations.length > 0) {
@@ -291,6 +294,7 @@ describe('MainTextBlock', () => {
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+    hiddenComposerTokens?: ReadonlySet<ComposerMessageSnapshot['tokens'][number]>
   }) => {
     return render(
       <MainTextBlock
@@ -304,6 +308,7 @@ describe('MainTextBlock', () => {
         mentions={props.mentions}
         composer={props.composer}
         readOnlyFilePreviews={props.readOnlyFilePreviews}
+        hiddenComposerTokens={props.hiddenComposerTokens}
       />
     )
   }
@@ -734,6 +739,34 @@ Hidden answer
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
       expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
+    })
+
+    it.each([false, true])('should consume hidden token prompt text in markdown mode %s', (renderAsMarkdown) => {
+      mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+      const composer: ComposerMessageSnapshot = {
+        version: 1,
+        tokens: [
+          {
+            id: 'file:image-1',
+            kind: 'file',
+            label: 'photo.png',
+            index: 0,
+            textOffset: 5,
+            promptText: 'internal image context'
+          }
+        ]
+      }
+
+      renderMainTextBlock({
+        content: 'Open internal image context now',
+        role: 'user',
+        composer,
+        hiddenComposerTokens: new Set([composer.tokens[0]])
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+      expect(document.body).toHaveTextContent('Open now')
+      expect(document.body).not.toHaveTextContent('internal image context')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {
@@ -1212,6 +1245,24 @@ Hidden answer
 
       expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
       expect(mockWithCitationTags).not.toHaveBeenCalled()
+    })
+
+    // #19771: the reported answer reused a `[cite:…]` id minted by an earlier turn, so this
+    // message resolved no citation of its own and the internal id was printed verbatim.
+    it('drops [cite:id] markers from an assistant message that resolved no citation', () => {
+      renderMainTextBlock({
+        content: '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+        role: 'assistant'
+      })
+
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', '1. 工程立项审计；\n2. 工程采购审计；')
+    })
+
+    it('keeps a literal [cite:id] typed by the user', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({ content: 'What does [cite:2598d0ab-1] mean?', role: 'user' })
+
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'What does [cite:2598d0ab-1] mean?')
     })
   })
 

@@ -1,6 +1,6 @@
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
+import { MarkdownImageRenderer } from '@renderer/components/markdown'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import type { ComponentProps, CSSProperties, JSX } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
@@ -15,12 +15,11 @@ import Table from './Table'
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
 
-const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 
 function ChatLinkRenderer(props: MarkdownRendererProps<'a'>) {
-  const { citationRegistry } = useChatMarkdownRenderContext()
-  return <Link {...props} citationRegistry={citationRegistry} />
+  const { citationRegistry, openFilePath } = useChatMarkdownRenderContext()
+  return <Link {...props} citationRegistry={citationRegistry} openFilePath={openFilePath} />
 }
 
 function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
@@ -43,10 +42,6 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
 function ChatTableRenderer(props: MarkdownRendererProps<'table'>) {
   const { blockId } = useChatMarkdownRenderContext()
   return <Table {...(props as ComponentProps<typeof Table>)} blockId={blockId} />
-}
-
-function ChatImageRenderer(props: MarkdownRendererProps<'img'>) {
-  return <ImageViewer style={IMAGE_STYLE} {...(props as ImageViewerProps)} />
 }
 
 function ChatPreRenderer(props: MarkdownRendererProps<'pre'>) {
@@ -73,7 +68,7 @@ export const CHAT_MARKDOWN_COMPONENTS = {
   sup: ChatCitationSupRenderer,
   code: ChatCodeRenderer,
   table: ChatTableRenderer,
-  img: ChatImageRenderer,
+  img: MarkdownImageRenderer,
   pre: ChatPreRenderer,
   p: ChatParagraphRenderer,
   span: ChatSpanRenderer,

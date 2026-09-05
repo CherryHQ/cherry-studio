@@ -198,6 +198,31 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(current)
   })
 
+  it('does not consume a warm query with different notification authority', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    const sourceContext = {
+      sourceChannel: { id: 'channel-1', type: 'telegram' as const },
+      channels: [{ id: 'channel-1', type: 'telegram' as const }],
+      allowAnyOwnedChannel: true
+    }
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any, notificationContext: sourceContext })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      notificationContext: {
+        sourceChannel: null,
+        channels: [{ id: 'channel-2', type: 'feishu' }],
+        allowAnyOwnedChannel: false
+      }
+    })
+
+    expect(consumed).toBeUndefined()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
   it('uses the same signature with or without abortController', () => {
     const withAbort = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',
@@ -370,6 +395,27 @@ describe('ClaudeCodeWarmQueryManager', () => {
       key: 'session-1',
       options: { model: 'sonnet' } as any,
       credentialsFingerprint: 'set-2'
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('discards a warm query when the connection rebuild signature changes', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-2'
     })
 
     expect(consumed).toBeUndefined()

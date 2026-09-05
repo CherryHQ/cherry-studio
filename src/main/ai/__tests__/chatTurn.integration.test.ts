@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import type { UIMessageChunk } from 'ai'
+import { InvalidResponseDataError, type UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { markTrustedLocalToolTerminalFailure } from '../runtime/aiSdk/loop/localToolTerminalOutcome'
@@ -98,6 +98,21 @@ function sdkStream(chunks: UIMessageChunk[], steps: unknown[] = []) {
       }),
     steps: Promise.resolve(steps),
     finishReason: Promise.resolve('stop')
+  }
+}
+
+function sdkErrorStream(chunks: UIMessageChunk[], error: Error) {
+  return {
+    toUIMessageStream: ({ onError }: { onError: (error: unknown) => string }) =>
+      new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk)
+          controller.enqueue({ type: 'error', errorText: onError(error) })
+          controller.close()
+        }
+      }),
+    steps: Promise.resolve([]),
+    finishReason: Promise.resolve('error')
   }
 }
 
@@ -302,5 +317,55 @@ describe('chat turn integration trajectory', () => {
       name: 'ToolLoopTerminalError',
       i18nKey: 'web_search_provider_unavailable'
     })
+  })
+
+  it('preserves partial content and identifies a stream that ends without a finish reason', async () => {
+    const chunks = [
+      { type: 'start', messageId: 'assistant-missing-finish-1' },
+      { type: 'start-step' },
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: 'Partial response' },
+      { type: 'text-end', id: 'text-1' }
+    ] as UIMessageChunk[]
+    const error = new InvalidResponseDataError({
+      data: undefined,
+      message: 'Response stream ended without a finish reason.'
+    })
+    mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkErrorStream(chunks, error)) })
+
+    const manager = createManager()
+    const topicId = 'chat-integration-missing-finish-1'
+    const listener = new FakeListener()
+    const modelId = 'test-provider::test-model' as const
+
+    manager.send({
+      topicId,
+      models: [
+        {
+          modelId,
+          request: {
+            chatId: topicId,
+            trigger: 'submit-message',
+            messageId: 'assistant-missing-finish-1',
+            uniqueModelId: modelId,
+            messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Reply partially' }] }]
+          }
+        }
+      ],
+      listeners: [listener]
+    })
+
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+    expect(listener.doneResults).toEqual([])
+    expect(listener.errorResults[0].error).toMatchObject({
+      name: 'MissingFinishReasonError',
+      i18nKey: 'missing_finish_reason',
+      providerId: 'test-provider',
+      modelId: 'test-model'
+    })
+    expect(listener.errorResults[0].finalMessage.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Partial response' })])
+    )
   })
 })

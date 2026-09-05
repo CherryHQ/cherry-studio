@@ -166,6 +166,8 @@ export class ProxyService extends BaseService {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
+    // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
+    // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
     const sessions = [
       session.defaultSession,
       session.fromPartition('persist:webview'),

@@ -156,6 +156,7 @@ export function MessageVirtualList<T>({
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  const { armAutoscrollCandidate, confirmAutoscroll, dismissAutoscroll } = runtime
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
   // would unmount the virtualizer below — discarding virtua's measurements and
@@ -274,7 +275,37 @@ export function MessageVirtualList<T>({
     scrollerElement.addEventListener('focusin', onFocusIn)
     scrollerElement.addEventListener('focusout', onFocusOut)
     scrollerElement.addEventListener('keydown', onKeyDown)
+    // Chromium middle-click autoscroll synthesizes scrollTop without wheel or
+    // pointer drag events. The runtime owns the candidate/confirmed lifecycle
+    // so freeze suppression is time-bounded and not latched on a swallowed
+    // dismissal click.
+    const onCapturedScroll = (event: Event) => {
+      if (event.target !== scrollerElement) return
+      confirmAutoscroll()
+    }
+    const onAutoscrollMouseDown = (event: MouseEvent) => {
+      const isMiddle = event.button === 1
+      const insideScroller = scrollerElement.contains(event.target as Node)
+      if (isMiddle && insideScroller) {
+        const target = event.target instanceof Element ? event.target : null
+        if (target?.closest('a,button,[role="button"]')) return
+        armAutoscrollCandidate()
+        return
+      }
+      dismissAutoscroll()
+    }
+    const onKeyDownAutoscrollDismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismissAutoscroll()
+    }
+    const onWindowBlur = () => dismissAutoscroll()
+    // Single document-level listener covers both inside and outside clicks;
+    // a separate scroller listener would double-fire for inside clicks.
+    ownerDocument.addEventListener('mousedown', onAutoscrollMouseDown, { passive: true })
+    ownerDocument.addEventListener('keydown', onKeyDownAutoscrollDismiss)
+    ownerDocument.addEventListener('scroll', onCapturedScroll, { capture: true, passive: true })
+    ownerDocument.defaultView?.addEventListener('blur', onWindowBlur)
     return () => {
+      dismissAutoscroll()
       focusOwnerObserver.disconnect()
       scrollerElement.removeEventListener('pointerdown', onPointerDown)
       scrollerElement.removeEventListener('pointermove', onPointerMove)
@@ -283,8 +314,20 @@ export function MessageVirtualList<T>({
       scrollerElement.removeEventListener('focusin', onFocusIn)
       scrollerElement.removeEventListener('focusout', onFocusOut)
       scrollerElement.removeEventListener('keydown', onKeyDown)
+      ownerDocument.removeEventListener('mousedown', onAutoscrollMouseDown)
+      ownerDocument.removeEventListener('keydown', onKeyDownAutoscrollDismiss)
+      ownerDocument.removeEventListener('scroll', onCapturedScroll, { capture: true })
+      ownerDocument.defaultView?.removeEventListener('blur', onWindowBlur)
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
+  }, [
+    armAutoscrollCandidate,
+    beginScrollbarDrag,
+    confirmAutoscroll,
+    dismissAutoscroll,
+    endScrollbarDrag,
+    markUserInput,
+    scrollerElement
+  ])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom()
@@ -305,9 +348,8 @@ export function MessageVirtualList<T>({
         tabIndex={0}
         role="region"
         aria-label={t('globalSearch.groups.message')}
-        className={cn('focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset', className)}
-        style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
-        <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
+        className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]', className)}>
+        <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
             requestReadingControl={requestDisclosureReadingControl}

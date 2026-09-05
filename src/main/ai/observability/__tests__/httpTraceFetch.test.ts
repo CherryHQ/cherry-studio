@@ -98,6 +98,23 @@ describe('createHttpTraceFetch', () => {
     })
   })
 
+  it('clears inputs when the inner fetch drops the request body', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+        HTTP_TRACE_FINAL_BODY_SLOT
+      ]
+      if (slot) slot.body = null
+      return new Response(null, { status: 204 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com/v1/responses', { method: 'POST', body: '{"before":true}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    expect(attributes.inputs).toBe('')
+  })
+
   it('truncates a request body larger than maxBodyBytes', async () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))

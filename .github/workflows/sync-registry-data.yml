@@ -28,7 +28,9 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/sync-registry-data.yml'
       - 'packages/provider-registry/data/**'
+      - 'scripts/buildRegistrySyncRequest.js'
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
       - 'packages/provider-registry/src/registry-loader.ts'
@@ -48,14 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
           path: main
           fetch-depth: 1
 
       - name: Checkout x-files/provider-registry branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: x-files/provider-registry
           path: pub
@@ -147,25 +149,16 @@ jobs:
           REF_ID=$(jq -er '.data.repository.ref.id' <<< "$REF")
           HEAD_OID=$(jq -er '.data.repository.ref.target.oid' <<< "$REF")
 
-          ADDITIONS=$(git diff --cached --name-only --diff-filter=ACMR \
-            | while read -r f; do
-                jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" '{path: $path, contents: $contents}'
-              done | jq -sc .)
-          DELETIONS=$(git diff --cached --name-only --diff-filter=D | jq -Rc '{path: .}' | jq -sc .)
-
-          RESP=$(jq -n \
-            --arg refId "$REF_ID" \
-            --arg oid "$HEAD_OID" \
-            --arg headline "chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
-            --arg body "Source: ${{ github.repository }}@${{ github.sha }}
+          REQUEST_FILE=$(mktemp)
+          trap 'rm -f "$REQUEST_FILE"' EXIT
+          REGISTRY_SYNC_REF_ID="$REF_ID" \
+          REGISTRY_SYNC_EXPECTED_HEAD_OID="$HEAD_OID" \
+          REGISTRY_SYNC_HEADLINE="chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
+          REGISTRY_SYNC_BODY="Source: ${{ github.repository }}@${{ github.sha }}
           Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --argjson additions "$ADDITIONS" \
-            --argjson deletions "$DELETIONS" \
-            '{query: "mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}",
-              variables: {input: {branch: {id: $refId}, expectedHeadOid: $oid,
-                                  message: {headline: $headline, body: $body},
-                                  fileChanges: {additions: $additions, deletions: $deletions}}}}' \
-            | gh api graphql --input -)
+            node ../main/scripts/buildRegistrySyncRequest.js "$REQUEST_FILE"
+
+          RESP=$(gh api graphql --input "$REQUEST_FILE")
 
           # gh does not always exit non-zero on a GraphQL `errors` payload.
           if jq -e '.errors' <<< "$RESP" >/dev/null; then

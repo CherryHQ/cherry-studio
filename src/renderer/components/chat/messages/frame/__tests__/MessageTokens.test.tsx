@@ -35,23 +35,31 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 const translations: Record<string, string> = {
   'chat.message.token_details.cache_read': 'Cache read',
   'chat.message.token_details.cache_write': 'Cache write',
+  'chat.message.token_details.end_to_end_throughput': 'End-to-end throughput',
   'chat.message.token_details.input': 'Input',
   'chat.message.token_details.input_breakdown': 'Input breakdown',
   'chat.message.token_details.lane_approval': 'Approval',
   'chat.message.token_details.lane_model': 'Model',
   'chat.message.token_details.lane_other': 'Other',
   'chat.message.token_details.lane_tool': 'Tool',
+  'chat.message.token_details.less_details': 'Less details',
+  'chat.message.token_details.model_throughput': 'Model generation TPS',
+  'chat.message.token_details.more_details': 'More details',
   'chat.message.token_details.output': 'Output',
   'chat.message.token_details.reasoning': 'Reasoning',
   'chat.message.token_details.reasoning_time': 'Reasoning',
   'chat.message.token_details.request_duration': 'Generation timing',
+  'chat.message.token_details.runtime_breakdown': 'Runtime breakdown',
   'chat.message.token_details.text_generation': 'Text generation',
   'chat.message.token_details.text_output': 'Text output',
+  'chat.message.token_details.time_to_first_token': 'Time to first token',
   'chat.message.token_details.tokens': '{{value}} Tokens',
   'chat.message.token_details.tokens_per_second_value': '{{value}} Tokens/s',
+  'chat.message.token_details.total_duration': 'End-to-end duration',
   'chat.message.token_details.uncached': 'Uncached',
   'chat.message.token_details.usage': 'Token usage',
-  'chat.message.token_details.waiting_first_token': 'Waiting'
+  'chat.message.token_details.waiting_first_token': 'Waiting',
+  'common.loading': 'Loading...'
 }
 
 vi.mock('react-i18next', () => ({
@@ -148,81 +156,13 @@ function getDetailsCard() {
   return card
 }
 
+function expandMoreDetails() {
+  fireEvent.click(screen.getByRole('button', { name: 'More details' }))
+}
+
 describe('MessageTokens', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
-
-  it('does not query invocation details until a new-format details card opens', () => {
-    renderWithProvider(
-      createMessage('assistant', {
-        outputTokens: 10,
-        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
-      })
-    )
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({ enabled: false })
-    )
-
-    openDetails()
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({
-        enabled: true,
-        query: expect.objectContaining({
-          messageKind: 'chat',
-          messageId: 'assistant-message-1'
-        })
-      })
-    )
-  })
-
-  it('queries the agent-session usage partition when provided by the message-list adapter', () => {
-    renderWithProvider(
-      createMessage('assistant', {
-        outputTokens: 10,
-        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
-      }),
-      'agent-session'
-    )
-
-    openDetails()
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({
-        enabled: true,
-        query: expect.objectContaining({
-          messageKind: 'agent-session',
-          messageId: 'assistant-message-1'
-        })
-      })
-    )
-  })
-
-  it('loads remaining invocation pages while the duration distribution is open', () => {
-    const loadNext = vi.fn()
-    dataApiMocks.useInfiniteQuery.mockReturnValue({
-      pages: [{ items: [], nextCursor: 'next' }],
-      isLoading: false,
-      isRefreshing: false,
-      hasNext: true,
-      loadNext
-    })
-
-    renderWithProvider(
-      createMessage('assistant', {
-        outputTokens: 10,
-        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
-      })
-    )
-
-    expect(loadNext).not.toHaveBeenCalled()
-    openDetails()
-    expect(loadNext).toHaveBeenCalledTimes(1)
-  })
 
   it('keeps user messages compact without rendering the assistant detail card', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
@@ -243,6 +183,49 @@ describe('MessageTokens', () => {
     )
 
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
+  })
+
+  it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {
+    renderWithProvider(
+      createMessage(
+        'assistant',
+        {
+          outputTokens: 10,
+          runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+        },
+        { id: 'agent-message-1' }
+      ),
+      'agent-session'
+    )
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({ enabled: false })
+    )
+
+    openDetails()
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'agent-session',
+          messageId: 'agent-message-1'
+        })
+      })
+    )
+
+    expandMoreDetails()
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'agent-session',
+          messageId: 'agent-message-1'
+        })
+      })
+    )
   })
 
   it('shows the frozen model identity, provider display name, and a full local creation time', () => {
@@ -272,100 +255,90 @@ describe('MessageTokens', () => {
     expect(screen.getByText(expectedLocalTime)).toHaveAttribute('dateTime', message.createdAt)
   })
 
-  it('folds reasoning into output usage and reveals exact values on the matching segment', () => {
-    renderWithProvider(
-      createMessage('assistant', {
-        inputTokens: 100,
-        outputTokens: 100,
-        outputTokenDetails: { reasoningTokens: 25 },
-        totalTokens: 200
-      })
-    )
-    openDetails()
-
-    const detail = screen.getByTestId('metric-detail-token-usage')
-    const usageBar = screen.getByTestId('metric-bar-token-usage')
-    expect(detail).toHaveTextContent('Token usage')
-    expect(detail).toHaveTextContent('200 Tokens')
-
-    fireEvent.pointerEnter(screen.getByTestId('metric-segment-token-usage-reasoning'))
-
-    expect(detail).toHaveTextContent('Reasoning')
-    expect(detail).toHaveTextContent('25 Tokens · 12.5%')
-    expect(within(usageBar).getByText('Text output')).toBeInTheDocument()
-  })
-
-  it('visualizes uncached, cache-read, and cache-write input details', () => {
-    renderWithProvider(
-      createMessage('assistant', {
-        inputTokens: 100,
-        outputTokens: 20,
-        totalTokens: 120,
-        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
-      })
-    )
-    openDetails()
-
-    fireEvent.pointerEnter(screen.getByTestId('metric-segment-input-breakdown-cache-read'))
-
-    expect(screen.getByTestId('metric-detail-input-breakdown')).toHaveTextContent('Cache read')
-    expect(screen.getByTestId('metric-detail-input-breakdown')).toHaveTextContent('70 Tokens · 70%')
-  })
-
-  it('shows throughput outside the card and splits waiting, reasoning, and text generation timing', () => {
+  it('prioritizes exact input, output, and generation speed values', () => {
     renderWithProvider(
       createMessage('assistant', {
         inputTokens: 100,
         outputTokens: 100,
         totalTokens: 200,
         timeFirstTokenMs: 4000,
-        timeThinkingMs: 3000,
         timeCompletionMs: 14000
       })
     )
     openDetails()
 
-    const trigger = screen.getByRole('button', { name: '200 Tokens · 10 Tokens/s' })
-    expect(trigger).toHaveClass('message-tokens')
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('Input100 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('Output100 Tokens')
+    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPS10 Tokens/s')
+    expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('Time to first token4s')
+    expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('End-to-end throughput7.1 Tokens/s')
+    expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('End-to-end duration14s')
+    expect(screen.queryByTestId('message-performance-breakdown')).not.toBeInTheDocument()
 
-    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-waiting-first-token'))
-    expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('1s · 7.1%')
-
-    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-reasoning-time'))
-    expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('3s · 21.4%')
-
-    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-text-generation'))
-    expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('10s · 71.4%')
+    expandMoreDetails()
+    expect(screen.getByTestId('message-performance-breakdown')).toHaveTextContent('Waiting4s')
+    expect(screen.getByTestId('message-performance-breakdown')).toHaveTextContent('Text generation10s')
   })
 
-  it('shows the runtime duration distribution without a per-step detail list', () => {
+  it('shrinks oversized primary values without truncating their content', () => {
     renderWithProvider(
       createMessage('assistant', {
-        outputTokens: 100,
-        runtimeTiming: {
-          startedAt: 1_000,
-          completedAt: 5_000,
-          spans: [
-            {
-              id: 'tool:read',
-              kind: 'tool-execution',
-              toolCallId: 'read',
-              toolName: 'Read',
-              startedAt: 2_000,
-              completedAt: 3_000
-            }
-          ]
-        }
+        inputTokens: 1_234_567_890_123,
+        outputTokens: 9_876_543_210,
+        totalTokens: 1_244_444_433_333,
+        providerPerformance: {
+          measuredOutputTokens: 9_999_999,
+          generationDurationMs: 10_000
+        },
+        runtimeTiming: { startedAt: 0, completedAt: 10_000, spans: [] }
       })
     )
     openDetails()
 
-    const timeline = screen.getByTestId('message-performance-timeline')
-    expect(within(timeline).getByText('Model')).toBeInTheDocument()
-    expect(within(timeline).getByText('Tool')).toBeInTheDocument()
-    expect(within(timeline).getByText('Approval')).toBeInTheDocument()
-    expect(within(timeline).getByText('Other')).toBeInTheDocument()
-    expect(screen.queryByTestId('message-performance-steps')).not.toBeInTheDocument()
+    for (const testId of ['message-metric-input', 'message-metric-output', 'message-metric-speed']) {
+      const value = screen.getByTestId(testId).querySelector('dd')
+      expect(value).not.toHaveClass('truncate')
+    }
+
+    const speedValue = screen.getByTestId('message-metric-speed').querySelector<HTMLElement>('dd')
+    if (!speedValue) throw new Error('Speed value was not rendered')
+    let fittingFontSize = 12
+    Object.defineProperties(speedValue, {
+      clientWidth: { configurable: true, get: () => 112 },
+      scrollWidth: {
+        configurable: true,
+        get: () => (Number.parseFloat(speedValue.style.fontSize) <= fittingFontSize ? 112 : 140)
+      }
+    })
+    fireEvent(window, new Event('resize'))
+    expect(speedValue).toHaveStyle({ fontSize: '12px', whiteSpace: 'nowrap' })
+
+    fittingFontSize = 0
+    fireEvent(window, new Event('resize'))
+    expect(speedValue).toHaveStyle({ fontSize: '10px', whiteSpace: 'normal', overflowWrap: 'anywhere' })
+
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('1,234,567,890,123 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('9,876,543,210 Tokens')
+    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('999,999.9 Tokens/s')
+  })
+
+  it('keeps reasoning and input composition available as secondary metrics', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        inputTokens: 100,
+        outputTokens: 100,
+        outputTokenDetails: { reasoningTokens: 25 },
+        totalTokens: 200,
+        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
+      })
+    )
+    openDetails()
+
+    const details = screen.getByTestId('message-secondary-metrics')
+    expect(details).toHaveTextContent('Reasoning25 Tokens')
+    expect(details).toHaveTextContent('Cache read70 Tokens')
+    expect(details).toHaveTextContent('Cache write20 Tokens')
+    expect(details).toHaveTextContent('Uncached10 Tokens')
   })
 
   it('omits unavailable performance measurements instead of rendering zero values', () => {
@@ -375,9 +348,8 @@ describe('MessageTokens', () => {
     const trigger = screen.getByRole('button', { name: '12 Tokens' })
     expect(trigger).toHaveClass('message-tokens')
 
-    const card = getDetailsCard()
-    expect(within(card).queryByTestId('metric-bar-request-duration')).not.toBeInTheDocument()
-    expect(within(card).queryByText(/Tokens\/s/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPS—')
+    expect(getDetailsCard()).not.toHaveTextContent(/Tokens\/s/)
   })
 
   it('exposes exact read-only values when the hover-card trigger receives keyboard focus', () => {
@@ -396,8 +368,8 @@ describe('MessageTokens', () => {
 
     const card = getDetailsCard()
     expect(trigger).toHaveAttribute('aria-describedby', card.id)
-    expect(within(screen.getByTestId('metric-bar-token-usage')).getByText('25 Tokens · 12.5%')).toBeInTheDocument()
-    expect(within(card).queryAllByRole('button')).toHaveLength(0)
+    expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('Reasoning25 Tokens')
+    expect(within(card).queryByRole('button', { name: 'More details' })).not.toBeInTheDocument()
   })
 
   it('dismisses pointer-opened details until the pointer deliberately re-enters while keeping locate clicks stable', () => {

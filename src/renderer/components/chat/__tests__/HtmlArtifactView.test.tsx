@@ -261,6 +261,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
+  })
+
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
     const onSave = vi.fn()
