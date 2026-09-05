@@ -88,6 +88,44 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
+  it('returns the oldest user message without loading assistant rows', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: 'assistant-before-user',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'assistant' }] },
+        status: 'error',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: 'first-user',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'first request' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'later-user',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'follow-up' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      }
+    ])
+
+    expect(agentSessionMessageService.getFirstUserMessage(SESSION_ID)).toMatchObject({
+      id: 'first-user',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'first request' }] }
+    })
+  })
+
   describe('cross-session delivery', () => {
     it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
       await seedAgent('agent-a', 'Agent A')

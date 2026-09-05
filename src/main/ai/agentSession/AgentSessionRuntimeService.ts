@@ -157,7 +157,7 @@ export interface BeginAgentSessionTurnInput {
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
   messageSnapshot?: MessageSnapshot
-  /** Only an untouched session's initial turn may run the two-stage automatic naming flow. */
+  /** Whether this turn may complete the session's pending automatic naming flow. */
   shouldAutoName?: boolean
 }
 
@@ -198,7 +198,7 @@ type AgentSessionTurn = {
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
-  /** Whether this initial turn owns the session's one automatic AI naming attempt. */
+  /** Whether this dispatch found the session eligible for automatic naming. */
   shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -213,6 +213,8 @@ type AgentSessionTurn = {
 
 type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
+  /** Whether this queued turn may complete the session's pending automatic naming flow. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
@@ -268,6 +270,8 @@ type AgentSessionRuntimeEntry = {
   modelId: UniqueModelId
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
+  /** Retained across failed or paused turns until one successful persistence attempts naming. */
+  autoNamePending: boolean
   runtimeState: RuntimeState
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
@@ -512,6 +516,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentType = input.agentType
       existing.modelId = input.modelId
       existing.messageSnapshot = messageSnapshot
+      existing.autoNamePending ||= turn.shouldAutoName === true
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
@@ -536,6 +541,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentType: input.agentType,
       modelId: input.modelId,
       messageSnapshot,
+      autoNamePending: turn.shouldAutoName === true,
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
@@ -653,6 +659,7 @@ export class AgentSessionRuntimeService extends BaseService {
         agentId: session.agentId,
         agentType: agent.type,
         modelId: agent.model,
+        autoNamePending: false,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -825,6 +832,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
+      shouldAutoName?: boolean
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
@@ -887,6 +895,7 @@ export class AgentSessionRuntimeService extends BaseService {
         knowledgeBaseIds,
         fastMode,
         steer: true,
+        ...(opts.shouldAutoName ? { shouldAutoName: true } : {}),
         ...(headless ? { headless } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
@@ -2662,6 +2671,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.autoNamePending ||= pendingTurn.shouldAutoName === true
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
@@ -3082,8 +3092,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
-    const afterPersist = currentTurn.shouldAutoName
+    const afterPersist = entry.autoNamePending
       ? async (finalMessage: CherryUIMessage) => {
+          entry.autoNamePending = false
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
       : undefined

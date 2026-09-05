@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -458,6 +458,19 @@ export class AgentSessionMessageService {
         .limit(1)
         .all().length > 0
     )
+  }
+
+  getFirstUserMessage(sessionId: string): AgentSessionMessageEntity | null {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.role, 'user')))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .limit(1)
+      .all()
+    return row ? this.rowToEntity(row) : null
   }
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
