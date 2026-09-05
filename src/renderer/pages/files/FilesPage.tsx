@@ -433,7 +433,10 @@ function FilesPage() {
   })
 
   const viewKey = isTrash ? 'trash' : 'active'
-  const hydrationScopeKey = `${viewKey}:${serverSortKey}:${sortDir}:${activeFileType ?? ''}`
+  // Sorting only changes row order; it does not change which records need
+  // metadata, paths, or dangling-state hydration. Keep that cache warm across
+  // sort toggles and scope invalidation to view/filter changes instead.
+  const hydrationScopeKey = `${viewKey}:${activeFileType ?? ''}`
   const hydrationScopeRef = useRef(hydrationScopeKey)
   const currentFilePages = isTrash ? trashedFilePages : activeFilePages
   const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))

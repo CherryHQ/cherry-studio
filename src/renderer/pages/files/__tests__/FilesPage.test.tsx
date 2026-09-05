@@ -934,7 +934,7 @@ describe('FilesPage incremental hydration', () => {
     expect(screen.queryByText('1.0 KB')).not.toBeInTheDocument()
   })
 
-  it('invalidates hydration when the list query changes and ignores the previous response', async () => {
+  it('invalidates hydration when the list filter changes and ignores the previous response', async () => {
     const staleMetadata = deferred<Record<string, unknown>>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
@@ -972,9 +972,7 @@ describe('FilesPage incremental hydration', () => {
     render(<FilesPage />)
 
     await waitFor(() => expect(metadataRequestCount).toBe(1))
-    const typeHeader = screen.getAllByRole('button').find((button) => button.textContent?.includes('files.type'))
-    expect(typeHeader).toBeDefined()
-    fireEvent.click(typeHeader as HTMLButtonElement)
+    fireEvent.click(screen.getByText('files.text'))
 
     await waitFor(() => expect(metadataRequestCount).toBe(2))
     expect(await screen.findByText('2.0 KB')).toBeInTheDocument()
@@ -995,6 +993,39 @@ describe('FilesPage incremental hydration', () => {
 
     expect(screen.getByText('2.0 KB')).toBeInTheDocument()
     expect(screen.queryByText('1.0 KB')).not.toBeInTheDocument()
+  })
+
+  it('does not rehydrate visible IDs when only the sort changes', async () => {
+    mockFiles([externalEntry])
+    mockFileStats(statsForEntries([externalEntry]))
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [] : [{ items: [externalEntry] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    ipcMocks.request.mockResolvedValue({})
+    render(<FilesPage />)
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    ipcMocks.request.mockClear()
+
+    const typeHeader = screen.getAllByRole('button').find((button) => button.textContent?.includes('files.type'))
+    expect(typeHeader).toBeDefined()
+    fireEvent.click(typeHeader as HTMLButtonElement)
+
+    await waitFor(() => {
+      const activeCall = mockUseInfiniteQuery.mock.calls
+        .filter((call) => !(call[1]?.query as { inTrash?: boolean } | undefined)?.inTrash)
+        .at(-1)
+      expect(activeCall?.[1]?.query).toMatchObject({ sortBy: 'ext' })
+    })
+    expect(ipcMocks.request).not.toHaveBeenCalled()
   })
 
   it('retries pending hydration after leaving and re-entering a view', async () => {
