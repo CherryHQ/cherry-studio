@@ -10,19 +10,17 @@ const provider = (id: string, authMethods?: Provider['authMethods']): Pick<Provi
 })
 
 describe('isAgentOnlyProvider', () => {
-  it('is true for external-cli providers in every edition', () => {
-    expect(isAgentOnlyProvider(provider('claude-code', ['external-cli']), 'cn')).toBe(true)
-    expect(isAgentOnlyProvider(provider('claude-code', ['external-cli']), 'global')).toBe(true)
+  it('is true for external-cli providers', () => {
+    expect(isAgentOnlyProvider(provider('claude-code', ['external-cli']))).toBe(true)
   })
 
-  it('follows CHERRY_CLOUD_AUDIENCE for the Cherry Cloud provider', () => {
-    expect(isAgentOnlyProvider(provider(CHERRY_CLOUD_PROVIDER_ID), 'cn')).toBe(true)
-    expect(isAgentOnlyProvider(provider(CHERRY_CLOUD_PROVIDER_ID), 'global')).toBe(false)
+  it('does not infer Cherry Cloud module availability from the provider', () => {
+    expect(isAgentOnlyProvider(provider(CHERRY_CLOUD_PROVIDER_ID))).toBe(false)
   })
 
   it('is false for api-key and oauth providers', () => {
-    expect(isAgentOnlyProvider(provider('openai', ['api-key']), 'cn')).toBe(false)
-    expect(isAgentOnlyProvider(provider('codex', ['oauth']), 'cn')).toBe(false)
-    expect(isAgentOnlyProvider(provider('openai'), 'global')).toBe(false)
+    expect(isAgentOnlyProvider(provider('openai', ['api-key']))).toBe(false)
+    expect(isAgentOnlyProvider(provider('codex', ['oauth']))).toBe(false)
+    expect(isAgentOnlyProvider(provider('openai'))).toBe(false)
   })
 })
