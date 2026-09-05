@@ -52,8 +52,6 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
-import { isSameOrInside } from './path'
-
 const logger = loggerService.withContext('utils/file/fs')
 
 const notImplemented = (op: string): never => {
@@ -426,6 +424,17 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
 }
 
 /**
+ * Compare paths that have already gone through realpath.  realpath gives us the
+ * filesystem's canonical spelling, so this exact comparison preserves the
+ * actual mount's case semantics instead of assuming every macOS volume is
+ * case-insensitive.
+ */
+function isSameOrInsideResolved(candidate: AbsoluteFilePath, container: AbsoluteFilePath): boolean {
+  const relative = path.relative(container, candidate)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+/**
  * Read a fixed regular-file snapshot only when the opened inode is still reachable through a path
  * inside one of the trusted roots. Both path resolutions are treated as hints: acceptance depends
  * on a second safely-opened snapshot matching the source `(dev, ino)`, which closes the
@@ -443,14 +452,14 @@ export async function readTextFileWithinRoots(
   signal?.throwIfAborted()
 
   const resolvedBefore = AbsoluteFilePathSchema.parse(await fsRealpath(target))
-  if (!roots.some((root) => isSameOrInside(resolvedBefore, root))) return null
+  if (!roots.some((root) => isSameOrInsideResolved(resolvedBefore, root))) return null
 
   const source = await openReadableFileSnapshot(resolvedBefore)
   try {
     if (source.size > maxBytes) return null
 
     const resolvedAfter = AbsoluteFilePathSchema.parse(await fsRealpath(target))
-    if (!roots.some((root) => isSameOrInside(resolvedAfter, root))) return null
+    if (!roots.some((root) => isSameOrInsideResolved(resolvedAfter, root))) return null
 
     const verifier = await openReadableFileSnapshot(resolvedAfter)
     try {

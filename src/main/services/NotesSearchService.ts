@@ -85,9 +85,9 @@ function matchFileName(node: NotesTreeNode, keyword: string, caseSensitive: bool
   return name.includes(key)
 }
 
-function getFileNameScore(node: NotesTreeNode, keyword: string): number {
-  const normalizedName = node.name.toLowerCase()
-  const normalizedKeyword = keyword.toLowerCase()
+function getFileNameScore(node: NotesTreeNode, keyword: string, caseSensitive = false): number {
+  const normalizedName = caseSensitive ? node.name : node.name.toLowerCase()
+  const normalizedKeyword = caseSensitive ? keyword : keyword.toLowerCase()
 
   if (normalizedName === normalizedKeyword) {
     return 200
@@ -109,9 +109,10 @@ function calculateRelevanceScore(
   node: NotesTreeNode,
   keyword: string,
   matches: NotesSearchMatch[],
-  searchStartedAt: number
+  searchStartedAt: number,
+  caseSensitive: boolean
 ): number {
-  let score = getFileNameScore(node, keyword)
+  let score = getFileNameScore(node, keyword, caseSensitive)
 
   score += Math.min(matches.length * 2, 50)
   score += getRecencyScore(node, searchStartedAt)
@@ -133,7 +134,10 @@ function calculateMaxScore(
 
   const maxMatchesPerFile = options.maxMatchesPerFile ?? DEFAULT_MAX_MATCHES_PER_FILE
   const maxContentScore =
-    getFileNameScore(node, keyword) + Math.min(maxMatchesPerFile * 2, 50) + recencyScore + (nameMatch ? 100 : 0)
+    getFileNameScore(node, keyword, options.caseSensitive ?? false) +
+    Math.min(maxMatchesPerFile * 2, 50) +
+    recencyScore +
+    (nameMatch ? 100 : 0)
 
   return nameMatch ? Math.max(100, maxContentScore) : maxContentScore
 }
@@ -294,7 +298,7 @@ async function searchFileContent(
       ...resultNode(node),
       matchType: 'content',
       matches,
-      score: calculateRelevanceScore(node, keyword, matches, searchStartedAt)
+      score: calculateRelevanceScore(node, keyword, matches, searchStartedAt, options.caseSensitive ?? false)
     }
   } catch (error) {
     if (!isAbortError(error)) {
@@ -358,7 +362,13 @@ export class NotesSearchService extends BaseService {
   private async runSearch(query: NotesSearchQuery, controller: AbortController): Promise<NotesSearchResult[]> {
     const { nodes, keyword, options, maxResults } = query
     const searchStartedAt = Date.now()
-    const notesRoots = await this.resolveNotesRoots()
+    let notesRoots: AbsoluteFilePath[]
+    try {
+      notesRoots = await this.resolveNotesRoots(controller.signal)
+    } catch (error) {
+      if (isAbortError(error)) return []
+      throw error
+    }
     const candidates = flattenFileNodes(nodes)
       .map<SearchCandidate>((node, ordinal) => ({
         node,
@@ -450,7 +460,8 @@ export class NotesSearchService extends BaseService {
     return results.sort(compareRankedResults).map(({ result }) => result)
   }
 
-  private async resolveNotesRoots(): Promise<AbsoluteFilePath[]> {
+  private async resolveNotesRoots(signal: AbortSignal): Promise<AbsoluteFilePath[]> {
+    throwIfAborted(signal)
     const configuredPath = application.get('PreferenceService').get('feature.notes.path').trim()
     const candidates = [application.getPath('feature.notes.data'), configuredPath]
     const roots = await Promise.all(
@@ -458,13 +469,15 @@ export class NotesSearchService extends BaseService {
         const parsed = AbsoluteFilePathSchema.safeParse(candidate)
         if (!parsed.success) return null
         try {
-          return await realpath(parsed.data)
-        } catch {
+          return await waitForSearchOperation(realpath(parsed.data), signal)
+        } catch (error) {
+          if (isAbortError(error)) throw error
           return null
         }
       })
     )
 
+    throwIfAborted(signal)
     return roots.filter((root): root is AbsoluteFilePath => root !== null)
   }
 

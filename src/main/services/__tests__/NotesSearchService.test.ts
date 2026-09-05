@@ -321,6 +321,22 @@ describe('NotesSearchService', () => {
     expect(Number.isFinite(results[0].score)).toBe(true)
   })
 
+  it('does not apply a case-insensitive filename boost to case-sensitive content matches', async () => {
+    readMock.mockResolvedValue('alpha appears in content')
+
+    const results = await service.search(
+      {
+        nodes: [note('case-mismatch', { name: 'ALPHA' })],
+        keyword: 'alpha',
+        options: { caseSensitive: true },
+        maxResults: 10
+      },
+      requestContext('search-case-sensitive-score')
+    )
+
+    expect(results).toEqual([expect.objectContaining({ id: 'case-mismatch', matchType: 'content', score: 12 })])
+  })
+
   it('preserves traversal of file descendants on every non-file tree node', async () => {
     readMock.mockResolvedValue('needle')
     const nestedFile = note('nested')
@@ -397,6 +413,22 @@ describe('NotesSearchService', () => {
     await expect(search).resolves.toEqual([])
     await expect(service._doStop()).resolves.toBeUndefined()
     stuckRead.resolve('needle')
+  })
+
+  it('does not keep cancellation pending while resolving note roots', async () => {
+    const pendingRoot = createDeferred<string>()
+    realpathMock.mockReturnValue(pendingRoot.promise)
+    const context = requestContext('stuck-root')
+    const search = service.search(
+      { nodes: [note('slow-root')], keyword: 'needle', options: {}, maxResults: 10 },
+      context
+    )
+
+    service.cancel(context)
+
+    await expect(search).resolves.toEqual([])
+    await expect(service._doStop()).resolves.toBeUndefined()
+    pendingRoot.resolve('/notes')
   })
 
   it('supersedes the previous search from the same sender and ignores a late cancel for it', async () => {
