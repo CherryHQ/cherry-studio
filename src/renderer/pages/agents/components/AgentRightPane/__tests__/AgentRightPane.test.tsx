@@ -1128,7 +1128,7 @@ describe('AgentRightPane', () => {
     )
   })
 
-  it('marks direct artifact opening as user initiated', async () => {
+  it('marks direct artifact opening as user initiated and returns to the Files tree', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'report.md'
@@ -1157,7 +1157,9 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('opens sent input files as read-only previews while displaying the original path', async () => {
@@ -1276,6 +1278,58 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('recaptures the return target after navigating away from an input preview', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockResolvedValue({ kind: 'file' })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md'))
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="status"]') as HTMLElement)
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+  })
+
+  it('clears a standalone input preview when the Agent session changes', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockResolvedValue({ kind: 'file' })
+    const renderPane = (sessionId: string) => (
+      <TestAgentRightPane sessionId={sessionId} workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('session-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md'))
+
+    rerender(renderPane('session-b'))
+
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull())
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
   it('preserves the closed-pane return target when switching between input previews', async () => {

@@ -17,6 +17,7 @@ import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
+  type ComponentPropsWithoutRef,
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -716,15 +717,19 @@ function ComposerTokenHoverPopover({
   )
 }
 
-function ComposerTokenActivationTrigger({
-  children,
-  ariaLabel,
-  onActivate
-}: {
+interface ComposerTokenActivationTriggerProps extends Omit<ComponentPropsWithoutRef<'span'>, 'aria-label'> {
   children: ReactNode
   ariaLabel: string
   onActivate: () => void | Promise<void>
-}) {
+}
+
+const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
+  ref,
+  children,
+  ariaLabel,
+  onActivate,
+  ...triggerProps
+}: ComposerTokenActivationTriggerProps & { ref?: React.Ref<HTMLSpanElement> }) {
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLElement>) => {
       if ((event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
@@ -748,7 +753,9 @@ function ComposerTokenActivationTrigger({
 
   return (
     <span
-      className="inline align-baseline outline-none"
+      {...triggerProps}
+      ref={ref}
+      className={cn('inline align-baseline outline-none', triggerProps.className)}
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}

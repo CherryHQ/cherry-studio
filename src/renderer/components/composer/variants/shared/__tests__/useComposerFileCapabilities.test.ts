@@ -16,7 +16,7 @@ vi.mock('@renderer/utils/model', () => mocks)
 
 const model = (id: string) => ({ id }) as unknown as Model
 const containsAll = (haystack: string[], needles: readonly string[]) => needles.every((n) => haystack.includes(n))
-const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts, ...archiveExts]
+const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -28,12 +28,12 @@ beforeEach(() => {
 
 describe('useComposerFileCapabilities', () => {
   describe('agent surface (bare model)', () => {
-    it('allows attachments when no model is active', () => {
+    it('disables attachments when no model is active', () => {
       const { result } = renderHook(() => useComposerFileCapabilities(undefined))
 
-      expect(result.current.canAddImageFile).toBe(true)
-      expect(result.current.canAddTextFile).toBe(true)
-      expect(containsAll(result.current.supportedExts, ALL_EXTS)).toBe(true)
+      expect(result.current.canAddImageFile).toBe(false)
+      expect(result.current.canAddTextFile).toBe(false)
+      expect(result.current.supportedExts).toEqual([])
     })
 
     it('allows every file type on any model — agent reads attachments by path, not by modality', () => {

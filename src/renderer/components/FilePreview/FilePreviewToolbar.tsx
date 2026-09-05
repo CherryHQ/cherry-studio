@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { SegmentedControl } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { createContext, type ReactNode, use, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -109,49 +109,30 @@ export function FilePreviewModeTabs<TValue extends string = string>({
   value
 }: FilePreviewModeTabsProps<TValue>) {
   const context = use(FilePreviewModeToolbarPortalContext)
-  const tablist = (
-    <div
-      role="tablist"
+  const control = (
+    <SegmentedControl
       aria-label={ariaLabel}
-      aria-disabled={disabled}
       data-testid="file-preview-mode-tabs"
-      className={cn(
-        'inline-flex h-7.5 shrink-0 items-center rounded-md border border-border-subtle bg-muted/40 p-0.5',
-        disabled && 'opacity-50'
-      )}>
-      {options.map((option) => {
-        const selected = option.value === value
-
-        return (
-          <Tooltip key={option.value} content={option.label} delay={300}>
-            <Button
-              type="button"
-              role="tab"
-              aria-label={option.label}
-              aria-selected={selected}
-              disabled={disabled || option.disabled}
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                'inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground leading-none shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
-                selected && 'bg-background text-foreground hover:bg-background'
-              )}
-              onClick={() => {
-                if (!selected) onValueChange(option.value)
-              }}>
-              {option.icon}
-            </Button>
-          </Tooltip>
-        )
-      })}
-    </div>
+      className="h-7.5 shrink-0 rounded-md border-border-subtle bg-muted/40 [&>button]:size-6 [&>button]:rounded-sm [&>button]:p-0 [&>button]:leading-none [&>button_svg]:size-4 [&>button_svg]:shrink-0"
+      disabled={disabled}
+      size="sm"
+      value={value}
+      onValueChange={onValueChange}
+      options={options.map((option) => ({
+        value: option.value,
+        label: option.icon,
+        ariaLabel: option.label,
+        disabled: option.disabled,
+        tooltip: option.label
+      }))}
+    />
   )
 
-  if (context) return context.target ? createPortal(tablist, context.target) : null
+  if (context) return context.target ? createPortal(control, context.target) : null
 
   return (
     <FilePreviewToolbar aria-label={ariaLabel} align="start">
-      {tablist}
+      {control}
     </FilePreviewToolbar>
   )
 }

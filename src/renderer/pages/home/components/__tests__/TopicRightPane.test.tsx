@@ -14,15 +14,6 @@ const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const resolveArtifactPaneFileSelectionMock = vi.hoisted(() => vi.fn())
-const useArtifactFileTreeModelMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    errorKind: undefined,
-    hasLoaded: true,
-    nodeById: new Map(),
-    refresh: vi.fn(),
-    reloadExpandedDirectories: vi.fn()
-  }))
-)
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -30,19 +21,17 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
-  useArtifactFileTreeModel: useArtifactFileTreeModelMock
-}))
-
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ArtifactPaneView: ({
     editMode,
+    model,
     onPreviewClose,
     paneTitle,
     previewFileSelection,
     selectedFile
   }: {
     editMode?: string
+    model?: unknown
     onPreviewClose?: () => void
     paneTitle?: string
     previewFileSelection?: ArtifactPanePath.ArtifactPaneFileSelection | null
@@ -52,6 +41,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
       data-testid="artifact-pane"
       data-display-path={previewFileSelection?.displayPath ?? ''}
       data-edit-mode={editMode ?? ''}
+      data-has-tree={String(Boolean(model))}
       data-preview-path={
         previewFileSelection ? `${previewFileSelection.workspacePath}/${previewFileSelection.filePath}` : ''
       }
@@ -181,7 +171,6 @@ describe('TopicRightPane', () => {
     useCommandHandlerMock.mockClear()
     ipcRequestMock.mockReset()
     resolveArtifactPaneFileSelectionMock.mockReset()
-    useArtifactFileTreeModelMock.mockClear()
     developerModeEnabled.mockReturnValue(true)
   })
 
@@ -369,7 +358,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('does not expose the parent directory as a browsable workspace for input previews', async () => {
+  it('does not create a browsable file tree for standalone input previews', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
     )
@@ -392,12 +381,7 @@ describe('TopicRightPane', () => {
       )
     })
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
-    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        workspacePath: undefined,
-        selectedFile: null
-      })
-    )
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-has-tree', 'false')
   })
 
   it('keeps the original closed return target when switching between input previews', async () => {

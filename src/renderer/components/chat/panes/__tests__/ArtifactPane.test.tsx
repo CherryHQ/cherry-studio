@@ -249,7 +249,7 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.treeCreate.mockResolvedValueOnce({ treeId, revision: 0, snapshot })
 }
 
-function createPreviewModel(): React.ComponentProps<typeof ArtifactPaneView>['model'] {
+function createPreviewModel(): NonNullable<React.ComponentProps<typeof ArtifactPaneView>['model']> {
   return {
     isLoading: false,
     filteredTree: [],
@@ -258,7 +258,7 @@ function createPreviewModel(): React.ComponentProps<typeof ArtifactPaneView>['mo
     nodeById: new Map(),
     refresh: vi.fn(),
     reloadExpandedDirectories: vi.fn()
-  } as unknown as React.ComponentProps<typeof ArtifactPaneView>['model']
+  } as unknown as NonNullable<React.ComponentProps<typeof ArtifactPaneView>['model']>
 }
 
 function binaryReadResult(content: Uint8Array) {
@@ -944,6 +944,13 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
     expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()
+    const workspaceInlineActions = within(screen.getByTestId('artifact-pane-header')).getByTestId(
+      'artifact-pane-inline-actions'
+    )
+    expect(within(workspaceInlineActions).getByRole('button', { name: 'Open in Finder' })).toBeInTheDocument()
+    expect(
+      within(workspaceInlineActions).getByRole('button', { name: 'agent.preview_pane.refresh' })
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 

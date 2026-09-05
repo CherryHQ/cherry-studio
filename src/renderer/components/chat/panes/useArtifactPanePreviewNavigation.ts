@@ -62,7 +62,7 @@ export function useArtifactPanePreviewNavigation({
   const beginPreview = useCallback(() => {
     const requestId = requestRef.current + 1
     requestRef.current = requestId
-    if (!returnRef.current) {
+    if (!returnRef.current || !panelState.presentationOpen || panelState.activePanelId !== paneId) {
       returnRef.current = {
         closePane: !panelState.presentationOpen,
         panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
@@ -90,19 +90,6 @@ export function useArtifactPanePreviewNavigation({
       }
     },
     [isCurrentRequest, requestFileSelection]
-  )
-
-  const openFileSelection = useCallback(
-    (selection: ArtifactPaneFileSelection | null) => {
-      if (!enabled) return
-      const requestId = beginPreview()
-      if (!selection) {
-        requestFileSelection(null)
-        return
-      }
-      void validateSelection(selection, requestId)
-    },
-    [beginPreview, enabled, requestFileSelection, validateSelection]
   )
 
   const previewInputFile = useCallback(
@@ -159,5 +146,5 @@ export function useArtifactPanePreviewNavigation({
     returnRef.current = null
   }, [])
 
-  return { clearReturnTarget, closeFilePreview, openFileSelection, previewInputFile }
+  return { clearReturnTarget, closeFilePreview, previewInputFile }
 }

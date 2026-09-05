@@ -81,13 +81,6 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
-function removePreviewWrapperBackground(body: HTMLElement): void {
-  body.querySelectorAll<HTMLElement>('.docx-preview-wrapper,.docx-wrapper').forEach((wrapper) => {
-    wrapper.style.background = 'transparent'
-    wrapper.style.backgroundColor = 'transparent'
-  })
-}
-
 function getLayoutWidth(element: HTMLElement, appliedZoom: number): number {
   return Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width / appliedZoom)
 }
@@ -232,10 +225,10 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
 
     const scrollRoot = containerRef.current
     if (!scrollRoot) return
-    if (scrollRoot.scrollWidth <= scrollRoot.clientWidth && scrollRoot.scrollHeight <= scrollRoot.clientHeight) return
+    if (scrollRoot.scrollWidth <= scrollRoot.clientWidth) return
 
     const target = event.target instanceof Element ? event.target : null
-    if (target?.closest('a,button,input,textarea,select,[contenteditable="true"]')) return
+    if (target?.closest('.docx-preview-page')) return
 
     panStateRef.current = {
       pointerId: event.pointerId,
@@ -327,10 +320,9 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
         pages.forEach((page, index) => {
           page.id = `docx-preview-page-${index + 1}`
           page.dataset.docxPreviewPage = String(index + 1)
-          page.classList.add('docx-preview-page')
+          page.classList.add('docx-preview-page', 'selectable')
         })
         sanitizeHyperlinks(stagingBody)
-        removePreviewWrapperBackground(stagingBody)
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
 
@@ -444,7 +436,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
               data-testid="docx-preview-content"
               data-zoom={zoom}
               style={contentStyle}
-              className="[&_.docx-preview-wrapper]:!bg-transparent [&_.docx-wrapper]:!bg-transparent mx-auto w-fit min-w-0 [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="[&_.docx-preview-wrapper]:!bg-transparent [&_.docx-wrapper]:!bg-transparent mx-auto w-max min-w-0 [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
             />
           </div>
           {loading ? (

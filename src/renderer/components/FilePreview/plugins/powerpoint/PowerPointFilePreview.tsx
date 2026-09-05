@@ -114,7 +114,7 @@ function PowerPointPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath })
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.powerpoint.too_large.title')}
-        description={t('file_preview.powerpoint.too_large.description', { limit: PPTX_PREVIEW_MAX_SOURCE_MIB })}
+        description={t('file_preview.powerpoint.too_large.description')}
         actionLabel={t('file_preview.powerpoint.too_large.action')}
         onAction={handleOpenWithDefaultApp}
         className="h-full"

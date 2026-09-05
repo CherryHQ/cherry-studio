@@ -234,7 +234,6 @@ function isHoistableFilePart(part: CherryMessagePart): boolean {
 /** Attachments a hoisting container renders in place of the inline file blocks. */
 export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
   const images: string[] = []
-  const files: HoistedFileAttachment[] = []
 
   parts.forEach((part) => {
     if ((part.type as string) !== 'file') return
@@ -244,7 +243,7 @@ export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
     }
   })
 
-  return { images, files }
+  return { images }
 }
 
 /** Get video filePath from a data-video part. */
@@ -1462,8 +1461,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess, previewInputFile, previewInputFileInRightPane } =
-    useMessageListActions()
+  const { removeMessageTranslation, notifySuccess, previewInputFile } = useMessageListActions()
   const { t } = useTranslation()
   const canRemoveTranslation = !!removeMessageTranslation
   const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
@@ -1528,14 +1526,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
-  const previewInputFileAction = previewInputFile ?? previewInputFileInRightPane
   const handleReadOnlyFilePreviewActivate = useCallback(
     (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
-      if (!previewInputFileAction) return
+      if (!previewInputFile) return
       const previewPath = getPreviewPathFromFileUrl(preview.url)
       if (!previewPath) return
 
-      return previewInputFileAction({
+      return previewInputFile({
         displayName: token.label,
         previewPath,
         ...(preview.originalPath && { originalPath: preview.originalPath }),
@@ -1543,7 +1540,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         ...(preview.composerFileKind && { composerFileKind: preview.composerFileKind })
       })
     },
-    [previewInputFileAction]
+    [previewInputFile]
   )
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
@@ -1588,7 +1585,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
-      onReadOnlyFilePreviewActivate: previewInputFileAction ? handleReadOnlyFilePreviewActivate : undefined,
+      onReadOnlyFilePreviewActivate: previewInputFile ? handleReadOnlyFilePreviewActivate : undefined,
       hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
@@ -1604,7 +1601,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleReadOnlyFilePreviewActivate,
       messageCitations,
       readOnlyFilePreviews,
-      previewInputFileAction,
+      previewInputFile,
       displayProjection.hiddenImageTokens
     ]
   )

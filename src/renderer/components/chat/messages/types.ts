@@ -369,7 +369,6 @@ export interface MessageListActions {
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
-  previewInputFileInRightPane?: (input: MessageInputFilePreview) => void | Promise<void>
   isDirectory?: (path: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>

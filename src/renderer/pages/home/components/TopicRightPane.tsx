@@ -14,7 +14,6 @@ import {
   RightPanelViewport,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
-import { useArtifactFileTreeModel } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
@@ -63,22 +62,11 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
 
 interface TopicRightPaneFileState {
   previewFileSelection: ArtifactPaneFileSelection | null
-  selectedFile: string | null
-  fileTreeExpandedIds: ReadonlySet<string>
-  fileTreeSearchKeyword: string
-  workspacePath?: string
 }
 
 interface TopicRightPaneActions {
   previewInputFile: ComposerInputFilePreviewAction
   closeFilePreview: () => void
-  setSelectedFile: (file: string | null) => void
-  setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
-  setFileTreeSearchKeyword: (keyword: string) => void
-}
-
-function isStandaloneInputFilePreview(selection: ArtifactPaneFileSelection | null): boolean {
-  return selection?.previewType === 'file' && selection.readOnly === true && Boolean(selection.displayPath)
 }
 
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
@@ -203,33 +191,19 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
   )
 }
 
-function TopicFilePreviewRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+function TopicFilePreviewRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const state = useTopicRightPaneFileState()
   const actions = useTopicRightPaneActions()
-  const model = useArtifactFileTreeModel({
-    workspacePath: state.workspacePath,
-    treeOpen: active,
-    expandedIds: state.fileTreeExpandedIds,
-    searchKeyword: state.fileTreeSearchKeyword,
-    enableFileSearch: true,
-    selectedFile: state.selectedFile,
-    onExpandedIdsChange: actions.setFileTreeExpandedIds
-  })
+
+  if (!state.previewFileSelection) return null
 
   return (
     <ArtifactPaneView
       headerVariant="pane"
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
-      workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
-      enableFileSearch
-      model={model}
-      selectedFile={state.selectedFile}
-      onSelectedFileChange={actions.setSelectedFile}
-      searchKeyword={state.fileTreeSearchKeyword}
-      onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
   )
 }
@@ -238,40 +212,24 @@ function TopicRightPaneActionsProvider({
   children,
   previewFileSelection,
   requestFileSelection,
-  selectFile,
-  setFileTreeExpandedIds,
-  setFileTreeSearchKeyword,
   topicId
 }: PropsWithChildren<{
   previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
-  selectFile: (file: string | null) => void
-  setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
-  setFileTreeSearchKeyword: (keyword: string) => void
   topicId?: string
 }>) {
-  const { clearReturnTarget, closeFilePreview, previewInputFile } = useArtifactPanePreviewNavigation({
+  const { closeFilePreview, previewInputFile } = useArtifactPanePreviewNavigation({
     paneId: FILE_PREVIEW_PANE_ID,
     previewFileSelection,
     requestFileSelection,
     scopeKey: topicId
   })
-  const setSelectedFile = useCallback(
-    (file: string | null) => {
-      clearReturnTarget()
-      selectFile(file)
-    },
-    [clearReturnTarget, selectFile]
-  )
   const actions = useMemo<TopicRightPaneActions>(
     () => ({
       previewInputFile,
-      closeFilePreview,
-      setSelectedFile,
-      setFileTreeExpandedIds,
-      setFileTreeSearchKeyword
+      closeFilePreview
     }),
-    [closeFilePreview, previewInputFile, setFileTreeExpandedIds, setFileTreeSearchKeyword, setSelectedFile]
+    [closeFilePreview, previewInputFile]
   )
 
   return <TopicRightPaneActionsContext value={actions}>{children}</TopicRightPaneActionsContext>
@@ -342,45 +300,13 @@ function TopicRightPaneProvider({
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
-  const [selectedFile, setSelectedFileState] = useState<string | null>(null)
-  const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
-  const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const standaloneInputFilePreview = isStandaloneInputFilePreview(previewFileSelection)
-  const fileWorkspacePath = standaloneInputFilePreview ? undefined : previewFileSelection?.workspacePath
   const requestFileSelection = useCallback((selection: ArtifactPaneFileSelection | null) => {
     setPreviewFileSelection(selection)
-    setSelectedFileState(isStandaloneInputFilePreview(selection) ? null : (selection?.filePath ?? null))
   }, [])
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
-  const selectFile = useCallback(
-    (file: string | null) => {
-      requestFileSelection(
-        file && fileWorkspacePath
-          ? {
-              workspacePath: fileWorkspacePath,
-              filePath: file,
-              previewType: 'file',
-              readOnly: true
-            }
-          : null
-      )
-    },
-    [fileWorkspacePath, requestFileSelection]
-  )
-  const fileState = useMemo<TopicRightPaneFileState>(
-    () => ({
-      previewFileSelection,
-      selectedFile,
-      fileTreeExpandedIds,
-      fileTreeSearchKeyword,
-      workspacePath: fileWorkspacePath
-    }),
-    [fileTreeExpandedIds, fileTreeSearchKeyword, fileWorkspacePath, previewFileSelection, selectedFile]
-  )
+  const fileState = useMemo<TopicRightPaneFileState>(() => ({ previewFileSelection }), [previewFileSelection])
   useEffect(() => {
     closeFilePreview()
-    setFileTreeExpandedIds(new Set())
-    setFileTreeSearchKeyword('')
   }, [closeFilePreview, topicId])
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
@@ -410,9 +336,6 @@ function TopicRightPaneProvider({
       <TopicRightPaneActionsProvider
         previewFileSelection={previewFileSelection}
         requestFileSelection={requestFileSelection}
-        selectFile={selectFile}
-        setFileTreeExpandedIds={setFileTreeExpandedIds}
-        setFileTreeSearchKeyword={setFileTreeSearchKeyword}
         topicId={topicId}>
         <TopicRightPaneFileStateContext value={fileState}>
           <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>

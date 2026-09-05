@@ -339,7 +339,6 @@ function AgentRightPaneActionsProvider({
   const {
     clearReturnTarget,
     closeFilePreview,
-    openFileSelection,
     previewInputFile: previewInputFileInRightPane
   } = useArtifactPanePreviewNavigation({
     enabled: canPreviewInputFileInRightPane,
@@ -374,7 +373,7 @@ function AgentRightPaneActionsProvider({
       void openFileTarget(targetPath, {
         openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          openFileSelection(selection)
+          requestFileSelection(selection)
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
@@ -397,15 +396,7 @@ function AgentRightPaneActionsProvider({
         }
       })
     },
-    [
-      artifactOpenRequestRef,
-      canOpenArtifactFile,
-      openFileSelection,
-      panelActions,
-      requestFileSelection,
-      t,
-      workspacePath
-    ]
+    [artifactOpenRequestRef, canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
   )
   const setSelectedFile = useCallback(
     (file: string | null) => {
@@ -481,6 +472,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
@@ -559,6 +551,12 @@ function AgentRightPaneStateProvider({
     },
     [fileWorkspace.path, previewFileSelection, requestFileTransition]
   )
+
+  useLayoutEffect(() => {
+    const sessionChanged = previousSessionIdRef.current !== sessionId
+    previousSessionIdRef.current = sessionId
+    if (sessionChanged && previewFileSelection?.previewType === 'file') requestFileSelection(null)
+  }, [previewFileSelection?.previewType, requestFileSelection, sessionId])
 
   const requestFileEditMode = useCallback(
     (mode: AgentFileEditorMode) => {

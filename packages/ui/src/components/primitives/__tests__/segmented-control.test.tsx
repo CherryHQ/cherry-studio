@@ -2,7 +2,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { SegmentedControl } from '../segmented-control'
 
@@ -11,6 +12,14 @@ const options = [
   { value: 'window', label: 'Window' },
   { value: 'disabled', label: 'Disabled', disabled: true }
 ] as const
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver
+})
 
 afterEach(() => {
   cleanup()
@@ -41,9 +50,25 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('keeps localized labels on one line without shrinking the options', () => {
-    render(<SegmentedControl defaultValue="app" options={options} />)
+  it('exposes icon-only options by name and tooltip', async () => {
+    const user = userEvent.setup()
+    render(
+      <SegmentedControl
+        defaultValue="app"
+        options={[
+          {
+            value: 'app',
+            label: <span aria-hidden>icon</span>,
+            ariaLabel: 'Application',
+            tooltip: 'Application'
+          }
+        ]}
+      />
+    )
 
-    expect(screen.getByRole('radio', { name: 'Window' })).toHaveClass('shrink-0', 'whitespace-nowrap')
+    const option = screen.getByRole('radio', { name: 'Application' })
+    await user.hover(option)
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Application')
   })
 })

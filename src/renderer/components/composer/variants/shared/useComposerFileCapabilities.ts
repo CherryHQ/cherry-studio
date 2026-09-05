@@ -41,7 +41,7 @@ function isMultiModelArgs(
  *
  * - **Agent**: attachments are forwarded to the agent runtime as absolute file paths and read
  *   by the agent's own tools, so the model's modality is irrelevant — every file type is
- *   attachable before or after model selection.
+ *   attachable on any active model.
  * - **Chat**: the model consumes files directly. Images always work (sent natively to a vision
  *   model, OCR text otherwise) and documents/text always extract, regardless of the model.
  *   Audio/video have no text fallback, so they gate on the model's audio/video input
@@ -56,12 +56,13 @@ export function useComposerFileCapabilities(
   const { models, fallbackModel } = isChatSurface ? input : { models: EMPTY_MODELS, fallbackModel: input }
 
   return useMemo(() => {
-    // Agent send validation handles missing models; attachment intake only needs file paths.
+    // Agent reads attachments from disk by path → all file types, any active model.
     if (!isChatSurface) {
+      const enabled = fallbackModel != null
       return {
-        canAddImageFile: true,
-        canAddTextFile: true,
-        supportedExts: [...ALL_FILE_EXTS]
+        canAddImageFile: enabled,
+        canAddTextFile: enabled,
+        supportedExts: enabled ? [...ALL_FILE_EXTS] : []
       }
     }
 
