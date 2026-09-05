@@ -15,6 +15,7 @@ export default function ConversationStageCenter(props: ConversationStageCenterPr
       <ConversationComposerStage
         {...props}
         mainVisible={mainVisible && !paneMaximized}
+        composerVisible={paneElevatesComposer || !paneMaximized}
         composerElevated={props.composerElevated || paneElevatesComposer}
       />
     </div>

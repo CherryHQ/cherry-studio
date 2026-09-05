@@ -237,6 +237,25 @@ describe('ComposerDockTransitionFrame', () => {
     expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-50')
   })
 
+  it('hides the composer without unmounting it when the dock yields its area', () => {
+    const baseProps = {
+      placement: 'docked' as const,
+      main: <InsetProbe />,
+      composer: <div data-composer-inputbar="" />,
+      mainVisible: true
+    }
+    const { container, rerender } = render(<ComposerDockTransitionFrame {...baseProps} />)
+    const inputbar = container.querySelector('[data-composer-inputbar]')
+
+    rerender(<ComposerDockTransitionFrame {...baseProps} composerVisible={false} />)
+
+    const dockLayer = container.querySelector<HTMLElement>('[data-composer-dock-layer]')
+    expect(dockLayer).toHaveStyle({ opacity: '0' })
+    expect(dockLayer).toHaveAttribute('inert')
+    // The editor DOM survives so a draft is not lost while the composer is hidden.
+    expect(container.querySelector('[data-composer-inputbar]')).toBe(inputbar)
+  })
+
   it('marks the composer surface when moving from home to docked placement', () => {
     const baseProps = {
       main: <InsetProbe />,

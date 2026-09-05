@@ -22,6 +22,8 @@ interface ComposerDockTransitionFrameProps {
   mainVisible?: boolean
   /** Lift the composer above a full-area overlay (e.g. a maximized side pane). */
   composerElevated?: boolean
+  /** Hide the composer without unmounting it, so its draft and editor DOM survive. */
+  composerVisible?: boolean
   overlay?: ReactNode
 }
 
@@ -48,6 +50,7 @@ export default function ComposerDockTransitionFrame({
   composer,
   mainVisible = placement === 'docked',
   composerElevated = false,
+  composerVisible = true,
   overlay
 }: ComposerDockTransitionFrameProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -164,14 +167,16 @@ export default function ComposerDockTransitionFrame({
 
       <div
         data-composer-dock-layer=""
-        style={
-          isDocked
+        inert={!composerVisible}
+        style={{
+          ...(isDocked
             ? {
                 paddingInlineStart: composerInlineInsets.left,
                 paddingInlineEnd: composerInlineInsets.right
               }
-            : undefined
-        }
+            : null),
+          opacity: composerVisible ? undefined : 0
+        }}
         className={cn(
           // The whole dock stack stays click-through: the layer, the wrapper, and
           // any width-capped centering inside the composer all span or flank the

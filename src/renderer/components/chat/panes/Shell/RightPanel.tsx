@@ -32,6 +32,12 @@ export interface RightPanelInstance {
   headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
   canMaximize?: boolean
+  /**
+   * Whether the elevated composer keeps floating above this panel while maximized.
+   * Panels that own the whole area (navigators, canvases) set false so maximizing
+   * actually frees the space the composer would cover.
+   */
+  keepsComposerWhenMaximized?: boolean
 }
 
 /** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
@@ -265,7 +271,8 @@ export function RightPanelProvider<TScope>({
   const presentationMaximized = presentationOpen && maximized
   // The pane keeps covering the centre until its phase ends, so the composer has to stay lifted
   // past the click that started the restore. `fullWidthActive` lands a commit late, hence the union.
-  const composerElevated = presentationMaximized || fullWidthActive
+  const composerElevated =
+    (presentationMaximized || fullWidthActive) && activeEntry?.keepsComposerWhenMaximized !== false
 
   useLayoutEffect(() => {
     if (!reconciledEntry || reconciledEntry.id === requestedPanelId) return
