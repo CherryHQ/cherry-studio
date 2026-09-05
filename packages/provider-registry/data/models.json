@@ -1064,18 +1064,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 8192,
       "metadata": {},
-      "name": "Qwen2.5 Coder 32b Instruct",
+      "name": "Qwen2.5-Coder 32B Instruct",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.287
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.861
         }
       }
     },
@@ -1446,11 +1446,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.2
         }
       },
       "reasoning": {
@@ -1583,18 +1583,18 @@
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Qwen3.5-397B-A17B",
+      "name": "Qwen3.5 397B-A17B",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.172
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.032
         }
       },
       "reasoning": {
@@ -2418,6 +2418,51 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1048576,
+      "family": "qwen",
+      "id": "qwen3-8-flash-next",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Qwen 3.8 Flash Next",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.12
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "xhigh"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
+      }
+    },
+    {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -2578,7 +2623,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "Qwen3 Coder 30B A3B Instruct",
+      "name": "Qwen 3 Coder 30B A3B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2646,18 +2691,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 66536,
       "metadata": {},
-      "name": "Qwen3 Coder 480B A35B Instruct",
+      "name": "Qwen3-Coder 480B-A35B Instruct",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.861
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.441
         }
       }
     },
@@ -2698,11 +2743,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.8
+          "perMillionTokens": 1.2
         }
       }
     },
@@ -2905,18 +2950,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 32768,
       "metadata": {},
-      "name": "Qwen3-Next-80B-A3B-Instruct",
+      "name": "Qwen3-Next 80B-A3B Instruct",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.144
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.574
         }
       }
     },
@@ -3546,11 +3591,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.33
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.75
+          "perMillionTokens": 2.5
         }
       },
       "reasoning": {
@@ -3801,6 +3846,46 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-fable",
+      "id": "claude-fable-5-1",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Fable 5.1",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
         },
         "cacheWrite": {
           "currency": "USD",
@@ -4145,7 +4230,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "Claude Opus 4.6",
+      "name": "Claude Opus 4.6 (US)",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4241,48 +4326,6 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
-      "id": "claude-opus-4-7-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Anthropic: Claude Opus 4.7 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
-          },
-          {
-            "kind": "budget",
-            "max": 128000,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"],
-        "thinkingTokenLimits": {
-          "max": 128000,
-          "min": 1024
-        },
-        "wireDialect": "effort"
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8",
       "inputModalities": ["text", "image"],
@@ -4324,7 +4367,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8-fast",
@@ -4407,7 +4450,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-5-fast",
@@ -4704,7 +4747,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning"],
       "contextWindow": 262144,
       "family": "trinity",
       "id": "trinity-large",
@@ -5150,14 +5193,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 262144,
       "family": "ling",
       "id": "ling-3-0-flash-fin",
       "inputModalities": ["text"],
       "maxOutputTokens": 32000,
       "metadata": {},
-      "name": "Ling 3.0 Flash Fin (Free)",
+      "name": "Ling 3.0 Flash Fin",
       "outputModalities": ["text"],
       "ownedBy": "bailing",
       "pricing": {
@@ -5177,6 +5220,28 @@
           }
         ],
         "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash-sante",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash Sante",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
       }
     },
     {
@@ -7185,11 +7250,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2574
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.0287
+          "perMillionTokens": 0.8899999999999999
         }
       }
     },
@@ -7404,14 +7469,9 @@
       "maxOutputTokens": 163840,
       "metadata": {},
       "name": "DeepSeek V3",
-      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.135
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.287
@@ -9047,6 +9107,59 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-flash",
+      "id": "gemini-3-8-flash",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.8 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        },
+        "wireDialect": "effort"
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "gemini-flash",
@@ -9504,45 +9617,6 @@
           "min": 128
         },
         "wireDialect": "effort"
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 131072,
-      "family": "gemini",
-      "id": "gemini-robotics-er-1-6-preview",
-      "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "Gemini Robotics-ER 1.6 Preview",
-      "outputModalities": ["text"],
-      "ownedBy": "google",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "wireDialect": "budget"
       }
     },
     {
@@ -10597,7 +10671,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.025
+          "perMillionTokens": 0.024999999999999998
         },
         "input": {
           "currency": "USD",
@@ -10616,6 +10690,26 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 260000,
+      "id": "mercury-2-5-preview",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Inception: Mercury 2.5 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "inception",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        }
       }
     },
     {
@@ -11798,6 +11892,24 @@
       "ownedBy": "microsoft"
     },
     {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-6",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.6",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-6-flash",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.6 Flash",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
       "capabilities": ["structured-output"],
       "contextWindow": 16384,
       "id": "phi-4",
@@ -12099,7 +12211,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 205000,
       "metadata": {},
-      "name": "MiniMax M2",
+      "name": "MiniMax-M2",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
@@ -12130,7 +12242,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "MiniMax M2.1",
+      "name": "MiniMax-M2.1",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
@@ -12268,11 +12380,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.2
         }
       }
     },
@@ -12353,11 +12465,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.2
         }
       },
       "reasoning": {
@@ -12911,18 +13023,18 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Mistral Large 2.1",
+      "name": "Mistral Large 3",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 1.5
         }
       }
     },
@@ -13257,18 +13369,18 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 256000,
       "metadata": {},
-      "name": "Mistral Small 4",
+      "name": "Mistral Small (latest)",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.3
         }
       },
       "reasoning": {
@@ -13637,22 +13749,22 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Kimi K2 Thinking",
+      "name": "Moonshot Kimi K2 Thinking",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.141
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2.294
         }
       }
     },
@@ -13725,7 +13837,7 @@
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Kimi K2.5",
+      "name": "Moonshot Kimi K2.5",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
@@ -13736,11 +13848,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.411
         }
       },
       "reasoning": {
@@ -13776,7 +13888,7 @@
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Kimi K2.6",
+      "name": "Moonshot Kimi K2.6",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
@@ -13787,11 +13899,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.929
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.858
         }
       },
       "reasoning": {
@@ -13838,7 +13950,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.19
+          "perMillionTokens": 0.16
         },
         "input": {
           "currency": "USD",
@@ -13878,7 +13990,7 @@
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Kimi K2.7 Code HighSpeed",
+      "name": "Kimi K2.7 Code High Speed",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
@@ -14626,22 +14738,22 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
-      "contextWindow": 128000,
+      "capabilities": ["reasoning", "image-recognition", "structured-output"],
+      "contextWindow": 131072,
       "id": "nemotron-3-5-content-safety",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+      "name": "NVIDIA: Nemotron 3.5 Content Safety",
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.19999999999999998
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.19999999999999998
         }
       }
     },
@@ -15440,7 +15552,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 4096,
       "metadata": {},
-      "name": "GPT-3.5-turbo",
+      "name": "GPT-3.5 Turbo",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16040,7 +16152,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.2 Pro",
+      "name": "GPT 5.2 ",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16097,7 +16209,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.3 Codex",
+      "name": "GPT 5.3 Codex",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16118,10 +16230,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
+            "values": ["low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -16167,21 +16279,21 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.4",
+      "name": "GPT 5.4",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.275
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.75
+          "perMillionTokens": 2.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 16.5
+          "perMillionTokens": 15
         }
       },
       "reasoning": {
@@ -16202,7 +16314,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.4 mini",
+      "name": "GPT 5.4 Mini",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16237,7 +16349,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.4 nano",
+      "name": "GPT 5.4 Nano",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16272,7 +16384,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.4 Pro",
+      "name": "GPT 5.4 Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16303,21 +16415,21 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.5",
+      "name": "GPT 5.5",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 5.5
+          "perMillionTokens": 5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 33
+          "perMillionTokens": 30
         }
       },
       "reasoning": {
@@ -16338,7 +16450,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.5 Pro",
+      "name": "GPT 5.5 Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16408,25 +16520,25 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.6 Luna",
+      "name": "GPT 5.6 Luna",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.022
+          "perMillionTokens": 0.02
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.275
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 1.2
         }
       },
       "reasoning": {
@@ -16476,25 +16588,25 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.6 Sol (Global)",
+      "name": "GPT 5.6 Sol",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.2
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 5
+          "perMillionTokens": 2.5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 20
+          "perMillionTokens": 10
         }
       },
       "reasoning": {
@@ -16544,25 +16656,25 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT-5.6 Terra",
+      "name": "GPT 5.6 Terra",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.2
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 2.75
+          "perMillionTokens": 2.5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 13.2
+          "perMillionTokens": 12
         }
       },
       "reasoning": {
@@ -16648,6 +16760,64 @@
       }
     },
     {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "contextWindow": 400000,
+      "id": "gpt-5-image",
+      "inputModalities": ["image", "text"],
+      "metadata": {},
+      "name": "OpenAI: GPT-5 Image",
+      "outputModalities": ["image", "text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "contextWindow": 400000,
+      "id": "gpt-5-image-mini",
+      "inputModalities": ["image", "text"],
+      "metadata": {},
+      "name": "OpenAI: GPT-5 Image Mini",
+      "outputModalities": ["image", "text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt-mini",
@@ -16725,7 +16895,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 272000,
       "metadata": {},
-      "name": "GPT-5 Pro",
+      "name": "GPT-5 pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -16746,6 +16916,65 @@
           }
         ],
         "supportedEfforts": ["high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1050000,
+      "family": "gpt-astra",
+      "id": "gpt-6-astra",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6 Astra",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1050000,
+      "id": "gpt-6-astra-pro",
+      "inputModalities": ["image", "text"],
+      "metadata": {},
+      "name": "OpenAI: GPT-6 Astra Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
       }
     },
     {
@@ -16898,8 +17127,8 @@
       "id": "gpt-image-1-5",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "gpt-image-1.5",
-      "outputModalities": ["text", "image"],
+      "name": "GPT Image 1.5",
+      "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -17264,7 +17493,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "GPT OSS Safeguard 20B",
+      "name": "gpt-oss-safeguard-20b",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "openai",
@@ -17351,7 +17580,7 @@
       "inputModalities": ["text", "audio", "image"],
       "maxOutputTokens": 32000,
       "metadata": {},
-      "name": "GPT-Realtime-2.1",
+      "name": "gpt-realtime-2.1",
       "outputModalities": ["text", "audio"],
       "ownedBy": "openai",
       "pricing": {
@@ -17556,7 +17785,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 100000,
       "metadata": {},
-      "name": "o3-pro",
+      "name": "o3 Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -18153,7 +18382,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262114,
       "metadata": {},
-      "name": "Step 3.5 Flash",
+      "name": "Step 3.5 Flash 2603",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "stepfun",
@@ -18164,21 +18393,21 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high"]
+            "values": ["low", "high"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high"]
+        "supportedEfforts": ["low", "high"]
       }
     },
     {
@@ -18206,21 +18435,21 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.185
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.11
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high"]
           }
         ],
-        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -18254,7 +18483,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-air-v2-5",
@@ -19196,6 +19425,83 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-1-3",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Muse Spark 1.3",
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-1-3-contributor",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Muse Spark 1.3 Contributor",
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 262144,
       "id": "namazu",
@@ -19267,7 +19573,7 @@
       "id": "s2-pro",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S2 Pro (Free)",
+      "name": "S2 Pro",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19960,7 +20266,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 2000000,
       "metadata": {},
-      "name": "Grok 4.20 (Reasoning)",
+      "name": "Grok 4.20 Reasoning",
       "outputModalities": ["text"],
       "ownedBy": "xai",
       "pricing": {
@@ -20172,10 +20478,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high"]
+            "values": ["low", "medium", "high"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -20227,25 +20533,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6.6
+          "perMillionTokens": 6
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
+            "values": ["low", "medium", "high"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -20300,7 +20606,7 @@
     },
     {
       "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "contextWindow": 8000,
+      "contextWindow": 16000,
       "family": "grok",
       "id": "grok-imagine-image",
       "inputModalities": ["text", "image"],
@@ -20311,7 +20617,7 @@
     },
     {
       "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "contextWindow": 8000,
+      "contextWindow": 64000,
       "family": "grok",
       "id": "grok-imagine-image-2-0",
       "inputModalities": ["text", "image"],
@@ -20322,7 +20628,7 @@
     },
     {
       "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "contextWindow": 8000,
+      "contextWindow": 16000,
       "family": "grok",
       "id": "grok-imagine-image-quality",
       "inputModalities": ["text", "image"],
@@ -20338,7 +20644,7 @@
       "id": "grok-imagine-video",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "Grok Imagine Video",
+      "name": "Grok Imagine",
       "outputModalities": ["video"],
       "ownedBy": "xai"
     },
@@ -20761,7 +21067,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 98304,
       "metadata": {},
-      "name": "GLM-4.5",
+      "name": "GLM 4.5",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -20800,7 +21106,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 98304,
       "metadata": {},
-      "name": "GLM-4.5-Air",
+      "name": "GLM 4.5 Air",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -20885,7 +21191,7 @@
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "GLM-4.5V",
+      "name": "GLM 4.5V",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -20920,7 +21226,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "GLM-4.6",
+      "name": "GLM 4.6",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -20997,14 +21303,14 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "GLM-4.7",
+      "name": "GLM 4.7",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.12
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21036,7 +21342,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "GLM-4.7-Flash",
+      "name": "GLM 4.7 Flash",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -21051,11 +21357,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.07
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.4
         }
       },
       "reasoning": {
@@ -21075,7 +21381,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "GLM-4.7-FlashX",
+      "name": "GLM 4.7 FlashX",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
@@ -21090,7 +21396,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07
+          "perMillionTokens": 0.06
         },
         "output": {
           "currency": "USD",
@@ -21239,11 +21545,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.573
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.2
+          "perMillionTokens": 2.58
         }
       },
       "reasoning": {
@@ -21270,7 +21576,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.17
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21278,11 +21584,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 0.825
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 3.301
         }
       },
       "reasoning": {
@@ -21309,7 +21615,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.275
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21317,24 +21623,24 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.851
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["high", "max"]
+            "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["high", "max", "none"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -21384,14 +21690,14 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 1000000,
       "metadata": {},
-      "name": "GLM-5.3",
+      "name": "GLM 5.3",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.13
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21399,11 +21705,47 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 2.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "glm",
+      "id": "glm-5-3-fast",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "GLM 5.3 Fast",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.21
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6.6
         }
       },
       "reasoning": {
@@ -21438,7 +21780,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.015
+          "perMillionTokens": 0.03
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21446,11 +21788,46 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "glm",
+      "id": "glm-5-3-promo-50",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "GLM 5.3 (50% off)",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.2
         }
       },
       "reasoning": {
@@ -21506,7 +21883,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131100,
       "metadata": {},
-      "name": "GLM-5-Turbo",
+      "name": "GLM 5 Turbo",
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -21551,7 +21928,7 @@
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "GLM-5V-Turbo",
+      "name": "GLM 5V Turbo",
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -21579,6 +21956,26 @@
           }
         ],
         "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1310720,
+      "id": "glm-flash-latest",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Z.ai: GLM Flash Latest",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        }
       }
     },
     {
@@ -21619,11 +22016,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.1875
+          "perMillionTokens": 1.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.18
+          "perMillionTokens": 3.5
         }
       }
     },
@@ -21660,5 +22057,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "2f0039fd6893970f"
+  "version": "e7e6c1ea44f01b5c"
 }
