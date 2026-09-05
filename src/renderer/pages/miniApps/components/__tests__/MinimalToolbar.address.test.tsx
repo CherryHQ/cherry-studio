@@ -201,6 +201,49 @@ describe('MinimalToolbar address bar', () => {
     expect(address).toHaveValue('https://current.example')
   })
 
+  it('ignores a late load failure from a replaced webview', async () => {
+    let rejectLoad: ((error: Error) => void) | undefined
+    mocks.loadURL.mockReturnValueOnce(
+      new Promise<void>((_resolve, reject) => {
+        rejectLoad = reject
+      })
+    )
+    const first = createWebview('https://first.example')
+    const second = createWebview('https://second.example')
+    const user = userEvent.setup()
+    const { rerender, webviewRef } = renderToolbar(first.webview, null)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, 'missing.example{Enter}')
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://missing.example'))
+
+    webviewRef.current = second.webview
+    rerender(
+      <MinimalToolbar
+        app={app}
+        webviewRef={webviewRef}
+        webviewRevision={1}
+        currentUrl={null}
+        isWebviewReady
+        isHostActive
+        onReload={vi.fn()}
+        onOpenDevTools={vi.fn()}
+        splitMode="open"
+        onSplit={vi.fn()}
+      />
+    )
+    expect(address).toHaveValue('https://second.example')
+
+    await act(async () => {
+      rejectLoad?.(new Error('ERR_NAME_NOT_RESOLVED'))
+      await Promise.resolve()
+    })
+
+    expect(address).toHaveValue('https://second.example')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('rejects unsupported protocols and restores the current page after a load failure', async () => {
     const { webview } = createWebview('https://example.com/current')
     const user = userEvent.setup()
