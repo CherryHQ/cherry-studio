@@ -5,8 +5,14 @@ import { defineDoctorCheck } from '../types'
 
 export const managedTools = defineDoctorCheck({
   id: 'runtime-managed-tools',
-  async run() {
-    const inventory = await application.get('BinaryManager').getToolInventory()
+  timeoutMs: 20_000,
+  async run({ signal }) {
+    const manager = application.get('BinaryManager')
+    if (!manager.isReady) throw new Error('Binary manager is not ready')
+    const inventory = await manager.getToolInventory(signal)
+    if (inventory.some((tool) => tool.status === 'unknown')) throw new Error('Managed tool inventory is incomplete')
+    if (inventory.some((tool) => tool.status === 'installing' || tool.status === 'removing'))
+      throw new Error('Managed tool operations are still running')
     const failed = inventory.filter((tool) => tool.status === 'failed')
     if (failed.length === 0) return { status: 'pass' }
 
@@ -15,8 +21,8 @@ export const managedTools = defineDoctorCheck({
       attribution: 'user-fixable',
       detail: { variant: 'failed', params: { count: failed.length } },
       actions: [{ kind: 'navigate', target: '/settings/dependencies' }],
-      devMessage: `Managed tools with a broken installation or failed operation: ${failed.map((tool) => tool.name).join(', ')}`,
-      evidence: [{ key: 'tools', value: failed.map((tool) => tool.name).join(', '), dataClass: 'public' }]
+      devMessage: 'Managed tools have a broken installation or failed operation',
+      evidence: [{ key: 'tools', value: failed.map((tool) => tool.name).join(', '), dataClass: 'local_only' }]
     }
   },
   fixes: {}
@@ -24,9 +30,13 @@ export const managedTools = defineDoctorCheck({
 
 export const claudeLogin = defineDoctorCheck({
   id: 'runtime-claude-login',
-  async run() {
+  timeoutMs: 20_000,
+  async run({ signal }) {
     const hasClaudeAgent = agentService.listAgents().agents.some((agent) => agent.type === 'claude-code')
-    if (!hasClaudeAgent || (await application.get('CodeCliService').checkClaudeLogin())) return { status: 'pass' }
+    if (!hasClaudeAgent) return { status: 'pass' }
+    const cli = application.get('CodeCliService')
+    if (!cli.isReady) throw new Error('Code CLI service is not ready')
+    if (await cli.checkClaudeLogin(signal)) return { status: 'pass' }
 
     return {
       status: 'warn',

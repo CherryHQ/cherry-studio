@@ -1,7 +1,7 @@
-import { application } from '@application'
-import { collectErrorLogRecords, diagnose, type DiagnosticDomain } from '@main/services/diagnostics/scan'
+import { diagnose, type DiagnosticDomain } from '@main/services/diagnostics/scan'
 import type { DoctorAction, DoctorAttribution, DoctorNavigateTarget } from '@shared/types/doctor'
 
+import { recentLogScan } from '../logScan'
 import { defineDoctorCheck } from '../types'
 
 const RECENT_LOG_RANGE_MS = 24 * 60 * 60 * 1000
@@ -15,14 +15,16 @@ const NAV_TARGET_BY_DOMAIN: Partial<Record<DiagnosticDomain, DoctorNavigateTarge
 
 export const recentLogFindings = defineDoctorCheck({
   id: 'logs-recent-findings',
-  async run() {
-    const toMs = Date.now()
-    const scanned = await collectErrorLogRecords(application.getPath('app.logs'), {
-      fromMs: toMs - RECENT_LOG_RANGE_MS,
-      toMs
-    })
-    const findings = diagnose(scanned.records)
-    if (findings.length === 0) return { status: 'pass' }
+  timeoutMs: 20_000,
+  async run(ctx) {
+    const scanned = await recentLogScan(ctx)
+    const findings = diagnose(
+      scanned.records.filter((record) => record.timestampMs >= scanned.toMs - RECENT_LOG_RANGE_MS)
+    )
+    if (findings.length === 0) {
+      if (!scanned.complete) throw new Error('No findings in the readable logs, but the scan is incomplete')
+      return { status: 'pass' }
+    }
 
     const actions: DoctorAction<'logs-recent-findings'>[] = []
     if (findings.some((finding) => finding.attribution === 'app-bug')) actions.push({ kind: 'report' })
@@ -46,8 +48,9 @@ export const recentLogFindings = defineDoctorCheck({
       attribution,
       detail: { variant: 'findings', params: { count: findings.length, occurrences } },
       actions,
-      devMessage: findings.map((finding) => `${finding.ruleId}: ${finding.devMessage}`).join('; '),
+      devMessage: `${scanned.complete ? '' : 'Incomplete log scan; findings may be missing. '}${findings.map((finding) => `${finding.ruleId}: ${finding.devMessage}`).join('; ')}`,
       evidence: [
+        { key: 'complete', value: scanned.complete, dataClass: 'public' },
         { key: 'ruleIds', value: findings.map((finding) => finding.ruleId).join(', '), dataClass: 'public' },
         { key: 'occurrences', value: occurrences, dataClass: 'public' },
         { key: 'unparsedLineCount', value: scanned.unparsedLineCount, dataClass: 'public' },

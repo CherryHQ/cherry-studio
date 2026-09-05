@@ -1,10 +1,5 @@
 import type { LoggerService } from '@logger'
-import {
-  createInMemoryMcpServer,
-  getBuiltinHttpHeaders,
-  getBuiltinRegistryEnv,
-  hasInMemoryImplementation
-} from '@main/ai/mcp/servers/factory'
+import { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -18,6 +13,7 @@ import { net } from 'electron'
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
 import { buildStdioEnvironment } from './mcpLaunch'
 import { resolveStdioLaunch } from './mcpStdioLaunch'
+import { mcpTransportKind } from './mcpTransportKind'
 import type { McpOAuthClientProvider } from './oauth/provider'
 
 type CreateTransportInput = {
@@ -153,6 +149,9 @@ async function createStdio(
     args,
     logger
   })
+  if (launch.unavailableReason) throw new Error(launch.unavailableReason)
+  if (launch.resolution === 'unresolved')
+    logger.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
   Object.assign(serverEnv, launch.env, getBuiltinRegistryEnv(server))
 
   logger.debug(`Starting server`, { command: launch.command, args: launch.args })
@@ -204,17 +203,18 @@ async function createStdio(
 /** Creates the client transport a connection config asks for: in-memory, HTTP/SSE, or a child process. */
 export async function createTransport(input: CreateTransportInput): Promise<McpTransport> {
   const { server } = input
+  const kind = mcpTransportKind(server)
 
   // An `inMemory` row we cannot start in-process still describes how to reach the server —
   // legacy rows kept that type alongside a command — so fall through to what it declares.
-  if (server.type === 'inMemory' && hasInMemoryImplementation(server.name)) {
+  if (kind === 'inMemory') {
     return createInMemory(input)
   }
-  if (server.baseUrl) {
-    return createUrlTransport(input, server.baseUrl)
+  if (kind === 'url') {
+    return createUrlTransport(input, server.baseUrl!)
   }
-  if (server.command) {
-    return createStdio(input, server.command)
+  if (kind === 'stdio') {
+    return createStdio(input, server.command!)
   }
   if (server.type === 'inMemory') {
     throw new Error(`Unknown in-memory MCP server: ${server.name}`)

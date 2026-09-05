@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const services = vi.hoisted(() => ({
+  ready: true,
   getToolInventory: vi.fn(),
   checkClaudeLogin: vi.fn(),
   listAgents: vi.fn()
@@ -8,8 +9,18 @@ const services = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    BinaryManager: { getToolInventory: services.getToolInventory },
-    CodeCliService: { checkClaudeLogin: services.checkClaudeLogin }
+    BinaryManager: {
+      get isReady() {
+        return services.ready
+      },
+      getToolInventory: services.getToolInventory
+    },
+    CodeCliService: {
+      get isReady() {
+        return services.ready
+      },
+      checkClaudeLogin: services.checkClaudeLogin
+    }
   } as never)
 })
 vi.mock('@main/data/services/AgentService', () => ({
@@ -22,17 +33,26 @@ const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  services.ready = true
   services.getToolInventory.mockResolvedValue([])
   services.checkClaudeLogin.mockResolvedValue(true)
   services.listAgents.mockReturnValue({ agents: [], total: 0 })
 })
 
 describe('runtime-managed-tools', () => {
-  it('ignores tools that are ready, absent, or not observable', async () => {
+  it('does not declare failed initialization healthy', async () => {
+    services.ready = false
+    await expect(managedTools.run(ctx)).rejects.toThrow('not ready')
+  })
+  it('rejects an inventory containing unknown entries', async () => {
+    services.getToolInventory.mockResolvedValue([{ name: 'uv', status: 'unknown' }])
+    await expect(managedTools.run(ctx)).rejects.toThrow('incomplete')
+  })
+
+  it('does not treat an uninstalled tool as broken', async () => {
     services.getToolInventory.mockResolvedValue([
       { name: 'bun', status: 'ready' },
-      { name: 'fd', status: 'not_installed' },
-      { name: 'uv', status: 'unknown' }
+      { name: 'fd', status: 'not_installed' }
     ])
     await expect(managedTools.run(ctx)).resolves.toEqual({ status: 'pass' })
   })
@@ -48,12 +68,23 @@ describe('runtime-managed-tools', () => {
       attribution: 'user-fixable',
       detail: { variant: 'failed', params: { count: 2 } },
       actions: [{ kind: 'navigate', target: '/settings/dependencies' }],
-      evidence: [{ key: 'tools', value: 'bun, uv', dataClass: 'public' }]
+      evidence: [{ key: 'tools', value: 'bun, uv', dataClass: 'local_only' }]
     })
   })
 })
 
 describe('runtime-claude-login', () => {
+  it('does not claim the login state of an uninitialized service', async () => {
+    services.ready = false
+    services.listAgents.mockReturnValue({ agents: [{ type: 'claude-code' }] })
+    await expect(claudeLogin.run(ctx)).rejects.toThrow('not ready')
+  })
+
+  it('propagates login query failures', async () => {
+    services.listAgents.mockReturnValue({ agents: [{ type: 'claude-code' }] })
+    services.checkClaudeLogin.mockRejectedValue(new Error('keychain locked'))
+    await expect(claudeLogin.run(ctx)).rejects.toThrow('keychain locked')
+  })
   it('does not require a CLI login when no Claude Code agent exists', async () => {
     await expect(claudeLogin.run(ctx)).resolves.toEqual({ status: 'pass' })
     expect(services.checkClaudeLogin).not.toHaveBeenCalled()

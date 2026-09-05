@@ -1,3 +1,4 @@
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +12,7 @@ const services = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    CherryCloudService: { getStatus: services.getCherryCloudStatus }
+    CherryCloudService: { isReady: true, getStatus: services.getCherryCloudStatus }
   } as never)
 })
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -46,6 +47,16 @@ beforeEach(() => {
 })
 
 describe('provider-default-model', () => {
+  it.each(['provider', 'model'] as const)(
+    'does not mislabel a %s database failure as missing configuration',
+    async (source) => {
+      const method = source === 'provider' ? services.getByProviderId : services.getByKey
+      method.mockImplementation(() => {
+        throw new Error('SQLITE_IOERR')
+      })
+      await expect(defaultModel.run(ctx)).rejects.toThrow('SQLITE_IOERR')
+    }
+  )
   it('fails when no default model is configured', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     await expect(defaultModel.run(ctx)).resolves.toMatchObject({
@@ -63,7 +74,7 @@ describe('provider-default-model', () => {
 
   it('fails when the provider is unavailable in this edition', async () => {
     services.getByProviderId.mockImplementation(() => {
-      throw new Error('not found')
+      throw DataApiErrorFactory.notFound('Provider', 'openai')
     })
     await expect(defaultModel.run(ctx)).resolves.toMatchObject({
       status: 'fail',
@@ -82,7 +93,7 @@ describe('provider-default-model', () => {
 
   it('fails when the configured model no longer exists', async () => {
     services.getByKey.mockImplementation(() => {
-      throw new Error('not found')
+      throw DataApiErrorFactory.notFound('Model', 'gpt-4o')
     })
     await expect(defaultModel.run(ctx)).resolves.toMatchObject({
       status: 'fail',
@@ -96,6 +107,12 @@ describe('provider-default-model', () => {
 })
 
 describe('provider-api-key-present', () => {
+  it('does not pass when reading the provider fails', async () => {
+    services.getByProviderId.mockImplementation(() => {
+      throw new Error('SQLITE_IOERR')
+    })
+    await expect(defaultProviderApiKey.run(ctx)).rejects.toThrow('SQLITE_IOERR')
+  })
   it('passes for login-based providers', async () => {
     services.getByProviderId.mockReturnValue(provider({ authMethods: ['oauth'], apiKeys: [] }))
     await expect(defaultProviderApiKey.run(ctx)).resolves.toEqual({ status: 'pass' })
@@ -140,7 +157,7 @@ describe('provider-cherry-account', () => {
     expect(services.getCherryCloudStatus).not.toHaveBeenCalled()
   })
 
-  it.each(['signed-in', 'authorizing'] as const)('passes while the Cherry account is %s', async (phase) => {
+  it.each(['signed-in'] as const)('passes while the Cherry account is %s', async (phase) => {
     services.getCherryCloudStatus.mockResolvedValue({
       phase,
       displayName: phase === 'signed-in' ? 'Cherry User' : null

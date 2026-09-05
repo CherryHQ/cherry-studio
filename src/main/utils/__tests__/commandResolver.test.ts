@@ -1,4 +1,6 @@
-import { execFileSync, spawn } from 'child_process'
+import type * as UtilModule from 'node:util'
+
+import { execFile, execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
@@ -16,6 +18,14 @@ import {
 } from '../commandResolver'
 
 // Mock dependencies
+const lookup = vi.hoisted(() => ({ execFileAsync: vi.fn() }))
+vi.mock('node:util', async (importOriginal) => {
+  const actual = await importOriginal<typeof UtilModule>()
+  return {
+    ...actual,
+    promisify: (fn: typeof execFile) => (fn === execFile ? lookup.execFileAsync : actual.promisify(fn))
+  }
+})
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
@@ -797,14 +807,12 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
-    expect(execFileSync).not.toHaveBeenCalled()
+    expect(lookup.execFileAsync).not.toHaveBeenCalled()
   })
 
   it('returns null when mise is installed but tool is not managed', async () => {
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error('No runtime found for node')
-    })
+    lookup.execFileAsync.mockRejectedValue(Object.assign(new Error('No runtime found for node'), { code: 1 }))
 
     const result = await findViaMise('node', env)
 
@@ -815,7 +823,7 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     const nodePath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockReturnValue(`${nodePath}\n`)
+    lookup.execFileAsync.mockResolvedValue({ stdout: `${nodePath}\n` })
     vi.mocked(fs.existsSync).mockImplementation((p) => p === nodePath)
 
     const result = await findViaMise('node', env)
@@ -823,24 +831,17 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     expect(result).toBe(nodePath)
   })
 
-  it('returns null when mise which times out', async () => {
+  it('reports mise timeouts as query failures rather than missing commands', async () => {
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockImplementation(() => {
-      const err = new Error('ETIMEDOUT') as NodeJS.ErrnoException
-      err.code = 'ETIMEDOUT'
-      throw err
-    })
-
-    const result = await findViaMise('node', env)
-
-    expect(result).toBeNull()
+    lookup.execFileAsync.mockRejectedValue(Object.assign(new Error('ETIMEDOUT'), { code: 'ETIMEDOUT' }))
+    await expect(findViaMise('node', env)).rejects.toThrow('ETIMEDOUT')
   })
 
   it('returns null when mise which returns a non-existent path', async () => {
     const ghostPath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
     vi.mocked(which).mockResolvedValue([misePath] as never)
-    vi.mocked(execFileSync).mockReturnValue(`${ghostPath}\n`)
+    lookup.execFileAsync.mockResolvedValue({ stdout: `${ghostPath}\n` })
     // The resolved path does not exist on disk
     vi.mocked(fs.existsSync).mockReturnValue(false)
 
@@ -948,9 +949,21 @@ describe('findCommandInShellEnv', () => {
       vi.mocked(path.isAbsolute).mockReturnValue(true)
       vi.mocked(path.resolve).mockReturnValue(absolute)
       vi.mocked(fs.existsSync).mockReturnValue(false)
+      vi.mocked(fs.statSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('not found'), { code: 'ENOENT' })
+      })
 
       await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
       expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('does not claim an inaccessible absolute executable is missing', async () => {
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue('/private/tool')
+      vi.mocked(fs.statSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      })
+      await expect(findCommandInShellEnv('/private/tool', {})).rejects.toThrow('permission denied')
     })
 
     it('should reject an absolute path that is a directory', async () => {
@@ -1053,7 +1066,7 @@ describe('findCommandInShellEnv', () => {
       expect(result).toBeNull()
     })
 
-    it('should handle spawn errors gracefully', async () => {
+    it('surfaces spawn failures separately from missing executables', async () => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
@@ -1062,11 +1075,10 @@ describe('findCommandInShellEnv', () => {
       // Simulate spawn error
       mockChild.emit('error', new Error('spawn failed'))
 
-      const result = await resultPromise
-      expect(result).toBeNull()
+      await expect(resultPromise).rejects.toThrow('spawn failed')
     })
 
-    it('should handle timeout gracefully', async () => {
+    it('kills timed out lookups and reports a query failure', async () => {
       vi.useFakeTimers()
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
@@ -1076,8 +1088,7 @@ describe('findCommandInShellEnv', () => {
       // Fast-forward past timeout (5000ms)
       vi.advanceTimersByTime(6000)
 
-      const result = await resultPromise
-      expect(result).toBeNull()
+      await expect(resultPromise).rejects.toThrow('Timed out')
       expect(mockChild.kill).toHaveBeenCalledWith('SIGKILL')
 
       vi.useRealTimers()
@@ -1118,11 +1129,10 @@ describe('findCommandInShellEnv', () => {
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
     })
 
-    it('should handle lookup errors gracefully', async () => {
+    it('distinguishes Windows lookup failures from missing commands', async () => {
       vi.mocked(which).mockRejectedValue(new Error('lookup failed'))
 
-      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-      expect(result).toBeNull()
+      await expect(findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })).rejects.toThrow('lookup failed')
     })
 
     it('findExecutableInEnv should resolve npx.cmd through the shell PATH', async () => {

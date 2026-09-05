@@ -1,3 +1,4 @@
+import { ScreenCaptureError } from '@main/services/screenshot'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
@@ -111,7 +112,7 @@ describe('install-native-modules', () => {
 
   it('reports a missing or unloadable native backend as an app bug', async () => {
     services.loadNativeCaptureBackend.mockImplementation(() => {
-      throw new Error('dlopen failed')
+      throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: new Error('dlopen failed') })
     })
 
     await expect(installNativeModules.run(ctx)).resolves.toMatchObject({
@@ -121,7 +122,8 @@ describe('install-native-modules', () => {
       actions: [{ kind: 'report' }],
       evidence: [
         { key: 'module', value: 'node-screenshots', dataClass: 'public' },
-        { key: 'error', value: 'dlopen failed', dataClass: 'consent_required' }
+        { key: 'error', value: 'Screen capture backend is unavailable', dataClass: 'consent_required' },
+        { key: 'cause', value: 'dlopen failed', dataClass: 'consent_required' }
       ]
     })
   })

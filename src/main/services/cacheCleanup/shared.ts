@@ -92,12 +92,14 @@ async function measurePath(
   try {
     stats = await fs.lstat(targetPath)
   } catch (error) {
+    signal?.throwIfAborted()
     if (isNodeError(error, 'ENOENT')) {
       return { bytes: 0, issues: [] }
     }
     logger.warn('Failed to inspect cleanup target size', { item, path: targetPath, error })
     return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
+  signal?.throwIfAborted()
 
   if (stats.isSymbolicLink()) {
     if (!nested) {
@@ -115,9 +117,11 @@ async function measurePath(
   try {
     entries = await fs.readdir(targetPath)
   } catch (error) {
+    signal?.throwIfAborted()
     logger.warn('Failed to read cleanup target directory', { item, path: targetPath, error })
     return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
+  signal?.throwIfAborted()
 
   const result: SizeMeasurement = { bytes: 0, issues: [] }
   for (const entry of entries) {

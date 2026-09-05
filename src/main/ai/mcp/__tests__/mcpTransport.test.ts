@@ -16,7 +16,10 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ McpPackageService: { getResolvedMcpConfig } } as Record<string, unknown>)
+  return mockApplicationFactory({ McpPackageService: { isReady: true, getResolvedMcpConfig } } as Record<
+    string,
+    unknown
+  >)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
@@ -67,6 +70,16 @@ describe('createTransport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getResolvedMcpConfig.mockReturnValue(null)
+  })
+
+  it('honors in-memory and URL precedence even when a command is also configured', async () => {
+    hasInMemoryImplementation.mockReturnValue(true)
+    expect(await create({ type: 'inMemory', command: 'npx', baseUrl: 'https://mcp.example' })).toBe('client-transport')
+    hasInMemoryImplementation.mockReturnValue(false)
+    const remote = await create({ type: 'sse', command: 'npx', baseUrl: 'https://mcp.example' })
+    expect(remote).toBeInstanceOf(FakeTransport)
+    expect(remote).not.toBeInstanceOf(FakeStdioTransport)
+    hasInMemoryImplementation.mockReturnValue(true)
   })
 
   it('starts an in-process server and hands back its side of the pipe', async () => {

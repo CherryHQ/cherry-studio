@@ -73,19 +73,19 @@ export const diagnosticDataSize = defineDoctorCheck({
   timeoutMs: 20_000,
   async run({ signal }) {
     const size = await inspectDiagnosticData(signal)
-    if (
-      !size ||
-      size.bytes === null ||
-      (size.completeness === 'partial' && size.bytes <= DIAGNOSTIC_DATA_LARGE_BYTES)
-    ) {
-      throw new Error('Diagnostic data size is unavailable')
-    }
+    if (size.bytes === null) throw new Error('Diagnostic data size is unavailable')
+    if (size.completeness === 'partial' && size.bytes <= DIAGNOSTIC_DATA_LARGE_BYTES)
+      throw new Error('Diagnostic data measurement is incomplete')
     if (size.bytes <= DIAGNOSTIC_DATA_LARGE_BYTES) return { status: 'pass' }
     return {
       status: 'warn',
       attribution: 'user-fixable',
-      detail: { variant: 'large', params: { bytes: size.bytes } },
+      detail: { variant: size.completeness === 'complete' ? 'large' : 'large_partial', params: { bytes: size.bytes } },
       actions: [{ kind: 'navigate', target: '/settings/data' }],
+      devMessage:
+        size.completeness === 'complete'
+          ? 'Diagnostic data exceeds the size threshold'
+          : 'Incomplete measurement; the readable diagnostic data alone exceeds the size threshold',
       evidence: [
         { key: 'bytes', value: size.bytes, dataClass: 'public' },
         { key: 'complete', value: size.completeness === 'complete', dataClass: 'public' }

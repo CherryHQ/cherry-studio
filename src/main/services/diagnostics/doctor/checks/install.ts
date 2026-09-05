@@ -82,10 +82,23 @@ export const installNativeModules = defineDoctorCheck({
         attribution: 'app-bug',
         detail: { variant: 'unavailable' },
         actions: [{ kind: 'report' }],
-        devMessage: 'The node-screenshots native module is unavailable',
+        devMessage: 'The screenshot native backend is unavailable; this check covers node-screenshots only',
         evidence: [
           { key: 'module', value: 'node-screenshots', dataClass: 'public' },
-          { key: 'error', value: error instanceof Error ? error.message : String(error), dataClass: 'consent_required' }
+          {
+            key: 'error',
+            value: error instanceof Error ? error.message : String(error),
+            dataClass: 'consent_required'
+          },
+          ...(error instanceof Error && error.cause
+            ? [
+                {
+                  key: 'cause',
+                  value: error.cause instanceof Error ? error.cause.message : String(error.cause),
+                  dataClass: 'consent_required' as const
+                }
+              ]
+            : [])
         ]
       }
     }

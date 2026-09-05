@@ -2,6 +2,7 @@ import { application } from '@application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { getAppEdition } from '@main/utils/appEdition'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -31,7 +32,7 @@ export const defaultModel = defineDoctorCheck({
         detail: { variant: 'invalid_id' },
         actions: PROVIDER_SETTINGS_ACTION,
         devMessage: 'The default model id is malformed',
-        evidence: [{ key: 'defaultModelId', value: defaultModelId, dataClass: 'public' }]
+        evidence: [{ key: 'defaultModelId', value: defaultModelId, dataClass: 'local_only' }]
       }
     }
 
@@ -39,14 +40,15 @@ export const defaultModel = defineDoctorCheck({
     let provider
     try {
       provider = providerService.getByProviderId(providerId)
-    } catch {
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
       return {
         status: 'fail',
         attribution: 'user-fixable',
         detail: { variant: 'provider_unavailable' },
         actions: PROVIDER_SETTINGS_ACTION,
         devMessage: 'The default model provider is unavailable',
-        evidence: [{ key: 'providerId', value: providerId, dataClass: 'public' }]
+        evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
       }
     }
 
@@ -57,13 +59,14 @@ export const defaultModel = defineDoctorCheck({
         detail: { variant: 'provider_disabled' },
         actions: PROVIDER_SETTINGS_ACTION,
         devMessage: 'The default model provider is disabled',
-        evidence: [{ key: 'providerId', value: providerId, dataClass: 'public' }]
+        evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
       }
     }
 
     try {
       modelService.getByKey(providerId, modelId)
-    } catch {
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
       return {
         status: 'fail',
         attribution: 'user-fixable',
@@ -71,8 +74,8 @@ export const defaultModel = defineDoctorCheck({
         actions: PROVIDER_SETTINGS_ACTION,
         devMessage: 'The configured default model is unavailable',
         evidence: [
-          { key: 'providerId', value: providerId, dataClass: 'public' },
-          { key: 'modelId', value: modelId, dataClass: 'public' }
+          { key: 'providerId', value: providerId, dataClass: 'local_only' },
+          { key: 'modelId', value: modelId, dataClass: 'local_only' }
         ]
       }
     }
@@ -87,14 +90,20 @@ export const defaultProviderApiKey = defineDoctorCheck({
   async run() {
     const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
     const parsed = UniqueModelIdSchema.safeParse(defaultModelId)
-    if (!parsed.success) return { status: 'pass' }
+    if (!parsed.success) throw new Error('Default model configuration changed; rerun the default-model check')
 
     const { providerId } = parseUniqueModelId(parsed.data)
     let provider
     try {
       provider = providerService.getByProviderId(providerId)
-    } catch {
-      return { status: 'pass' }
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
+      return {
+        status: 'fail',
+        attribution: 'user-fixable',
+        detail: { variant: 'provider_unavailable' },
+        actions: PROVIDER_SETTINGS_ACTION
+      }
     }
 
     if (isLoginBasedProvider(provider) || provider.authOptional || provider.apiKeys.some((key) => key.isEnabled)) {
@@ -107,7 +116,7 @@ export const defaultProviderApiKey = defineDoctorCheck({
       detail: { variant: 'missing' },
       actions: PROVIDER_SETTINGS_ACTION,
       devMessage: 'The default model provider has no enabled API key',
-      evidence: [{ key: 'providerId', value: providerId, dataClass: 'public' }]
+      evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
     }
   },
   fixes: {}
@@ -117,8 +126,11 @@ export const cherryAccount = defineDoctorCheck({
   id: 'provider-cherry-account',
   async run() {
     if (getAppEdition() !== 'cn') return { status: 'pass' }
-    const status = await application.get('CherryCloudService').getStatus()
-    if (status.phase !== 'signed-out') return { status: 'pass' }
+    const cloud = application.get('CherryCloudService')
+    if (!cloud.isReady) throw new Error('Cherry account service is not ready')
+    const status = await cloud.getStatus()
+    if (status.phase === 'signed-in') return { status: 'pass' }
+    if (status.phase === 'authorizing') throw new Error('Cherry account authorization is still in progress')
 
     return {
       status: 'warn',
