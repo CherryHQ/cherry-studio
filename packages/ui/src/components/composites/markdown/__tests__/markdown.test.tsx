@@ -43,6 +43,21 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('pre')).not.toBeNull()
   })
 
+  it('keeps single tildes literal while retaining double-tilde strikethrough', () => {
+    const { container } = render(
+      <Markdown id="tilde-markdown" plugins={withChatPlugins()}>
+        {'~literal~ and ~~deleted~~\n\n`~inline~`\n\n```text\n~fenced~\n```\n\n$$\n\\tilde{x}\n$$'}
+      </Markdown>
+    )
+
+    expect(container.textContent).toContain('~literal~ and deleted')
+    expect(container.querySelectorAll('del')).toHaveLength(1)
+    expect(container.querySelector('del')?.textContent).toBe('deleted')
+    expect(container.querySelector('code')?.textContent).toBe('~inline~')
+    expect(container.querySelector('pre code')?.textContent).toBe('~fenced~')
+    expect(container.querySelector('math')).not.toBeNull()
+  })
+
   it('renders all GitHub alert types with their semantic classes', () => {
     const alertTypes = ['note', 'tip', 'important', 'warning', 'caution']
     const source = alertTypes.map((type) => `> [!${type.toUpperCase()}]\n> ${type} content`).join('\n\n')
