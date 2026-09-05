@@ -1,3 +1,4 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import i18n from '@renderer/i18n/resolver'
 import { act, render, screen } from '@testing-library/react'
@@ -15,6 +16,7 @@ vi.mock('@renderer/ipc', () => ({ useIpcOn: useIpcOnMock }))
 vi.mock('@renderer/hooks/useApiGateway', () => ({
   useApiGateway: () => ({ startApiGateway: startApiGatewayMock })
 }))
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 describe('ApiGatewayRequiredDialog', () => {
   beforeEach(() => {

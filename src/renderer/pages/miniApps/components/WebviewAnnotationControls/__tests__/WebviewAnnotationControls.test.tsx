@@ -1,9 +1,10 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand
 } from '@shared/types/webviewAnnotation'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import type { ReactNode, RefObject } from 'react'
@@ -24,48 +25,39 @@ vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'dark' })
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), error: loggerError }) }
 }))
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children, ...props }: { children: ReactNode }) => <span {...props}>{children}</span>,
-  Button: ({ children, type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
-  PopoverAnchor: ({
-    children,
-    virtualRef
-  }: {
-    children?: ReactNode
-    virtualRef?: RefObject<{ getBoundingClientRect: () => DOMRect }>
-  }) => {
-    if (virtualRef?.current) readPopoverAnchorRect(virtualRef.current.getBoundingClientRect())
-    return <>{children}</>
-  },
-  PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Textarea: {
-    Input: ({
-      onValueChange,
-      ...props
-    }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
-      onValueChange?: (value: string) => void
-    }) => <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
-  },
-  ConfirmDialog: ({ open, title, confirmText, onConfirm, onOpenChange }: any) =>
-    open ? (
-      <div role="dialog" aria-label={title}>
-        <button
-          type="button"
-          onClick={async () => {
-            const result = await onConfirm?.()
-            if (result !== false) onOpenChange?.(false)
-          }}>
-          Confirm {confirmText}
-        </button>
-      </div>
-    ) : null
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
+  return {
+    Badge: ({ children, ...props }: { children: ReactNode }) => <span {...props}>{children}</span>,
+    Button: ({ children, type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
+    PopoverAnchor: ({
+      children,
+      virtualRef
+    }: {
+      children?: ReactNode
+      virtualRef?: RefObject<{ getBoundingClientRect: () => DOMRect }>
+    }) => {
+      if (virtualRef?.current) readPopoverAnchorRect(virtualRef.current.getBoundingClientRect())
+      return <>{children}</>
+    },
+    PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Textarea: {
+      Input: ({
+        onValueChange,
+        ...props
+      }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+        onValueChange?: (value: string) => void
+      }) => <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+    },
+    ConfirmDialog: actual.ConfirmDialog
+  }
+})
 
 import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
 
@@ -250,7 +242,7 @@ describe('WebviewAnnotationControls', () => {
 
     await user.click(screen.getByRole('button', { name: '清空标注' }))
     const dialog = screen.getByRole('dialog', { name: '清空全部标注？' })
-    await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+    await user.click(within(dialog).getByRole('button', { name: '清空标注' }))
 
     expect(dialog).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '标注页面' })).toBeInTheDocument()
@@ -264,10 +256,13 @@ describe('WebviewAnnotationControls', () => {
     act(() => stateChanged(webview, false, 2))
     await user.click(screen.getByRole('button', { name: '清空标注' }))
     vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+    const dialog = screen.getByRole('dialog', { name: '清空全部标注？' })
 
-    await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+    await user.click(within(dialog).getByRole('button', { name: '清空标注' }))
 
-    expect(screen.getByRole('dialog', { name: '清空全部标注？' })).toBeInTheDocument()
+    const remainingDialog = screen.getByRole('dialog', { name: '清空全部标注？' })
+    expect(remainingDialog).toBeInTheDocument()
+    await user.click(within(remainingDialog).getByRole('button', { name: '取消' }))
     expect(screen.getByRole('button', { name: /标注页面.*2 条标注/ })).toBeInTheDocument()
   })
 
@@ -284,8 +279,9 @@ describe('WebviewAnnotationControls', () => {
           resolveClear = resolve
         })
     )
+    const dialog = screen.getByRole('dialog', { name: '清空全部标注？' })
 
-    await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+    await user.click(within(dialog).getByRole('button', { name: '清空标注' }))
     act(() =>
       webview.emitNative('did-start-navigation', {
         isMainFrame: true,
