@@ -186,9 +186,9 @@ export default function AddModelFormPanel({
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
-        ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
-        ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
-        ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
+        ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
+        ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
+        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
       })
 
       return createUniqueModelId(providerId, modelId)
@@ -238,9 +238,9 @@ export default function AddModelFormPanel({
             modelId: singleId,
             name: singleId,
             group: '',
-            contextWindow: '',
-            maxInputTokens: '',
-            maxOutputTokens: '',
+            contextWindow: null,
+            maxInputTokens: null,
+            maxOutputTokens: null,
             endpointTypes: formState.endpointTypes
           })
 

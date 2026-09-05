@@ -118,9 +118,11 @@ vi.mock('electron', () => {
 
 import { application } from '@application'
 import { BrowserWindow, nativeTheme } from 'electron'
+import { JSDOM } from 'jsdom'
 import { beforeEach } from 'vitest'
 
 import { CdpBrowserController } from '../browser'
+import { TAB_BAR_HTML } from '../browser/tabbarHtml'
 
 // WindowManager stub: hands out instances of the mocked BrowserWindow class
 // above, mirroring open()/getWindow()/close() used by the controller.
@@ -152,6 +154,35 @@ describe('CdpBrowserController', () => {
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('forwards tab-bar actions from window messages to the console bridge', async () => {
+    const dom = new JSDOM(TAB_BAR_HTML, { runScripts: 'dangerously' })
+    const executeJavaScript = vi.fn((script: string) => {
+      dom.window.eval(script)
+      return Promise.resolve(null)
+    })
+    const controller = new CdpBrowserController()
+    ;(
+      controller as unknown as {
+        setupTabBarMessageHandler: (windowInfo: { tabBarView: unknown }) => void
+      }
+    ).setupTabBarMessageHandler({
+      tabBarView: { webContents: { on: vi.fn(), executeJavaScript } }
+    })
+
+    const consoleLog = vi.fn()
+    dom.window.console.log = consoleLog
+
+    dom.window.document.getElementById('minimize-btn')?.dispatchEvent(new dom.window.MouseEvent('click'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(consoleLog).toHaveBeenCalledWith(
+      JSON.stringify({ channel: 'tabbar-action', payload: { type: 'window-minimize' } })
+    )
+
+    dom.window.close()
+    await controller.dispose()
   })
 
   it('executes single-line code via Runtime.evaluate', async () => {

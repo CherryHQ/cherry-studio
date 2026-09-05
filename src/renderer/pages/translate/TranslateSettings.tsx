@@ -17,11 +17,13 @@ import {
   PopoverContent,
   PopoverTrigger,
   SegmentedControl,
+  Slider,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -42,6 +44,7 @@ import { useTranslation } from 'react-i18next'
 
 import IconButton from './components/IconButton'
 import LanguagePicker from './components/LanguagePicker'
+import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 type Props = {
   visible: boolean
@@ -208,6 +211,8 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
           </PageSidePanelItem>
         </div>
 
+        <TranslateModelParameters />
+
         <TranslatePromptField />
 
         <CustomLanguageList />
@@ -219,9 +224,148 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
 const TranslateSettingsCoreContent: FC = () => {
   return (
     <div className="flex flex-col gap-8">
+      <TranslateModelParameters />
       <TranslatePromptField />
       <CustomLanguageList />
     </div>
+  )
+}
+
+// Rendered by both panel bodies, so the translate page and Settings → Models
+// agree. Values commit on release, never per change: they go straight to
+// Preference, and an `enable*` toggle must not disturb the number beside it.
+const TranslateModelParameters: FC = () => {
+  const { t } = useTranslation()
+  const { model, effort, selectEffort, supportsReasoning } = useTranslateReasoningEffort()
+  const [enableTemperature, setEnableTemperature] = usePreference('feature.translate.enable_temperature')
+  const [temperature, setTemperature] = usePreference('feature.translate.temperature')
+  const [enableTopP, setEnableTopP] = usePreference('feature.translate.enable_top_p')
+  const [topP, setTopP] = usePreference('feature.translate.top_p')
+
+  const safePersist = useCallback(
+    async (persistPromise: Promise<unknown>, actionName: string) => {
+      try {
+        await persistPromise
+      } catch (error) {
+        logger.error(`Failed to persist ${actionName}`, error as Error)
+        toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  return (
+    <PageSidePanelSection title={t('translate.settings.model_params')}>
+      <div className="flex flex-col gap-5">
+        {supportsReasoning && model && (
+          <PageSidePanelItem
+            title={t('assistants.settings.reasoning_effort.label')}
+            action={<ModelSpeedControl model={model} reasoningEffort={effort} onReasoningEffortChange={selectEffort} />}
+          />
+        )}
+
+        <SamplingSliderItem
+          label={t('library.config.basic.temperature')}
+          description={t('library.config.basic.field.temperature.hint')}
+          enabled={enableTemperature}
+          onEnabledChange={(next) => void safePersist(setEnableTemperature(next), 'translate temperature toggle')}
+          value={temperature}
+          onCommit={(next) => void safePersist(setTemperature(next), 'translate temperature')}
+          min={0}
+          max={2}
+          step={0.1}
+          precision={1}
+          marks={[
+            { value: 0, label: t('library.config.basic.precise') },
+            { value: 1, label: '1' },
+            { value: 2, label: t('library.config.basic.creative') }
+          ]}
+        />
+
+        <SamplingSliderItem
+          label={t('library.config.basic.top_p')}
+          description={t('library.config.basic.field.top_p.hint')}
+          enabled={enableTopP}
+          onEnabledChange={(next) => void safePersist(setEnableTopP(next), 'translate top-p toggle')}
+          value={topP}
+          onCommit={(next) => void safePersist(setTopP(next), 'translate top-p')}
+          min={0}
+          max={1}
+          step={0.05}
+          precision={2}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.5, label: '0.5' },
+            { value: 1, label: '1' }
+          ]}
+        />
+      </div>
+    </PageSidePanelSection>
+  )
+}
+
+type SamplingSliderItemProps = {
+  label: string
+  description: string
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+  value: number
+  onCommit: (value: number) => void
+  min: number
+  max: number
+  step: number
+  precision: number
+  marks: Array<{ value: number; label: string }>
+}
+
+const SamplingSliderItem: FC<SamplingSliderItemProps> = ({
+  label,
+  description,
+  enabled,
+  onEnabledChange,
+  value,
+  onCommit,
+  min,
+  max,
+  step,
+  precision,
+  marks
+}) => {
+  const { t } = useTranslation()
+  const [dragged, setDragged] = useState<number | null>(null)
+  const shown = dragged ?? value
+
+  return (
+    <PageSidePanelItem
+      title={label}
+      description={description}
+      action={
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">
+            {enabled ? shown.toFixed(precision) : t('library.config.basic.default_value')}
+          </span>
+          <Switch size="sm" aria-label={label} checked={enabled} onCheckedChange={onEnabledChange} />
+        </div>
+      }>
+      {enabled && (
+        <div className="-mb-2 mt-1 w-full">
+          <Slider
+            min={min}
+            max={max}
+            step={step}
+            marks={marks}
+            value={[shown]}
+            aria-label={label}
+            className="w-full"
+            onValueChange={([next]) => setDragged(next)}
+            onValueCommit={([next]) => {
+              setDragged(null)
+              onCommit(next)
+            }}
+          />
+        </div>
+      )}
+    </PageSidePanelItem>
   )
 }
 
