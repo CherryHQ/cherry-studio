@@ -98,6 +98,11 @@ const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/pn
 const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
 
+export function isStreamingUnsupportedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('does not support streaming') || message.includes('expo/fetch')
+}
+
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
 export function resolveRequiredNativeFileSupport(
   messages: ReadonlyArray<unknown> | undefined,
@@ -1251,7 +1256,16 @@ export class AiService extends BaseService {
     }
 
     try {
-      await Promise.race([probe, timeoutPromise])
+      try {
+        await Promise.race([probe, timeoutPromise])
+      } catch (error) {
+        if (isStreamingUnsupportedError(error)) {
+          throw new Error(
+            'Streaming is not available on this platform. The model check used a non-streaming request, but the current transport does not support streaming. On Android, use a build with expo/fetch or disable streaming for this provider.'
+          )
+        }
+        throw error
+      }
       return { latency: performance.now() - start }
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
