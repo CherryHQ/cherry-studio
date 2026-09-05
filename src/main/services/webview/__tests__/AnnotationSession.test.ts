@@ -83,6 +83,37 @@ describe('AnnotationSession', () => {
     expect(session.isCurrent('00000000-0000-4000-8000-000000000002')).toBe(true)
   })
 
+  it('retries a failed announcement on the next dom-ready without rotating the session', () => {
+    const contents = createContents()
+    contents.send.mockImplementationOnce(() => {
+      throw new Error('gone')
+    })
+    const sessionId = '00000000-0000-4000-8000-000000000001'
+    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+
+    contents.emit('dom-ready')
+    expect(session.isCurrent(sessionId)).toBe(false)
+
+    contents.emit('dom-ready')
+    expect(contents.send).toHaveBeenLastCalledWith('cherry:webview-annotation', {
+      type: 'start_session',
+      sessionId
+    })
+    expect(session.isCurrent(sessionId)).toBe(true)
+  })
+
+  it('announces an already-loaded session at most once', () => {
+    const contents = createContents()
+    const sessionId = '00000000-0000-4000-8000-000000000001'
+    const session = new AnnotationSession(contents as unknown as Electron.WebContents, vi.fn(), createIds(sessionId))
+
+    session.announce()
+    session.announce()
+
+    expect(contents.send).toHaveBeenCalledOnce()
+    expect(session.isCurrent(sessionId)).toBe(true)
+  })
+
   it('serializes tasks and rejects a result invalidated while the task is running', async () => {
     const contents = createContents()
     const sessionId = '00000000-0000-4000-8000-000000000001'

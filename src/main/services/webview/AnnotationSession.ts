@@ -33,6 +33,20 @@ export class AnnotationSession {
     return this.webContents === webContents
   }
 
+  announce() {
+    if (this.disposed || this.ready || this.webContents.isDestroyed()) return
+    const command: WebviewAnnotationHostCommand = {
+      type: 'start_session',
+      sessionId: this.documentSessionId
+    }
+    try {
+      this.webContents.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
+      this.ready = true
+    } catch {
+      this.ready = false
+    }
+  }
+
   run<T>(documentSessionId: string, task: () => Promise<T>): Promise<T> {
     if (!this.isCurrent(documentSessionId)) return Promise.reject(new Error(STALE_SESSION_MESSAGE))
 
@@ -79,18 +93,7 @@ export class AnnotationSession {
   }
 
   private handleDomReady = () => {
-    if (this.disposed || this.webContents.isDestroyed()) return
-    this.ready = false
-    const command: WebviewAnnotationHostCommand = {
-      type: 'start_session',
-      sessionId: this.documentSessionId
-    }
-    try {
-      this.webContents.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
-      this.ready = true
-    } catch {
-      this.ready = false
-    }
+    this.announce()
   }
 
   private handleDestroyed = () => {

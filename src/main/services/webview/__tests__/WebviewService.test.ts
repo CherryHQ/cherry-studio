@@ -5,11 +5,17 @@ import { shell } from 'electron'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { guestById, getWindow, getPath, siteSession, localSession } = vi.hoisted(() => ({
+const { guestById, getAllWebContents, getWindow, getPath, siteSession, localSession } = vi.hoisted(() => ({
   guestById: new Map<number, unknown>(),
+  getAllWebContents: vi.fn(() => [] as unknown[]),
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
-  siteSession: { setSpellCheckerEnabled: vi.fn() },
+  siteSession: {
+    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+    setUserAgent: vi.fn(),
+    setSpellCheckerEnabled: vi.fn(),
+    webRequest: { onBeforeSendHeaders: vi.fn() }
+  },
   localSession: { setSpellCheckerEnabled: vi.fn() }
 }))
 
@@ -49,7 +55,7 @@ vi.mock('electron', () => ({
     fromPartition: vi.fn((partition: string) => (partition === 'persist:webview' ? siteSession : localSession))
   },
   shell: { openExternal: vi.fn() },
-  webContents: { fromId: (id: number) => guestById.get(id), getAllWebContents: vi.fn(() => []) }
+  webContents: { fromId: (id: number) => guestById.get(id), getAllWebContents }
 }))
 
 import { WebviewService } from '../WebviewService'
@@ -69,6 +75,7 @@ interface MockContents extends EventEmitter {
   getURL: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
   isDevToolsOpened: ReturnType<typeof vi.fn>
+  isLoadingMainFrame: ReturnType<typeof vi.fn>
   send: ReturnType<typeof vi.fn>
   setWindowOpenHandler: ReturnType<typeof vi.fn>
 }
@@ -82,6 +89,7 @@ function createContents(
     type?: string
     session?: object
     devToolsOpened?: boolean
+    loadingMainFrame?: boolean
     sendCommand?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
   } = {}
 ): MockContents {
@@ -95,6 +103,7 @@ function createContents(
   contents.getURL = vi.fn(() => options.url ?? 'https://example.com/page')
   contents.isDestroyed = vi.fn(() => false)
   contents.isDevToolsOpened = vi.fn(() => options.devToolsOpened ?? false)
+  contents.isLoadingMainFrame = vi.fn(() => options.loadingMainFrame ?? false)
   contents.send = vi.fn()
   contents.setWindowOpenHandler = vi.fn()
   const command = options.sendCommand ?? (async () => ({}))
@@ -148,6 +157,7 @@ describe('WebviewService webview ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     guestById.clear()
+    getAllWebContents.mockReturnValue([])
     host = {}
     getWindow.mockReturnValue({ webContents: host })
     service = new WebviewService()
@@ -181,6 +191,43 @@ describe('WebviewService webview ownership', () => {
     expect(second.listenerCount('did-start-navigation')).toBe(1)
     first.emit('destroyed')
     expect((service as any).annotationSessions.get(7).isFor(second)).toBe(true)
+  })
+
+  it('reannounces a loaded surviving guest with a new session after restart', async () => {
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+    getAllWebContents.mockReturnValue([guest])
+
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    const firstSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
+    expect(guest.send).toHaveBeenCalledOnce()
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    expect(guest.listenerCount('dom-ready')).toBe(0)
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+
+    const secondSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
+    expect(guest.send).toHaveBeenCalledTimes(2)
+    expect(secondSessionId).not.toBe(firstSessionId)
+    expect(guest.listenerCount('dom-ready')).toBe(1)
+
+    await expect(service.exportAnnotations(input(firstSessionId), 'owner')).rejects.toThrow(
+      'Annotation document session is stale'
+    )
+    expect(guest.debugger.attach).not.toHaveBeenCalled()
+    await expect(service.exportAnnotations(input(secondSessionId), 'owner')).resolves.toContain('Fix this')
+    expect(guest.debugger.attach).toHaveBeenCalledOnce()
+  })
+
+  it('waits for dom-ready before announcing an existing guest that is still loading', async () => {
+    const guest = createContents(7, host, { loadingMainFrame: true })
+    getAllWebContents.mockReturnValue([guest])
+
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    expect(guest.send).not.toHaveBeenCalled()
+
+    guest.emit('dom-ready')
+    expect(guest.send).toHaveBeenCalledOnce()
   })
 
   it('rejects unowned, non-site, stale-session, and duplicate-id exports before accessibility capture', async () => {
