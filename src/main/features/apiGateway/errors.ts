@@ -26,15 +26,11 @@ function findHttpStatus(error: unknown, seen = new Set<object>()): number | unde
   if (typeof candidate.status === 'number') return candidate.status
   if (typeof candidate.statusCode === 'number') return candidate.statusCode
 
-  const terminalStatus = findHttpStatus(candidate.lastError, seen) ?? findHttpStatus(candidate.cause, seen)
-  if (terminalStatus !== undefined) return terminalStatus
-  if (!Array.isArray(candidate.errors)) return undefined
-
-  for (let index = candidate.errors.length - 1; index >= 0; index -= 1) {
-    const status = findHttpStatus(candidate.errors[index], seen)
-    if (status !== undefined) return status
+  if ('lastError' in candidate) return findHttpStatus(candidate.lastError, seen)
+  if (Array.isArray(candidate.errors) && candidate.errors.length > 0) {
+    return findHttpStatus(candidate.errors[candidate.errors.length - 1], seen)
   }
-  return undefined
+  return findHttpStatus(candidate.cause, seen)
 }
 
 export function withGatewayProviderContext(

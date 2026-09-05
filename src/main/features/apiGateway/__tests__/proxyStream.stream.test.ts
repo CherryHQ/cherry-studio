@@ -781,6 +781,42 @@ describe('processMessage (error & pause)', () => {
     expect(error).toEqual(originalError)
   })
 
+  it('does not report an earlier retry status when lastError has no HTTP status', async () => {
+    const { response, listener } = await startStreaming()
+    const terminalError = { name: 'Error', message: 'connection closed', stack: null }
+    const error = {
+      name: 'AI_RetryError',
+      message: 'Failed after 2 attempts',
+      stack: null,
+      lastError: terminalError,
+      errors: [{ name: 'AI_APICallError', message: 'unavailable', stack: null, statusCode: 503 }, terminalError]
+    }
+
+    void listener.onError({ status: 'error', error } as any)
+
+    await expect(response).rejects.toBe(error)
+  })
+
+  it('uses only the final errors entry when a serialized retry error omits lastError', async () => {
+    const { response, listener } = await startStreaming()
+    const error = {
+      name: 'AI_RetryError',
+      message: 'Failed after 2 attempts',
+      stack: null,
+      errors: [
+        { name: 'AI_APICallError', message: 'unavailable', stack: null, statusCode: 503 },
+        { name: 'AI_APICallError', message: 'rate limited', stack: null, statusCode: 429 }
+      ]
+    }
+
+    void listener.onError({ status: 'error', error } as any)
+
+    await expect(response).rejects.toMatchObject({
+      statusCode: 429,
+      gatewayErrorKind: 'upstream_provider'
+    })
+  })
+
   it('streaming: an error after commitment emits a dialect error frame, not the raw SerializedError', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
