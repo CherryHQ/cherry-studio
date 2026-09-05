@@ -27,12 +27,13 @@ import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import {
+  getBinaryExecutionEnv,
   getBinarySearchDirs,
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -363,13 +364,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )
+      // Pre-capture the user's raw mise env so the bash spawn hook can
+      // restore it over Cherry's isolated values. A system mise shim
+      // (e.g. pnpx) reads MISE_DATA_DIR to locate its target; Cherry's
+      // isolated value redirects it to the wrong data dir (#19738).
+      const rawShellEnvForBash = await getRawShellEnv()
+      const rawMiseEnvForBash = Object.fromEntries(
+        Object.entries(rawShellEnvForBash).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+      )
+      const cherryMiseEnvForBash = getBinaryExecutionEnv()
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
-        spawnHook: (context) => ({
-          ...context,
-          env: mergePiBashExecutionEnv(context.env)
-        })
+        spawnHook: (context) => {
+          const merged = mergePiBashExecutionEnv(context.env)
+          if (Object.keys(rawMiseEnvForBash).length > 0) {
+            for (const key of Object.keys(cherryMiseEnvForBash)) {
+              if (!(key in rawMiseEnvForBash)) delete merged[key]
+            }
+            Object.assign(merged, rawMiseEnvForBash)
+          }
+          return { ...context, env: merged }
+        }
       }) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
