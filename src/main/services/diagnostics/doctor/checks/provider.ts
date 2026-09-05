@@ -124,8 +124,8 @@ export const cherryAccount = defineDoctorCheck({
       status: 'warn',
       attribution: 'user-fixable',
       detail: { variant: 'signed_out' },
-      actions: [{ kind: 'open_cherry_account' }],
-      devMessage: 'There is no valid Cherry account session'
+      actions: [],
+      devMessage: 'There is no valid Cherry account session; sign in from the sidebar profile popup'
     }
   },
   fixes: {}

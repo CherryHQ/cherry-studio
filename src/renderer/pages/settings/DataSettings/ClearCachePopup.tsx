@@ -98,7 +98,7 @@ function createLoadingOptionStates(): Record<CacheCleanupGroup, CleanupOptionSta
 }
 
 function getVisibleCleanupGroups(): CacheCleanupGroup[] {
-  return CACHE_CLEANUP_GROUPS.filter((group) => group !== 'logs' && (group !== 'legacy_v1' || hasLegacyV1Marker()))
+  return CACHE_CLEANUP_GROUPS.filter((group) => group !== 'legacy_v1' || hasLegacyV1Marker())
 }
 
 async function inspectCleanupGroup(

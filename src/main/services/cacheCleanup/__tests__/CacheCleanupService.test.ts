@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const bootConfigGet = vi.hoisted(() => vi.fn())
 const hasPendingRestoreMock = vi.hoisted(() => vi.fn(() => false))
 const removeOrphanBaseArtifacts = vi.hoisted(() => vi.fn())
-const cleanTraceDataMock = vi.hoisted(() => vi.fn())
 const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoisted(() => {
   const createSession = () => ({
     clearCodeCaches: vi.fn(),
@@ -80,8 +79,6 @@ const emptyFileSweepReport = {
 
 describe('CacheCleanupService', () => {
   let root: string
-  let crashDumpsPath: string
-  let logsPath: string
   let tracePath: string
   let userDataPath: string
 
@@ -118,17 +115,13 @@ describe('CacheCleanupService', () => {
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'FileManager') return MockMainFileManagerExport.fileManager
       if (name === 'KnowledgeService') return { inspectOrphanBaseArtifacts, removeOrphanBaseArtifacts }
-      if (name === 'TraceStorageService') return { cleanLocalData: cleanTraceDataMock }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }) as typeof application.get)
     MockMainFileManagerExport.fileManager.inspectOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     MockMainFileManagerExport.fileManager.cleanupOrphanFiles.mockResolvedValue(emptyFileSweepReport)
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
     userDataPath = root
-    crashDumpsPath = rootPath('CrashDumps')
-    logsPath = rootPath('Logs')
     tracePath = rootPath('Trace')
-    cleanTraceDataMock.mockImplementation(() => fs.rm(tracePath, { recursive: true, force: true }))
     vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
 
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
@@ -138,8 +131,6 @@ describe('CacheCleanupService', () => {
         'app.session': rootPath('Session'),
         'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
         'app.temp': rootPath('Temp'),
-        'app.logs': logsPath,
-        'app.crash_dumps': crashDumpsPath,
         'feature.trace': tracePath,
         'v1.trace': rootPath('Home', 'trace'),
         'v1.cli.install': rootPath('Home', 'install'),
@@ -171,7 +162,7 @@ describe('CacheCleanupService', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  it('sums Electron sessions, disk caches, and legacy traces without counting diagnostic or temp data', async () => {
+  it('sums all Electron sessions, disk caches, and traces without counting shared temp data', async () => {
     defaultSession.getCacheSize.mockResolvedValue(100)
     webviewSession.getCacheSize.mockResolvedValue(200)
     htmlArtifactPreviewSession.getCacheSize.mockResolvedValue(300)
@@ -192,7 +183,7 @@ describe('CacheCleanupService', () => {
     expect(result.results[0]).toMatchObject({
       group: 'normal_cache',
       size: {
-        bytes: 629,
+        bytes: 642,
         accuracy: 'estimated',
         completeness: 'complete'
       }
@@ -214,18 +205,21 @@ describe('CacheCleanupService', () => {
     })
   })
 
-  it('clears legacy traces with normal cache but leaves current diagnostic traces alone', async () => {
+  it('clears both the active and legacy trace directories', async () => {
     const legacyTracePath = rootPath('Home', 'trace')
     const activeTempPath = rootPath('Temp', 'active-operation.tmp')
     await writeTestFile(path.join(tracePath, 'active-trace'), 'active')
     await writeTestFile(path.join(legacyTracePath, 'legacy-trace'), 'legacy')
     await writeTestFile(activeTempPath, 'keep')
+    vi.mocked(application.get).mockReturnValueOnce({
+      cleanLocalData: () => fs.rm(tracePath, { recursive: true, force: true })
+    } as never)
+
     const cleanup = await cacheCleanupService.run(['normal_cache'])
 
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expectMissing(legacyTracePath)
-    await expectExisting(tracePath, activeTempPath)
-    expect(cleanTraceDataMock).not.toHaveBeenCalled()
+    await expectMissing(tracePath, legacyTracePath)
+    await expectExisting(activeTempPath)
     for (const mockedSession of [defaultSession, webviewSession, htmlArtifactPreviewSession]) {
       expect(mockedSession.clearData).toHaveBeenCalledWith({
         dataTypes: ['cache'],
@@ -244,52 +238,13 @@ describe('CacheCleanupService', () => {
     })
   })
 
-  it('counts and clears logs, crash dumps, and current traces as one diagnostic-data group', async () => {
-    const appLog = path.join(logsPath, 'app.log')
-    const crashDump = path.join(crashDumpsPath, 'completed', 'crash.dmp')
-    const trace = path.join(tracePath, 'trace.jsonl')
-    await writeTestFile(appLog, Buffer.alloc(19))
-    await writeTestFile(crashDump, Buffer.alloc(23))
-    await writeTestFile(trace, Buffer.alloc(13))
-
-    const inspection = await cacheCleanupService.inspect(['logs'])
-    const cleanup = await cacheCleanupService.run(['logs'])
-
-    expect(inspection.results[0]).toEqual({
-      group: 'logs',
-      size: { bytes: 55, accuracy: 'exact', completeness: 'complete' }
-    })
-    expect(cleanup.results[0]).toEqual({ group: 'logs', status: 'cleared' })
-    await expectMissing(appLog, crashDump, tracePath)
-    await expectExisting(logsPath, crashDumpsPath)
-    expect(cleanTraceDataMock).toHaveBeenCalledOnce()
-  })
-
-  it('counts an overlapping diagnostic path only once', async () => {
-    tracePath = logsPath
+  it('counts a shared disk path only once', async () => {
+    tracePath = rootPath('Temp')
     await writeTestFile(path.join(tracePath, 'shared.bin'), Buffer.alloc(17))
 
-    const result = await cacheCleanupService.inspect(['logs'])
+    const result = await cacheCleanupService.inspect(['normal_cache'])
 
     expect(result.results[0]?.size.bytes).toBe(17)
-  })
-
-  it('reports partial cleanup when an active log file cannot be removed', async () => {
-    const lockedLog = path.join(logsPath, 'app.log')
-    const removableLog = path.join(logsPath, 'app-error.log')
-    await writeTestFile(lockedLog, 'locked')
-    await writeTestFile(removableLog, 'remove')
-    const remove = fs.rm.bind(fs)
-    vi.spyOn(fs, 'rm').mockImplementation(async (targetPath, options) => {
-      if (targetPath === lockedLog) throw new Error('file is in use')
-      await remove(targetPath, options)
-    })
-
-    const cleanup = await cacheCleanupService.run(['logs'])
-
-    expect(cleanup.results[0]).toEqual({ group: 'logs', status: 'partial' })
-    await expectExisting(lockedLog)
-    await expectMissing(removableLog)
   })
 
   it('reports a symlink as partially unknown without following it', async () => {

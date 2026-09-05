@@ -18,11 +18,16 @@ const mocks = vi.hoisted(() => ({
   applicationGetPath: vi.fn(),
   mcpList: vi.fn(),
   modelGetByKey: vi.fn(),
-  providerGetById: vi.fn()
+  providerGetById: vi.fn(),
+  diagnoseEndpoint: vi.fn(),
+  doctorRun: vi.fn()
 }))
 
 vi.mock('@application', async () => {
-  const base = (await import('@test-mocks/main/application')).mockApplicationFactory()
+  const base = (await import('@test-mocks/main/application')).mockApplicationFactory({
+    NetworkService: { diagnoseEndpoint: mocks.diagnoseEndpoint },
+    DoctorService: { run: mocks.doctorRun }
+  } as never)
   return {
     ...base,
     application: {
@@ -644,6 +649,7 @@ describe('diagnose config', () => {
 
 describe('diagnose health', () => {
   const endpoint = 'https://endpoint-user:endpoint-pass@api.example:8443/v1/chat?endpoint-token=secret#fragment'
+  const ok = { status: 'ok', durationMs: 12 }
 
   function mockProvider() {
     mocks.providerGetById.mockReturnValue({
@@ -662,74 +668,125 @@ describe('diagnose health', () => {
     ).diagnoseHealth(providerId)
   }
 
-  it('returns only the endpoint origin after a successful health check', async () => {
+  it('reports the layered verdict with only the endpoint origin', async () => {
     mockProvider()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({ ok: true, status: 200 }))
-    )
-    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
+    mocks.diagnoseEndpoint.mockResolvedValue({
+      endpointId: 'provider:health-success',
+      host: 'api.example',
+      dns: ok,
+      tls: ok,
+      proxy: { effective: 'PROXY corp-proxy.internal:3128', configuredMode: 'system' },
+      http: { ...ok, data: { status: 401 } },
+      verdict: 'reachable'
+    })
 
     const result = await diagnoseHealth('health-success')
     const text = result.content[0].text
-    const health = JSON.parse(text) as { host: string }
-
-    expect(health.host).toBe('https://api.example:8443')
-    expect(clearTimeoutSpy).toHaveBeenCalled()
-    for (const secret of ['endpoint-user', 'endpoint-pass', '/v1/chat', 'endpoint-token=secret']) {
-      expect(text).not.toContain(secret)
+    const health = JSON.parse(text) as {
+      status: string
+      host: string
+      http: { httpStatus: number }
+      proxy: { mode: string }
     }
-  })
 
-  it('uses a structural connection failure without leaking endpoint or fetch-error URLs', async () => {
-    mockProvider()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new Error('connect https://error-user:error-pass@error.example:9443/private?error-token=secret')
-      })
+    expect(health).toMatchObject({
+      status: 'reachable',
+      host: 'https://api.example:8443',
+      http: { httpStatus: 401 },
+      proxy: { mode: 'system' }
+    })
+    expect(mocks.diagnoseEndpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'provider:health-success', url: endpoint }),
+      expect.any(AbortSignal)
     )
-    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
-
-    const result = await diagnoseHealth('health-connection-failure')
-    const text = result.content[0].text
-    const health = JSON.parse(text) as { host: string; error: string }
-
-    expect(health).toMatchObject({ host: 'https://api.example:8443', error: 'connection failure' })
-    expect(clearTimeoutSpy).toHaveBeenCalled()
     for (const secret of [
       'endpoint-user',
       'endpoint-pass',
       '/v1/chat',
       'endpoint-token=secret',
-      'error-user',
-      'error-pass',
-      'error.example',
-      '/private',
-      'error-token=secret'
+      'corp-proxy.internal'
     ]) {
       expect(text).not.toContain(secret)
     }
   })
 
-  it('reports timeouts structurally and clears the timeout', async () => {
+  it('surfaces the failing layer and its code without leaking the URL', async () => {
     mockProvider()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw Object.assign(new Error('https://error-user:error-pass@error.example/private?error-token=secret'), {
-          name: 'AbortError'
-        })
-      })
-    )
-    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout')
+    mocks.diagnoseEndpoint.mockResolvedValue({
+      endpointId: 'provider:health-connection-failure',
+      host: 'api.example',
+      dns: { status: 'failed', durationMs: 5, kind: 'dns', code: 'ENOTFOUND' },
+      tls: { status: 'skipped', durationMs: 0, skippedBecause: 'dns_failed' },
+      proxy: { effective: 'DIRECT', configuredMode: 'none' },
+      http: { status: 'skipped', durationMs: 0, skippedBecause: 'dns_failed' },
+      verdict: 'unreachable'
+    })
 
-    const result = await diagnoseHealth('health-timeout')
-    const text = result.content[0].text
-    const health = JSON.parse(text) as { error: string }
+    const health = JSON.parse((await diagnoseHealth('health-connection-failure')).content[0].text) as {
+      status: string
+      dns: { kind: string; code: string }
+    }
+    expect(health).toMatchObject({ status: 'unreachable', dns: { kind: 'dns', code: 'ENOTFOUND' } })
+  })
 
-    expect(health.error).toBe('timeout')
-    expect(clearTimeoutSpy).toHaveBeenCalled()
-    expect(text).not.toContain('error-token=secret')
+  it('does not probe a provider without an API key', async () => {
+    mocks.providerGetById.mockReturnValue({ apiKeys: [], endpointConfigs: { chat: { baseUrl: endpoint } } })
+    const health = JSON.parse((await diagnoseHealth('health-no-key')).content[0].text) as { error: string }
+    expect(health.error).toBe('No API key configured')
+    expect(mocks.diagnoseEndpoint).not.toHaveBeenCalled()
+  })
+})
+
+describe('diagnose doctor', () => {
+  it('returns the upload projection of the report, dropping local-only data', async () => {
+    mocks.doctorRun.mockResolvedValue({
+      status: 'completed',
+      report: {
+        schemaVersion: 1,
+        runId: 'r1',
+        tier: 'quick',
+        startedAt: 's',
+        finishedAt: 'f',
+        expiresAt: 'e',
+        basics: { version: '2.0.0', userDataPath: '/Users/alice/secret' },
+        results: [
+          {
+            id: 'storage-userdata-location',
+            status: 'warn',
+            durationMs: 1,
+            attribution: 'user-fixable',
+            detail: { variant: 'fallback_to_default' },
+            actions: [],
+            evidence: [
+              { key: 'actual', value: '/Users/alice/secret', dataClass: 'local_only' },
+              { key: 'configuredUsableNow', value: false, dataClass: 'public' }
+            ]
+          }
+        ],
+        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+      }
+    })
+    const server = new AssistantServer()
+    const text = (
+      await (
+        server as unknown as { diagnoseDoctor: (tier: string) => Promise<{ content: Array<{ text: string }> }> }
+      ).diagnoseDoctor('quick')
+    ).content[0].text
+
+    expect(mocks.doctorRun).toHaveBeenCalledWith({ tier: 'quick' })
+    expect(JSON.parse(text)).toMatchObject({ summary: { warn: 1 } })
+    expect(text).not.toContain('/Users/alice/secret')
+    expect(text).toContain('configuredUsableNow')
+  })
+
+  it('passes a busy outcome through so the model can retry later', async () => {
+    mocks.doctorRun.mockResolvedValue({ status: 'busy', runId: 'r9' })
+    const server = new AssistantServer()
+    const text = (
+      await (
+        server as unknown as { diagnoseDoctor: (tier: string) => Promise<{ content: Array<{ text: string }> }> }
+      ).diagnoseDoctor('live')
+    ).content[0].text
+    expect(JSON.parse(text)).toEqual({ status: 'busy', runId: 'r9' })
   })
 })

@@ -1,3 +1,4 @@
+import type { SettingsPath } from '../data/types/settingsPath'
 import type { AppEdition } from './appEdition'
 
 /**
@@ -106,7 +107,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'install',
     tier: 'live',
     fixes: [],
-    details: ['available'],
+    details: ['available', 'unsupported'],
     requires: ['network-endpoint-update']
   },
   'install-native-modules': {
@@ -140,14 +141,14 @@ export const DOCTOR_CHECK_CATALOG = {
   'storage-disk-space': {
     domain: 'storage',
     tier: 'quick',
-    fixes: [{ id: 'cleanup', risk: 'confirm', reversible: false, relaunch: false }],
+    fixes: [],
     details: ['critical', 'low'],
     requires: []
   },
   'storage-diagnostic-data-size': {
     domain: 'storage',
     tier: 'quick',
-    fixes: [{ id: 'clear', risk: 'confirm', reversible: false, relaunch: false }],
+    fixes: [],
     details: ['large'],
     requires: []
   },
@@ -298,8 +299,6 @@ export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
   /** Absolute path already resolved by main; the renderer only forwards it to `system.shell.open_path`. */
   | { readonly kind: 'open_path'; readonly path: string }
   | { readonly kind: 'open_external'; readonly url: string }
-  | { readonly kind: 'open_cherry_account' }
-  | { readonly kind: 'install_update' }
   | { readonly kind: 'relaunch' }
   | { readonly kind: 'report' }
 
@@ -490,6 +489,14 @@ export function projectDoctorReport(
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   return { ...report, basics, results }
+}
+
+export type DoctorPanel = 'checks' | 'export' | 'report'
+
+export const DOCTOR_OPEN_QUERY_PARAM = 'doctor'
+
+export function doctorSettingsPath(panel: DoctorPanel = 'checks'): SettingsPath {
+  return `/settings/about?${DOCTOR_OPEN_QUERY_PARAM}=${panel}`
 }
 
 export function doctorCheckTitleKey<Id extends DoctorCheckId>(id: Id) {

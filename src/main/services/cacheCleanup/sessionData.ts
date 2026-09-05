@@ -43,6 +43,7 @@ function getCleanupPaths() {
   return {
     defaultSession: application.getPath('app.session'),
     webviewSession: application.getPath('app.session.webview'),
+    trace: application.getPath('feature.trace'),
     legacyTrace: application.getPath('v1.trace')
   }
 }
@@ -85,7 +86,7 @@ export async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
       path: path.join(root, relativePath)
     }))
   )
-  diskTargets.push({ item: 'legacy_trace', path: paths.legacyTrace })
+  diskTargets.push({ item: 'trace', path: paths.trace }, { item: 'legacy_trace', path: paths.legacyTrace })
 
   const diskMeasurement = await measurePaths(diskTargets)
   return toSizeSnapshot(mergeMeasurements([...electronMeasurements, diskMeasurement]), 'estimated')
@@ -123,16 +124,20 @@ export async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
 
 export async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
   const paths = getCleanupPaths()
-  const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, legacyTraceStep] = await Promise.all([
-    clearSessionNormalCache(session.defaultSession, 'default_session'),
-    clearSessionNormalCache(session.fromPartition('persist:webview'), 'webview_session'),
-    clearSessionNormalCache(session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION), 'html_artifact_preview_session'),
-    removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
-  ])
+  const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, traceStep, legacyTraceStep] = await Promise.all(
+    [
+      clearSessionNormalCache(session.defaultSession, 'default_session'),
+      clearSessionNormalCache(session.fromPartition('persist:webview'), 'webview_session'),
+      clearSessionNormalCache(session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION), 'html_artifact_preview_session'),
+      captureStep('trace', () => application.get('TraceStorageService').cleanLocalData()),
+      removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
+    ]
+  )
   return resultFromSteps('normal_cache', [
     ...defaultSessionSteps,
     ...webviewSessionSteps,
     ...previewSessionSteps,
+    traceStep,
     legacyTraceStep
   ])
 }

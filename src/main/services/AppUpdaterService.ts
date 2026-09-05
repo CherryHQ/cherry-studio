@@ -245,6 +245,28 @@ export class AppUpdaterService extends BaseService {
     }
   }
 
+  public async queryUpdateAvailability(): Promise<
+    | { status: 'unsupported' }
+    | { status: 'current'; currentVersion: string }
+    | { status: 'available'; currentVersion: string; version: string }
+  > {
+    if (this.isPortable()) return { status: 'unsupported' }
+    const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
+    const updater = new ReleaseNotesUpdater()
+    updater.logger = logger as Logger
+    updater.forceDevUpdateConfig = !app.isPackaged
+    updater.autoDownload = false
+    updater.autoInstallOnAppQuit = false
+    updater.requestHeaders = updateHeaders
+    updater.channel = updateChannel
+    updater.allowDowngrade = false
+    const result = await updater.checkForUpdates()
+    if (!result) throw new Error('Update query did not produce a result')
+    return result.isUpdateAvailable
+      ? { status: 'available', currentVersion, version: result.updateInfo.version }
+      : { status: 'current', currentVersion }
+  }
+
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
     try {
       const { updateChannel, updateHeaders } = await this.getUpdateRequest()

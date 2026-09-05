@@ -79,8 +79,10 @@ async function measurePath(
   targetPath: string,
   item: string,
   excludedPaths: ReadonlySet<string> = new Set(),
-  nested = false
+  nested = false,
+  signal?: AbortSignal
 ): Promise<SizeMeasurement> {
+  signal?.throwIfAborted()
   const resolvedPath = path.resolve(targetPath)
   if (excludedPaths.has(resolvedPath)) {
     return { bytes: 0, issues: [] }
@@ -119,7 +121,7 @@ async function measurePath(
 
   const result: SizeMeasurement = { bytes: 0, issues: [] }
   for (const entry of entries) {
-    const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, true)
+    const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, true, signal)
     result.bytes += child.bytes
     result.issues.push(...child.issues)
   }
@@ -149,7 +151,8 @@ export function toSizeSnapshot(
 }
 
 export async function measurePaths(
-  targets: ReadonlyArray<{ item: string; path: string; excludedPaths?: ReadonlySet<string> }>
+  targets: ReadonlyArray<{ item: string; path: string; excludedPaths?: ReadonlySet<string> }>,
+  signal?: AbortSignal
 ): Promise<SizeMeasurement> {
   const uniqueTargets = new Map<string, (typeof targets)[number]>()
   for (const target of targets) {
@@ -162,7 +165,7 @@ export async function measurePaths(
   return mergeMeasurements(
     await Promise.all(
       [...uniqueTargets.values()].map(({ item, path: targetPath, excludedPaths }) =>
-        measurePath(targetPath, item, excludedPaths)
+        measurePath(targetPath, item, excludedPaths, false, signal)
       )
     )
   )
@@ -242,24 +245,4 @@ export async function removeCleanupTarget(target: CleanupTarget): Promise<Cleanu
     logger.error('Failed to remove cleanup target', { item: target.item, path: target.path, error })
     return { state: 'failed' }
   }
-}
-
-/** Clears an active directory without removing the root that its owner may still be using. */
-export async function removeCleanupDirectoryContents(target: CleanupTarget): Promise<CleanupStepResult[]> {
-  const status = await inspectTarget(target.path, target.item, 'directory')
-  if (status === 'missing') return [{ state: 'not_found' }]
-  if (status === 'invalid') return [{ state: 'skipped' }]
-
-  let entries: string[]
-  try {
-    entries = await fs.readdir(target.path)
-  } catch (error) {
-    logger.error('Failed to list cleanup directory', { item: target.item, path: target.path, error })
-    return [{ state: 'failed' }]
-  }
-  if (entries.length === 0) return [{ state: 'not_found' }]
-
-  return Promise.all(
-    entries.map((entry) => captureStep(target.item, () => fs.rm(path.join(target.path, entry), { recursive: true })))
-  )
 }

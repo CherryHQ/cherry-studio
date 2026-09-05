@@ -8,7 +8,6 @@ import type {
 } from '@shared/types/cacheCleanupIpc'
 import { Mutex } from 'async-mutex'
 
-import { clearDiagnosticData, inspectDiagnosticData } from './diagnosticData'
 import { clearLegacyV1, inspectLegacyV1 } from './legacyV1'
 import { clearOrphanedData, inspectOrphanedData } from './orphanedData'
 import { clearNormalCache, clearSiteData, inspectNormalCache, inspectSiteData } from './sessionData'
@@ -25,9 +24,7 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
           ? await inspectSiteData()
           : group === 'orphaned_data'
             ? await inspectOrphanedData()
-            : group === 'logs'
-              ? await inspectDiagnosticData()
-              : await inspectLegacyV1()
+            : await inspectLegacyV1()
     return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
@@ -49,7 +46,6 @@ async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResu
     if (group === 'normal_cache') return await clearNormalCache()
     if (group === 'site_data') return await clearSiteData()
     if (group === 'orphaned_data') return await clearOrphanedData()
-    if (group === 'logs') return await clearDiagnosticData()
     return await clearLegacyV1()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })

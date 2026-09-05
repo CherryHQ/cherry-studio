@@ -8,10 +8,10 @@ const preboot = vi.hoisted(() => ({
 }))
 const bootConfig = vi.hoisted(() => ({ get: vi.fn() }))
 const storageMonitor = vi.hoisted(() => ({ refreshHealth: vi.fn() }))
-const cleanup = vi.hoisted(() => ({ inspect: vi.fn(), run: vi.fn() }))
+const inspectDiagnosticData = vi.hoisted(() => vi.fn())
 vi.mock('@main/core/preboot/userDataLocation', () => preboot)
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: bootConfig }))
-vi.mock('@main/services/cacheCleanup', () => ({ cacheCleanupService: cleanup }))
+vi.mock('@main/services/cacheCleanup', () => ({ inspectDiagnosticData }))
 
 const { diagnosticDataSize, diskSpace, userDataLocation } = await import('../storage')
 const signal = new AbortController().signal
@@ -26,41 +26,27 @@ beforeEach(() => {
     if (name === 'StorageMonitorService') return storageMonitor
     throw new Error(`Unexpected application.get(${name})`)
   }) as typeof application.get)
-  cleanup.inspect.mockResolvedValue({ results: [] })
-  cleanup.run.mockResolvedValue({ results: [] })
+  inspectDiagnosticData.mockResolvedValue({ bytes: 0, completeness: 'complete' })
 })
 
 describe('storage-disk-space', () => {
   it.each([
     [512 * MB, 'fail', 'critical'],
     [2 * GB, 'warn', 'low']
-  ])(
-    'reports %i free bytes as %s and includes reclaimable diagnostic/cache size',
-    async (freeBytes, status, variant) => {
-      storageMonitor.refreshHealth.mockResolvedValue({ freeBytes, totalBytes: 100 * GB, checkedAt: 1, level: 'ok' })
-      cleanup.inspect.mockResolvedValue({
-        results: [
-          { group: 'normal_cache', size: { bytes: 80 * MB, accuracy: 'estimated', completeness: 'complete' } },
-          { group: 'logs', size: { bytes: 220 * MB, accuracy: 'exact', completeness: 'complete' } }
-        ]
-      })
+  ])('reports %i free bytes as %s', async (freeBytes, status, variant) => {
+    storageMonitor.refreshHealth.mockResolvedValue({ freeBytes, totalBytes: 100 * GB, checkedAt: 1, level: 'ok' })
 
-      await expect(diskSpace.run(ctx)).resolves.toMatchObject({
-        status,
-        detail: {
-          variant,
-          params: {
-            freeBytes,
-            reclaimableBytes: 300 * MB,
-            normalCacheBytes: 80 * MB,
-            diagnosticDataBytes: 220 * MB
-          }
-        },
-        actions: [{ kind: 'fix', fixId: 'cleanup' }]
-      })
-      expect(cleanup.inspect).toHaveBeenCalledWith(['normal_cache', 'logs'])
-    }
-  )
+    await expect(diskSpace.run(ctx)).resolves.toMatchObject({
+      status,
+      detail: {
+        variant,
+        params: {
+          freeBytes
+        }
+      },
+      actions: [{ kind: 'navigate', target: '/settings/data' }]
+    })
+  })
 
   it('passes at 5 GB and does not calculate cleanup sizes unnecessarily', async () => {
     storageMonitor.refreshHealth.mockResolvedValue({
@@ -71,48 +57,24 @@ describe('storage-disk-space', () => {
     })
 
     await expect(diskSpace.run(ctx)).resolves.toEqual({ status: 'pass' })
-    expect(cleanup.inspect).not.toHaveBeenCalled()
-  })
-
-  it('clears only ordinary cache and diagnostic data', async () => {
-    cleanup.run.mockResolvedValue({
-      results: [
-        { group: 'normal_cache', status: 'cleared' },
-        { group: 'logs', status: 'not_found' }
-      ]
-    })
-
-    await expect(diskSpace.fixes.cleanup(ctx)).resolves.toEqual({ status: 'fixed' })
-    expect(cleanup.run).toHaveBeenCalledWith(['normal_cache', 'logs'])
   })
 })
 
 describe('storage-diagnostic-data-size', () => {
-  it('warns above 200 MB and offers the logs-group cleanup', async () => {
-    cleanup.inspect.mockResolvedValue({
-      results: [{ group: 'logs', size: { bytes: 200 * MB + 1, accuracy: 'exact', completeness: 'complete' } }]
-    })
+  it('warns above 200 MB and links to Data settings', async () => {
+    inspectDiagnosticData.mockResolvedValue({ bytes: 200 * MB + 1, accuracy: 'exact', completeness: 'complete' })
 
     await expect(diagnosticDataSize.run(ctx)).resolves.toMatchObject({
       status: 'warn',
       detail: { variant: 'large', params: { bytes: 200 * MB + 1 } },
-      actions: [{ kind: 'fix', fixId: 'clear' }]
+      actions: [{ kind: 'navigate', target: '/settings/data' }]
     })
   })
 
   it('passes at the 200 MB boundary', async () => {
-    cleanup.inspect.mockResolvedValue({
-      results: [{ group: 'logs', size: { bytes: 200 * MB, accuracy: 'exact', completeness: 'complete' } }]
-    })
+    inspectDiagnosticData.mockResolvedValue({ bytes: 200 * MB, accuracy: 'exact', completeness: 'complete' })
 
     await expect(diagnosticDataSize.run(ctx)).resolves.toEqual({ status: 'pass' })
-  })
-
-  it('clears only the diagnostic-data group', async () => {
-    cleanup.run.mockResolvedValue({ results: [{ group: 'logs', status: 'cleared' }] })
-
-    await expect(diagnosticDataSize.fixes.clear(ctx)).resolves.toEqual({ status: 'fixed' })
-    expect(cleanup.run).toHaveBeenCalledWith(['logs'])
   })
 })
 
