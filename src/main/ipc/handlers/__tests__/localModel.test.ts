@@ -14,7 +14,16 @@ const localModelService = vi.hoisted(() => ({
   isHardwareAccelerationSupported: vi.fn()
 }))
 
-vi.mock('@main/ai/localModel', () => ({ localModelService }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'LocalModelService') return localModelService
+    return originalGet(name)
+  })
+  return result
+})
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
 
 const { localModelHandlers } = await import('../localModel')

@@ -2,7 +2,6 @@ import { writeFileSync } from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { localModelService } from '@main/ai/localModel'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
@@ -259,7 +258,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = localModelService.isReady('ocr')
+        const ocrAvailable = application.get('LocalModelService').isCapabilityReady('ocr')
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -451,7 +450,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Re-checked per request, never cached from initData: the user can delete the
     // model in settings while the overlay is open.
-    if (!localModelService.isReady('ocr')) return { status: 'unavailable' }
+    if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }

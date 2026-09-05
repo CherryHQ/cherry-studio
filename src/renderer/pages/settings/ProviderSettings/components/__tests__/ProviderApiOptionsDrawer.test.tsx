@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ProviderUtils from '@shared/utils/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -58,7 +59,7 @@ vi.mock('@shared/utils/provider', async (importOriginal) => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<object>()
+  const actual = await importOriginal<typeof CherryStudioUi>()
 
   return {
     ...actual,
@@ -183,6 +184,33 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
+  // The provider query lands a round trip after the write, so the sibling field
+  // commits against a snapshot that predates it. Tabbing from one field to the
+  // next must not write the pre-edit threshold back.
+  it('keeps a just-saved threshold when the sibling field commits before the query catches up', () => {
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    const threshold = screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
+    fireEvent.change(threshold, { target: { value: '2048' } })
+    fireEvent.blur(threshold)
+
+    const lastN = screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')
+    fireEvent.change(lastN, { target: { value: '5' } })
+    fireEvent.blur(lastN)
+
+    expect(updateProviderMock).toHaveBeenLastCalledWith({
+      providerSettings: {
+        ...provider.settings,
+        cacheControl: {
+          enabled: true,
+          tokenThreshold: 2048,
+          cacheSystemMessage: true,
+          cacheLastNMessages: 5
+        }
+      }
+    })
+  })
+
   it('shows default Anthropic cache values when cacheControl is unset', () => {
     useProviderMock.mockReturnValue({
       provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
@@ -191,8 +219,8 @@ describe('ProviderApiOptionsDrawer', () => {
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue('1024')
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue('2')
   })
 
   it('persists a one-hour Anthropic cache lifetime without dropping sibling settings', async () => {

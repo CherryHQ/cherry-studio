@@ -51,6 +51,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   editable?: boolean
+  allowExecution?: boolean
   isStreaming?: boolean
   showToolbar?: boolean
   maxHeight?: string | number
@@ -74,7 +75,16 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
+  const {
+    children,
+    language,
+    onSave,
+    editable = true,
+    allowExecution = true,
+    isStreaming = false,
+    showToolbar = true,
+    maxHeight
+  } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -134,8 +144,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecutionEnabled && language === 'python'
-  }, [codeExecutionEnabled, language])
+    return allowExecution && codeExecutionEnabled && language === 'python'
+  }, [allowExecution, codeExecutionEnabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)

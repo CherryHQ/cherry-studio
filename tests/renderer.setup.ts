@@ -7,6 +7,8 @@ import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
 
+vi.stubGlobal('__APP_EDITION__', 'global')
+
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
 if (!bufferModule.SlowBuffer) {
@@ -163,8 +165,12 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui/components/composites/markdown/styles', () => ({}))
 
 // Mock @cherrystudio/ui globally for renderer tests
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  // Real implementation: its filtering/normalization contract is what callers
+  // are tested against, and a stub would drift from it.
+  const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -253,6 +259,8 @@ vi.mock('@cherrystudio/ui', () => {
             )
           )
         : null,
+    InputNumber,
+    InputGroupInputNumber,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,

@@ -1,3 +1,5 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +23,8 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentApiGateway>()),
   ApiGatewayNotRunningError: mocks.ApiGatewayNotRunningError,
   resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime
 }))
@@ -74,6 +77,18 @@ const nativeProvider = {
   }
 } as unknown as Provider
 
+const cloudProvider = {
+  id: CHERRY_CLOUD_PROVIDER_ID,
+  name: 'CherryAI',
+  defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  endpointConfigs: {
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://api.cherry-ai.com'
+    }
+  }
+} as unknown as Provider
+
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
     id: 'vertexai::gemini-2.5-pro',
@@ -85,6 +100,20 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     maxOutputTokens: 8_192,
     ...overrides
   } as unknown as Model
+}
+
+function makeCloudModel(overrides: Partial<Model> = {}): Model {
+  return makeModel({
+    id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+    providerId: CHERRY_CLOUD_PROVIDER_ID,
+    apiModelId: 'deepseek-free',
+    name: 'DeepSeek Free',
+    group: CHERRY_CLOUD_MODEL_GROUP,
+    endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+    contextWindow: 128_000,
+    maxOutputTokens: 8_192,
+    ...overrides
+  })
 }
 
 beforeEach(() => {
@@ -101,6 +130,7 @@ describe('buildDshGatewayInjection', () => {
     expect(injection.baseUrl).toBe('http://127.0.0.1:23333/v1')
     expect(injection.modelId).toBe('vertexai:gemini-2.5-pro')
     expect(injection.modelConfig.id).toBe('vertexai:gemini-2.5-pro')
+    expect(injection.modelConfig.compat).toEqual({ supportsDeveloperRole: true })
     expect(injection.apiKey).toBe(GATEWAY_KEY)
     expect(injection.headers).toEqual(GATEWAY_USAGE_HEADERS)
     expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
@@ -134,6 +164,18 @@ describe('buildDshGatewayInjection', () => {
     })
     expect(route).not.toHaveProperty('apiKey')
     expect(route.models[0].id).toBe('vertexai:gemini-2.5-pro')
+  })
+
+  it('routes Cherry Cloud as Anthropic Messages with synchronized model limits', () => {
+    const injection = buildDshGatewayInjection(cloudProvider, makeCloudModel(), GATEWAY)
+
+    expect(injection.api).toBe('anthropic-messages')
+    expect(injection.baseUrl).toBe('http://127.0.0.1:23333')
+    expect(injection.modelId).toBe('cherryai-subscription:deepseek-free')
+    expect(injection.modelConfig.contextWindow).toBe(128_000)
+    expect(injection.modelConfig.compat).toBeUndefined()
+    expect(injection.headers).toEqual(GATEWAY_USAGE_HEADERS)
+    expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
   it('rejects models the gateway cannot route and defaults an undeclared context window', () => {
@@ -238,16 +280,34 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
-  it('propagates the disabled-gateway consent error', async () => {
+  it('routes Cloud through the same consented gateway runtime', async () => {
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', cloudProvider, makeCloudModel())
+
+    expect(mocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+    expect(injection).toMatchObject({ api: 'anthropic-messages', modelId: 'cherryai-subscription:deepseek-free' })
+  })
+
+  it('propagates the disabled-gateway consent error for Cloud', async () => {
     mocks.resolveApiGatewayRuntime.mockRejectedValue(new mocks.ApiGatewayNotRunningError())
 
-    await expect(resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())).rejects.toThrow(
+    await expect(resolveDshProviderInjectionFromSnapshot('session-1', cloudProvider, makeCloudModel())).rejects.toThrow(
       mocks.ApiGatewayNotRunningError
     )
   })
 })
 
 describe('assertDshProviderUsable', () => {
+  it('defers Cherry Cloud gateway consent until connection materialization', async () => {
+    mocks.getByProviderId.mockResolvedValue(cloudProvider)
+    mocks.getByKey.mockResolvedValue(makeCloudModel())
+    mocks.getCurrentConfig.mockReturnValue({ enabled: false })
+
+    await expect(assertDshProviderUsable('cherryai-subscription::deepseek-free')).resolves.toBeUndefined()
+    expect(mocks.getApiKeys).not.toHaveBeenCalled()
+    expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
+  })
+
   it('accepts a gateway-routable model when the gateway is enabled, without key side effects', async () => {
     mocks.getByProviderId.mockResolvedValue(vertexProvider)
     mocks.getByKey.mockResolvedValue(makeModel())

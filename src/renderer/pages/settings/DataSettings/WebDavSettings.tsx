@@ -100,7 +100,7 @@ const WebDavSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-host" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
@@ -112,7 +112,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-user" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.user')}
@@ -123,7 +123,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-password" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
         <Input
           type="password"
@@ -135,7 +135,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}
