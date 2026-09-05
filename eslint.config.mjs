@@ -93,6 +93,40 @@ const BAN_DRIZZLE_MIGRATOR = {
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
 
+// Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
+// separate process that has no lifecycle container, no logger, and no database. Importing a
+// main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
+// child bundle. A resolved-path zone, so relative and aliased specifiers are judged alike;
+// the smoke build's entry-graph guard (scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts)
+// is the transitive backstop (docs/references/utility-process/README.md).
+const UTILITY_CHILD_FILES = [
+  'src/main/core/utilityProcess/protocol/**/*.ts',
+  'src/main/core/utilityProcess/runtime/**/*.ts',
+  'src/main/**/utilityEntries/**/*.ts',
+  'scripts/utility-process-smoke/harness/utilityEntries/**/*.ts'
+]
+const UTILITY_CHILD_ZONE = {
+  target: UTILITY_CHILD_FILES,
+  from: [
+    'src/main/core/application',
+    'src/main/core/lifecycle',
+    'src/main/core/logger',
+    'src/main/core/paths',
+    'src/main/data',
+    'src/main/ipc',
+    'src/main/core/utilityProcess/host',
+    'src/main/core/utilityProcess/UtilityProcessManager.ts'
+  ],
+  message:
+    'Utility-process child code runs without the main process singletons. Use the child runtime (serveUtilityProcess) and the protocol layer instead; keep host-only code out of the entry graph.'
+}
+// Resolved against the node project: tsconfig.web.json maps @logger / @data/* to renderer files.
+const mainBoundarySettings = {
+  'import-x/resolver-next': [
+    createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.node.json'), alwaysTryTypes: true })
+  ]
+}
+
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
 // full-src barrel closure needs a private boundary per directory at arbitrary depth, which
@@ -686,6 +720,18 @@ export default defineConfig([
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+    }
+  },
+  {
+    // Child-safe zone: everything that is bundled into a utility process entry. Must come
+    // after the src/main block — flat config replaces a rule wholesale, so the main bans are
+    // repeated here; the child-only fence is the resolved-path zone.
+    files: UTILITY_CHILD_FILES,
+    plugins: { 'import-x': importX },
+    settings: mainBoundarySettings,
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }],
+      'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

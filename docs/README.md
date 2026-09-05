@@ -59,6 +59,7 @@
 | [Naming Conventions](./references/architecture/naming-conventions.md) | Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies |
 | [Renderer Architecture](./references/architecture/renderer.md) | Canonical reference for the src/renderer type-by-domain layout and its strictly downward dependency layering |
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
+| [RFC: `core/utilityProcess` V1 — generic utility-process layer](./references/architecture/utility-process-rfc.md) | Design RFC for the core/utilityProcess V1 generic layer (#19621) — interface, protocol, failure policy, build mechanism, and experiment evidence |
 
 ### Binary Manager
 
@@ -238,6 +239,15 @@
 | [Testing Reference](./references/testing/README.md) | Home for testing reference docs covering frontend test policy and the SQLite database test harness |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
+
+### Utility Process
+
+| Document | Description |
+|----------|-------------|
+| [Utility Process Reference](./references/utility-process/README.md) | Entry point for core/utilityProcess — what the layer owns, how a consumer declares and calls a utility process, and the boundaries lint enforces |
+| [Utility Process Future Work](./references/utility-process/utility-process-future.md) | What core/utilityProcess V1 leaves out on purpose, in what order it should land, and when a worker thread is the better answer |
+| [Utility Process Protocol & State Machine](./references/utility-process/utility-process-protocol.md) | Wire protocol, generation state machine, cancellation, circuit breaker, and the stop budget of core/utilityProcess |
+| [Testing Utility Processes](./references/utility-process/utility-process-testing.md) | How core/utilityProcess is verified — unit contracts against an in-memory adapter and the manual real-Electron smoke harness |
 
 ### Window Manager
 
