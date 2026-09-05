@@ -76,6 +76,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('../../UserPopup', () => ({
+  UserAccountPanel: () => null,
   default: {
     show: vi.fn()
   }

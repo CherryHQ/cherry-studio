@@ -12,7 +12,7 @@ import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser, SidebarVisibleLayout } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
@@ -33,6 +33,7 @@ export interface SidebarProps {
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onHeaderClick?: () => void
+  renderHeaderAnchor?: (anchor: React.ReactElement) => React.ReactNode
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -55,6 +56,7 @@ export function Sidebar({
   onSearchClick,
   onExtensionsClick,
   onHeaderClick,
+  renderHeaderAnchor,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
@@ -80,7 +82,7 @@ export function Sidebar({
     </div>
   )
 
-  const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean) => {
+  const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean): React.ReactElement => {
     const content = (
       <>
         {renderLogo(size)}
@@ -112,6 +114,25 @@ export function Sidebar({
         {content}
       </button>
     )
+  }
+
+  const withHeaderAnchor = (anchor: React.ReactElement) => renderHeaderAnchor?.(anchor) ?? anchor
+
+  const renderHeader = (headerLayout: SidebarVisibleLayout) => {
+    const identity = renderHeaderIdentity(headerLayout === 'icon' ? 'sm' : 'default', headerLayout === 'full')
+    const header = (
+      <div
+        className={cn(
+          'flex shrink-0',
+          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+          windowDragClassName,
+          headerLayout === 'full' ? 'px-2' : 'justify-center'
+        )}>
+        {headerLayout === 'icon' ? withHeaderAnchor(identity) : identity}
+      </div>
+    )
+
+    return headerLayout === 'full' ? withHeaderAnchor(header) : header
   }
 
   const handleDismiss = useCallback(() => {
@@ -201,14 +222,7 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div
-            className={cn(
-              'flex shrink-0 px-2',
-              isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
-              windowDragClassName
-            )}>
-            {renderHeaderIdentity('default', true)}
-          </div>
+          {renderHeader('full')}
 
           {showSearch && (
             <div className="px-3 py-2">
@@ -277,15 +291,7 @@ export function Sidebar({
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
-      <div
-        className={cn(
-          'flex shrink-0',
-          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
-          windowDragClassName,
-          layout === 'full' ? 'px-2' : 'justify-center'
-        )}>
-        {renderHeaderIdentity(layout === 'icon' ? 'sm' : 'default', layout === 'full')}
-      </div>
+      {renderHeader(layout)}
 
       {/* Search */}
       {showSearch &&
