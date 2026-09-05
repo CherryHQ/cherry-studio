@@ -12,9 +12,11 @@ describe('WindowFatalFallback', () => {
   // Both buttons dispatch through the typed IpcApi bridge (window.api.ipcApi.request);
   // stub the transport so the fallback's own (provider-free) render stays exercised.
   const request = vi.fn()
+  const writeText = vi.fn()
 
   beforeEach(() => {
     request.mockReset().mockResolvedValue({ ok: true, data: undefined })
+    writeText.mockReset().mockResolvedValue(undefined)
     vi.stubGlobal('api', { ipcApi: { request } })
   })
 
@@ -24,6 +26,24 @@ describe('WindowFatalFallback', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent(i18n.t('error.boundary.default.message'))
     expect(alert).toHaveTextContent('boom from provider')
+  })
+
+  it('keeps error details selectable and copies them from the provider-free fallback', async () => {
+    const user = userEvent.setup()
+    const errorMessage = 'boom from provider\nRetry after reopening the window'
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+    render(<WindowFatalFallback error={new Error(errorMessage)} resetErrorBoundary={vi.fn()} />)
+
+    const details = screen.getByText((_, element) => element?.textContent === errorMessage)
+    // The global body rule disables selection; this class is the user-visible bug contract.
+    expect(details).toHaveClass('selectable')
+
+    await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
+
+    expect(writeText).toHaveBeenCalledWith(errorMessage)
   })
 
   it('reloads the window when the reload button is clicked', async () => {

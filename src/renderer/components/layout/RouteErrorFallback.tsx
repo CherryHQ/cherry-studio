@@ -1,6 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
@@ -19,10 +19,11 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
       <Alert
         type="error"
         message={t('error.boundary.default.message')}
-        description={formatErrorDetails(error)}
+        description={<ErrorFallbackDetails error={error} />}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
+        <ErrorFallbackCopyButton error={error} />
         <Button size="sm" onClick={() => reset()}>
           {t('common.retry')}
         </Button>
