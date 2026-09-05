@@ -1,6 +1,6 @@
 import type { DoctorState } from '@shared/types/doctor'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cacheReady: true,
@@ -103,6 +103,10 @@ describe('useDoctorController', () => {
     mocks.request.mockResolvedValue({ status: 'completed' })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('starts one basic check without a partial check list when no result exists', async () => {
     renderHook(() => useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() }))
 
@@ -172,6 +176,32 @@ describe('useDoctorController', () => {
     )
     rerender()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('shows a complete pending basic-check view long enough to be visible when reopening over cached results', async () => {
+    vi.useFakeTimers()
+    mocks.doctorState = completedDoctorState()
+    const { result } = renderHook(() =>
+      useDoctorController({
+        autoRunPolicy: 'when-not-running',
+        initialPanel: 'checks',
+        onInstallUpdate: vi.fn(),
+        onNavigate: vi.fn()
+      })
+    )
+
+    await act(async () => {})
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(result.current.viewModel.status).toBe('running')
+    expect(result.current.viewModel.rows).toHaveLength(18)
+    expect(result.current.viewModel.rows.every((row) => row.status === 'pending')).toBe(true)
+
+    await act(async () => vi.advanceTimersByTime(599))
+    expect(result.current.viewModel.status).toBe('running')
+
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(result.current.viewModel.status).toBe('completed')
   })
 
   it('observes an active shared run without replacing it', async () => {

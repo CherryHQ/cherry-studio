@@ -16,7 +16,7 @@ export type DoctorInteraction =
         | Exclude<DoctorAction['kind'], 'fix' | 'navigate' | 'install_update' | 'report'>
         | 'toggle_dev_tools'
     }
-  | { readonly kind: 'run'; readonly tier: DoctorRunTier }
+  | { readonly kind: 'run'; readonly tier: DoctorRunTier; readonly pendingUntil: number }
   | { readonly kind: 'cancel' }
   | { readonly kind: 'bundle-operation' }
   | { readonly kind: 'report-operation' }
