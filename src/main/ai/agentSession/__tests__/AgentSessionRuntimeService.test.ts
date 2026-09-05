@@ -1354,13 +1354,16 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('reconnects an idle runtime when the agent model changes before the next turn', async () => {
+    const firstEvents = createAsyncQueue<any>()
+    const secondEvents = createAsyncQueue<any>()
+    const firstClose = createDeferred<void>()
     const firstConnection = {
-      events: createAsyncQueue<any>().iterable,
+      events: firstEvents.iterable,
       send: vi.fn(),
-      close: vi.fn()
+      close: vi.fn(() => firstClose.promise)
     }
     const secondConnection = {
-      events: createAsyncQueue<any>().iterable,
+      events: secondEvents.iterable,
       send: vi.fn(),
       close: vi.fn()
     }
@@ -1382,6 +1385,14 @@ describe('AgentSessionRuntimeService', () => {
     const firstReader = firstStream.getReader()
     await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalled())
+    firstEvents.push({ type: 'resume-token', token: 'resume-with-tool-history' })
+    firstEvents.push({ type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'tool-1' } })
+    await vi.waitFor(() =>
+      expect(service.inspect('session-1')).toMatchObject({
+        resumeToken: 'resume-with-tool-history',
+        activeToolCount: 1
+      })
+    )
 
     void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
     await (service as any).handleAgentUpdated(
@@ -1404,13 +1415,22 @@ describe('AgentSessionRuntimeService', () => {
     const secondReader = secondStream.getReader()
 
     await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(connect).toHaveBeenCalledOnce()
+    expect(secondConnection.send).not.toHaveBeenCalled()
+
+    firstClose.resolve()
+
     await vi.waitFor(() =>
       expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
     )
 
     expect(firstConnection.close).toHaveBeenCalled()
     expect(connect).toHaveBeenNthCalledWith(1, expect.objectContaining({ modelId: baseTurnInput.modelId }))
-    expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
+    expect(connect).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ modelId: switchedModelId, resumeToken: 'resume-with-tool-history' })
+    )
     expect(firstConnection.send).toHaveBeenCalledTimes(1)
 
     await firstReader.cancel().catch(() => undefined)

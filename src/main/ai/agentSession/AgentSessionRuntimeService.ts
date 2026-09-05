@@ -961,21 +961,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
-      () => undefined
-    )
-    const barrier = {
-      promise: combinedClosing.finally(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
-      }),
-      resumeToken: entry.lastResumeToken ?? priorClosing?.resumeToken
-    }
-    this.closingSessions.set(sessionId, barrier)
+    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
-    return barrier.promise
+    return barrier
   }
 
   /**
@@ -3199,7 +3190,27 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {
     const connection = this.closeConnection(entry)
-    void this.closeRuntimeConnection(connection, entry.sessionId)
+    if (!connection) return
+    void this.trackSessionClosing(
+      entry.sessionId,
+      this.closeRuntimeConnection(connection, entry.sessionId),
+      entry.lastResumeToken
+    )
+  }
+
+  private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
+    const priorClosing = this.closingSessions.get(sessionId)
+    const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
+      () => undefined
+    )
+    const barrier = {
+      promise: combinedClosing.finally(() => {
+        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+      }),
+      resumeToken: resumeToken ?? priorClosing?.resumeToken
+    }
+    this.closingSessions.set(sessionId, barrier)
+    return barrier.promise
   }
 
   private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
