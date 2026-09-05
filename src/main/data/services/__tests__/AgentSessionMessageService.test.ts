@@ -552,6 +552,51 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  describe('findFlowHostMessageId (restart anchor recovery)', () => {
+    const HOST = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d030'
+    const lateHostPart = () => ({
+      type: 'tool-Agent' as const,
+      toolCallId: 'root-1',
+      state: 'input-available' as const,
+      input: { prompt: 'Audit' }
+    })
+
+    it('finds the assistant row whose parts carry the launch tool call id', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: HOST, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBe(HOST)
+    })
+
+    it('returns null when no assistant row carries the id (user rows are not hosts)', async () => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: HOST, role: 'user', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBeNull()
+    })
+
+    it('returns the earliest row when several carry the same id', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d031'
+      const LATE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d032'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: EARLY, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: LATE, role: 'assistant', status: 'success', data: { parts: [lateHostPart()] } }
+      })
+
+      expect(agentSessionMessageService.findFlowHostMessageId(SESSION_ID, 'root-1')).toBe(EARLY)
+    })
+  })
+
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     agentSessionMessageService.saveMessage({
