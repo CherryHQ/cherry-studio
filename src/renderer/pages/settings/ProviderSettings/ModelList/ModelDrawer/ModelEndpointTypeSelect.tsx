@@ -8,20 +8,25 @@ import type { ModelDrawerEndpointType } from './types'
 
 interface ModelEndpointTypeSelectProps {
   value: readonly ModelDrawerEndpointType[]
+  endpointTypes: readonly ModelDrawerEndpointType[]
   onChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
-export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSelectProps) {
+export function ModelEndpointTypeSelect({ value, endpointTypes, onChange }: ModelEndpointTypeSelectProps) {
   const { t } = useTranslation()
-  const options: ComboboxOption[] = MODEL_ENDPOINT_OPTIONS.map((option) => ({
+  const availableEndpointOptions = endpointTypes.map((endpointType) => ({
+    id: endpointType,
+    label: MODEL_ENDPOINT_OPTIONS.find((option) => option.id === endpointType)?.label
+  }))
+  const options: ComboboxOption[] = availableEndpointOptions.map((option) => ({
     value: option.id,
-    label: t(option.label)
+    label: option.label ? t(option.label) : option.id
   }))
 
   const handleChange = (nextValue: string | string[]) => {
     const next = Array.isArray(nextValue) ? nextValue : [nextValue]
     const nextSet = new Set(next)
-    const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => nextSet.has(optionId))
+    const ordered = availableEndpointOptions.map((option) => option.id).filter((optionId) => nextSet.has(optionId))
     onChange(ordered)
   }
 

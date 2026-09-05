@@ -102,7 +102,7 @@ export default defineProvider({
   },
   // The Anthropic-compatible endpoint serves V4 Pro / V4 Flash / V4 Flash Vision Exp only, and silently maps any other
   // model name onto v4-flash — so it is pinned on those three and withheld from chat/reasoner. It
-  // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
+  // trails Chat Completions because declaration order chooses the default text route.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },

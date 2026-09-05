@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { canonOf, prefixHit, splitOverrideWireId } from '../../scripts/canonicalize'
+import { normalizeProviderModelOperations } from '../../scripts/providerModelOperations'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
@@ -27,11 +28,13 @@ import {
 } from '../patterns/server-tool-constraints.gen'
 import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
+import type { ModelCapability } from '../schemas/enums'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
 const models = read('models.json').models as Array<{
+  capabilities?: ModelCapability[]
   id: string
   name?: string
   ownedBy: string
@@ -129,7 +132,7 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
       for (const raw of p.overrides ?? []) {
         if (!raw.modelId) continue
         // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
-        const ov = splitOverrideWireId(raw)
+        const ov = splitOverrideWireId(raw) as typeof raw & { modelId: string }
         if (
           p.modelsDevProvider &&
           !ov.apiModelId &&
@@ -161,7 +164,10 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
           }
           continue
         }
-        const expected = { providerId: p.id, ...ov }
+        const expected = normalizeProviderModelOperations(
+          { providerId: p.id, ...ov },
+          modelById.get(ov.modelId)?.capabilities
+        )
         const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
         else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)

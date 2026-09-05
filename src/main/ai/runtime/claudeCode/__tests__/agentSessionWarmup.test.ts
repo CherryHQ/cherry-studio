@@ -1,8 +1,9 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { resolveEffectiveEndpoint } from '../../../provider/endpoint'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -113,30 +114,15 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
+const { resolveEffectiveEndpoint: resolveProductionEffectiveEndpoint } = await vi.importActual<{
+  resolveEffectiveEndpoint: typeof resolveEffectiveEndpoint
+}>('../../../provider/endpoint')
 const {
   buildClaudeCodeQueryRequestForAgentSession,
   buildClaudeCodeWarmQueryRequestForAgentSession,
   deriveConnectionConfig
 } = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
-
-function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
-      ? preferredEndpointType
-      : undefined
-  const endpointType =
-    preferred ??
-    model.endpointTypes?.[0] ??
-    provider.defaultChatEndpoint ??
-    (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
-  return {
-    endpointType,
-    baseUrl: (endpointType && provider.endpointConfigs?.[endpointType]?.baseUrl) || 'https://api.example.com'
-  }
-}
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
@@ -155,8 +141,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 })
-    mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.resolveEffectiveEndpoint.mockImplementation(resolveProductionEffectiveEndpoint)
     mocks.resolveApiKey.mockReturnValue({
       value: 'api-key',
       apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
@@ -250,7 +242,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',
       apiModelId: 'claude-sonnet',
-      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_RECOGNITION]
     })
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -262,7 +254,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
 
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'text-only',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    })
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -275,7 +271,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
-    const model = { id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 }
+    const model = {
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    }
     mocks.getModelByKey.mockReturnValue(model)
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
       expect(options).toEqual(expect.objectContaining({ contextWindow: 128_000 }))
@@ -331,7 +332,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     }))
 
     // A live turn's connection pins the model captured at turn creation; the agent may have been
@@ -380,7 +382,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: modelId === 'model-2' ? 'kimi-for-coding' : 'claude-sonnet',
-      contextWindow: 262_144
+      contextWindow: 262_144,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     }))
 
     const request = await buildClaudeCodeQueryRequestForAgentSession(
@@ -532,7 +535,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   it('pins explicit plan/small to the captured primary for an overridden connection instead of the latest edited sub-models', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     }))
     // The agent's primary is still provider-1::model-1, but plan/small were edited to point at another
     // provider in the same begin-turn-before-open-stream window that pinned the connection to model-2.
@@ -784,12 +788,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'custom',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {}
+      }
     })
     mocks.getModelByKey.mockReturnValue({
       id: 'relay-model',
       apiModelId: 'relay-model',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: ''
     })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -811,7 +822,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     }))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -840,7 +852,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       presetProviderId: 'anthropic',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.mycorp.com' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 1_000_000 })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 1_000_000,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -861,7 +878,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       presetProviderId: 'anthropic',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet-4-5', contextWindow: 1_000_000 })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet-4-5',
+      contextWindow: 1_000_000,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -880,7 +902,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       presetProviderId: 'ollama',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } }
     })
-    mocks.getModelByKey.mockReturnValue({ id: 'qwen3:14b', apiModelId: 'qwen3:14b' })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'qwen3:14b',
+      apiModelId: 'qwen3:14b',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
     mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -914,6 +940,23 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'https://anthropic.example.com'
+    })
+  })
+
+  it('uses the required Anthropic route for an endpointless text model when the provider serves it', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'endpointless-model',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
+      ANTHROPIC_MODEL: 'endpointless-model'
     })
   })
 
@@ -1216,9 +1259,10 @@ describe('deriveConnectionConfig', () => {
     })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     }))
-    mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
+    mocks.resolveEffectiveEndpoint.mockImplementation(resolveProductionEffectiveEndpoint)
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
@@ -1317,6 +1361,7 @@ describe('deriveConnectionConfig', () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
       pricing: {
         input: { perMillionTokens: 1, currency: 'USD' as const },
         output: { perMillionTokens: 2, currency: 'USD' as const }
@@ -1335,6 +1380,7 @@ describe('deriveConnectionConfig', () => {
       mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
         id: modelId,
         apiModelId: `${modelId}-api`,
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
         pricing: {
           input: { perMillionTokens: 3, currency: 'USD' as const },
           output: { perMillionTokens: 2, currency: 'USD' as const }

@@ -27,7 +27,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
@@ -41,7 +41,7 @@ import {
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { getExtraHeaders } from '../../utils/provider'
+import { getExtraHeaders, isAnthropicOfficialHost } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
@@ -50,7 +50,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
-import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -362,7 +362,10 @@ async function deriveConnectionConfigFromSnapshot(
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
-    const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+    const { baseUrl } = resolveEffectiveEndpoint(provider, model, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION,
+      requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
     // Same pinning semantics as the query-request builder (see its comment).
     const pinSubModelsToPrimary = uniqueModelId !== agent.model
     routeFacts = deriveRouteFacts(
@@ -487,7 +490,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
-  const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+  const { baseUrl } = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION,
+    requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
   // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
@@ -859,18 +865,19 @@ function resolveRuntimeModelRef(
 
 /**
  * The Claude Agent SDK only ever speaks Anthropic Messages, so the direct route asks the shared
- * resolver for that dialect instead of taking the in-app-chat default (`endpointTypes[0]`). A model
+ * resolver for that dialect instead of taking the model's default text route. A model
  * that declares `anthropic-messages` behind another dialect — DeepSeek V4 Flash lists it third — would
  * otherwise be pushed onto the gateway, which re-serializes the SDK's native thinking blocks into a
- * dialect that cannot carry them back. The resolver declines the preference when the model does not
- * declare the endpoint or the provider configures no base URL for it, which this comparison detects.
+ * dialect that cannot carry them back. A direct route also requires a concrete URL; an endpoint-only
+ * resolution cannot populate ANTHROPIC_BASE_URL safely.
  */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
-  return (
-    resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
-    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-  )
+  const resolved = resolveEffectiveEndpoint(ref.provider, ref.model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION,
+    requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
+  return resolved.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && Boolean(resolved.baseUrl)
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {

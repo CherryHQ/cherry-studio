@@ -16,7 +16,8 @@ import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canon
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { PROVIDERS } from '../providers'
-import { SERVER_TOOL } from '../schemas/enums'
+import { getModelEndpointContractIssues } from '../registry-utils'
+import { MODEL_CAPABILITY, type ModelCapability, SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
@@ -267,12 +268,57 @@ describe('catalog invariants (data/*.json)', () => {
     expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
   })
 
+  it('every base model declares at least one operation capability', () => {
+    expect(
+      models
+        .filter(
+          (model) =>
+            getModelEndpointContractIssues({ capabilities: model.capabilities as ModelCapability[] | undefined })
+              .length > 0
+        )
+        .map((model) => model.id)
+    ).toEqual([])
+  })
+
+  it('classifies dedicated audio-to-text models as transcription instead of text generation', () => {
+    const invalid = models
+      .filter(
+        (model) =>
+          model.inputModalities?.includes('audio') &&
+          !model.inputModalities.includes('text') &&
+          model.outputModalities?.length === 1 &&
+          model.outputModalities.includes('text')
+      )
+      .filter(
+        (model) =>
+          !model.capabilities?.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) ||
+          model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION)
+      )
+      .map((model) => model.id)
+
+    expect(invalid).toEqual([])
+  })
+
+  it('keeps Jina ColBERT models as embedding and rerank models', () => {
+    expect(models.find((model) => model.id === 'jina-colbert-v2')?.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])
+    )
+  })
+
   // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
   // The sole exception is gemini-3 image (Nano Banana Pro), which genuinely grounds on Google Search;
   // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
   // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
   it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
-    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
+    // Google's model pages: search grounding is supported on Pro Image and 3.1 Flash Image, and
+    // not on 3.1 Flash Lite Image or 2.5 Flash Image.
+    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set([
+      'gemini-3-pro-image',
+      'gemini-3-pro-image-preview',
+      'gemini-3-1-flash-image',
+      // Retired upstream, still served (and grounded) by the gateways that alias it.
+      'gemini-3-1-flash-image-preview'
+    ])
     const offenders = models
       .filter((model) => model.capabilities?.includes('image-generation'))
       .filter((model) =>

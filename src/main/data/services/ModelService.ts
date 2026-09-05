@@ -8,8 +8,9 @@
  */
 
 import { application } from '@application'
-import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
+import { getModelEndpointContractIssues, inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -46,6 +47,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -63,6 +65,7 @@ const PRESET_DELTA_FIELDS = [
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -153,6 +156,7 @@ export interface UserModelOverlay {
   inputModalities?: Modality[] | null
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
+  preferredEndpointType?: EndpointType | null
   contextWindow?: number | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
@@ -180,6 +184,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
+  }
+  if (overlay.preferredEndpointType != null) {
+    result.preferredEndpointType = overlay.preferredEndpointType
   }
   if (overlay.inputModalities != null) {
     result.inputModalities = [...overlay.inputModalities]
@@ -273,6 +280,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
   'contextWindow',
@@ -300,6 +308,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    preferredEndpointType: (dto.preferredEndpointType ?? null) as EndpointType | null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
@@ -365,6 +374,9 @@ function presetDeltaToNewUserModel(
     inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
+    preferredEndpointType: fields.has('preferredEndpointType')
+      ? ((dto.preferredEndpointType ?? null) as EndpointType | null)
+      : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
@@ -386,6 +398,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
+    preferredEndpointType: row.preferredEndpointType,
     contextWindow: row.contextWindow,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
@@ -428,6 +441,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
+    preferredEndpointType: row.preferredEndpointType ?? undefined,
     supportsStreaming: row.supportsStreaming,
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
@@ -465,6 +479,38 @@ function createPresetFallback(
 }
 
 class ModelService {
+  private assertEffectiveEndpointContract(
+    providerId: string,
+    modelId: string,
+    model: ModelEndpointContractInput
+  ): void {
+    const issues = getModelEndpointContractIssues(model)
+    if (issues.length > 0) {
+      throw DataApiErrorFactory.validation({ capabilities: issues })
+    }
+
+    const preferredEndpointType = model.preferredEndpointType
+    if (!preferredEndpointType) return
+
+    const provider = providerService.getByProviderId(providerId)
+    if (
+      !isModelEndpointTypeAvailable(
+        {
+          id: createUniqueModelId(providerId, modelId),
+          apiModelId: modelId,
+          endpointTypes: model.endpointTypes ? [...model.endpointTypes] : undefined,
+          preferredEndpointType
+        },
+        provider,
+        preferredEndpointType
+      )
+    ) {
+      throw DataApiErrorFactory.validation({
+        preferredEndpointType: ['Preferred endpoint is not available for this model and provider']
+      })
+    }
+  }
+
   private getRegistryBaseline(
     providerId: string,
     modelId: string,
@@ -499,6 +545,12 @@ class ModelService {
         registryData?.reasoningProfile.support,
         registryData?.serviceTierControl
       )
+      this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+        capabilities: dto.capabilities ?? baseline.capabilities,
+        endpointTypes: dto.endpointTypes ?? baseline.endpointTypes,
+        preferredEndpointType:
+          dto.preferredEndpointType === null ? undefined : (dto.preferredEndpointType ?? baseline.preferredEndpointType)
+      })
       const deltaFields = collectPresetDeltaFields(dto, baseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
     }
@@ -521,11 +573,26 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+      capabilities: dtoValues.capabilities ?? undefined,
+      endpointTypes: dtoValues.endpointTypes ?? undefined,
+      preferredEndpointType: dtoValues.preferredEndpointType ?? undefined
+    })
+
     return dtoValues
   }
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
+    const currentModel = this.enrichRowsFromRegistry([existing])[0]
+    this.assertEffectiveEndpointContract(existing.providerId, existing.modelId, {
+      capabilities: dto.capabilities ?? currentModel.capabilities,
+      endpointTypes: dto.endpointTypes ?? currentModel.endpointTypes,
+      preferredEndpointType:
+        dto.preferredEndpointType === null
+          ? undefined
+          : (dto.preferredEndpointType ?? currentModel.preferredEndpointType)
+    })
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
@@ -614,6 +681,30 @@ class ModelService {
       })
     }
 
+    // `knowledge_base.embedding_model_id` has no ON DELETE clause, so deleting a referenced model
+    // aborts the whole reconcile transaction. Skip those rows instead of failing the batch.
+    const knowledgeBaseModelIds = new Set(
+      db
+        .select({ id: knowledgeBaseTable.embeddingModelId })
+        .from(knowledgeBaseTable)
+        .where(
+          inArray(
+            knowledgeBaseTable.embeddingModelId,
+            rows.map((row) => row.id)
+          )
+        )
+        .all()
+        .map((row) => row.id)
+        .filter((id): id is string => id != null)
+    )
+    if (knowledgeBaseModelIds.size > 0) {
+      logger.warn('Skipped knowledge-base embedding model removal during reconcile', {
+        providerId,
+        skippedCount: knowledgeBaseModelIds.size,
+        skippedIds: [...knowledgeBaseModelIds]
+      })
+    }
+
     const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
 
     if (managedDefaultIds.size > 0) {
@@ -634,7 +725,11 @@ class ModelService {
 
     return {
       toRemove: toRemove.filter(
-        (id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id) && !removableCustomModelIds.has(id)
+        (id) =>
+          !managedDefaultIds.has(id) &&
+          !userDefaultIds.has(id) &&
+          !removableCustomModelIds.has(id) &&
+          !knowledgeBaseModelIds.has(id)
       ),
       presetBackedRemovalIds
     }
@@ -694,8 +789,21 @@ class ModelService {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
+          const modelEndpointSelection =
+            row.endpointTypes || row.preferredEndpointType
+              ? {
+                  endpointTypes: row.endpointTypes ?? undefined,
+                  preferredEndpointType: row.preferredEndpointType ?? undefined
+                }
+              : undefined
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = modelEndpointSelection
+            ? providerRegistryService.lookupModel(
+                row.providerId,
+                row.modelId,
+                reasoningConfigCache,
+                modelEndpointSelection
+              )
+            : providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -725,8 +833,16 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
+        const modelEndpointSelection =
+          model.endpointTypes || model.preferredEndpointType
+            ? {
+                endpointTypes: model.endpointTypes,
+                preferredEndpointType: model.preferredEndpointType
+              }
+            : undefined
+        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = modelEndpointSelection
+          ? providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache, modelEndpointSelection)
+          : providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(
@@ -1154,7 +1270,14 @@ class ModelService {
             .orderBy(asc(userModelTable.orderKey))
             .all() as UserModelRow[]
         }),
-      createModelsSqliteHandlers(values)
+      {
+        ...createModelsSqliteHandlers(values),
+        // The provider is asserted before the transaction, so a foreign key violation here is the
+        // delete side: a row still referenced by another table, not a missing parent.
+        ...(payload.toRemove.length > 0
+          ? deleteModelsSqliteHandlers(`${payload.toRemove.length} model(s) during reconcile`)
+          : {})
+      }
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()

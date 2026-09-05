@@ -14,8 +14,8 @@ import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/pr
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { EndpointType, Model, ModelOperationCapability } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -39,7 +39,7 @@ import { isEmpty } from 'es-toolkit/compat'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { getBaseUrl, getExtraHeaders, isAnthropicOfficialHost, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
@@ -76,6 +76,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  operationCapability?: ModelOperationCapability
   resolvedEndpoint?: ResolvedEndpoint
   sessionId?: string
 }
@@ -176,7 +177,7 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
   })
 }
 
-/** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
+/** Build provider config from the endpoint already resolved for the requested operation. */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
@@ -191,7 +192,11 @@ export async function resolveProviderAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ResolvedProviderAiSdkConfig> {
-  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } =
+    options?.resolvedEndpoint ??
+    resolveEffectiveEndpoint(provider, model, {
+      operationCapability: options?.operationCapability ?? MODEL_CAPABILITY.TEXT_GENERATION
+    })
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -574,6 +579,7 @@ function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
       ...defaultAppHeaders(),
+      ...getEndpointAuthHeaders(ctx),
       ...getExtraHeaders(ctx.actualProvider)
     }
   }
@@ -581,6 +587,23 @@ function buildCommonOptions(ctx: BuilderContext) {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
   }
   return options
+}
+
+/**
+ * `@ai-sdk/anthropic` only ever sends `x-api-key`, but third-party Anthropic-compatible gateways
+ * (LongCat, …) read `Authorization: Bearer` and answer `missing_api_key` without it — so send both.
+ *
+ * Anthropic itself is excluded: it reserves `Authorization` for OAuth tokens and rejects a request
+ * carrying both headers with a 401. OAuth-backed providers never reach here with a key.
+ */
+function getEndpointAuthHeaders(ctx: BuilderContext): Record<string, string> {
+  const isThirdPartyAnthropicGateway =
+    ctx.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && !isAnthropicOfficialHost(ctx.baseConfig.baseURL)
+
+  if (!isThirdPartyAnthropicGateway || isEmpty(ctx.baseConfig.apiKey)) {
+    return {}
+  }
+  return { Authorization: `Bearer ${ctx.baseConfig.apiKey}` }
 }
 
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {

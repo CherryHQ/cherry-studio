@@ -8,6 +8,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
@@ -1133,8 +1134,11 @@ export class OpenClawService extends BaseService {
       throw new Error('Selected OpenClaw model must support chat')
     }
 
-    const endpointType = this.getModelEndpointType(primaryModel, provider)
-    const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, primaryModel, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+    })
+    const endpointType = resolvedEndpoint.endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const apiHost = resolvedEndpoint.baseUrl
 
     if (!apiHost) {
       throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
@@ -1149,20 +1153,17 @@ export class OpenClawService extends BaseService {
         name: provider.name,
         apiKey,
         apiHost,
-        anthropicApiHost:
-          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-            ? provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-            : undefined,
+        anthropicApiHost: endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? apiHost : undefined,
         models: models
           .filter(
             (model) =>
               !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
           )
-          .map((model) => this.toOpenClawModel(model)),
+          .map((model) => this.toOpenClawModel(model, provider)),
         presetProviderId: provider.presetProviderId,
         headers: provider.settings?.extraHeaders
       },
-      primaryModel: this.toOpenClawModel(primaryModel)
+      primaryModel: this.toOpenClawModel(primaryModel, provider)
     }
   }
 
@@ -1180,7 +1181,10 @@ export class OpenClawService extends BaseService {
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return model.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    return (
+      resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.TEXT_GENERATION })
+        .endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
@@ -1212,7 +1216,7 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, provider: DataProvider): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
@@ -1221,7 +1225,7 @@ export class OpenClawService extends BaseService {
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      endpoint_type: this.toOpenClawEndpointType(this.getModelEndpointType(model, provider)),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),

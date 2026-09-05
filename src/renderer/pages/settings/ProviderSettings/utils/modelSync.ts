@@ -97,6 +97,8 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     }
   }
 
+  // `preferredEndpointType` is deliberately absent: refreshing what a provider supports must never
+  // rewrite the user's explicit route.
   const REGISTRY_FIELDS = [
     'name',
     'presetModelId',
@@ -134,6 +136,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
 
     for (const field of REGISTRY_FIELDS) {
+      if (field === 'capabilities' && !registry.presetModelId && base.capabilities?.length) {
+        continue
+      }
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }

@@ -21,20 +21,6 @@
  */
 
 const ONE_MILLION = 1_000_000
-const ANTHROPIC_OFFICIAL_HOST = 'api.anthropic.com'
-
-/**
- * True for the first-party Anthropic endpoint: an explicit `api.anthropic.com`
- * host, or an unset base URL (the Claude Code SDK then defaults to it).
- */
-export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return true
-  try {
-    return new URL(baseUrl).hostname === ANTHROPIC_OFFICIAL_HOST
-  } catch {
-    return false
-  }
-}
 
 export function with1mSuffix(
   modelId: string | undefined,

@@ -8,7 +8,7 @@ import {
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
-import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
+import { getModelOperationCapabilities, type ParamValues } from '@cherrystudio/provider-registry'
 import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
@@ -31,11 +31,11 @@ import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { ImageGenerationMode, ModelOperationCapability } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
@@ -797,7 +797,13 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      [],
+      undefined,
+      MODEL_CAPABILITY.IMAGE_GENERATION
+    )
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1007,7 +1013,13 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      [],
+      undefined,
+      MODEL_CAPABILITY.EMBEDDING
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1054,7 +1066,7 @@ export class AiService extends BaseService {
       provider,
       model,
       assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    } = await this.buildAgentParamsFor(request, signal, [], undefined, MODEL_CAPABILITY.RERANK)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1139,7 +1151,7 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
+  /** Runs one representative operation through the model's effective endpoint contract. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
@@ -1155,8 +1167,25 @@ export class AiService extends BaseService {
       }
     }
 
-    const primaryEndpoint = model.endpointTypes?.[0]
-    const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
+    // NewAPI advertises chat models as `['embeddings', 'openai']`, so a model can carry both
+    // operations; chat outranks embedding because the reverse probes a chat model with embedMany,
+    // and outranks image generation because a chat-capable model answers text far more cheaply.
+    const modelOperations = getModelOperationCapabilities(model.capabilities)
+    const operation = [
+      MODEL_CAPABILITY.RERANK,
+      MODEL_CAPABILITY.TEXT_GENERATION,
+      MODEL_CAPABILITY.EMBEDDING,
+      MODEL_CAPABILITY.IMAGE_GENERATION
+    ].find((candidate) => modelOperations.includes(candidate))
+
+    // Decided before the timeout is armed so an unprobeable model cannot leave a live timer behind.
+    if (!operation) {
+      throw new Error(
+        modelOperations[0]
+          ? `Model health checks do not support the '${modelOperations[0]}' operation`
+          : 'Model has no operation that supports health checks'
+      )
+    }
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
@@ -1173,17 +1202,16 @@ export class AiService extends BaseService {
       requestOptions: { ...request.requestOptions, signal: controller.signal }
     }
     let probe: Promise<unknown>
-    if (isRerankModel(model)) {
+    if (operation === MODEL_CAPABILITY.RERANK) {
       probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
         if (result.ranking.length === 0) {
           throw new Error('Rerank health check returned empty ranking')
         }
         return result
       })
-    } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
+    } else if (operation === MODEL_CAPABILITY.EMBEDDING) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
-      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+    } else if (operation === MODEL_CAPABILITY.IMAGE_GENERATION) {
       // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
       // `generate` mode: the bare default leaves the job path without a transport
       // descriptor, failing before any provider request. Probe their first declared
@@ -1215,7 +1243,11 @@ export class AiService extends BaseService {
           const { config } = await resolveProviderAiSdkConfig(provider, model, {
             apiKeyOverride: request.apiKeyOverride
           })
-          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+          const wireModelId = resolveWireModelId(
+            model,
+            resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.IMAGE_GENERATION })
+              .endpointType
+          )
           const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
           if (!transport) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
@@ -1264,7 +1296,8 @@ export class AiService extends BaseService {
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[]
+    getRepairUsagePlugins?: () => AiPlugin[],
+    operationCapability: ModelOperationCapability = MODEL_CAPABILITY.TEXT_GENERATION
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1272,6 +1305,7 @@ export class AiService extends BaseService {
       signal,
       provider,
       model,
+      operationCapability,
       assistant,
       extraFeatures,
       getRepairUsagePlugins,

@@ -142,7 +142,7 @@ const createModel = (providerId: string, apiModelId: string): Model =>
     providerId,
     apiModelId,
     name: apiModelId,
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
@@ -234,6 +234,7 @@ describe('ModelSettings', () => {
     expect(
       filter({
         ...createModel('new-api', 'opaque-embedding-model'),
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
         endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
       })
     ).toBe(false)

@@ -1,6 +1,7 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -170,7 +171,7 @@ const mockModel = {
   id: 'openai::gpt-4.1',
   providerId: 'openai',
   name: 'GPT-4.1',
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   isHidden: false
 }
 

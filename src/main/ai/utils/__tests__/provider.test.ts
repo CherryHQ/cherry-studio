@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures'
-import { getBaseUrl, getExtraHeaders } from '../provider'
+import { getBaseUrl, getExtraHeaders, isAnthropicOfficialHost } from '../provider'
 
 function relayProvider() {
   return makeProvider({
@@ -31,6 +31,7 @@ describe('getBaseUrl', () => {
       }
     })
     expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('https://relay.example/openai')
+    expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { selectedEndpointOnly: true })).toBe('')
   })
 
   it('uses legacy behavior when preferredEndpoint is omitted', () => {
@@ -47,7 +48,7 @@ describe('getBaseUrl', () => {
     expect(getBaseUrl(relayProvider(), null)).toBe('https://relay.example/openai')
   })
 
-  it('falls back to defaultChatEndpoint when preferredEndpoint key is absent from configs', () => {
+  it('falls back to defaultChatEndpoint when preferredEndpoint key is absent unless the selection is strict', () => {
     const provider = makeProvider({
       id: 'relay',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -56,6 +57,7 @@ describe('getBaseUrl', () => {
       }
     })
     expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('https://relay.example/openai')
+    expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { selectedEndpointOnly: true })).toBe('')
   })
 
   it('walks ENDPOINT_FALLBACK_ORDER when defaultChatEndpoint has no baseUrl, preferring earlier entries', () => {
@@ -130,5 +132,26 @@ describe('getExtraHeaders', () => {
     const provider = makeProvider({ id: 'openai', settings: { extraHeaders: { 'X-Custom': 'keep' } } })
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
+  })
+})
+
+describe('isAnthropicOfficialHost', () => {
+  it('accepts the official host and an unset SDK-default URL', () => {
+    expect(isAnthropicOfficialHost('https://api.anthropic.com')).toBe(true)
+    expect(isAnthropicOfficialHost('https://api.anthropic.com/')).toBe(true)
+    expect(isAnthropicOfficialHost(undefined)).toBe(true)
+  })
+
+  it('does not treat an unresolved route as first-party', () => {
+    // `getBaseUrl` returns '' for a route it refused to resolve. Reading that as the official host
+    // dropped the `Authorization` header a third-party Anthropic-compatible gateway needs, so the
+    // request came back 401 missing_api_key.
+    expect(isAnthropicOfficialHost('')).toBe(false)
+  })
+
+  it('rejects custom proxy hosts and invalid URLs', () => {
+    expect(isAnthropicOfficialHost('https://anthropic.mycorp.com')).toBe(false)
+    expect(isAnthropicOfficialHost('https://api.deepseek.com/anthropic')).toBe(false)
+    expect(isAnthropicOfficialHost('not a url')).toBe(false)
   })
 })

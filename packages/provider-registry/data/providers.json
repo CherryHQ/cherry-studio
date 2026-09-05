@@ -13,12 +13,21 @@
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         },
+        "jina-rerank": {
+          "adapterFamily": "cherryin"
+        },
         "openai-chat-completions": {
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net",
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "cherryin"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "cherryin"
         },
         "openai-responses": {
           "adapterFamily": "cherryin",
@@ -63,6 +72,12 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "silicon"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "silicon"
         }
       },
       "id": "silicon",
@@ -89,9 +104,18 @@
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com/gemini/v1beta"
         },
+        "jina-rerank": {
+          "adapterFamily": "aihubmix"
+        },
         "openai-chat-completions": {
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com/v1"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "aihubmix"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "aihubmix"
         },
         "openai-responses": {
           "adapterFamily": "aihubmix",
@@ -212,6 +236,12 @@
               }
             }
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "zhipu"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "zhipu"
         }
       },
       "id": "zhipu",
@@ -346,6 +376,12 @@
         "openai-chat-completions": {
           "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "dmxapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "dmxapi"
         }
       },
       "id": "dmxapi",
@@ -364,9 +400,22 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.aiionly.com"
+        },
+        "jina-rerank": {
+          "adapterFamily": "openai-compatible"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.aiionly.com"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible"
         }
       },
       "id": "aionly",
@@ -413,6 +462,9 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.302.ai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible"
         }
       },
       "id": "302ai",
@@ -494,9 +546,18 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "PPIO - AI model provider",
       "endpointConfigs": {
+        "jina-rerank": {
+          "adapterFamily": "openai-compatible"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.ppinfra.com/v3/openai/"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "ppio"
         }
       },
       "id": "ppio",
@@ -627,6 +688,9 @@
             }
           }
         },
+        "openai-embeddings": {
+          "adapterFamily": "openrouter"
+        },
         "openai-image-generation": {
           "adapterFamily": "openrouter",
           "baseUrl": "https://openrouter.ai/api/v1/"
@@ -670,6 +734,9 @@
           "reasoningFormat": {
             "type": "ollama"
           }
+        },
+        "ollama-generate": {
+          "adapterFamily": "ollama"
         }
       },
       "id": "ollama",
@@ -713,12 +780,21 @@
         "google-generate-content": {
           "adapterFamily": "newapi"
         },
+        "jina-rerank": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
           "adapterFamily": "newapi",
           "baseUrl": "http://localhost:3000",
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
         },
         "openai-responses": {
           "adapterFamily": "newapi"
@@ -1488,12 +1564,21 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic"
         },
+        "jina-rerank": {
+          "adapterFamily": "dashscope"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "dashscope"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "dashscope"
         },
         "openai-responses": {
           "adapterFamily": "openai",
@@ -1596,6 +1681,9 @@
             }
           }
         },
+        "openai-image-generation": {
+          "adapterFamily": "doubao"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
@@ -1638,6 +1726,12 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.minimaxi.com/v1/"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "minimax"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "minimax"
         }
       },
       "id": "minimax",
@@ -1818,6 +1912,9 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "nvidia - AI model provider",
       "endpointConfigs": {
+        "jina-rerank": {
+          "adapterFamily": "openai-compatible"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://integrate.api.nvidia.com",
@@ -1827,6 +1924,12 @@
               "disabled": true
             }
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible"
         }
       },
       "id": "nvidia",
@@ -1938,9 +2041,15 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Jina - AI model provider",
       "endpointConfigs": {
+        "jina-rerank": {
+          "adapterFamily": "jina-rerank"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.jina.ai"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible"
         }
       },
       "id": "jina",
@@ -1993,6 +2102,12 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api-inference.modelscope.cn/v1/"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "modelscope"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "modelscope"
         }
       },
       "id": "modelscope",
@@ -2039,6 +2154,9 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://tokenhub.tencentmaas.com/v1"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible"
         },
         "openai-responses": {
           "adapterFamily": "openai",
@@ -2106,9 +2224,15 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "VoyageAI - AI model provider",
       "endpointConfigs": {
+        "jina-rerank": {
+          "adapterFamily": "voyage"
+        },
         "openai-chat-completions": {
           "adapterFamily": "voyage",
           "baseUrl": "https://api.voyageai.com"
+        },
+        "openai-embeddings": {
+          "adapterFamily": "voyage"
         }
       },
       "id": "voyageai",
@@ -2342,6 +2466,9 @@
         "openai-chat-completions": {
           "adapterFamily": "gateway",
           "baseUrl": "https://ai-gateway.vercel.sh/v1/ai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "gateway"
         }
       },
       "id": "gateway",
@@ -2483,5 +2610,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "767516d2e8178b83"
+  "version": "ec8673d7b68fe472"
 }

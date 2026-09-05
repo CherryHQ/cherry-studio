@@ -3,10 +3,12 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
+import { isEndpointCompatibleWithOperation, type ModelOperationCapability } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
+import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -38,36 +40,52 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
- * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * Priority: compatible caller requirement → compatible preference → first compatible model endpoint.
+ * Text generation alone may then inherit a gateway route or the provider's default chat endpoint.
  *
- * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
- * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
- * `endpointTypes[0]` expresses. It wins only when the model declares that endpoint AND the provider
- * configures a base URL for it; otherwise the normal order applies and the caller sees the declined
- * preference in the returned `endpointType`. The base-URL condition is not redundant: `getBaseUrl`
- * cascades across `endpointConfigs`, so an unconfigured preference would resolve to another
- * endpoint's host instead of failing.
+ * Hard requirements belong to runtimes that speak exactly one dialect. Every candidate is checked
+ * against the model's current capability set and the provider's live endpoint configs.
  */
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  options: { operationCapability: ModelOperationCapability; requiredEndpointType?: EndpointType }
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
-  const preferred =
-    preferredEndpointType &&
-    model.endpointTypes?.includes(preferredEndpointType) &&
-    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
-      ? preferredEndpointType
+  const isRuntimeCandidateAvailable = (endpointType: EndpointType) =>
+    isEndpointCompatibleWithOperation(endpointType, options.operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, endpointType)
+  const requiredEndpoint =
+    options.requiredEndpointType && isRuntimeCandidateAvailable(options.requiredEndpointType)
+      ? options.requiredEndpointType
       : undefined
-  const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+  const userPreferredEndpoint =
+    model.preferredEndpointType &&
+    isEndpointCompatibleWithOperation(model.preferredEndpointType, options.operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
+      ? model.preferredEndpointType
+      : undefined
+  const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint
+  const endpointType = selectedEndpoint ?? getModelPreferredEndpoint(model, provider, options.operationCapability)
+  const endpointRequiresOwnHost =
+    endpointType !== undefined &&
+    (selectedEndpoint !== undefined || !isModelEndpointTypeAvailable(model, provider, endpointType))
+  const hasEndpointConfig =
+    endpointType !== undefined &&
+    provider.endpointConfigs != null &&
+    Object.hasOwn(provider.endpointConfigs, endpointType)
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
-  return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
+  return {
+    endpointType,
+    baseUrl: endpointType
+      ? getBaseUrl(provider, endpointType, {
+          // A configured adapter may reuse the provider's default host; an unserved protocol fails closed.
+          selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig
+        })
+      : '',
+    providerOptionsKey
+  }
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */

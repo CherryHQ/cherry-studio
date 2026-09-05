@@ -43,7 +43,7 @@ export { ProviderModelListSchema } from './schemas/provider-models'
  * *optional object fields* (a plain `z.object` strips unknown keys). Structural
  * changes (field rename / retype / required-field removal) always bump.
  */
-export const REGISTRY_SCHEMA_VERSION = 1
+export const REGISTRY_SCHEMA_VERSION = 2
 
 /**
  * Oldest application version whose runtime understands the semantic values in

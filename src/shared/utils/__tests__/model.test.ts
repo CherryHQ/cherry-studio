@@ -11,6 +11,7 @@ import {
   isReasoningModel,
   isRerankModel,
   isSpeechToTextModel,
+  isTextToImageModel,
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel,
@@ -18,7 +19,7 @@ import {
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
-const createModel = (capabilities: Model['capabilities'] = []): Model => ({
+const createModel = (capabilities: Model['capabilities'] = [MODEL_CAPABILITY.TEXT_GENERATION]): Model => ({
   id: 'openai::gpt-4o',
   providerId: 'openai',
   apiModelId: 'gpt-4o',
@@ -75,11 +76,19 @@ describe('shared model capability helpers', () => {
     expect(isGenerateImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
   })
 
+  it('keeps multi-operation models in chat without classifying them as dedicated image models', () => {
+    expect(isNonChatModel(createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
+    expect(isTextToImageModel(createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(
+      false
+    )
+    expect(isTextToImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
+  })
+
   describe('audio/video modality vs. dedicated-model classification', () => {
     // A multimodal chat LLM (e.g. Gemini / GPT-4o): takes audio/video/image as input and
     // can emit audio, while still being a general chat model.
     const multimodalChatModel: Model = {
-      ...createModel([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]),
+      ...createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]),
       inputModalities: ['text', 'image', 'audio', 'video'],
       outputModalities: ['text', 'audio']
     }
@@ -99,6 +108,21 @@ describe('shared model capability helpers', () => {
       expect(isNonChatModel(multimodalChatModel)).toBe(false)
     })
 
+    it('excludes text-generating models whose declared inputs do not include text', () => {
+      const audioOnlyTextModel: Model = {
+        ...createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.AUDIO_RECOGNITION]),
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      }
+
+      expect(isNonChatModel(audioOnlyTextModel)).toBe(true)
+    })
+
+    it('keeps missing and empty input modalities as implicit text input', () => {
+      expect(isNonChatModel(createModel())).toBe(false)
+      expect(isNonChatModel({ ...createModel(), inputModalities: [] })).toBe(false)
+    })
+
     it('classifies dedicated speech-to-text / text-to-speech by explicit capability', () => {
       expect(isSpeechToTextModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(true)
       expect(isTextToSpeechModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(true)
@@ -115,9 +139,9 @@ describe('shared model capability helpers', () => {
       expect(isNonChatModel(speechToTextModel)).toBe(true)
     })
 
-    it('classifies a capability-exclusive primary endpoint as non-chat', () => {
+    it('classifies an embedding-only capability set as non-chat', () => {
       const embeddingModel: Model = {
-        ...createModel(),
+        ...createModel([MODEL_CAPABILITY.EMBEDDING]),
         endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
       }
 
@@ -128,7 +152,9 @@ describe('shared model capability helpers', () => {
   describe('isGatewayRoutableModel', () => {
     it('keeps an ordinary chat model', () => {
       expect(isGatewayRoutableModel(createModel())).toBe(true)
-      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.REASONING]))).toBe(true)
+      expect(isGatewayRoutableModel(createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING]))).toBe(
+        true
+      )
     })
 
     it('excludes every non-chat class, including audio/video generation and transcription', () => {

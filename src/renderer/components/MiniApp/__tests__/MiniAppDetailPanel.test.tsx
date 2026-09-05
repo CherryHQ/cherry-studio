@@ -14,7 +14,7 @@ const { request, activity, selectableModels } = vi.hoisted(() => {
     id: `${providerId}::mini-app-test`,
     providerId,
     name,
-    capabilities: [],
+    capabilities: ['text-generation'],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false

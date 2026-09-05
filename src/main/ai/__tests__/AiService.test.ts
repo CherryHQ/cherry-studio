@@ -249,7 +249,11 @@ describe('AiService', () => {
       authType: 'api-key',
       reportsActualCost: false,
       settings: {},
-      isEnabled: true
+      isEnabled: true,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+      }
     })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
@@ -848,6 +852,25 @@ describe('AiService tool approval', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockProviderGetByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'test-provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
@@ -1515,18 +1538,18 @@ describe('AiService tool approval', () => {
       const [listedModel] = await listModelsFromProviderActual(provider)
       expect(listedModel).toMatchObject({
         apiModelId: 'deepseek-v4-flash',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-        capabilities: []
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]
       })
       expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
       const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
-      mockModelGetByKey.mockReturnValue({
-        ...listedModel,
-        capabilities: [MODEL_CAPABILITY.EMBEDDING]
-      })
+      // The check must resolve against the provider that actually serves this model; the shared
+      // default fixture is an unrelated provider with no endpoint configs.
+      mockProviderGetByProviderId.mockReturnValue(provider)
+      mockModelGetByKey.mockReturnValue(listedModel)
 
       await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
@@ -1545,7 +1568,7 @@ describe('AiService tool approval', () => {
       providerId: 'test-provider',
       apiModelId: 'test-model',
       name: 'Test Model',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
@@ -1573,7 +1596,7 @@ describe('AiService tool approval', () => {
       providerId: 'test-provider',
       apiModelId: 'test-model',
       name: 'Test Model',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
@@ -1593,6 +1616,7 @@ describe('AiService tool approval', () => {
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText')
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-embedding',
       providerId: 'test-provider',
@@ -1609,12 +1633,21 @@ describe('AiService tool approval', () => {
     })
 
     expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+    expect(generateSpy).not.toHaveBeenCalled()
   })
 
   it('checks image-only models through the image endpoint, not chat', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'test-provider',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example.com/v1' }
+        }
+      })
+    )
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-image',
       providerId: 'test-provider',
@@ -1642,7 +1675,7 @@ describe('AiService tool approval', () => {
       providerId: 'test-provider',
       apiModelId: 'test-multimodal',
       name: 'Test Multimodal',
-      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
       supportsStreaming: true,
       isEnabled: true,
@@ -1801,6 +1834,26 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+
+  it('reports unsupported media health checks without falling back to text', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText')
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::speech-model',
+      providerId: 'test-provider',
+      apiModelId: 'speech-model',
+      name: 'Speech model',
+      capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await expect(service.checkModel({ uniqueModelId: 'test-provider::speech-model' })).rejects.toThrow(
+      "Model health checks do not support the 'audio-generation' operation"
+    )
+    expect(generateSpy).not.toHaveBeenCalled()
   })
 
   it('uses lightweight /api/show probe for Ollama providers', async () => {

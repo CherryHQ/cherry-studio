@@ -12,12 +12,11 @@
  * equivalent are unsupported for pi agents.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
  * Login-based providers Cherry can still drive through pi via a per-request
@@ -89,18 +88,6 @@ export function mapEndpointToPiApi(
   }
 }
 
-/**
- * The effective chat endpoint the runtime would use: the model's first
- * declared endpoint, else the provider default. Mirrors
- * `resolveEffectiveEndpoint`'s endpoint selection (kept pure here so the
- * renderer, which has no main-only resolver, can reuse it).
- */
-function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
-}
-
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
   // Login-based providers hold no plain app-side API key. An external-CLI login
@@ -110,7 +97,7 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
   if (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) return undefined
-  const endpointType = resolveEndpointType(provider, model)
+  const endpointType = getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }

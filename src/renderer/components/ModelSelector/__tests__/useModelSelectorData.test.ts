@@ -52,7 +52,7 @@ function makeModel(id: string, providerId: string, overrides: Partial<Model> = {
     id: `${providerId}::${id}`,
     providerId,
     name: id,
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,

@@ -1,17 +1,35 @@
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
+import { MODALITY, MODEL_CAPABILITY, type ModelOperationCapability } from '@shared/data/types/model'
+import {
+  ArrowUpDown,
+  Boxes,
+  BrainCircuit,
+  Ear,
+  Eye,
+  Image,
+  Mic,
+  RotateCcw,
+  Type,
+  Video,
+  Volume2,
+  Wrench
+} from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ModelCapabilityToggle, ModelClassificationState, ModelInputModality, ModelPrimaryType } from './types'
+import type {
+  EditableModelOperationCapability,
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelInputModality
+} from './types'
 
 interface ModelClassificationControlsProps {
   value: ModelClassificationState
   hasChanges?: boolean
-  onPrimaryTypeChange: (type: ModelPrimaryType) => void
+  onOperationCapabilityToggle: (capability: EditableModelOperationCapability) => void
   onCapabilityToggle: (capability: ModelCapabilityToggle) => void
   onInputModalityToggle: (modality: ModelInputModality) => void
   onReset?: () => void
@@ -23,11 +41,14 @@ interface ClassificationOption<T extends string> {
   icon: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
 }
 
-const MODEL_TYPE_OPTIONS: readonly ClassificationOption<ModelPrimaryType>[] = [
-  { value: 'text', label: 'models.type.text', icon: Type },
-  { value: 'image', label: 'models.type.image', icon: Image },
-  { value: 'embedding', label: 'models.type.embedding', icon: Boxes },
-  { value: 'rerank', label: 'models.type.rerank', icon: ArrowUpDown }
+const MODEL_OPERATION_OPTIONS: readonly (ClassificationOption<ModelOperationCapability> & { editable: boolean })[] = [
+  { value: MODEL_CAPABILITY.TEXT_GENERATION, label: 'models.type.text', icon: Type, editable: true },
+  { value: MODEL_CAPABILITY.IMAGE_GENERATION, label: 'models.type.image', icon: Image, editable: true },
+  { value: MODEL_CAPABILITY.EMBEDDING, label: 'models.type.embedding', icon: Boxes, editable: true },
+  { value: MODEL_CAPABILITY.RERANK, label: 'models.type.rerank', icon: ArrowUpDown, editable: true },
+  { value: MODEL_CAPABILITY.AUDIO_TRANSCRIPT, label: 'models.type.audio', icon: Mic, editable: false },
+  { value: MODEL_CAPABILITY.AUDIO_GENERATION, label: 'models.type.audio', icon: Volume2, editable: false },
+  { value: MODEL_CAPABILITY.VIDEO_GENERATION, label: 'models.type.video', icon: Video, editable: false }
 ]
 
 const MODEL_CAPABILITY_OPTIONS: readonly ClassificationOption<ModelCapabilityToggle>[] = [
@@ -46,10 +67,12 @@ const optionButtonClassName = 'h-7 min-h-7 gap-1.5 rounded-md px-2.5 text-xs fon
 function OptionButton<T extends string>({
   option,
   selected,
+  disabled = false,
   onClick
 }: {
   option: ClassificationOption<T>
   selected: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
   const { t } = useTranslation()
@@ -61,6 +84,7 @@ function OptionButton<T extends string>({
       variant={selected ? 'secondary' : 'outline'}
       size="sm"
       aria-pressed={selected}
+      disabled={disabled}
       className={cn(optionButtonClassName, selected && 'border border-border text-foreground')}
       onClick={onClick}>
       <Icon aria-hidden />
@@ -72,7 +96,7 @@ function OptionButton<T extends string>({
 export function ModelClassificationControls({
   value,
   hasChanges = false,
-  onPrimaryTypeChange,
+  onOperationCapabilityToggle,
   onCapabilityToggle,
   onInputModalityToggle,
   onReset
@@ -81,9 +105,9 @@ export function ModelClassificationControls({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2" role="group" aria-label={t('settings.models.add.model_type.label')}>
+      <div className="space-y-2" role="group" aria-label={t('settings.models.add.operations.label')}>
         <div className="flex items-center justify-between gap-3">
-          <div className={drawerClasses.fieldTitle}>{t('settings.models.add.model_type.label')}</div>
+          <div className={drawerClasses.fieldTitle}>{t('settings.models.add.operations.label')}</div>
           {onReset ? (
             <Button
               type="button"
@@ -99,12 +123,15 @@ export function ModelClassificationControls({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {MODEL_TYPE_OPTIONS.map((option) => (
+          {MODEL_OPERATION_OPTIONS.filter(
+            (option) => option.editable || value.operationCapabilities.has(option.value)
+          ).map((option) => (
             <OptionButton
               key={option.value}
               option={option}
-              selected={value.primaryType === option.value}
-              onClick={() => onPrimaryTypeChange(option.value)}
+              selected={value.operationCapabilities.has(option.value)}
+              disabled={!option.editable}
+              onClick={() => onOperationCapabilityToggle(option.value as EditableModelOperationCapability)}
             />
           ))}
         </div>
