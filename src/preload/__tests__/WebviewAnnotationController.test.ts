@@ -1081,6 +1081,66 @@ describe('WebviewAnnotationController interactions', () => {
     })
   })
 
+  it('preserves page coordinates beyond the viewport anchor range in snapshot events', () => {
+    const scrollX = 10_000_100
+    const scrollY = 12_345_678
+    vi.spyOn(window, 'scrollX', 'get').mockReturnValue(scrollX)
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(scrollY)
+    const container = document.createElement('div')
+    container.id = 'large-scrolled-canvas'
+    document.body.appendChild(container)
+    mockRect(container, 0, 0, 400, 400)
+    const internals = privateController(controller)
+
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 20))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 110, 120))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 110, 120))
+    saveEditor(controller, emissions, 'Keep this distant page region')
+
+    const annotations = readSnapshot(controller, emissions)
+    expect(annotations[0].region?.rect).toEqual({
+      x: scrollX + 10,
+      y: scrollY + 20,
+      width: 100,
+      height: 100
+    })
+    expect(
+      WebviewAnnotationGuestEventSchema.safeParse({
+        type: 'snapshot_ready',
+        sessionId,
+        requestId: '00000000-0000-4000-8000-000000000099',
+        annotations
+      }).success
+    ).toBe(true)
+  })
+
+  it('stops building region locators after collecting the configured limit', () => {
+    const container = document.createElement('div')
+    container.id = 'dense-canvas'
+    mockRect(container, 0, 0, 400, 400)
+    const candidates = Array.from({ length: WEBVIEW_ANNOTATION_LIMITS.regionElements + 2 }, (_, index) => {
+      const candidate = document.createElement('button')
+      candidate.id = index === 0 ? 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.selector) : `candidate-${index}`
+      mockRect(candidate, 20, 20, 40, 40)
+      container.appendChild(candidate)
+      return candidate
+    })
+    document.body.appendChild(container)
+    const untouchedLocatorTarget = candidates.at(-1)!
+    const getRootNode = vi.spyOn(untouchedLocatorTarget, 'getRootNode')
+    const internals = privateController(controller)
+
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 200, 200))
+    saveEditor(controller, emissions, 'Bound locator work')
+
+    expect(readSnapshot(controller, emissions)[0].region?.elements.map((element) => element.selector)).toEqual(
+      Array.from({ length: WEBVIEW_ANNOTATION_LIMITS.regionElements }, (_, index) => `#candidate-${index + 1}`)
+    )
+    expect(getRootNode).not.toHaveBeenCalled()
+  })
+
   it('does not carry a pending region into a subsequent element annotation', () => {
     const regionTarget = document.createElement('div')
     regionTarget.id = 'region-target'
