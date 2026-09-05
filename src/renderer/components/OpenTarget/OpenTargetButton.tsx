@@ -27,14 +27,25 @@ const SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 export interface OpenTargetButtonProps {
   targetPath: string
   pathKind: ExternalOpenTargetPathKind
-  menuTrigger?: ReactNode
+  primaryContent?: ReactNode
+  primaryClassName?: string
+  menuClassName?: string
   tooltip?: string
   className?: string
 }
 
-export function OpenTargetButton({ targetPath, pathKind, menuTrigger, tooltip, className }: OpenTargetButtonProps) {
+export function OpenTargetButton({
+  targetPath,
+  pathKind,
+  primaryContent,
+  primaryClassName,
+  menuClassName,
+  tooltip,
+  className
+}: OpenTargetButtonProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const hasCustomPrimary = primaryContent !== undefined
   const { targets, selectedTarget, openTarget } = usePreferredExternalOpenTarget(targetPath, pathKind)
 
   const handleOpen = useCallback(
@@ -54,7 +65,7 @@ export function OpenTargetButton({ targetPath, pathKind, menuTrigger, tooltip, c
     : t('agent.preview_pane.default_app')
   const primaryIcon = selectedTarget ? <OpenTargetIcon target={selectedTarget} /> : <FolderOpen size={16} />
   const menu = (
-    <PopoverContent className="w-56 p-1" align={menuTrigger ? 'start' : 'end'}>
+    <PopoverContent className="w-56 p-1" align={hasCustomPrimary ? 'start' : 'end'}>
       <MenuList>
         {targets.map((target) => (
           <MenuItem
@@ -73,51 +84,48 @@ export function OpenTargetButton({ targetPath, pathKind, menuTrigger, tooltip, c
     </PopoverContent>
   )
 
-  if (menuTrigger) {
-    const trigger = <PopoverTrigger asChild>{menuTrigger}</PopoverTrigger>
-    return (
-      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-        {tooltip ? <NormalTooltip content={tooltip}>{trigger}</NormalTooltip> : trigger}
-        {menu}
-      </Popover>
-    )
-  }
-
   if (targets.length <= 1) {
     return (
       <NormalTooltip content={tooltip ?? primaryLabel} delayDuration={500}>
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size={hasCustomPrimary ? 'sm' : 'icon-sm'}
           disabled={!selectedTarget}
-          className={cn(TOOLBAR_BUTTON_CLASS, className)}
-          aria-label={primaryLabel}
+          className={cn(hasCustomPrimary ? primaryClassName : TOOLBAR_BUTTON_CLASS, className)}
+          aria-label={hasCustomPrimary ? tooltip : primaryLabel}
           onClick={() => void handleOpen()}>
-          {primaryIcon}
+          {primaryContent ?? primaryIcon}
         </Button>
       </NormalTooltip>
     )
   }
 
   return (
-    <ButtonGroup attached={false} className={cn(SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
+    <ButtonGroup
+      attached={hasCustomPrimary}
+      className={cn(!hasCustomPrimary && SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
       <NormalTooltip content={tooltip ?? primaryLabel} delayDuration={500}>
         <Button
           type="button"
-          className={cn('w-8 min-w-8', SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+          className={cn(
+            hasCustomPrimary ? primaryClassName : cn('w-8 min-w-8', SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)
+          )}
           variant="ghost"
-          size="icon-sm"
-          aria-label={primaryLabel}
+          size={hasCustomPrimary ? 'sm' : 'icon-sm'}
+          aria-label={hasCustomPrimary ? tooltip : primaryLabel}
           onClick={() => void handleOpen()}>
-          {primaryIcon}
+          {primaryContent ?? primaryIcon}
         </Button>
       </NormalTooltip>
       <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
-            className={cn('w-6 min-w-6', SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+            className={cn(
+              'w-6 min-w-6',
+              hasCustomPrimary ? menuClassName : cn(SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)
+            )}
             variant="ghost"
             size="icon-sm"
             aria-label={t('common.more')}>

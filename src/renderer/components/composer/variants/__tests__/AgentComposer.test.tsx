@@ -298,9 +298,9 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath, menuTrigger }: { targetPath: string; menuTrigger?: ReactNode }) => (
+  OpenTargetButton: ({ targetPath, primaryContent }: { targetPath: string; primaryContent?: ReactNode }) => (
     <div data-testid="workspace-open-button" data-workdir={targetPath}>
-      {menuTrigger}
+      <button type="button">{primaryContent}</button>
     </div>
   )
 }))

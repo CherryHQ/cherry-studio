@@ -241,18 +241,8 @@ function WorkspaceControl({
     : (workspace?.name ?? selectWorkspaceLabel)
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
   if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
-    const openMenuTrigger = (
-      <Button
-        variant="ghost"
-        size="sm"
-        type="button"
-        className={cn(
-          baseTriggerClassName,
-          'relative',
-          iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
-          hasWarning && 'text-warning hover:text-warning'
-        )}
-        aria-label={workspaceWarning}>
+    const openButtonContent = (
+      <>
         {hasWarning ? (
           <TriangleAlert size={20} aria-hidden />
         ) : (
@@ -261,14 +251,24 @@ function WorkspaceControl({
           </span>
         )}
         <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
-        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-      </Button>
+      </>
     )
     return (
       <OpenTargetButton
         targetPath={workspace.path}
         pathKind="directory"
-        menuTrigger={openMenuTrigger}
+        primaryContent={openButtonContent}
+        primaryClassName={cn(
+          baseTriggerClassName,
+          'relative',
+          iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+          hasWarning && 'text-warning hover:text-warning'
+        )}
+        menuClassName={cn(
+          baseTriggerClassName,
+          'px-0 text-muted-foreground',
+          hasWarning && 'text-warning hover:text-warning'
+        )}
         tooltip={workspaceWarning}
       />
     )
