@@ -968,6 +968,30 @@ describe('ChatComposer', () => {
     expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'low' })
   })
 
+  it('skips the unsupported minimal effort when GPT-5 web search is enabled', () => {
+    mocks.model = {
+      ...model,
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'low' as const, 'high' as const] }],
+        selectableEfforts: ['minimal' as const, 'low' as const, 'high' as const]
+      }
+    }
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: mocks.model.id,
+      settings: { ...mocks.assistant.settings, enableWebSearch: true }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.commandHandlers.get('chat.reasoning.cycle')?.())
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'low' })
+  })
+
   it('does not enable the reasoning command for an inactive chat tab', () => {
     mocks.isActiveTab = false
     mocks.model = {

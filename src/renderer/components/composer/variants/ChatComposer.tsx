@@ -898,6 +898,25 @@ const ChatComposerInner = ({
     if (speedControlModel?.supportsFastMode !== true) setFastMode(false)
   }, [speedControlModel?.supportsFastMode])
 
+  const isReasoningEffortCycleSelectable = useCallback(
+    (option: ReasoningEffortOption) =>
+      !(
+        option === 'minimal' &&
+        effectiveSubmittedModel &&
+        isOpenAIWebSearchModel(effectiveSubmittedModel) &&
+        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        assistant?.settings.enableWebSearch
+      ),
+    [assistant?.settings.enableWebSearch, effectiveSubmittedModel]
+  )
+  const nextReasoningEffort = useMemo(
+    () =>
+      speedControlModel
+        ? getNextComposerReasoningEffort(speedControlModel, reasoningEffort, isReasoningEffortCycleSelectable)
+        : undefined,
+    [isReasoningEffortCycleSelectable, reasoningEffort, speedControlModel]
+  )
+
   const handleReasoningEffortChange = useCallback(
     (option: ReasoningEffortOption) => {
       if (!selectedAssistantId) return
@@ -1416,13 +1435,10 @@ const ChatComposerInner = ({
   useCommandHandler(
     'chat.reasoning.cycle',
     () => {
-      if (!speedControlModel) return
-      const nextEffort = getNextComposerReasoningEffort(speedControlModel, reasoningEffort)
-      if (nextEffort) handleReasoningEffortChange(nextEffort)
+      if (nextReasoningEffort) handleReasoningEffortChange(nextReasoningEffort)
     },
     {
-      enabled:
-        isActiveTab && Boolean(speedControlModel && getNextComposerReasoningEffort(speedControlModel, reasoningEffort))
+      enabled: isActiveTab && nextReasoningEffort !== undefined
     }
   )
 

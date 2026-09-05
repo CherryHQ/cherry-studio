@@ -161,12 +161,20 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
 }
 
 /** Return the next selectable reasoning effort for the composer shortcut. */
-export function getNextComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption | undefined {
+export function getNextComposerReasoningEffort(
+  model: Model,
+  effort: ThinkingOption,
+  isSelectable: (effort: ThinkingOption) => boolean = () => true
+): ThinkingOption | undefined {
   const reasoningOptions = getComposerReasoningOptions(model)
   if (reasoningOptions.length <= 1) return undefined
 
   const currentIndex = reasoningOptions.indexOf(resolveSupportedReasoningEffort(model, effort))
-  return reasoningOptions[(currentIndex + 1) % reasoningOptions.length]
+  for (let offset = 1; offset <= reasoningOptions.length; offset += 1) {
+    const nextEffort = reasoningOptions[(currentIndex + offset) % reasoningOptions.length]
+    if (isSelectable(nextEffort)) return nextEffort
+  }
+  return undefined
 }
 
 /** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
