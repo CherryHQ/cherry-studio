@@ -114,7 +114,7 @@ export class WebviewService extends BaseService {
     webContents.getAllWebContents().forEach((contents) => {
       if (contents.isDestroyed()) return
       this.attachWebviewPreload(contents)
-      this.initializeWebview(contents)
+      this.initializeWebview(contents, true)
     })
 
     const handler = (_: Electron.Event, contents: Electron.WebContents) => {
@@ -162,7 +162,7 @@ export class WebviewService extends BaseService {
     this.preloadBindings.set(contents, cleanup)
   }
 
-  private initializeWebview(contents: Electron.WebContents) {
+  private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
     if (contents.getType?.() !== 'webview' || contents.session !== session.fromPartition(WEBVIEW_PARTITION)) {
       return
     }
@@ -176,6 +176,7 @@ export class WebviewService extends BaseService {
       }
     })
     this.annotationSessions.set(contents.id, annotationSession)
+    if (announceIfLoaded && !contents.isLoadingMainFrame()) annotationSession.announce()
   }
 
   private requireOwnedGuest(webviewId: number, senderId: WindowId | null) {
