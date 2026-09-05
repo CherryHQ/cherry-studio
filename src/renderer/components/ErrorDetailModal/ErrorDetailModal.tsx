@@ -1,13 +1,12 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
-import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { loggerService } from '@renderer/services/LoggerService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { POPUP_EXIT_MS } from '@renderer/services/popup'
+import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -594,6 +593,23 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 
   return (
     <>
+      <DialogHeader className="flex-row items-center gap-2 pr-8">
+        {activeView === 'details' ? (
+          <Tooltip content={t('error.diagnostics.back_to_overview')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnostics.back_to_overview')}
+              onClick={showOverview}>
+              <ArrowLeft className="size-4" />
+            </Button>
+          </Tooltip>
+        ) : null}
+        <DialogTitle ref={detailsHeadingRef} tabIndex={-1}>
+          {t('error.detail')}
+        </DialogTitle>
+      </DialogHeader>
       <ErrorDetailContainer ref={containerRef}>
         <div hidden={activeView !== 'overview'} className="space-y-4">
           <ErrorBasicInformation
@@ -616,20 +632,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
           />
         </div>
 
-        {activeView === 'details' ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={showOverview}>
-                <ArrowLeft className="size-4" />
-                {t('error.diagnostics.back_to_overview')}
-              </Button>
-              <h2 ref={detailsHeadingRef} tabIndex={-1} className="font-medium text-sm">
-                {t('error.detail')}
-              </h2>
-            </div>
-            {renderErrorDetails(error)}
-          </div>
-        ) : null}
+        {activeView === 'details' ? <div className="space-y-4">{renderErrorDetails(error)}</div> : null}
       </ErrorDetailContainer>
 
       {diagnosticReport && onOpenDiagnosticReport ? (
@@ -649,37 +652,45 @@ type ErrorDetailPopupParams = Omit<
   'onDoctorInstallUpdate' | 'onDoctorNavigate' | 'onOpenDiagnosticReport'
 >
 
+const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => (
+  <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
+    <DialogContent
+      closeLabel={i18n.t('common.close')}
+      className="sm:max-w-none"
+      style={{
+        width: 'min(60vw, calc(100vw - 2rem))',
+        maxWidth: 'min(1200px, calc(100vw - 2rem))',
+        minWidth: 'min(600px, calc(100vw - 2rem))'
+      }}>
+      <ErrorDetailContent {...props} />
+    </DialogContent>
+  </Dialog>
+)
+
+const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
+
 export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
   const finishHandoff = (action: () => void) => {
-    ContentPopup.hide()
+    ErrorDetailPopup.hide()
     window.setTimeout(action, POPUP_EXIT_MS)
   }
 
-  void ContentPopup.show({
-    title: i18n.t('error.detail'),
-    content: (
-      <ErrorDetailContent
-        {...params}
-        onDoctorNavigate={(target) => finishHandoff(() => openSettingsTab(target))}
-        onDoctorInstallUpdate={(releaseInfo) =>
-          finishHandoff(() => {
-            void import('@renderer/components/UpdateDialogPopup')
-              .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-              .catch((error) => {
-                logger.error('Failed to open the update dialog from error diagnostics', error as Error)
-                toast.error(i18n.t('settings.doctor.messages.action_failed'))
-              })
+  void ErrorDetailPopup.show({
+    ...params,
+    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onDoctorInstallUpdate: (releaseInfo) =>
+      finishHandoff(() => {
+        void import('@renderer/components/UpdateDialogPopup')
+          .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+          .catch((error) => {
+            logger.error('Failed to open the update dialog from error diagnostics', error as Error)
+            toast.error(i18n.t('settings.doctor.messages.action_failed'))
           })
-        }
-        onOpenDiagnosticReport={(initialDescription) =>
-          finishHandoff(() => {
-            void DoctorPopup.show({ initialPanel: 'report', initialDescription })
-          })
-        }
-      />
-    ),
-    width: '60vw',
-    styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
+      }),
+    onOpenDiagnosticReport: (initialDescription) =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
+      })
   })
 }
 
