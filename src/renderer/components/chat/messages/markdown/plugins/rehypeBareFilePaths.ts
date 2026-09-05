@@ -1,4 +1,5 @@
 import type { Element, Root, RootContent, Text } from 'hast'
+import { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import type { Plugin } from 'unified'
 
 export type BareFilePathPlatform = 'posix' | 'windows'
@@ -23,6 +24,7 @@ const SKIPPED_ELEMENTS = new Set([
   'samp',
   'script',
   'select',
+  'span',
   'style',
   'svg',
   'textarea'
@@ -34,7 +36,7 @@ const QUOTE_PAIRS = new Map([
   ['‘', '’']
 ])
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '。', '，', '；', '：', '！', '？'])
-const UNQUOTED_SENTENCE_TERMINATORS = new Set([',', ';', '!', '?', '。', '，', '；', '：', '！', '？'])
+const SENTENCE_PUNCTUATION = new Set([...TRAILING_PUNCTUATION].filter((character) => character !== '.'))
 const WORD_CHARACTER_PATTERN = /[\p{L}\p{N}_]/u
 const HTTP_METHOD_CONTEXT_PATTERN = /(?:^|\s)(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\s*[:=]?\s*$/u
 const PATTERN_CONTEXT_PATTERN = /(?:^|\s)(?:regex|regexp|正则(?:表达式)?)\s*[:=]?\s*$/iu
@@ -62,12 +64,29 @@ function isBoundary(value: string, index: number): boolean {
 }
 
 function isUnquotedTerminator(character: string): boolean {
-  return (
-    /\s/u.test(character) ||
-    hasControlCharacter(character) ||
-    UNQUOTED_SENTENCE_TERMINATORS.has(character) ||
-    '<>`"\'|'.includes(character)
-  )
+  return /\s/u.test(character) || hasControlCharacter(character) || '<>`"\'|'.includes(character)
+}
+
+function isLikelySentenceBoundary(
+  value: string,
+  pathStart: number,
+  index: number,
+  platform: BareFilePathPlatform
+): boolean {
+  const character = value[index]
+  if (!character || !SENTENCE_PUNCTUATION.has(character)) return false
+  if (platform === 'windows' && character === ':') return false
+
+  // A punctuation mark in the middle of a filename (for example
+  // `/tmp/report,final.txt`) is part of the path. Once a complete filename
+  // has already been seen, punctuation followed by prose is a sentence
+  // boundary instead of another path character.
+  const prefix = value.slice(pathStart, index)
+  if (!hasClearFileExtension(prefix)) return false
+  const suffix = value.slice(index + 1)
+  if (!suffix) return true
+  const next = suffix[0]
+  return Boolean(next && WORD_CHARACTER_PATTERN.test(next) && next !== '/' && next !== '\\')
 }
 
 function trimUnmatchedClosingBrackets(value: string): string {
@@ -123,26 +142,32 @@ function isValidPosixPath(value: string): boolean {
 }
 
 function isValidWindowsPath(value: string): boolean {
+  const locationSuffix = value.match(/(?::\d+){1,2}$/u)?.[0] ?? ''
+  const pathWithoutLocation = locationSuffix ? value.slice(0, -locationSuffix.length) : value
   const invalidTailPattern = /[<>:"|?*]/
 
-  if (/^[A-Za-z]:[\\/]/.test(value)) {
-    const tail = value.slice(3)
+  if (/^[A-Za-z]:[\\/]/.test(pathWithoutLocation)) {
+    const tail = pathWithoutLocation.slice(3)
     return !invalidTailPattern.test(tail) && (tail.length === 0 || hasValidSegments(tail, /[\\/]/))
   }
 
-  if (value.startsWith('~\\') || value.startsWith('~/')) {
-    const tail = value.slice(2)
+  if (pathWithoutLocation.startsWith('~\\') || pathWithoutLocation.startsWith('~/')) {
+    const tail = pathWithoutLocation.slice(2)
     return tail.length > 0 && !invalidTailPattern.test(tail) && hasValidSegments(tail, /[\\/]/)
   }
 
-  if (!value.startsWith('\\\\')) return false
-  const segments = value.slice(2).split(/[\\/]/)
+  if (!pathWithoutLocation.startsWith('\\\\')) return false
+  const segments = pathWithoutLocation.slice(2).split(/[\\/]/)
   return (
-    segments.length >= 2 && segments[0].length > 0 && segments[1].length > 0 && !invalidTailPattern.test(value.slice(2))
+    segments.length >= 2 &&
+    segments[0].length > 0 &&
+    segments[1].length > 0 &&
+    !invalidTailPattern.test(pathWithoutLocation.slice(2))
   )
 }
 
 function isValidPath(value: string, platform: BareFilePathPlatform, allowWhitespace: boolean): boolean {
+  if (platform === 'windows' && isKnownNavigationPath(value)) return true
   if (!value || hasControlCharacter(value) || (!allowWhitespace && /\s/u.test(value))) return false
   if (value.trim() !== value) return false
   return platform === 'windows' ? isValidWindowsPath(value) : isValidPosixPath(value)
@@ -156,6 +181,7 @@ function startsPath(value: string, index: number, platform: BareFilePathPlatform
   }
 
   return (
+    ((value.startsWith('/app/', index) || value.startsWith('/settings/', index)) && value[index] === '/') ||
     value.startsWith('~\\', index) ||
     value.startsWith('~/', index) ||
     value.startsWith('\\\\', index) ||
@@ -191,6 +217,7 @@ function looksLikeUnquotedPathContinuation(value: string, end: number): boolean 
   while (nextEnd < value.length && !isUnquotedTerminator(value[nextEnd])) nextEnd += 1
   const nextToken = trimUnmatchedClosingBrackets(value.slice(nextStart, nextEnd))
   if (startsPath(value, nextStart, 'posix') || startsPath(value, nextStart, 'windows')) return false
+  if (/[，。；：！？（）【】「」“”‘’]/u.test(nextToken)) return false
   return /[\\/]/.test(nextToken) || /\.[\p{L}\p{N}]+$/u.test(nextToken)
 }
 
@@ -228,19 +255,32 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
     if (!startsPath(value, index, platform)) continue
 
     let end = index
-    while (end < value.length && !isUnquotedTerminator(value[end])) end += 1
+    while (
+      end < value.length &&
+      !isUnquotedTerminator(value[end]) &&
+      !isLikelySentenceBoundary(value, index, end, platform)
+    )
+      end += 1
+    let candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
+    while (platform === 'posix' && !hasClearFileExtension(candidate) && looksLikeUnquotedPathContinuation(value, end)) {
+      let nextStart = end
+      while (value[nextStart] === ' ' || value[nextStart] === '\t') nextStart += 1
+      let nextEnd = nextStart
+      while (
+        nextEnd < value.length &&
+        !isUnquotedTerminator(value[nextEnd]) &&
+        !isLikelySentenceBoundary(value, nextStart, nextEnd, platform)
+      )
+        nextEnd += 1
+      end = nextEnd
+      candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
+    }
     const scannedEnd = end
     if (end < value.length && hasControlCharacter(value[end]) && !['\t', '\n', '\r'].includes(value[end])) {
       index = Math.max(index, scannedEnd - 1)
       continue
     }
-    const rawCandidate = value.slice(index, end)
-    const candidate = trimUnmatchedClosingBrackets(rawCandidate)
-    const hasPossibleSpaceContinuation =
-      candidate.length === rawCandidate.length &&
-      !hasClearFileExtension(candidate) &&
-      looksLikeUnquotedPathContinuation(value, end)
-    if (!isValidPath(candidate, platform, false) || hasPossibleSpaceContinuation) {
+    if (!isValidPath(candidate, platform, /\s/u.test(candidate))) {
       index = Math.max(index, scannedEnd - 1)
       continue
     }

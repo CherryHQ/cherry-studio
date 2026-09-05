@@ -34,12 +34,19 @@ describe('findBareFilePathMatches', () => {
     ])
   })
 
-  it('recognizes spaces only when the complete path is quoted', () => {
+  it('keeps sentence punctuation inside an unquoted filename', () => {
+    expect(paths('Saved /tmp/report,final.txt and /tmp/report.v2-final.txt.', 'posix')).toEqual([
+      '/tmp/report,final.txt',
+      '/tmp/report.v2-final.txt'
+    ])
+  })
+
+  it('recognizes spaces in an unquoted POSIX path when the continuation is path-like', () => {
     expect(paths("Open “/Users/lee/My Project/report.pdf” or '~/My Folder'.", 'posix')).toEqual([
       '/Users/lee/My Project/report.pdf',
       '~/My Folder'
     ])
-    expect(paths('Open /Users/lee/My Project/report.pdf', 'posix')).toEqual([])
+    expect(paths('Open /Users/lee/My Project/report.pdf', 'posix')).toEqual(['/Users/lee/My Project/report.pdf'])
   })
 
   it('keeps a complete file path before another filename-like token', () => {
@@ -69,6 +76,20 @@ describe('findBareFilePathMatches', () => {
       String.raw`\\server\share\项目.txt`,
       String.raw`~\Desktop\a.txt`,
       '~/Desktop/b.txt'
+    ])
+  })
+
+  it('keeps Windows source locations attached to drive and UNC paths', () => {
+    expect(paths(String.raw`Open C:\Users\lee\report.ts:10:2 or \\server\share\report.ts:42.`, 'windows')).toEqual([
+      String.raw`C:\Users\lee\report.ts:10:2`,
+      String.raw`\\server\share\report.ts:42`
+    ])
+  })
+
+  it('recognizes Cherry navigation routes on Windows', () => {
+    expect(paths('Open /app/chat and /settings/mcp/servers.', 'windows')).toEqual([
+      '/app/chat',
+      '/settings/mcp/servers'
     ])
   })
 
@@ -152,7 +173,7 @@ describe('rehypeBareFilePaths', () => {
   })
 
   it('skips protected subtrees and remains idempotent', () => {
-    const protectedTags = ['a', 'code', 'pre', 'style', 'script', 'svg', 'math']
+    const protectedTags = ['a', 'code', 'pre', 'span', 'style', 'script', 'svg', 'math']
     const tree: Root = {
       type: 'root',
       children: [
@@ -179,5 +200,25 @@ describe('rehypeBareFilePaths', () => {
     expect(collectMarkers(twice).map((node) => node.properties?.[BARE_FILE_PATH_PROPERTY])).toEqual([
       '/Users/lee/a.txt'
     ])
+  })
+
+  it('does not linkify text inside inline raw HTML elements', () => {
+    const tree = transform(
+      {
+        type: 'root',
+        children: [
+          {
+            type: 'element',
+            tagName: 'span',
+            properties: {},
+            children: [{ type: 'text', value: '/Users/lee/raw.txt' }]
+          }
+        ]
+      },
+      'posix'
+    )
+
+    expect(collectMarkers(tree)).toHaveLength(0)
+    expect((tree.children[0] as Element).children).toEqual([{ type: 'text', value: '/Users/lee/raw.txt' }])
   })
 })
