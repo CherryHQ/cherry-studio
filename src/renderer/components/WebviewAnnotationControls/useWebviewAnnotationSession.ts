@@ -119,17 +119,18 @@ export function useWebviewAnnotationSession({
   hostActiveRef.current = isHostActive
   configurationRef.current = { locale, theme }
 
-  const sendCommand = useCallback((attachedWebview: WebviewTag, command: WebviewAnnotationHostCommand): boolean => {
-    try {
-      void Promise.resolve(attachedWebview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)).catch((error) => {
+  const sendCommand = useCallback(
+    async (attachedWebview: WebviewTag, command: WebviewAnnotationHostCommand): Promise<boolean> => {
+      try {
+        await attachedWebview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
+        return true
+      } catch (error) {
         logger.debug('Failed to send webview annotation command', { error })
-      })
-      return true
-    } catch (error) {
-      logger.debug('Webview annotation guest is not ready', { error })
-      return false
-    }
-  }, [])
+        return false
+      }
+    },
+    []
+  )
 
   const rejectPendingSnapshot = useCallback((message: string) => {
     const pending = pendingSnapshotRef.current
@@ -166,16 +167,17 @@ export function useWebviewAnnotationSession({
       const sessionId = sessionRef.current
       invalidateOperation(message)
       if (sessionId) {
-        sendCommand(attachedWebview, { type: 'deactivate', sessionId })
-        if (clear) sendCommand(attachedWebview, { type: 'clear', sessionId })
+        void sendCommand(attachedWebview, { type: 'deactivate', sessionId })
+        if (clear) void sendCommand(attachedWebview, { type: 'clear', sessionId })
         retiredSessionsRef.current.add(sessionId)
       }
       sessionRef.current = null
       store.setState(EMPTY_STATE)
     }
 
-    const configureSession = (sessionId: string) =>
-      sendCommand(attachedWebview, { type: 'configure', sessionId, ...configurationRef.current })
+    const configureSession = (sessionId: string) => {
+      void sendCommand(attachedWebview, { type: 'configure', sessionId, ...configurationRef.current })
+    }
 
     const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
       if (event.currentTarget !== attachedWebview) return
@@ -266,7 +268,7 @@ export function useWebviewAnnotationSession({
         editor: enabled ? current.editor : null
       }))
       if (!hostActiveRef.current && guestEvent.enabled) {
-        sendCommand(attachedWebview, { type: 'deactivate', sessionId: guestEvent.sessionId })
+        void sendCommand(attachedWebview, { type: 'deactivate', sessionId: guestEvent.sessionId })
       }
     }
 
@@ -274,7 +276,9 @@ export function useWebviewAnnotationSession({
       if (event.isMainFrame && !event.isInPlace) retireSession(true, 'Webview document changed')
     }
     const handleRenderProcessGone = () => retireSession(false, 'Webview render process exited')
-    const requestState = () => sendCommand(attachedWebview, { type: 'request_state' })
+    const requestState = () => {
+      void sendCommand(attachedWebview, { type: 'request_state' })
+    }
 
     attachedWebview.addEventListener('ipc-message', handleGuestMessage)
     attachedWebview.addEventListener('did-start-navigation', handleNavigation as EventListener)
@@ -286,7 +290,7 @@ export function useWebviewAnnotationSession({
       invalidateOperation('Webview annotation controls detached')
       const sessionId = sessionRef.current
       if (bindingRef.current?.webview === attachedWebview) {
-        if (sessionId) sendCommand(attachedWebview, { type: 'deactivate', sessionId })
+        if (sessionId) void sendCommand(attachedWebview, { type: 'deactivate', sessionId })
         bindingRef.current = null
         sessionRef.current = null
       }
@@ -305,7 +309,7 @@ export function useWebviewAnnotationSession({
     invalidateOperation('Annotation target changed')
     const binding = bindingRef.current
     const sessionId = sessionRef.current
-    if (binding && sessionId) sendCommand(binding.webview, { type: 'clear', sessionId })
+    if (binding && sessionId) void sendCommand(binding.webview, { type: 'clear', sessionId })
     store.setState((current) => ({ ...current, enabled: false, count: 0, editor: null }))
   }, [invalidateOperation, sendCommand, store, target.id])
 
@@ -313,7 +317,7 @@ export function useWebviewAnnotationSession({
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (!binding || !sessionId) return
-    sendCommand(binding.webview, { type: 'configure', sessionId, ...configurationRef.current })
+    void sendCommand(binding.webview, { type: 'configure', sessionId, ...configurationRef.current })
   }, [locale, sendCommand, target.label, theme])
 
   useEffect(() => {
@@ -321,21 +325,33 @@ export function useWebviewAnnotationSession({
     const sessionId = sessionRef.current
     if (!binding || !sessionId) return
     if (!isHostActive) {
-      sendCommand(binding.webview, { type: 'deactivate', sessionId })
+      void sendCommand(binding.webview, { type: 'deactivate', sessionId })
       store.setState((current) => ({ ...current, enabled: false, editor: null }))
     } else {
-      sendCommand(binding.webview, { type: 'request_state' })
+      void sendCommand(binding.webview, { type: 'request_state' })
     }
   }, [isHostActive, sendCommand, store])
 
-  const toggle = useCallback(() => {
+  const isSessionCurrent = useCallback((binding: Binding, sessionId: string, generation: number) => {
+    return (
+      bindingRef.current === binding &&
+      sessionRef.current === sessionId &&
+      generationRef.current === generation &&
+      hostActiveRef.current
+    )
+  }, [])
+
+  const toggle = useCallback(async () => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
-    if (!binding || !sessionId) return
+    if (!binding || !sessionId) return false
+    const generation = generationRef.current
     const enabled = !state.enabled
-    if (!sendCommand(binding.webview, { type: 'set_enabled', sessionId, enabled })) return
+    if (!(await sendCommand(binding.webview, { type: 'set_enabled', sessionId, enabled }))) return false
+    if (!isSessionCurrent(binding, sessionId, generation)) return false
     store.setState((current) => ({ ...current, enabled, editor: enabled ? current.editor : null }))
-  }, [sendCommand, state.enabled, store])
+    return true
+  }, [isSessionCurrent, sendCommand, state.enabled, store])
 
   const setEditorDraft = useCallback(
     (draft: string) =>
@@ -345,38 +361,51 @@ export function useWebviewAnnotationSession({
     [store]
   )
 
-  const saveEditor = useCallback(() => {
+  const saveEditor = useCallback(async () => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     const editor = store.getSnapshot().editor
     const comment = editor?.draft.trim()
     if (!binding || !sessionId || !editor || !comment) return false
-    return sendCommand(binding.webview, {
+    const generation = generationRef.current
+    const sent = await sendCommand(binding.webview, {
       type: 'save_editor',
       sessionId,
       requestId: editor.requestId,
       comment
     })
-  }, [sendCommand, store])
+    return sent && isSessionCurrent(binding, sessionId, generation)
+  }, [isSessionCurrent, sendCommand, store])
 
-  const cancelEditor = useCallback(() => {
+  const cancelEditor = useCallback(async () => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     const editor = store.getSnapshot().editor
-    if (!editor) return
-    store.setState((current) => ({ ...current, editor: null }))
-    if (binding && sessionId) {
-      sendCommand(binding.webview, { type: 'cancel_editor', sessionId, requestId: editor.requestId })
+    if (!binding || !sessionId || !editor) return false
+    const generation = generationRef.current
+    if (!(await sendCommand(binding.webview, { type: 'cancel_editor', sessionId, requestId: editor.requestId }))) {
+      return false
     }
-  }, [sendCommand, store])
+    if (!isSessionCurrent(binding, sessionId, generation)) return false
+    store.setState((current) =>
+      current.editor?.requestId === editor.requestId ? { ...current, editor: null } : current
+    )
+    return true
+  }, [isSessionCurrent, sendCommand, store])
 
-  const deleteEditor = useCallback(() => {
+  const deleteEditor = useCallback(async () => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     const editor = store.getSnapshot().editor
     if (!binding || !sessionId || !editor?.canDelete) return false
-    return sendCommand(binding.webview, { type: 'delete_editor', sessionId, requestId: editor.requestId })
-  }, [sendCommand, store])
+    const generation = generationRef.current
+    const sent = await sendCommand(binding.webview, {
+      type: 'delete_editor',
+      sessionId,
+      requestId: editor.requestId
+    })
+    return sent && isSessionCurrent(binding, sessionId, generation)
+  }, [isSessionCurrent, sendCommand, store])
 
   const requestSnapshot = useCallback(
     (operation: CopyOperation) =>
@@ -388,12 +417,18 @@ export function useWebviewAnnotationSession({
           pendingSnapshotRef.current = null
           reject(new Error('Timed out waiting for webview annotation snapshot'))
         }, SNAPSHOT_TIMEOUT_MS)
-        pendingSnapshotRef.current = { sessionId: operation.sessionId, requestId, resolve, reject, timeout }
-        if (!sendCommand(operation.webview, { type: 'request_snapshot', sessionId: operation.sessionId, requestId })) {
+        const pending = { sessionId: operation.sessionId, requestId, resolve, reject, timeout }
+        pendingSnapshotRef.current = pending
+        void sendCommand(operation.webview, {
+          type: 'request_snapshot',
+          sessionId: operation.sessionId,
+          requestId
+        }).then((sent) => {
+          if (sent || pendingSnapshotRef.current !== pending) return
           pendingSnapshotRef.current = null
           clearTimeout(timeout)
           reject(new Error('Failed to request webview annotation snapshot'))
-        }
+        })
       }),
     [sendCommand]
   )
@@ -450,14 +485,17 @@ export function useWebviewAnnotationSession({
     }
   }, [isOperationCurrent, requestSnapshot, state.count, store])
 
-  const clear = useCallback(() => {
+  const clear = useCallback(async () => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
-    if (!binding || !sessionId || !sendCommand(binding.webview, { type: 'clear', sessionId })) return false
+    if (!binding || !sessionId) return false
+    const generation = generationRef.current
+    if (!(await sendCommand(binding.webview, { type: 'clear', sessionId }))) return false
+    if (!isSessionCurrent(binding, sessionId, generation)) return false
     invalidateOperation('Annotations cleared')
     store.setState((current) => ({ ...current, count: 0, editor: null }))
     return true
-  }, [invalidateOperation, sendCommand, store])
+  }, [invalidateOperation, isSessionCurrent, sendCommand, store])
 
   return {
     enabled: state.enabled,

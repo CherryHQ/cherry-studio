@@ -52,10 +52,15 @@ vi.mock('@cherrystudio/ui', () => ({
       onValueChange?: (value: string) => void
     }) => <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
   },
-  ConfirmDialog: ({ open, title, confirmText, onConfirm }: any) =>
+  ConfirmDialog: ({ open, title, confirmText, onConfirm, onOpenChange }: any) =>
     open ? (
       <div role="dialog" aria-label={title}>
-        <button type="button" onClick={onConfirm}>
+        <button
+          type="button"
+          onClick={async () => {
+            await onConfirm?.()
+            onOpenChange?.(false)
+          }}>
           Confirm {confirmText}
         </button>
       </div>
@@ -242,6 +247,20 @@ describe('WebviewAnnotationControls', () => {
     expect(dialog).not.toBeInTheDocument()
     expect(screen.queryByLabelText('2 条标注')).not.toBeInTheDocument()
     expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId })
+  })
+
+  it('keeps the clear confirmation open when command delivery rejects', async () => {
+    const user = userEvent.setup()
+    const webview = createWebview()
+    renderControls(webview)
+    act(() => stateChanged(webview, false, 2))
+    await user.click(screen.getByRole('button', { name: '清空标注' }))
+    vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
+
+    await user.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+
+    expect(screen.getByRole('dialog', { name: '清空全部标注？' })).toBeInTheDocument()
+    expect(screen.getByLabelText('2 条标注')).toBeInTheDocument()
   })
 
   it('closes a clear confirmation when the target identity changes', async () => {
