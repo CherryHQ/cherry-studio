@@ -42,18 +42,19 @@ const privateController = (controller: WebviewAnnotationController) =>
     editorElement: Element | null
     editorRequestId: string | null
     handleClick: (event: MouseEvent) => void
-    handleDocumentKeyDown: (event: KeyboardEvent) => void
     handlePointerCancel: (event: PointerEvent) => void
     handlePointerDown: (event: PointerEvent) => void
     handlePointerMove: (event: PointerEvent) => void
     handlePointerUp: (event: PointerEvent) => void
     highlightElement: Element | null
+    iframeShields: Map<HTMLIFrameElement, HTMLDivElement>
     marqueeOrigin: { x: number; y: number } | null
     marqueePointerCapture: { target: Element; pointerId: number } | null
     marqueePointerId: number | null
     marqueeRect: unknown
     observedRoots: { has: (root: Document | ShadowRoot) => boolean }
     overlayHost: HTMLDivElement | null
+    overlayRoot: ShadowRoot | null
     pendingRegion: unknown
     pinLayer: HTMLDivElement | null
     updateFrame: number | null
@@ -84,7 +85,7 @@ const deleteEditor = (controller: WebviewAnnotationController, events: WebviewAn
 }
 
 const mockRect = (element: Element, left: number, top: number, width: number, height: number) => {
-  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+  return vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
     left,
     top,
     right: left + width,
@@ -119,9 +120,11 @@ const trustedPointerEvent = (
     type
   }) as unknown as PointerEvent
 
-const trustedMouseEvent = (target: EventTarget) =>
+const trustedMouseEvent = (target: EventTarget, path?: EventTarget[], clientX = 0, clientY = 0) =>
   ({
-    composedPath: () => [target, document.body, document.documentElement, document, window],
+    clientX,
+    clientY,
+    composedPath: () => path ?? [target, document.body, document.documentElement, document, window],
     isTrusted: true,
     preventDefault: vi.fn(),
     stopImmediatePropagation: vi.fn(),
@@ -216,6 +219,42 @@ describe('WebviewAnnotationController selectors', () => {
     expect(createWebviewElementLocator(roleTextbox)?.text).toBeNull()
     expect(createWebviewElementLocator(container)?.text).toBeNull()
   })
+
+  it('omits text for design-mode documents, inherited contenteditable, and tokenized editable roles', () => {
+    const previousDesignMode = document.designMode
+    const designModeTarget = document.createElement('section')
+    designModeTarget.id = 'design-mode-draft'
+    designModeTarget.innerText = 'private design mode draft'
+    document.body.appendChild(designModeTarget)
+
+    try {
+      document.designMode = 'on'
+      expect(createWebviewElementLocator(designModeTarget)?.text).toBeNull()
+    } finally {
+      document.designMode = previousDesignMode
+    }
+
+    const editableParent = document.createElement('div')
+    editableParent.setAttribute('contenteditable', 'true')
+    const inheritedEditable = document.createElement('span')
+    inheritedEditable.id = 'inherited-editable'
+    inheritedEditable.innerText = 'private inherited draft'
+    editableParent.appendChild(inheritedEditable)
+
+    const tokenizedRole = document.createElement('div')
+    tokenizedRole.id = 'tokenized-role'
+    tokenizedRole.setAttribute('role', 'unknown textbox')
+    tokenizedRole.innerText = 'private tokenized role draft'
+    const container = document.createElement('section')
+    container.id = 'tokenized-role-container'
+    container.innerText = 'container private tokenized role draft'
+    container.appendChild(tokenizedRole)
+    document.body.append(editableParent, container)
+
+    expect(createWebviewElementLocator(inheritedEditable)?.text).toBeNull()
+    expect(createWebviewElementLocator(tokenizedRole)?.text).toBeNull()
+    expect(createWebviewElementLocator(container)?.text).toBeNull()
+  })
 })
 
 describe('WebviewAnnotationController interactions', () => {
@@ -249,6 +288,7 @@ describe('WebviewAnnotationController interactions', () => {
     controller.dispose()
     document.body.replaceChildren()
     document.documentElement.querySelectorAll(':scope > div').forEach((element) => element.remove())
+    delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -257,7 +297,7 @@ describe('WebviewAnnotationController interactions', () => {
     const internals = privateController(controller)
     const editableTargets = ['input', 'textarea', 'select'].map((tagName) => document.createElement(tagName))
     const ariaTextbox = document.createElement('div')
-    ariaTextbox.setAttribute('role', 'textbox')
+    ariaTextbox.setAttribute('role', 'unknown textbox')
     editableTargets.push(ariaTextbox)
     const shadowHost = document.createElement('div')
     const shadowRoot = shadowHost.attachShadow({ mode: 'open' })
@@ -305,6 +345,19 @@ describe('WebviewAnnotationController interactions', () => {
     expect(contenteditableChild.dispatchEvent(click)).toBe(true)
     expect(shadowClick).toHaveBeenCalledOnce()
     expect(internals.editorElement).toBeNull()
+    expect(internals.marqueePointerId).toBeNull()
+
+    const designModeTarget = document.createElement('div')
+    document.body.appendChild(designModeTarget)
+    const designModePointerDown = trustedPointerEvent('pointerdown', designModeTarget, 50, 60, 3)
+    const previousDesignMode = document.designMode
+    try {
+      document.designMode = 'on'
+      internals.handlePointerDown(designModePointerDown)
+    } finally {
+      document.designMode = previousDesignMode
+    }
+    expect(designModePointerDown.preventDefault).not.toHaveBeenCalled()
     expect(internals.marqueePointerId).toBeNull()
   })
 
@@ -401,7 +454,7 @@ describe('WebviewAnnotationController interactions', () => {
     Object.defineProperty(syntheticEscape, 'isTrusted', { value: false })
     Object.defineProperty(syntheticClick, 'isTrusted', { value: false })
 
-    internals.handleDocumentKeyDown(syntheticEscape)
+    controller.handleKeyDown(syntheticEscape)
     internals.handleClick(syntheticClick)
 
     expect(controller.getState().enabled).toBe(true)
@@ -528,8 +581,256 @@ describe('WebviewAnnotationController interactions', () => {
     saveEditor(controller, emissions, 'Keyboard note')
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Keyboard note')
 
-    internals.handleDocumentKeyDown(trustedKeyboardEvent('Escape'))
+    controller.handleKeyDown(trustedKeyboardEvent('Escape'))
     expect(controller.getState().enabled).toBe(false)
+  })
+
+  it('registers capture arbitration before hostile guest listeners and leaves disabled or editable input alone', () => {
+    controller.dispose()
+    const windowRegistrations = new Map<string, EventListener[]>()
+    const documentRegistrations = new Map<string, EventListener[]>()
+    const nativeAddEventListener = window.addEventListener.bind(window)
+    const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (['pointerdown', 'pointermove', 'pointerup', 'mousedown', 'mouseup', 'click'].includes(type)) {
+        const handlers = windowRegistrations.get(type) ?? []
+        handlers.push(listener as EventListener)
+        windowRegistrations.set(type, handlers)
+        return
+      }
+      nativeAddEventListener(type, listener, options)
+    })
+    const nativeDocumentAddEventListener = document.addEventListener.bind(document)
+    const documentAddEventListener = vi
+      .spyOn(document, 'addEventListener')
+      .mockImplementation((type, listener, options) => {
+        if (type === 'click') {
+          const handlers = documentRegistrations.get(type) ?? []
+          handlers.push(listener as EventListener)
+          documentRegistrations.set(type, handlers)
+          return
+        }
+        nativeDocumentAddEventListener(type, listener, options)
+      })
+
+    emissions = []
+    controller = new WebviewAnnotationController((event) => emissions.push(event))
+    configure(controller)
+    const button = document.createElement('button')
+    button.id = 'early-arbiter-target'
+    const input = document.createElement('input')
+    document.body.append(button, input)
+    const hostileClick = vi.fn()
+    const hostileDocumentClick = vi.fn()
+    window.addEventListener('click', hostileClick, true)
+    document.addEventListener('click', hostileDocumentClick, true)
+
+    const dispatchCaptured = (type: string, event: Event) => {
+      let stopped = false
+      Object.assign(event, {
+        stopImmediatePropagation: vi.fn(() => {
+          stopped = true
+        })
+      })
+      for (const listener of windowRegistrations.get(type) ?? []) {
+        listener(event)
+        if (stopped) break
+      }
+      if (!stopped) for (const listener of documentRegistrations.get(type) ?? []) listener(event)
+    }
+
+    dispatchCaptured('click', trustedMouseEvent(button))
+    expect(privateController(controller).editorElement).toBe(button)
+    expect(hostileClick).not.toHaveBeenCalled()
+    expect(hostileDocumentClick).not.toHaveBeenCalled()
+
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: false })
+    hostileClick.mockClear()
+    dispatchCaptured('click', trustedMouseEvent(button))
+    expect(hostileClick).toHaveBeenCalledOnce()
+    expect(hostileDocumentClick).toHaveBeenCalledOnce()
+
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: true })
+    hostileClick.mockClear()
+    hostileDocumentClick.mockClear()
+    dispatchCaptured('click', trustedMouseEvent(input))
+    expect(hostileClick).toHaveBeenCalledOnce()
+    expect(hostileDocumentClick).toHaveBeenCalledOnce()
+    addEventListener.mockRestore()
+    documentAddEventListener.mockRestore()
+  })
+
+  it('owns a marquee before hostile guest window capture listeners can cancel it', () => {
+    controller.dispose()
+    const registrations = new Map<string, EventListener[]>()
+    const nativeAddEventListener = window.addEventListener.bind(window)
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (['pointerdown', 'pointermove', 'pointerup'].includes(type)) {
+        const handlers = registrations.get(type) ?? []
+        handlers.push(listener as EventListener)
+        registrations.set(type, handlers)
+        return
+      }
+      nativeAddEventListener(type, listener, options)
+    })
+
+    emissions = []
+    controller = new WebviewAnnotationController((event) => emissions.push(event))
+    configure(controller)
+    const target = document.createElement('section')
+    target.id = 'early-drag-target'
+    Object.assign(target, { setPointerCapture: vi.fn(), hasPointerCapture: vi.fn(() => false) })
+    document.body.appendChild(target)
+    mockRect(target, 0, 0, 300, 300)
+    const hostilePointer = vi.fn()
+    window.addEventListener('pointerdown', hostilePointer, true)
+    window.addEventListener('pointermove', hostilePointer, true)
+    window.addEventListener('pointerup', hostilePointer, true)
+
+    const dispatchCaptured = (type: string, event: Event) => {
+      let stopped = false
+      Object.assign(event, {
+        stopImmediatePropagation: vi.fn(() => {
+          stopped = true
+        })
+      })
+      for (const listener of registrations.get(type) ?? []) {
+        listener(event)
+        if (stopped) break
+      }
+    }
+
+    dispatchCaptured('pointerdown', trustedPointerEvent('pointerdown', target, 10, 10))
+    dispatchCaptured('pointermove', trustedPointerEvent('pointermove', target, 100, 100))
+    dispatchCaptured('pointerup', trustedPointerEvent('pointerup', target, 100, 100))
+
+    expect(hostilePointer).not.toHaveBeenCalled()
+    expect(currentEditorRequest(emissions).anchor).toEqual({ x: 10, y: 10, width: 90, height: 90 })
+  })
+
+  it('maps full-viewport iframe shield input back to the iframe without entering its document', () => {
+    const iframe = document.createElement('iframe')
+    iframe.id = 'full-page-frame'
+    document.body.appendChild(iframe)
+    const iframeRect = mockRect(iframe, 0, 0, window.innerWidth, window.innerHeight)
+    const contentDocumentRead = vi.fn()
+    Object.defineProperty(iframe, 'contentDocument', {
+      configurable: true,
+      get: () => {
+        contentDocumentRead()
+        return null
+      }
+    })
+    const internals = privateController(controller)
+
+    internals.updatePositions()
+    const shield = internals.iframeShields.get(iframe)
+    expect(shield).toBeDefined()
+    expect(shield?.style.cssText).toContain('width: 1024px')
+    expect(shield?.style.cssText).toContain('height: 768px')
+    iframeRect.mockReturnValue({
+      left: 25,
+      top: 35,
+      right: 1049,
+      bottom: 803,
+      width: 1024,
+      height: 768,
+      x: 25,
+      y: 35,
+      toJSON: () => ({})
+    } as DOMRect)
+    internals.updatePositions()
+    expect(shield?.style.left).toBe('25px')
+    expect(shield?.style.top).toBe('35px')
+    Object.assign(shield!, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: vi.fn(() => false)
+    })
+    Object.defineProperty(internals.overlayRoot!, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => shield)
+    })
+    const shieldPath = [internals.overlayHost!, document.documentElement, document, window]
+
+    internals.handleClick(trustedMouseEvent(internals.overlayHost!, shieldPath, 100, 100))
+    expect(internals.editorElement).toBe(iframe)
+    saveEditor(controller, emissions, 'Frame note')
+    expect(readSnapshot(controller, emissions)[0].element.selector).toBe('#full-page-frame')
+
+    internals.handlePointerDown(
+      trustedPointerEvent('pointerdown', internals.overlayHost!, 10, 20, 4, { path: shieldPath })
+    )
+    internals.handlePointerMove(
+      trustedPointerEvent('pointermove', internals.overlayHost!, 1010, 750, 4, { path: shieldPath })
+    )
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => iframe) })
+    internals.handlePointerUp(
+      trustedPointerEvent('pointerup', internals.overlayHost!, 1010, 750, 4, { path: shieldPath })
+    )
+    saveEditor(controller, emissions, 'Frame region')
+
+    const region = readSnapshot(controller, emissions).at(-1)
+    expect(region?.element.selector).toBe('#full-page-frame')
+    expect(region?.element.tagName).toBe('iframe')
+    expect(region?.region?.elements.some((element) => element.selector === '#full-page-frame')).toBe(true)
+    expect(contentDocumentRead).not.toHaveBeenCalled()
+    delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint
+  })
+
+  it('removes iframe input shields when annotation selection is disabled or deactivated', () => {
+    const iframe = document.createElement('iframe')
+    iframe.id = 'disposable-frame'
+    document.body.appendChild(iframe)
+    mockRect(iframe, 10, 20, 300, 200)
+    const internals = privateController(controller)
+    internals.updatePositions()
+    const firstShield = internals.iframeShields.get(iframe)
+    internals.openEditor({ mode: 'create-element', element: iframe })
+    saveEditor(controller, emissions, 'Keep overlay mounted')
+
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: false })
+    expect(internals.iframeShields.size).toBe(0)
+    expect(firstShield?.isConnected).toBe(false)
+    expect(internals.overlayHost?.isConnected).toBe(true)
+
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: true })
+    internals.updatePositions()
+    expect(internals.iframeShields.get(iframe)).toBeDefined()
+    iframe.remove()
+    internals.updatePositions()
+    expect(internals.iframeShields.size).toBe(0)
+
+    document.body.appendChild(iframe)
+    internals.updatePositions()
+    expect(internals.iframeShields.get(iframe)).toBeDefined()
+    controller.handleCommand({ type: 'deactivate', sessionId })
+    expect(internals.iframeShields.size).toBe(0)
+  })
+
+  it('keeps annotation pins interactive when closed-shadow events are retargeted to the overlay host', () => {
+    const target = document.createElement('button')
+    target.id = 'closed-shadow-pin-target'
+    document.body.appendChild(target)
+    mockRect(target, 100, 100, 80, 40)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: target })
+    saveEditor(controller, emissions, 'Open from the pin')
+    const annotationId = readSnapshot(controller, emissions)[0].id
+    const pin = internals.pinLayer?.querySelector<HTMLButtonElement>(`[data-annotation-id="${annotationId}"]`)
+    Object.defineProperty(internals.overlayRoot!, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => pin)
+    })
+
+    internals.handleClick(
+      trustedMouseEvent(
+        internals.overlayHost!,
+        [internals.overlayHost!, document.documentElement, document, window],
+        100,
+        100
+      )
+    )
+
+    expect(internals.editorAnnotationId).toBe(annotationId)
   })
 
   it('re-resolves an annotated element after DOM replacement', () => {
@@ -834,7 +1135,7 @@ describe('WebviewAnnotationController interactions', () => {
     const internals = privateController(controller)
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
-    internals.handleDocumentKeyDown(trustedKeyboardEvent('Escape'))
+    controller.handleKeyDown(trustedKeyboardEvent('Escape'))
 
     expect(internals.marqueeRect).toBeNull()
     expect(controller.getState().enabled).toBe(true)
