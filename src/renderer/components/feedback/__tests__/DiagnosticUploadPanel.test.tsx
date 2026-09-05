@@ -501,6 +501,8 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: fallbackPath })
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save locally' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
   it('treats an already discarded retained upload as a successful close', async () => {
@@ -562,15 +564,18 @@ describe('DiagnosticUploadPanel', () => {
       if (route === 'diagnostics.bundle.discard_upload') return Promise.resolve({ status: 'discarded' })
       return Promise.resolve(undefined)
     })
+    const onBusyChange = vi.fn()
     const user = userEvent.setup()
-    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    const { unmount } = render(<TestDiagnosticUploadPanel onBusyChange={onBusyChange} />)
     await completeReview(user)
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
     await waitFor(() =>
       expect(mocks.request.mock.calls.some(([route]) => route === 'diagnostics.bundle.upload')).toBe(true)
     )
+    expect(onBusyChange).toHaveBeenLastCalledWith(true)
 
     unmount()
+    expect(onBusyChange).toHaveBeenLastCalledWith(false)
     await act(async () => resolveUpload(submissionUnknownResult))
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.discard_upload', { bundleId }))

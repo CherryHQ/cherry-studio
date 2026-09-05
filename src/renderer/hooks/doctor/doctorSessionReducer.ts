@@ -1,4 +1,3 @@
-import type { DisplayedDoctorDomain } from '@renderer/utils/doctor'
 import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorRunTier } from '@shared/types/doctor'
 
 export type DoctorPanel = 'checks' | 'export' | 'report'
@@ -20,7 +19,6 @@ export type DoctorInteraction =
 export interface DoctorSessionState {
   readonly activePanel: DoctorPanel
   readonly descriptionDraft: string
-  readonly expandedDomains: readonly DisplayedDoctorDomain[]
   readonly revealedEvidence: readonly DoctorCheckId[]
   readonly relaunchRequired: boolean
   readonly interaction: DoctorInteraction
@@ -29,7 +27,6 @@ export interface DoctorSessionState {
 export type DoctorSessionAction =
   | { readonly type: 'set-panel'; readonly panel: DoctorPanel }
   | { readonly type: 'set-description'; readonly description: string }
-  | { readonly type: 'set-expanded-domains'; readonly domains: readonly DisplayedDoctorDomain[] }
   | { readonly type: 'reveal-evidence'; readonly checkId: DoctorCheckId }
   | { readonly type: 'mark-relaunch-required' }
   | { readonly type: 'confirm-evidence'; readonly checkId: DoctorCheckId }
@@ -47,7 +44,6 @@ export function createDoctorSession({
   return {
     activePanel: initialPanel,
     descriptionDraft: initialDescription ?? '',
-    expandedDomains: [],
     revealedEvidence: [],
     relaunchRequired: false,
     interaction: { kind: 'idle' }
@@ -60,8 +56,6 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
       return { ...state, activePanel: action.panel }
     case 'set-description':
       return { ...state, descriptionDraft: action.description }
-    case 'set-expanded-domains':
-      return { ...state, expandedDomains: action.domains }
     case 'reveal-evidence':
       return state.revealedEvidence.includes(action.checkId)
         ? state
