@@ -97,7 +97,21 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
           <DoctorSummary controller={controller} />
 
           {viewModel.isStale ? (
-            <Alert type="warning" showIcon description={t('settings.doctor.stale.description')} />
+            <Alert
+              type="warning"
+              showIcon
+              description={t('settings.doctor.stale.description')}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={controller.isInteracting}
+                  onClick={() => void controller.run('quick')}>
+                  <RotateCcw className="size-4" aria-hidden />
+                  {t('settings.doctor.actions.run_basic')}
+                </Button>
+              }
+            />
           ) : null}
 
           {session.relaunchRequired ? (
@@ -118,6 +132,18 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
                   ? 'settings.doctor.empty.canceled_description'
                   : 'settings.doctor.empty.description'
               )}
+              action={
+                viewModel.status === 'canceled' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={controller.isInteracting}
+                    onClick={() => void controller.run('quick')}>
+                    <RotateCcw className="size-4" aria-hidden />
+                    {t('settings.doctor.actions.rerun')}
+                  </Button>
+                ) : undefined
+              }
             />
           )}
 
@@ -190,14 +216,6 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          variant="outline"
-          loading={session.interaction.kind === 'run' && session.interaction.tier === 'quick'}
-          disabled={viewModel.status === 'running' || controller.isInteracting}
-          onClick={() => void controller.run('quick')}>
-          <RotateCcw className="size-4" />
-          {t('settings.doctor.actions.run_basic')}
-        </Button>
         <Button
           variant="emphasis"
           loading={session.interaction.kind === 'run' && session.interaction.tier === 'live'}

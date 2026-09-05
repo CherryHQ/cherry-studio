@@ -71,7 +71,7 @@ const translations: Record<string, string> = {
   'error.stack': 'Stack',
   'error.statusCode': 'Status code',
   'message.copied': 'Copied',
-  'settings.doctor.actions.run_network': 'Full check (includes network and services)',
+  'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
@@ -81,7 +81,7 @@ const translations: Record<string, string> = {
   'settings.doctor.domains.storage': 'Storage',
   'settings.doctor.fixes.cleanup_storage': 'Clean up storage',
   'settings.doctor.status.pass': 'Passed',
-  'settings.doctor.stale.description': 'This result is out of date.',
+  'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
 }
 
@@ -299,10 +299,10 @@ describe('ErrorDetailContent diagnostics', () => {
     mocks.doctorState = completedDoctorState([], new Date(Date.now() - 1).toISOString())
     renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
 
-    await screen.findByText('This result is out of date.')
+    await screen.findByText('This diagnostic result is out of date.')
     const staleAlert = screen
       .getAllByRole('status')
-      .find((alert) => within(alert).queryByText('This result is out of date.'))
+      .find((alert) => within(alert).queryByText('This diagnostic result is out of date.'))
     expect(staleAlert).toBeDefined()
     const rerun = within(staleAlert as HTMLElement).getByRole('button', { name: 'Quick basic checks' })
 
@@ -353,7 +353,7 @@ describe('ErrorDetailContent diagnostics', () => {
         </DialogContent>
       </Dialog>
     )
-    const networkCheck = await screen.findByRole('button', { name: 'Full check (includes network and services)' })
+    const networkCheck = await screen.findByRole('button', { name: 'Full check' })
     await waitFor(() => expect(networkCheck).toBeEnabled())
     await user.click(networkCheck)
 
