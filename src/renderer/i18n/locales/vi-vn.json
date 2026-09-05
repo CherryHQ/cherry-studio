@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "Đang tải ghi chú...",
   "chat.input.note_reference.title": "Ghi chú tham khảo",
   "chat.input.paste_text_file": "Dán vào ô nhập",
+  "chat.input.paste_text_too_long": "Văn bản dán dài hơn {{max}} ký tự nên không thể chèn vào ô nhập. Nó được giữ lại dưới dạng tệp đính kèm.",
   "chat.input.pasted_text_file_name": "Văn bản đã dán.txt",
   "chat.input.pause": "Tạm dừng",
   "chat.input.placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",

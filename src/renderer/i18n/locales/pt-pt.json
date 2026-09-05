@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "A carregar notas...",
   "chat.input.note_reference.title": "Nota de Referência",
   "chat.input.paste_text_file": "Cole na entrada",
+  "chat.input.paste_text_too_long": "O texto colado excede {{max}} caracteres e não pode ser inserido no campo de entrada. Ele é mantido como anexo de arquivo.",
   "chat.input.pasted_text_file_name": "Texto colado.txt",
   "chat.input.pause": "Pausar",
   "chat.input.placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",

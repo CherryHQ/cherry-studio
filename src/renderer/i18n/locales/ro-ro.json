@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "Se încarcă notițele...",
   "chat.input.note_reference.title": "Notă de referință",
   "chat.input.paste_text_file": "Lipește în intrare",
+  "chat.input.paste_text_too_long": "Textul lipit depășește {{max}} caractere și nu poate fi inserat în câmpul de introducere. Rămâne ca atașament de fișier.",
   "chat.input.pasted_text_file_name": "text.txt lipit",
   "chat.input.pause": "Pauză",
   "chat.input.placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",

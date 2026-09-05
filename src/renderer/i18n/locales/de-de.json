@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "Notizen werden geladen...",
   "chat.input.note_reference.title": "Referenzhinweis",
   "chat.input.paste_text_file": "In die Eingabe einfügen",
+  "chat.input.paste_text_too_long": "Der eingefügte Text ist länger als {{max}} Zeichen und kann nicht in das Eingabefeld eingefügt werden. Er bleibt als Dateianhang erhalten.",
   "chat.input.pasted_text_file_name": "Eingefügter Text.txt",
   "chat.input.pause": "Pausieren",
   "chat.input.placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",

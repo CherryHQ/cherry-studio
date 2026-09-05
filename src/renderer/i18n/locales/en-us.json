@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "Loading notes...",
   "chat.input.note_reference.title": "Reference Note",
   "chat.input.paste_text_file": "Paste into input",
+  "chat.input.paste_text_too_long": "The pasted text is longer than {{max}} characters and cannot be inserted into the input. It is kept as a file attachment.",
   "chat.input.pasted_text_file_name": "Pasted text.txt",
   "chat.input.pause": "Pause",
   "chat.input.placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",

@@ -122,7 +122,7 @@ export async function agentSessionToPlainText(
 
   if (messages.length === 0) return title
 
-  return `${title}\n\n${messagesToPlainText(messages)}`
+  return `${title}\n\n${await messagesToPlainText(messages)}`
 }
 
 export async function copyAgentSessionAsMarkdown(

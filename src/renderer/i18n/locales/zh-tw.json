@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "載入筆記中...",
   "chat.input.note_reference.title": "引用筆記",
   "chat.input.paste_text_file": "貼到輸入框",
+  "chat.input.paste_text_too_long": "貼上的文字超過 {{max}} 字元，無法內嵌到輸入框，已保留為檔案附件。",
   "chat.input.pasted_text_file_name": "已貼上的文字.txt",
   "chat.input.pause": "暫停",
   "chat.input.placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",

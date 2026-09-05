@@ -223,7 +223,7 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
-  await actions.copyText?.(messageToPlainText(messageForExport), {
+  await actions.copyText?.(await messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
 })

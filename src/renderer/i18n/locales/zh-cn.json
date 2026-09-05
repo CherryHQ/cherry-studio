@@ -638,6 +638,7 @@
   "chat.input.note_reference.loading": "正在加载笔记...",
   "chat.input.note_reference.title": "引用笔记",
   "chat.input.paste_text_file": "粘贴到输入框",
+  "chat.input.paste_text_too_long": "粘贴的文本超过 {{max}} 字符，无法内联到输入框，已保留为文件附件。",
   "chat.input.pasted_text_file_name": "已粘贴的文本.txt",
   "chat.input.pause": "暂停",
   "chat.input.placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",
