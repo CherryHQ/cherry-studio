@@ -589,7 +589,9 @@ describe('ProviderRegistryService', () => {
         preferredEndpointType: 'anthropic-messages'
       })
 
-      expect(result.reasoningProfile.format).toBe('openai-responses')
+      // Anthropic is unconfigured, so the pin is declined and the lookup lands where a request would:
+      // the provider's default chat endpoint, which this model declares.
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
 
     it('should rethrow provider lookup errors instead of silently using registry defaults', async () => {
