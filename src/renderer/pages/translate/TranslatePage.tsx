@@ -7,7 +7,8 @@ import { loggerService } from '@logger'
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -67,6 +68,7 @@ import type {
 } from './pdf/PdfTranslationView'
 import type { TranslationFiles } from './translationFiles'
 import { usePacedMarkdownOutput } from './usePacedMarkdownOutput'
+import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const TranslateHistoryList = lazy(() => import('./components/TranslateHistory'))
@@ -229,6 +231,8 @@ const TranslatePage: FC = () => {
   const [isScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
+
+  const translateReasoning = useTranslateReasoningEffort()
 
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
@@ -689,8 +693,8 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
 
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
+  const modelSelectorFilter = useCallback<ModelSelectorFilter>(
+    (model) =>
       !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
@@ -1034,6 +1038,14 @@ const TranslatePage: FC = () => {
                 </Button>
               }
             />
+            {translateReasoning.supportsReasoning && translateReasoning.model && (
+              <ModelSpeedControl
+                side="bottom"
+                model={translateReasoning.model}
+                reasoningEffort={translateReasoning.effort}
+                onReasoningEffortChange={translateReasoning.selectEffort}
+              />
+            )}
             <Button
               variant="ghost"
               size="icon-sm"

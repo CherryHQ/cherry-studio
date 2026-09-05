@@ -1,9 +1,10 @@
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,11 @@ const translateLanguageMutationsMock = vi.hoisted(() => ({
 }))
 
 let mockLanguages: TranslateLanguage[] = []
+let mockTranslateModel: Model | undefined
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: () => ({ model: mockTranslateModel })
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -126,8 +132,46 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
-    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange(!checked)} />
+  RadioGroup: ({ children }: { children: React.ReactNode }) => <div role="radiogroup">{children}</div>,
+  RadioGroupItem: ({ value }: { value: string }) => <button type="button" role="radio" data-value={value} />,
+  EditableNumber: ({ value, onChange }: { value: number; onChange: (value: number) => void }) => (
+    <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+  ),
+  Slider: ({
+    value,
+    max,
+    onValueChange,
+    onValueCommit,
+    getThumbAriaLabel,
+    ...props
+  }: {
+    value: number[]
+    max: number
+    onValueChange?: (value: number[]) => void
+    onValueCommit?: (value: number[]) => void
+    getThumbAriaLabel?: (index: number) => string
+    'aria-label'?: string
+  }) => (
+    <div role="slider" aria-label={props['aria-label'] ?? getThumbAriaLabel?.(0)} data-value={value[0]}>
+      <button type="button" data-testid="slider-drag" onClick={() => onValueChange?.([max])} />
+      <button type="button" data-testid="slider-commit" onClick={() => onValueCommit?.([max])} />
+    </div>
+  ),
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: {
+    checked: boolean
+    onCheckedChange: (value: boolean) => void
+    'aria-label'?: string
+  }) => (
+    <button
+      type="button"
+      aria-label={props['aria-label']}
+      aria-pressed={checked}
+      onClick={() => onCheckedChange(!checked)}
+    />
   ),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
@@ -430,5 +474,130 @@ describe('TranslateSettingsPanelContent', () => {
     })
 
     await waitFor(() => expect(translateLanguageMutationsMock.remove).toHaveBeenCalledWith('xk-la'))
+  })
+})
+
+describe('translate model parameters', () => {
+  const reasoningModel = {
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    apiModelId: 'gpt-5',
+    name: 'GPT-5',
+    capabilities: [MODEL_CAPABILITY.REASONING],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
+      defaultEffort: 'medium',
+      selectableEfforts: ['low', 'medium', 'high']
+    }
+  } satisfies Model
+
+  const plainModel = {
+    id: 'openai::gpt-4.1',
+    providerId: 'openai',
+    apiModelId: 'gpt-4.1',
+    name: 'GPT-4.1',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+
+  const setters = new Map<string, ReturnType<typeof vi.fn>>()
+  const setterFor = (key: string) => {
+    const existing = setters.get(key)
+    if (existing) return existing
+    const setter = vi.fn().mockResolvedValue(undefined)
+    setters.set(key, setter)
+    return setter
+  }
+
+  beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
+    mockLanguages = []
+    mockTranslateModel = undefined
+    setters.clear()
+
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_prompt': TRANSLATE_PROMPT,
+      'feature.translate.model_id': 'openai::gpt-5',
+      'feature.translate.enable_temperature': false,
+      'feature.translate.temperature': 1,
+      'feature.translate.enable_top_p': false,
+      'feature.translate.top_p': 1,
+      'feature.translate.reasoning_effort': 'none'
+    })
+    mockUsePreference.mockImplementation((key: string) => [
+      MockUsePreferenceUtils.getPreferenceValue(key as any),
+      setterFor(key)
+    ])
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('enables temperature from the panel', async () => {
+    render(<TranslateSettingsPanelContent />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.basic.temperature' }))
+
+    await waitFor(() => expect(setterFor('feature.translate.enable_temperature')).toHaveBeenCalledWith(true))
+  })
+
+  it('persists a sampling value on release rather than on every drag step', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.enable_temperature', true)
+    render(<TranslateSettingsPanelContent />)
+
+    const slider = within(screen.getByRole('slider', { name: 'library.config.basic.temperature' }))
+    fireEvent.click(slider.getByTestId('slider-drag'))
+    expect(setterFor('feature.translate.temperature')).not.toHaveBeenCalled()
+
+    fireEvent.click(slider.getByTestId('slider-commit'))
+    await waitFor(() => expect(setterFor('feature.translate.temperature')).toHaveBeenCalledWith(2))
+  })
+
+  it('offers reasoning effort only for a model that declares it', () => {
+    mockTranslateModel = plainModel
+    const { rerender } = render(<TranslateSettingsPanelContent />)
+    expect(screen.queryByText('assistants.settings.reasoning_effort.label')).not.toBeInTheDocument()
+
+    mockTranslateModel = reasoningModel
+    rerender(<TranslateSettingsPanelContent />)
+    expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument()
+  })
+
+  it('keeps a stored effort the model does not declare instead of rewriting it', async () => {
+    // Switching to a narrower model must not cost the user their choice: the control
+    // shows provider Default, and Main resolves the stored value per request on its own.
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'max')
+    mockTranslateModel = reasoningModel
+
+    render(<TranslateSettingsPanelContent />)
+
+    await waitFor(() => expect(screen.getByText('assistants.settings.reasoning_effort.label')).toBeInTheDocument())
+    expect(setterFor('feature.translate.reasoning_effort')).not.toHaveBeenCalled()
+  })
+
+  it('does not touch the stored effort for a model with no reasoning at all', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    mockTranslateModel = plainModel
+
+    render(<TranslateSettingsPanelContent />)
+
+    await waitFor(() => expect(screen.getByText('library.config.basic.temperature')).toBeInTheDocument())
+    expect(setterFor('feature.translate.reasoning_effort')).not.toHaveBeenCalled()
+  })
+
+  it('persists the effort the user picks', async () => {
+    mockTranslateModel = reasoningModel
+    render(<TranslateSettingsPanelContent />)
+
+    // The effort slider commits on change, unlike the sampling sliders below it.
+    fireEvent.click(within(screen.getByRole('slider', { name: 'agent.speed.effort' })).getByTestId('slider-drag'))
+
+    await waitFor(() => expect(setterFor('feature.translate.reasoning_effort')).toHaveBeenCalledWith('high'))
   })
 })

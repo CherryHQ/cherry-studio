@@ -168,17 +168,18 @@ vi.mock('@renderer/hooks/useJob', () => ({
   useJob: useJobMock
 }))
 
+const mockModel = {
+  id: 'openai::gpt-4.1',
+  providerId: 'openai',
+  name: 'GPT-4.1',
+  capabilities: [],
+  isHidden: false
+}
+
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({
-    models: [
-      {
-        id: 'openai::gpt-4.1',
-        providerId: 'openai',
-        name: 'GPT-4.1',
-        capabilities: [],
-        isHidden: false
-      }
-    ]
+  useModels: () => ({ models: [mockModel] }),
+  useModelById: (uniqueModelId: string | null | undefined) => ({
+    model: uniqueModelId === mockModel.id ? mockModel : undefined
   })
 }))
 

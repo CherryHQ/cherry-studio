@@ -89,8 +89,7 @@ export async function installArtifact(
   const platform = artifactPlatformFiles(artifact)
   if (!platform) return // nothing ships for this platform
 
-  const rootDir = application.getPath(artifact.installDirKey)
-  const tmpDir = path.join(rootDir, '.tmp')
+  const tmpDir = artifactStagingDir(artifact)
   await fs.promises.mkdir(tmpDir, { recursive: true })
   const tarballPath = path.join(tmpDir, `${artifact.packageName}-${artifact.version}.tgz`)
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
@@ -146,6 +145,11 @@ async function installExtractedFiles(
   for (const file of [...platform.supportFiles, platform.entryFile]) {
     await fs.promises.rename(path.join(extractDir, file), path.join(installDir, file))
   }
+}
+
+/** Where {@link installArtifact} stages the tarball and its extracted files. */
+export function artifactStagingDir(artifact: SharedArtifact): string {
+  return application.getPath(artifact.installDirKey, '.tmp')
 }
 
 /** Deletes every installed copy of the artifact, including other platforms' leftovers. */

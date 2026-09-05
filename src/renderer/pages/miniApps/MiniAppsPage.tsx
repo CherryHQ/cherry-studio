@@ -3,14 +3,16 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { toast } from '@renderer/services/toast'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { Menu, PackagePlus, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -33,7 +35,38 @@ const MiniAppsPage: FC = () => {
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
-  const { allApps, miniApps, isLoading, error } = useMiniApps()
+  const {
+    allApps,
+    miniApps,
+    pinned,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    isLoading,
+    error,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp
+  } = useMiniApps()
+  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
+  const { openTab } = useTabs()
+  const openTabRef = useRef(openTab)
+  openTabRef.current = openTab
+  const miniAppsRef = useRef(miniApps)
+  miniAppsRef.current = miniApps
+  const pinnedIds = useMemo(() => new Set(pinned.map((app) => app.appId)), [pinned])
+  const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
+  const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
+    openTabRef.current(`/app/mini-app/${appId}`, {
+      title: displayName,
+      icon
+    })
+  }, [])
+  const editCustomApp = useCallback((appId: string) => {
+    const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+    if (app) setEditingApp(app)
+  }, [])
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
   const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
@@ -157,7 +190,22 @@ const MiniAppsPage: FC = () => {
                 {filteredApps.length > 0 && (
                   <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 px-2 pt-12 pb-8 sm:gap-x-5 md:gap-x-6">
                     {filteredApps.map((app) => (
-                      <App key={app.appId} app={app} size={56} variant="launchpad" onEditCustom={setEditingApp} />
+                      <App
+                        key={app.appId}
+                        app={app}
+                        size={56}
+                        variant="launchpad"
+                        onOpen={openMiniApp}
+                        onEditCustom={editCustomApp}
+                        onUpdateStatus={updateAppStatus}
+                        onHide={hideMiniApp}
+                        onRemoveCustom={removeCustomMiniApp}
+                        onToggleSidebarFavorite={toggleMiniApp}
+                        isPinned={pinnedIds.has(app.appId)}
+                        isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
+                        isOpened={openedIds.has(app.appId)}
+                        isActive={miniAppShow && currentMiniAppId === app.appId}
+                      />
                     ))}
                     <Button
                       type="button"
@@ -168,7 +216,7 @@ const MiniAppsPage: FC = () => {
                       <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
                         <Plus className="size-6" strokeWidth={1.5} />
                       </span>
-                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] leading-[18px]">
+                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px]">
                         {t('miniApp.add.title')}
                       </span>
                     </Button>
