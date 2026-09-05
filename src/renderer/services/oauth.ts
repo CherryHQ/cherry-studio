@@ -35,7 +35,8 @@ interface PopupMessageOAuthOptions<T> {
   onError?: (error: unknown) => void
 }
 
-class PopupFlowRegistry {
+/** Owns the active popup flows so replacement and teardown stay lifecycle-safe. */
+class OAuthPopupFlowManager {
   readonly #cleanups = new Map<string, () => void>()
 
   retire(popupName: string): void {
@@ -52,12 +53,12 @@ class PopupFlowRegistry {
   }
 }
 
-const popupFlowRegistry = new PopupFlowRegistry()
+const oauthPopupFlowManager = new OAuthPopupFlowManager()
 
 function openNamedPopup(authUrl: string, popupName: string, features: string): Window | null {
   const popup = window.open(authUrl, popupName, features)
   // Only retire the current flow once its replacement actually opens.
-  if (popup) popupFlowRegistry.retire(popupName)
+  if (popup) oauthPopupFlowManager.retire(popupName)
   return popup
 }
 
@@ -114,7 +115,7 @@ function startPopupMessageOAuth<T>({
     stopListening()
     window.clearInterval(closePollId)
     window.clearTimeout(timeoutId)
-    popupFlowRegistry.release(popupName, finish)
+    oauthPopupFlowManager.release(popupName, finish)
   }
 
   function messageHandler(event: MessageEvent): void {
@@ -148,7 +149,7 @@ function startPopupMessageOAuth<T>({
   }, OAUTH_POPUP_CLOSE_POLL_MS)
   const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
 
-  popupFlowRegistry.register(popupName, finish)
+  oauthPopupFlowManager.register(popupName, finish)
   window.addEventListener('message', messageHandler)
 }
 
