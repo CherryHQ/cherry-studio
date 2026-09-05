@@ -42,7 +42,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { PI_NATIVE_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -101,7 +101,6 @@ const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   )
 )
 const PI_APPROVAL_REQUIRED_TOOLS = new Set([
-  PI_TOOL_EXEC_TOOL_NAME,
   ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
   )

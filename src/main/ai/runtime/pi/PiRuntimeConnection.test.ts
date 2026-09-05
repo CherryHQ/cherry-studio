@@ -1654,7 +1654,7 @@ describe('PiRuntimeConnection', () => {
       await conn.close()
     })
 
-    it('always prompts before running tool_exec, including in auto mode', async () => {
+    it('lets auto mode enter tool_exec so nested calls use their own approval policy', async () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         model: 'p::m',
@@ -1673,7 +1673,7 @@ describe('PiRuntimeConnection', () => {
       )
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(toolApprovalRegistry.size()).toBe(1)
+      expect(toolApprovalRegistry.size()).toBe(0)
       await conn.close()
     })
   })
