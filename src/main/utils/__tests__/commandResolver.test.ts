@@ -1053,17 +1053,26 @@ describe('findCommandInShellEnv', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null when command not found', async () => {
+    it.each([1, 127])('returns null for command-not-found shell exit code %i', async (code) => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
       const resultPromise = findCommandInShellEnv('nonexistent', { PATH: '/usr/bin' })
 
-      // Simulate command not found (exit code 1)
-      mockChild.emit('close', 1)
+      mockChild.emit('close', code)
 
       const result = await resultPromise
       expect(result).toBeNull()
+    })
+
+    it('rejects shell execution errors instead of reporting a missing executable', async () => {
+      const mockChild = createMockChildProcess()
+      vi.mocked(spawn).mockReturnValue(mockChild as never)
+
+      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
+      mockChild.emit('close', 2)
+
+      await expect(resultPromise).rejects.toThrow('Command lookup exited with code 2')
     })
 
     it('surfaces spawn failures separately from missing executables', async () => {

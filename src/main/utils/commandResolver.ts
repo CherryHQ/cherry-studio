@@ -241,7 +241,7 @@ export async function findCommandInShellEnv(
           logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
           safeResolve(null)
         }
-      } else if (code === 1 || code === 0) {
+      } else if (code === 1 || code === 127 || code === 0) {
         logger.debug(`Command '${command}' not found in shell environment`)
         safeResolve(null)
       } else {
