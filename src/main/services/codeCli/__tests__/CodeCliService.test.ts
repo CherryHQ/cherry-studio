@@ -12,6 +12,11 @@ const binaryManagerMock = vi.hoisted(() => ({
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
+const secretEnvHandoffMock = vi.hoisted(() => ({
+  prepare: vi.fn(),
+  removeAll: vi.fn(),
+  removeExpired: vi.fn()
+}))
 const skillServiceMock = vi.hoisted(() => ({
   syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
   uninstallBuiltinSkill: vi.fn(() => Promise.resolve(false))
@@ -40,6 +45,10 @@ vi.mock('@application', () => ({
 
 vi.mock('../antigravity', () => ({
   prepareAntigravityLaunch: antigravityLaunchMock
+}))
+
+vi.mock('../SecretEnvHandoff', () => ({
+  SecretEnvHandoff: secretEnvHandoffMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -148,10 +157,28 @@ async function loadModules() {
   return { BaseService, CodeCliService, codeCliService }
 }
 
+let handoffSequence = 0
+
+function makeSecretEnvHandoff(overrides: { launchId?: string; path?: string } = {}) {
+  const launchId = overrides.launchId ?? `00000000-0000-4000-8000-${String(++handoffSequence).padStart(12, '0')}`
+  const handoffPath = overrides.path ?? `/mock/antigravity data/launch/${launchId}.env`
+  return {
+    launchId,
+    path: handoffPath,
+    wrapPosixCommand: vi.fn((command: string) => `__CHERRY_SECRET_ENV_POSIX__ ${handoffPath} && ${command}`),
+    wrapWindowsCommand: vi.fn((command: string) => [
+      `:: __CHERRY_SECRET_ENV_WINDOWS__ ${handoffPath.replace(/%/g, '%%')}`,
+      command
+    ]),
+    handoff: vi.fn((startTerminal: () => Promise<unknown>) => startTerminal())
+  }
+}
+
 describe('CodeCliService', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    handoffSequence = 0
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
@@ -177,13 +204,19 @@ describe('CodeCliService', () => {
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
     antigravityLaunchMock.mockResolvedValue({
-      env: {
-        GEMINI_API_KEY: 'antigravity-secret',
-        GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+      secretEnv: {
+        values: {
+          GEMINI_API_KEY: 'test-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://example.test'
+        },
+        clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
       },
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
+    secretEnvHandoffMock.prepare.mockImplementation(() => makeSecretEnvHandoff())
+    secretEnvHandoffMock.removeAll.mockResolvedValue(undefined)
+    secretEnvHandoffMock.removeExpired.mockResolvedValue(undefined)
   })
 
   it('should extend BaseService', async () => {
@@ -195,6 +228,26 @@ describe('CodeCliService', () => {
     const { codeCliService } = await loadModules()
     await expect(codeCliService._doInit()).resolves.toBeUndefined()
     expect(codeCliService.isReady).toBe(true)
+  })
+
+  it('owns handoff cleanup from initialization through stop', async () => {
+    vi.useFakeTimers()
+    secretEnvHandoffMock.removeAll.mockRejectedValueOnce(new Error('EACCES'))
+    try {
+      const { codeCliService } = await loadModules()
+      await expect(codeCliService._doInit()).resolves.toBeUndefined()
+
+      expect(secretEnvHandoffMock.removeAll).toHaveBeenCalledWith('/mock/binary-data')
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(secretEnvHandoffMock.removeExpired).toHaveBeenCalledWith('/mock/binary-data')
+
+      await codeCliService._doStop()
+      expect(secretEnvHandoffMock.removeAll).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(secretEnvHandoffMock.removeExpired).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reconciles available CLI skills only after every service is ready', async () => {
@@ -211,13 +264,6 @@ describe('CodeCliService', () => {
       '2.0.9',
       'code-cli:openai-codex'
     )
-  })
-
-  it('should clean up timers on stop', async () => {
-    const { codeCliService } = await loadModules()
-    await codeCliService._doInit()
-    await expect(codeCliService._doStop()).resolves.toBeUndefined()
-    expect(codeCliService.isStopped).toBe(true)
   })
 
   it('should prevent double instantiation', async () => {
@@ -589,7 +635,9 @@ describe('CodeCliService', () => {
       }
     }
 
-    it('quotes the isolated directory and model while injecting Cherry credentials for a normal launch', async () => {
+    it('quotes the isolated directory and model and imports the credential file instead of its values', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.prepare.mockReturnValueOnce(handoff)
       const { result, script } = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.ANTIGRAVITY_CLI,
@@ -604,8 +652,40 @@ describe('CodeCliService', () => {
       )
       expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
       expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
-      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+      expect(secretEnvHandoffMock.prepare).toHaveBeenCalledWith(
+        '/mock/binary-data',
+        expect.objectContaining({
+          values: expect.objectContaining({ GEMINI_API_KEY: 'test-secret' })
+        })
+      )
+      expect(handoff.wrapPosixCommand).toHaveBeenCalledWith(expect.stringContaining('--gemini_dir='))
+      expect(handoff.handoff).toHaveBeenCalledOnce()
+      expect(script).toContain('__CHERRY_SECRET_ENV_POSIX__')
+      expect(script).toContain(handoff.path)
+      expect(script).not.toContain('test-secret')
     })
+
+    it.each([TerminalApp.ITERM2, TerminalApp.TABBY])(
+      'hands %s the credential file path rather than its contents',
+      async (terminal) => {
+        const handoff = makeSecretEnvHandoff()
+        secretEnvHandoffMock.prepare.mockReturnValueOnce(handoff)
+        childProcessMock.execFileAsync.mockResolvedValue({ stdout: '/Applications/Terminal.app' })
+        const { result, script } = await launchScript({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: '/tmp/project',
+          terminal
+        })
+
+        expect(result.success).toBe(true)
+        expect(script).toContain(handoff.path)
+        expect(handoff.wrapPosixCommand).toHaveBeenCalledOnce()
+        expect(script).not.toContain('test-secret')
+      }
+    )
 
     it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
       const { result, script } = await launchScript({
@@ -623,7 +703,10 @@ describe('CodeCliService', () => {
 
     it('rejects an unsafe resolved model before opening a terminal', async () => {
       antigravityLaunchMock.mockResolvedValueOnce({
-        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        secretEnv: {
+          values: { GEMINI_API_KEY: 'test-secret' },
+          clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
+        },
         geminiDir: '/mock/antigravity',
         model: 'gemini; open /Applications/Calculator.app'
       })
@@ -640,37 +723,7 @@ describe('CodeCliService', () => {
       if (result.success) throw new Error('Expected Antigravity launch to fail')
       expect(result.message).toContain('Unsupported model id')
       expect(script).toBe('')
-    })
-
-    it('redacts injected values from main-process logs', async () => {
-      antigravityLaunchMock.mockResolvedValueOnce({
-        env: {
-          TEST_SHORT: '1',
-          GEMINI_API_KEY: 'cs-sk-101-secret',
-          GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
-        },
-        geminiDir: '/mock/antigravity data',
-        model: 'gemini-2.5-pro'
-      })
-      const { result } = await launchScript({
-        mode: 'normal',
-        cliTool: CodeCli.ANTIGRAVITY_CLI,
-        providerId: 'gemini',
-        model: 'gemini-2.5-pro',
-        directory: '/tmp/project'
-      })
-
-      expect(result.success).toBe(true)
-      const logged = JSON.stringify([
-        ...loggerMock.info.mock.calls,
-        ...loggerMock.debug.mock.calls,
-        ...loggerMock.warn.mock.calls,
-        ...loggerMock.error.mock.calls
-      ])
-      expect(logged).not.toContain('cs-sk-')
-      expect(logged).not.toContain('101-secret')
-      expect(logged).not.toContain('https://gemini.example.test')
-      expect(logged).toContain('GEMINI_API_KEY')
+      expect(secretEnvHandoffMock.prepare).not.toHaveBeenCalled()
     })
   })
 
@@ -897,13 +950,13 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+        expect(batPath).toMatch(/launch_claude-code_[0-9a-f-]{36}\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
         // The executable path crosses the same boundary as the directory paths.
         expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
-        // The temp script can embed injected credentials via the env prefix; keep it owner-only.
+        // Paths may still be sensitive even though credentials no longer enter this file.
         expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(batPath, 0o600)
 
         const launch = vi.mocked(spawn).mock.calls.at(-1)
@@ -916,12 +969,87 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('%-doubles the Antigravity isolated dir and carries a gateway model into the .bat verbatim', async () => {
+    it('keeps two same-millisecond Antigravity launches in separate .bat files', async () => {
+      const handoffA = makeSecretEnvHandoff({
+        launchId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        path: 'C:\\launch\\aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.env'
+      })
+      const handoffB = makeSecretEnvHandoff({
+        launchId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        path: 'C:\\launch\\bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.env'
+      })
+      secretEnvHandoffMock.prepare.mockReturnValueOnce(handoffA).mockReturnValueOnce(handoffB)
+
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-31T08:00:00Z'))
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        const input = {
+          mode: 'normal' as const,
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        }
+
+        await expect(codeCliService.run(input)).resolves.toEqual({ success: true })
+        await expect(codeCliService.run(input)).resolves.toEqual({ success: true })
+
+        const writes = vi.mocked(fs.writeFileSync).mock.calls.slice(-2) as unknown as [string, string][]
+        expect(writes[0][0]).not.toBe(writes[1][0])
+        expect(writes[0][0]).toContain(handoffA.launchId)
+        expect(writes[1][0]).toContain(handoffB.launchId)
+        expect(writes[0][1]).toContain(handoffA.path)
+        expect(writes[0][1]).not.toContain(handoffB.path)
+        expect(writes[1][1]).toContain(handoffB.path)
+        expect(writes[1][1]).not.toContain(handoffA.path)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('removes a written Windows launch script when securing it fails before handoff', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.prepare.mockReturnValueOnce(handoff)
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.chmodSync).mockImplementationOnce(() => {
+        throw new Error('chmod failed')
+      })
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+      ).rejects.toThrow('Failed to create launch script')
+
+      const [batPath] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string]
+      expect(fs.unlinkSync).toHaveBeenCalledWith(batPath)
+      expect(handoff.handoff).not.toHaveBeenCalled()
+    })
+
+    it('uses one launch identity for the Antigravity handoff and .bat without writing secret values', async () => {
       antigravityLaunchMock.mockResolvedValueOnce({
-        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        secretEnv: {
+          values: {
+            GEMINI_API_KEY: 'windows-secret',
+            GOOGLE_GEMINI_BASE_URL: 'https://example.test'
+          },
+          clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
+        },
         geminiDir: 'C:\\Users\\me\\100% data\\Antigravity',
         model: 'gemini-api://618d8838/models/gemini-2.5-pro'
       })
+      const handoff = makeSecretEnvHandoff({
+        launchId: '12345678-1234-4123-8123-123456789abc',
+        path: 'C:\\Users\\me\\100% data\\Antigravity\\launch\\12345678-1234-4123-8123-123456789abc.env'
+      })
+      secretEnvHandoffMock.prepare.mockReturnValueOnce(handoff)
 
       vi.useFakeTimers()
       try {
@@ -937,13 +1065,51 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
-        const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        const [batPath, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        expect(batPath).toContain(handoff.launchId)
         // CMD expands %…% even inside double quotes, so the isolated dir must be %-doubled
         // or the CLI lands on a truncated --gemini_dir and rewrites the wrong settings.json.
         expect(batContent).toContain('"--gemini_dir=C:\\Users\\me\\100%% data\\Antigravity"')
         // The gateway address carries `://` and `/models/`; the route parses it back into
         // `providerId:apiModelId`, so quoting must not mangle or split it.
         expect(batContent).toContain('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
+        expect(handoff.wrapWindowsCommand).toHaveBeenCalledWith(
+          expect.stringContaining('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
+        )
+        expect(batContent).toContain('setlocal EnableExtensions DisableDelayedExpansion')
+        expect(batContent.indexOf('setlocal EnableExtensions DisableDelayedExpansion')).toBeLessThan(
+          batContent.indexOf('echo Directory:')
+        )
+        expect(batContent).toContain('__CHERRY_SECRET_ENV_WINDOWS__ C:\\Users\\me\\100%% data')
+        expect(batContent).not.toContain('windows-secret')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('hands WSL the same .bat, so no credential has to cross the Windows/WSL environment boundary', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project',
+          terminal: TerminalApp.WSL
+        })
+
+        expect(result.success).toBe(true)
+        const launch = vi.mocked(spawn).mock.calls.at(-1)!
+        expect(launch[0]).toBe('wsl')
+        expect((launch[1] as string[]).join(' ')).not.toContain('test-secret')
+        const batContent = vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1] as string
+        expect(batContent).toContain('__CHERRY_SECRET_ENV_WINDOWS__')
+        expect(batContent).not.toContain('test-secret')
       } finally {
         vi.useRealTimers()
       }

@@ -1,7 +1,7 @@
 import { TerminalApp } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS } from '../terminals'
+import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS, WINDOWS_TERMINALS_WITH_COMMANDS } from '../terminals'
 
 function commandFor(id: TerminalApp) {
   const cfg = MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === id)
@@ -23,13 +23,49 @@ describe('escapeForAppleScript', () => {
   })
 })
 
-// AppleScript adapters (Terminal / iTerm2 / Tabby) route fullCommand through escapeForAppleScript, so
+// AppleScript adapters (Terminal / iTerm2) route fullCommand through escapeForAppleScript, so
 // a single quote in the command lands as the escaped form and cannot break out of the -e '…' quote.
 describe('macOS AppleScript terminal builders neutralize single quotes in fullCommand', () => {
-  it.each([TerminalApp.SYSTEM_DEFAULT, TerminalApp.ITERM2, TerminalApp.TABBY])('for %s', (id) => {
+  it.each([TerminalApp.SYSTEM_DEFAULT, TerminalApp.ITERM2])('for %s', (id) => {
     const { args } = commandFor(id)('/tmp/project', "echo 'x' && $(reboot)")
     const script = args.join('\n')
     expect(script).toContain("'\\''") // the raw ' was rewritten to '\''
+  })
+})
+
+it('launches Tabby through its command runner without touching the clipboard', () => {
+  const fullCommand = "cd '/tmp/project' && run"
+  const launch = commandFor(TerminalApp.TABBY)('/tmp/project', fullCommand)
+  const serialized = [launch.command, ...launch.args].join(' ')
+
+  expect(launch).toEqual({
+    command: 'open',
+    args: ['-na', 'Tabby', '--args', 'run', 'sh', '-c', fullCommand]
+  })
+  expect(serialized).not.toContain('clipboard')
+  expect(serialized).not.toContain('keystroke')
+  expect(serialized).not.toContain('osascript')
+})
+
+// `wt` must stay on the bare `--` passthrough: subcommands and flags such as `--inheritEnvironment`
+// only parse on Windows Terminal >= 1.18, and older builds abort without ever opening a window.
+it('launches Windows Terminal through the version-portable -- passthrough', () => {
+  const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((terminal) => terminal.id === TerminalApp.WINDOWS_TERMINAL)
+  if (!cfg) throw new Error('no Windows Terminal builder')
+
+  expect(cfg.command('C:\\project', 'C:\\launch.bat')).toEqual({
+    command: 'wt',
+    args: ['--', 'cmd', '/c', 'C:\\launch.bat']
+  })
+})
+
+it('quotes Windows launch scripts before crossing the WSL shell boundary', () => {
+  const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((terminal) => terminal.id === TerminalApp.WSL)
+  if (!cfg) throw new Error('no WSL terminal builder')
+
+  expect(cfg.command('C:\\project', "C:\\Users\\O'Brien\\launch.bat")).toEqual({
+    command: 'wsl',
+    args: ['bash', '-c', "cmd.exe /c 'C:\\Users\\O'\\''Brien\\launch.bat' ; read -p 'Press Enter to exit'"]
   })
 })
 
