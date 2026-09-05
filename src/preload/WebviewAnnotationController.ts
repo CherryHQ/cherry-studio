@@ -22,6 +22,16 @@ const REGION_CONTAINMENT_RATIO = 0.6
 // ponytail: flat visit cap instead of spatial pruning — absolutely positioned
 // children can escape their parent's box, so subtree pruning would miss them.
 const REGION_WALK_BUDGET = 5_000
+const POSITION_MOTION_EVENTS = [
+  'animationstart',
+  'animationiteration',
+  'animationend',
+  'animationcancel',
+  'transitionrun',
+  'transitionstart',
+  'transitionend',
+  'transitioncancel'
+] as const
 
 const createGuestUuid = () => uuidv4({ random: crypto.getRandomValues(new Uint8Array(16)) })
 
@@ -1064,8 +1074,13 @@ export class WebviewAnnotationController {
   }
 
   private stopPositionTracking() {
+    if (this.updateFrame !== null) {
+      cancelAnimationFrame(this.updateFrame)
+      this.updateFrame = null
+    }
     this.mutationObserver?.disconnect()
     this.mutationObserver = null
+    for (const root of this.observedRoots) this.removeMotionListeners(root)
     this.observedRoots = new Set<Document | ShadowRoot>()
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
@@ -1079,7 +1094,12 @@ export class WebviewAnnotationController {
   private observeRoot(root: Document | ShadowRoot) {
     if (!this.mutationObserver || this.observedRoots.has(root)) return
     this.mutationObserver.observe(root, { childList: true, subtree: true, attributes: true, characterData: true })
+    for (const eventType of POSITION_MOTION_EVENTS) root.addEventListener(eventType, this.handleMotionEvent, true)
     this.observedRoots.add(root)
+  }
+
+  private removeMotionListeners(root: Document | ShadowRoot) {
+    for (const eventType of POSITION_MOTION_EVENTS) root.removeEventListener(eventType, this.handleMotionEvent, true)
   }
 
   private observeElementRoot(element: Element) {
@@ -1100,10 +1120,12 @@ export class WebviewAnnotationController {
     }
     for (const element of this.annotationElements.values()) collect(element)
     collect(this.editorElement)
+    collect(this.highlightElement)
     if (this.enabled) for (const iframe of this.iframeShields.keys()) collect(iframe)
 
     if (next.size === this.observedRoots.size && Array.from(next).every((root) => this.observedRoots.has(root))) return
     this.mutationObserver.disconnect()
+    for (const root of this.observedRoots) this.removeMotionListeners(root)
     this.observedRoots.clear()
     for (const root of next) this.observeRoot(root)
   }
@@ -1116,6 +1138,7 @@ export class WebviewAnnotationController {
     }
     for (const element of this.annotationElements.values()) collect(element)
     collect(this.editorElement)
+    collect(this.highlightElement)
     if (this.enabled) for (const iframe of this.iframeShields.keys()) collect(iframe)
 
     for (const element of this.resizeObservedElements) {
@@ -1132,7 +1155,55 @@ export class WebviewAnnotationController {
     this.updateFrame = requestAnimationFrame(() => {
       this.updateFrame = null
       this.updatePositions()
+      if (this.hasActiveTargetAnimations()) this.schedulePositionUpdate()
     })
+  }
+
+  private trackedPositionElements() {
+    const elements = new Set<Element>()
+    for (const annotation of this.annotations) {
+      if (annotation.region) continue
+      const element = this.annotationElements.get(annotation.id)
+      if (element) elements.add(element)
+    }
+    if (this.editorElement) elements.add(this.editorElement)
+    if (this.highlightElement) elements.add(this.highlightElement)
+    if (this.enabled) for (const iframe of this.iframeShields.keys()) elements.add(iframe)
+    return elements
+  }
+
+  private isTrackedElementOrAncestor(element: Element) {
+    for (const tracked of this.trackedPositionElements()) {
+      for (let current: Element | null = tracked; current; current = composedParent(current)) {
+        if (current === element) return true
+      }
+    }
+    return false
+  }
+
+  private hasActiveTargetAnimations() {
+    if (!this.overlayHost?.isConnected) return false
+    const visited = new Set<Element>()
+    for (const tracked of this.trackedPositionElements()) {
+      for (let current: Element | null = tracked; current?.isConnected; current = composedParent(current)) {
+        if (visited.has(current)) continue
+        visited.add(current)
+        try {
+          if (current.getAnimations?.().some((animation) => animation.playState === 'running' || animation.pending)) {
+            return true
+          }
+        } catch {
+          // Some guest elements can reject animation inspection while detaching.
+        }
+      }
+    }
+    return false
+  }
+
+  private handleMotionEvent = (event: Event) => {
+    if (event.target instanceof Element && this.isTrackedElementOrAncestor(event.target)) {
+      this.schedulePositionUpdate()
+    }
   }
 
   private resolveAnnotationElement(annotation: WebviewAnnotation) {

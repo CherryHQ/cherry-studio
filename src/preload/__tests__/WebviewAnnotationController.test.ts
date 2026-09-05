@@ -61,6 +61,7 @@ const privateController = (controller: WebviewAnnotationController) =>
     openEditor: (
       request: { mode: 'create-element'; element: Element } | { mode: 'edit'; element: Element; annotationId: string }
     ) => void
+    schedulePositionUpdate: () => void
     updatePositions: () => void
   }
 
@@ -96,6 +97,31 @@ const mockRect = (element: Element, left: number, top: number, width: number, he
     y: top,
     toJSON: () => ({})
   } as DOMRect)
+}
+
+const installFrameDriver = () => {
+  let nextId = 1
+  const callbacks = new Map<number, FrameRequestCallback>()
+  const request = vi.fn((callback: FrameRequestCallback) => {
+    const id = nextId++
+    callbacks.set(id, callback)
+    return id
+  })
+  const cancel = vi.fn((id: number) => callbacks.delete(id))
+  vi.stubGlobal('requestAnimationFrame', request)
+  vi.stubGlobal('cancelAnimationFrame', cancel)
+  return {
+    cancel,
+    get pending() {
+      return callbacks.size
+    },
+    runNext() {
+      const entry = callbacks.entries().next().value as [number, FrameRequestCallback] | undefined
+      if (!entry) throw new Error('No animation frame was scheduled')
+      callbacks.delete(entry[0])
+      entry[1](entry[0])
+    }
+  }
 }
 
 const trustedPointerEvent = (
@@ -964,6 +990,164 @@ describe('WebviewAnnotationController interactions', () => {
     left = 90
     notifyResize?.()
     await vi.waitFor(() => expect(pin?.style.left).toBe('90px'))
+  })
+
+  it('tracks animated annotation targets through their final frame and keeps iframe shields aligned', async () => {
+    const ancestor = document.createElement('section')
+    const button = document.createElement('button')
+    button.id = 'animated-target'
+    ancestor.appendChild(button)
+    const iframe = document.createElement('iframe')
+    document.body.append(ancestor, iframe)
+    let left = 10
+    let iframeLeft = 30
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 20,
+          right: left + 100,
+          bottom: 60,
+          width: 100,
+          height: 40,
+          x: left,
+          y: 20,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left: iframeLeft,
+          top: 40,
+          right: iframeLeft + 200,
+          bottom: 160,
+          width: 200,
+          height: 120,
+          x: iframeLeft,
+          y: 40,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    let playState: AnimationPlayState = 'finished'
+    let animationPending = false
+    Object.defineProperty(ancestor, 'getAnimations', {
+      configurable: true,
+      value: vi.fn(() => [{ pending: animationPending, playState }])
+    })
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: button })
+    saveEditor(controller, emissions, 'Follow the animation')
+    const annotation = readSnapshot(controller, emissions)[0]
+    internals.openEditor({ mode: 'edit', element: button, annotationId: annotation.id })
+    const requestId = currentEditorRequest(emissions).requestId
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+    const frames = installFrameDriver()
+    emissions = []
+    playState = 'idle'
+    animationPending = true
+
+    internals.schedulePositionUpdate()
+    frames.runNext()
+    expect(frames.pending).toBe(1)
+
+    animationPending = false
+    playState = 'running'
+    left = 75
+    iframeLeft = 90
+    frames.runNext()
+    const pin = internals.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
+    expect(pin?.style.left).toBe('75px')
+    expect(internals.iframeShields.get(iframe)?.style.left).toBe('90px')
+    expect(emissions.at(-1)).toEqual({
+      type: 'editor_anchor_changed',
+      sessionId,
+      requestId,
+      anchor: { x: 75, y: 20, width: 100, height: 40 }
+    })
+    expect(frames.pending).toBe(1)
+
+    playState = 'finished'
+    left = 110
+    iframeLeft = 120
+    frames.runNext()
+    expect(pin?.style.left).toBe('110px')
+    expect(internals.iframeShields.get(iframe)?.style.left).toBe('120px')
+    expect(frames.pending).toBe(0)
+  })
+
+  it.each([
+    'animationstart',
+    'animationend',
+    'animationcancel',
+    'transitionrun',
+    'transitionstart',
+    'transitionend',
+    'transitioncancel'
+  ])('refreshes a highlighted target for the %s lifecycle event', async (eventType) => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    let left = 10
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 20,
+          right: left + 100,
+          bottom: 60,
+          width: 100,
+          height: 40,
+          x: left,
+          y: 20,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const internals = privateController(controller)
+    internals.highlightElement = target
+    internals.updatePositions()
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+    const frames = installFrameDriver()
+
+    left = 80
+    target.dispatchEvent(new Event(eventType, { bubbles: true }))
+    expect(frames.pending).toBe(1)
+    frames.runNext()
+
+    expect(internals.overlayRoot?.querySelector<HTMLElement>('.highlight')?.style.left).toBe('80px')
+    expect(frames.pending).toBe(0)
+  })
+
+  it('cancels animated target tracking when the empty overlay is disabled or disposed', async () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    let playState: AnimationPlayState = 'finished'
+    Object.defineProperty(target, 'getAnimations', {
+      configurable: true,
+      value: vi.fn(() => [{ playState }])
+    })
+    const internals = privateController(controller)
+    internals.highlightElement = target
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+    const frames = installFrameDriver()
+    playState = 'running'
+
+    internals.schedulePositionUpdate()
+    frames.runNext()
+    expect(frames.pending).toBe(1)
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: false })
+    expect(frames.pending).toBe(0)
+    expect(internals.overlayHost).toBeNull()
+
+    controller.handleCommand({ type: 'set_enabled', sessionId, enabled: true })
+    internals.highlightElement = target
+    internals.schedulePositionUpdate()
+    frames.runNext()
+    expect(frames.pending).toBe(1)
+    controller.dispose()
+    expect(frames.pending).toBe(0)
+    expect(frames.cancel).toHaveBeenCalled()
+    target.dispatchEvent(new Event('animationstart', { bubbles: true }))
+    expect(frames.pending).toBe(0)
   })
 
   it('stops observing a detached shadow root after its annotation is disconnected', async () => {
