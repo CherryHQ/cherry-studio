@@ -958,6 +958,96 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest')
   })
 
+  it('applies configured page-selection rules when a captured mutator revalidates', async () => {
+    const getSpy = spyGet()
+    getSpy.mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const topicId = path.includes('/t1/') ? 't1' : 't2'
+      const page = opts.query?.cursor === 'older-page' ? 'older' : 'newest'
+      return {
+        items: [],
+        nextCursor: page === 'older' ? undefined : 'older-page',
+        activeNodeId: `${topicId}-${page}`
+      }
+    }) as never)
+    const topicOneCalls = (cursor?: string) =>
+      getSpy.mock.calls.filter(
+        ([path, request]) =>
+          (path as string).includes('/t1/') && (request as { query?: { cursor?: string } })?.query?.cursor === cursor
+      ).length
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ topicId }) =>
+        useInfiniteQuery('/topics/:topicId/messages', {
+          params: { topicId },
+          swrOptions: { revalidateFirstPage: topicId !== 't1' }
+        }),
+      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
+    )
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    const mutateTopicOne = result.current.mutate
+
+    rerender({ topicId: 't2' })
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2-newest'))
+    await act(async () => {
+      await mutateTopicOne(
+        (pages) => pages?.map((page, index) => (index === 1 ? { ...page, activeNodeId: 'changed' } : page)),
+        { revalidate: true }
+      )
+    })
+
+    await waitFor(() => expect(topicOneCalls('older-page')).toBe(2))
+    expect(topicOneCalls()).toBe(1)
+  })
+
+  it('reports captured revalidation failures without rejecting the completed mutation', async () => {
+    let failTopicOneRevalidation = false
+    const topicOneOnError = vi.fn()
+    const topicTwoOnError = vi.fn()
+    spyGet().mockImplementation((async (path: string) => {
+      if (failTopicOneRevalidation && path.includes('/t1/')) throw new Error('page refresh failed')
+      return {
+        items: [],
+        nextCursor: undefined,
+        activeNodeId: path.includes('/t1/') ? 't1' : 't2'
+      }
+    }) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ topicId }) =>
+        useInfiniteQuery('/topics/:topicId/messages', {
+          params: { topicId },
+          swrOptions: { onError: topicId === 't1' ? topicOneOnError : topicTwoOnError }
+        }),
+      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
+    )
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1'))
+    const mutateTopicOne = result.current.mutate
+
+    rerender({ topicId: 't2' })
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2'))
+    failTopicOneRevalidation = true
+    await act(async () => {
+      await expect(
+        mutateTopicOne([{ ...emptyPage, activeNodeId: 'updated-t1' }] as never, { revalidate: true })
+      ).resolves.toEqual([{ ...emptyPage, activeNodeId: 'updated-t1' }])
+    })
+
+    await waitFor(() =>
+      expect(topicOneOnError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.any(String),
+        expect.objectContaining({ onError: topicOneOnError })
+      )
+    )
+    expect(topicTwoOnError).not.toHaveBeenCalled()
+    const topicOneKey = unstable_serialize_infinite(() => ['/topics/t1/messages', { limit: 10 }])
+    expect((cache.get(topicOneKey)?.data as BranchMessagesResponse[] | undefined)?.[0]?.activeNodeId).toBe('updated-t1')
+  })
+
   it('updates page caches for explicit non-revalidated mutations', async () => {
     spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
       const isOlderPage = opts.query?.cursor === 'older-page'
