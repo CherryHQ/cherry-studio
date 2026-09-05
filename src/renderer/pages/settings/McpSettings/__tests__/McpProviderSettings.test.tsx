@@ -35,7 +35,13 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Input: (props: Record<string, unknown>) => <input {...props} />
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+  SecretInput: ({ hideLabel, inputClassName, showLabel, ...props }: any) => {
+    void hideLabel
+    void inputClassName
+    void showLabel
+    return <input type="password" {...props} />
+  }
 }))
 
 vi.mock('react-i18next', () => ({

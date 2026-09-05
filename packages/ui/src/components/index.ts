@@ -74,6 +74,7 @@ export {
 } from './composites/page-side-panel'
 export { default as Scrollbar } from './composites/scrollbar'
 export { SearchInput, type SearchInputProps } from './composites/search-input'
+export { SecretInput, type SecretInputProps } from './composites/secret-input'
 export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'
 
 // Icon Components — import from '@cherrystudio/ui/icons' path

@@ -1,5 +1,6 @@
 import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SecretInput } from '@renderer/components/SecretInput'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { Info } from 'lucide-react'
@@ -188,9 +189,8 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
           <ProviderSettingsSubtitle className="mt-4">
             {t('settings.provider.aws-bedrock.secret_access_key')}
           </ProviderSettingsSubtitle>
-          <Input
+          <SecretInput
             className="mt-1.5 w-full"
-            type="password"
             value={localSecretAccessKey}
             placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
             onChange={(e) => {
@@ -218,9 +218,8 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
           <ProviderSettingsSubtitle className="mt-4">
             {t('settings.provider.aws-bedrock.api_key')}
           </ProviderSettingsSubtitle>
-          <Input
+          <SecretInput
             className="mt-1.5 w-full"
-            type="password"
             value={inputApiKey}
             placeholder={t('settings.provider.aws-bedrock.api_key')}
             onChange={(e) => setInputApiKey(e.target.value)}

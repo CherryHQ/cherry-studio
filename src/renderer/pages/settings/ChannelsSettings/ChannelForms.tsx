@@ -13,6 +13,7 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
+import { SecretInput } from '@renderer/components/SecretInput'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -144,13 +145,13 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
             <Label className="mb-1 block text-xs">{field.label}</Label>
             {field.secret ? (
-              <Input
-                type="password"
+              <SecretInput
                 value={fieldValues[field.key] ?? ''}
                 onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
                 placeholder={field.placeholder}
-                className="h-8 text-sm"
+                className="h-8"
+                inputClassName="text-sm"
               />
             ) : (
               <Input
