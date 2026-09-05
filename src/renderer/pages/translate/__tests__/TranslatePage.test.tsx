@@ -193,17 +193,12 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 const smoothStreamOptions = vi.hoisted(() => ({
   current: null as {
     onUpdate: (text: string) => void
-    onSettled?: (text: string) => void
     streamDone?: boolean
   } | null
 }))
 
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: (options: {
-    onUpdate: (text: string) => void
-    onSettled?: (text: string) => void
-    streamDone?: boolean
-  }) => {
+  useSmoothStream: (options: { onUpdate: (text: string) => void; streamDone?: boolean }) => {
     smoothStreamOptions.current = options
     return {
       reset: (text = '') => options.onUpdate(text),
