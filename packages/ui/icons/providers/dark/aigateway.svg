@@ -1,0 +1,5 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AIgateway">
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.45"/>
+  <line x1="8" y1="11" x2="22" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round" transform="rotate(-22 16 11)"/>
+  <line x1="8" y1="21" x2="22" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" transform="rotate(22 16 21)"/>
+</svg>
