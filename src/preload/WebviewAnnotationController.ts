@@ -380,6 +380,8 @@ export class WebviewAnnotationController {
   private editorRequestId: string | null = null
   private enabled = false
   private highlightElement: Element | null = null
+  private iframeDiscoveryDirty = true
+  private iframeDiscoveryRoots = new Set<ShadowRoot>()
   private iframeShieldLayer: HTMLDivElement | null = null
   private iframeShields = new Map<HTMLIFrameElement, HTMLDivElement>()
   private shieldIframes = new Map<HTMLDivElement, HTMLIFrameElement>()
@@ -807,22 +809,26 @@ export class WebviewAnnotationController {
     for (const shield of this.iframeShields.values()) shield.remove()
     this.iframeShields.clear()
     this.shieldIframes.clear()
+    this.iframeDiscoveryDirty = true
+    this.iframeDiscoveryRoots.clear()
   }
 
-  private updateIframeShields() {
-    if (!this.enabled || !this.iframeShieldLayer) {
-      this.clearIframeShields()
-      return
-    }
-
+  private discoverIframeShields(iframeShieldLayer: HTMLDivElement) {
     const iframes = new Set<HTMLIFrameElement>()
+    const roots = new Set<ShadowRoot>()
     const collectIframes = (root: Document | ShadowRoot) => {
       for (const element of root.querySelectorAll('*')) {
         if (element instanceof HTMLIFrameElement) iframes.add(element)
-        if (element.shadowRoot) collectIframes(element.shadowRoot)
+        if (element.shadowRoot) {
+          roots.add(element.shadowRoot)
+          collectIframes(element.shadowRoot)
+        }
       }
     }
     collectIframes(document)
+    this.iframeDiscoveryDirty = false
+    this.iframeDiscoveryRoots = roots
+
     for (const [iframe, shield] of this.iframeShields) {
       if (iframes.has(iframe)) continue
       shield.remove()
@@ -835,9 +841,27 @@ export class WebviewAnnotationController {
       if (!shield) {
         shield = document.createElement('div')
         shield.className = 'iframe-shield'
-        this.iframeShieldLayer.appendChild(shield)
+        iframeShieldLayer.appendChild(shield)
         this.iframeShields.set(iframe, shield)
         this.shieldIframes.set(shield, iframe)
+      }
+    }
+  }
+
+  private updateIframeShields() {
+    if (!this.enabled || !this.iframeShieldLayer) {
+      this.clearIframeShields()
+      return
+    }
+
+    if (this.iframeDiscoveryDirty) this.discoverIframeShields(this.iframeShieldLayer)
+    for (const [iframe, shield] of this.iframeShields) {
+      if (!iframe.isConnected) {
+        shield.remove()
+        this.iframeShields.delete(iframe)
+        this.shieldIframes.delete(shield)
+        this.iframeDiscoveryDirty = true
+        continue
       }
       const rect = iframe.getBoundingClientRect()
       shield.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none'
@@ -1065,6 +1089,7 @@ export class WebviewAnnotationController {
     if (!this.mutationObserver) {
       this.mutationObserver = new MutationObserver((mutations) => {
         if (mutations.every((mutation) => this.overlayHost?.contains(mutation.target))) return
+        this.iframeDiscoveryDirty = true
         this.schedulePositionUpdate()
       })
     }
@@ -1128,7 +1153,10 @@ export class WebviewAnnotationController {
     for (const element of this.annotationElements.values()) collect(element)
     collect(this.editorElement)
     collect(this.highlightElement)
-    if (this.enabled) for (const iframe of this.iframeShields.keys()) collect(iframe)
+    if (this.enabled) {
+      for (const root of this.iframeDiscoveryRoots) if (root.host.isConnected) next.add(root)
+      for (const iframe of this.iframeShields.keys()) collect(iframe)
+    }
 
     if (next.size === this.observedRoots.size && Array.from(next).every((root) => this.observedRoots.has(root))) return
     this.mutationObserver.disconnect()
