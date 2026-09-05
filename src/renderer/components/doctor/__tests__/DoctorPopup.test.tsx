@@ -126,6 +126,23 @@ describe('DoctorPopup', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('settings.doctor.actions.back_to_checks')
   })
 
+  it('exposes advanced tools as a collapsed accordion', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    const trigger = await screen.findByRole('button', { name: 'settings.doctor.advanced.title' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(trigger)
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'settings.about.debug.title' })).toBeVisible()
+  })
+
   it('keeps the editable report draft while navigating panels', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
