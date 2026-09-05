@@ -37,7 +37,9 @@ import {
   openRouteInMainWindow,
   openSettingsInMainWindow,
   openTabInMainWindow,
-  resetMainRendererDelivery
+  resetMainRendererDelivery,
+  startMainWindowNavigation,
+  stopMainWindowNavigation
 } from '../mainWindowNavigation'
 
 const aliveWindow = {
@@ -97,6 +99,15 @@ describe('mainWindowNavigation', () => {
   })
 
   describe('openRouteInMainWindow', () => {
+    it('does not repopulate delivery state after the owning service stops', () => {
+      stopMainWindowNavigation()
+
+      openRouteInMainWindow('/app/chat')
+
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      startMainWindowNavigation()
+    })
+
     it('sends the open_route_requested event and focuses when the main window is alive', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
       markMainRendererReadyForDelivery('main-1')

@@ -58,6 +58,7 @@ class MainWindowNavigationService {
   nextNavigationRequestId = 0
   pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
   isMainRendererReadyForDelivery = false
+  isActive = true
 }
 
 const mainWindowNavigationService = new MainWindowNavigationService()
@@ -90,6 +91,7 @@ function enqueueTabAttach(tab: Tab): void {
  * registered by the time this delivers — keep the ready signal in a mount-time effect.
  */
 export function markMainRendererReadyForDelivery(senderId: string): void {
+  if (!mainWindowNavigationService.isActive) return
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
   mainWindowNavigationService.isMainRendererReadyForDelivery = true
   flushPendingMainWindowDeliveries()
@@ -108,6 +110,17 @@ export function resetMainRendererDelivery(): void {
 export function clearMainWindowDeliveryState(): void {
   resetMainRendererDelivery()
   mainWindowNavigationService.pendingMainWindowDeliveries.splice(0)
+}
+
+/** Stop accepting deliveries after MainWindowService leaves the lifecycle. */
+export function stopMainWindowNavigation(): void {
+  mainWindowNavigationService.isActive = false
+  clearMainWindowDeliveryState()
+}
+
+/** Re-enable delivery when the owning MainWindowService is initialized. */
+export function startMainWindowNavigation(): void {
+  mainWindowNavigationService.isActive = true
 }
 
 function flushPendingMainWindowDeliveries(): void {
@@ -184,6 +197,7 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  * lifecycle state, persists in the store, and replays on renderer reload.
  */
 export function openRouteInMainWindow(path: string): void {
+  if (!mainWindowNavigationService.isActive) return
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindowId = resolveLiveMainWindowId()
@@ -224,6 +238,7 @@ export function openRouteInMainWindow(path: string): void {
  *   renderer observes the original request order once ready.
  */
 export function openTabInMainWindow(tab: Tab): void {
+  if (!mainWindowNavigationService.isActive) return
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindowId = resolveLiveMainWindowId()

@@ -6,7 +6,11 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { clearMainWindowDeliveryState, resetMainRendererDelivery } from '@main/services/mainWindowNavigation'
+import {
+  resetMainRendererDelivery,
+  startMainWindowNavigation,
+  stopMainWindowNavigation
+} from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -63,6 +67,7 @@ export class MainWindowService extends BaseService {
   }
 
   protected async onInit() {
+    startMainWindowNavigation()
     const windowManager = application.get('WindowManager')
     this.setupHtmlArtifactPreviewSession()
     this.setupSpellCheck()
@@ -92,8 +97,10 @@ export class MainWindowService extends BaseService {
       })
     )
     // The delivery coordinator survives individual window rebuilds so queued commands can be
-    // replayed by the next renderer, but it must not outlive this service's lifecycle.
-    this.registerDisposable(clearMainWindowDeliveryState)
+    // replayed by the next renderer, but it must not outlive this service's lifecycle. Stop
+    // accepting new commands before clearing the queue so late protocol callbacks cannot
+    // repopulate state after this service has stopped.
+    this.registerDisposable(stopMainWindowNavigation)
 
     this.registerWindowShortcuts()
     this.registerContextMenu()
