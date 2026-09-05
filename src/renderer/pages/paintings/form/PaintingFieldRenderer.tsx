@@ -1,10 +1,11 @@
-import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
+import { Button, Input, InputNumber, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
-import { resolveOptions } from './resolveOptions'
+import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
+import { resolveOptions, resolveOptionValue } from './resolveOptions'
 
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
@@ -18,33 +19,64 @@ export interface PaintingFieldRendererProps {
 export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRandomSeed }: PaintingFieldRendererProps) {
   const { t } = useTranslation()
   const fieldKey = item.key
-  if (!fieldKey) {
-    return null
-  }
 
   const disabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-  const currentValue = painting[fieldKey] ?? item.initialValue
-  const RegisteredField = fieldRegistry[item.type]
-
-  if (RegisteredField) {
-    return (
-      <RegisteredField
-        item={item}
-        fieldKey={fieldKey}
-        painting={painting}
-        translate={t}
-        onChange={onChange}
-        onGenerateRandomSeed={onGenerateRandomSeed}
-        currentValue={currentValue}
-        disabled={disabled}
-      />
-    )
-  }
+  const currentValue = isOptionsConfigItem(item)
+    ? resolveOptionValue(item, painting[fieldKey], painting, t)
+    : (painting[fieldKey] ?? item.initialValue)
 
   switch (item.type) {
+    case 'select': {
+      const RegisteredField = fieldRegistry.select
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
+    case 'sizeChips': {
+      const RegisteredField = fieldRegistry.sizeChips
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
+    case 'customSize': {
+      const RegisteredField = fieldRegistry.customSize
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
     case 'radio': {
       const options = resolveOptions(item, painting, t)
-      const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
+      const value = controlValue(currentValue)
 
       return (
         <RadioGroup
@@ -66,15 +98,14 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'slider': {
-      const numericValue = Number(currentValue ?? item.min ?? 0)
-      const min = item.min ?? 0
-      const max = item.max ?? 100
+      const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
+      const { min, max } = item
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,
       // which the parent's `overflow-hidden` clips. Skip the slider and show
       // a read-only number input instead.
       if (min === max) {
-        return <Input className="w-20" type="number" value={String(numericValue)} readOnly disabled />
+        return <Input className="w-20" type="number" value={numericValue} readOnly disabled />
       }
       return (
         <div className="flex items-center gap-3">
@@ -86,22 +117,20 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             value={[numericValue]}
             onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
           />
-          <Input
+          <InputNumber
+            aria-label={item.title ? t(item.title) : fieldKey}
             className="w-20"
-            type="number"
             min={min}
             max={max}
             step={item.step}
-            value={String(numericValue)}
-            onChange={(event) => {
-              const raw = event.target.value
-              // Ignore the transient empty state (clearing to retype) — committing
-              // `Number('')` → 0 would drop below `min`. Otherwise clamp to [min,max]
-              // so the controlled value never escapes the field's range.
-              if (raw === '') return
-              const parsed = Number(raw)
-              if (Number.isNaN(parsed)) return
-              onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
+            value={numericValue}
+            // Written on settle only: the slider reads the same `painting[key]`,
+            // so writing per keystroke would feed it half-typed, out-of-range
+            // values. Null is the transient empty state (clearing to retype) —
+            // writing it would drop the field below `min`.
+            onBlur={(value) => {
+              if (value === null) return
+              onChange({ [fieldKey]: value })
             }}
           />
         </div>
@@ -109,12 +138,13 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'input': {
+      const value = stringOr(currentValue, item.initialValue)
       return (
         <div className="flex items-center gap-2">
           <Input
             disabled={disabled}
             className="flex-1"
-            value={currentValue === undefined || currentValue === null ? '' : String(currentValue)}
+            value={value}
             onChange={(event) => onChange({ [fieldKey]: event.target.value })}
           />
           {fieldKey.toLowerCase().includes('seed') && onGenerateRandomSeed ? (
@@ -127,27 +157,25 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'textarea': {
+      const value = stringOr(currentValue, item.initialValue)
       return (
-        <Textarea.Input
-          value={currentValue === undefined || currentValue === null ? '' : String(currentValue)}
-          rows={4}
-          onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}
-        />
+        <Textarea.Input value={value} rows={4} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })} />
       )
     }
 
     case 'switch': {
+      const checked = booleanOr(currentValue, item.initialValue)
       return (
         <div className="flex items-center">
-          <Switch checked={Boolean(currentValue)} onCheckedChange={(checked) => onChange({ [fieldKey]: checked })} />
+          <Switch checked={checked} onCheckedChange={(nextChecked) => onChange({ [fieldKey]: nextChecked })} />
         </div>
       )
     }
 
     case 'iconRadio': {
       const options = resolveOptions(item, painting, t)
-      const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
-      const columns = item.columns || 3
+      const value = controlValue(currentValue)
+      const columns = item.columns ?? 3
 
       return (
         <RadioGroup
@@ -187,6 +215,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     case 'styleToggle': {
       const options = resolveOptions(item, painting, t)
       const { toggleMode = 'single' } = item
+      const value = stringOr(currentValue, item.initialValue)
 
       return (
         <div className="flex flex-wrap items-start gap-2">
@@ -195,12 +224,12 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               type="button"
               key={String(option.value)}
               className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
-                currentValue === String(option.value)
+                value === String(option.value)
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-background hover:bg-accent'
               }`}
               onClick={() => {
-                if (toggleMode === 'single' && currentValue === String(option.value)) {
+                if (toggleMode === 'single' && value === String(option.value)) {
                   onChange({ [fieldKey]: '' })
                 } else {
                   onChange({ [fieldKey]: String(option.value) })

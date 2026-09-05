@@ -6,7 +6,8 @@ import {
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
-import { describe, expect, it } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
@@ -128,5 +129,30 @@ describe('OpenAI Responses reasoning summary', () => {
       assistantSummary: 'detailed'
     })
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'high' })
+  })
+})
+
+describe('resolveReasoningInvocation logging', () => {
+  beforeEach(() => mockMainLoggerService.info.mockClear())
+
+  // `resolveReasoningInvocation` runs for every message. 'default' means the user asked for
+  // nothing, and it reaches the omit paths on ordinary traffic: any non-reasoning model, plus
+  // every wire profile without a `default` mode — 13 of the 17 shipped ones.
+  it('says nothing when the user made no reasoning selection', () => {
+    resolveReasoningInvocation({
+      selection: 'default',
+      model: makeModel({ reasoning: undefined }),
+      profile: budgetProfile,
+      maxTokens: 8192
+    })
+
+    expect(mockMainLoggerService.info).not.toHaveBeenCalled()
+  })
+
+  it('records a selection the user made that could not be honoured', () => {
+    resolveReasoningInvocation({ selection: 'high', model, profile: budgetProfile, maxTokens: 256 })
+
+    expect(mockMainLoggerService.info).toHaveBeenCalledOnce()
+    expect(mockMainLoggerService.info.mock.calls[0][0]).toContain("Reasoning 'high' not sent")
   })
 })

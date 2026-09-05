@@ -106,6 +106,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
+  /** App provider/model identifiers attached to normalized stream errors. */
+  errorContext?: { providerId: string; modelId: string }
   /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]

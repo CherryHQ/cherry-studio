@@ -11,3 +11,4 @@ export type {
   InProcessUsageContext,
   ListModelsRequest
 } from './requests'
+export type { SamplingSettings } from './sampling'

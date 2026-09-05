@@ -1,4 +1,5 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { useMandatoryGateOpen } from '@renderer/components/MandatoryGateProvider'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useIpcOn } from '@renderer/ipc'
 import { useRef, useState } from 'react'
@@ -19,6 +20,8 @@ interface Props {
  */
 export function ApiGatewayRequiredDialog({ sessionId }: Props) {
   const [open, setOpen] = useState(false)
+  // A mandatory gate (privacy update) owns the window; the prompt waits rather than stacking on it.
+  const mandatoryGateOpen = useMandatoryGateOpen()
 
   useIpcOn('api_gateway.required', (payload) => {
     if (payload.sessionId === sessionId) setOpen(true)
@@ -26,7 +29,7 @@ export function ApiGatewayRequiredDialog({ sessionId }: Props) {
 
   // Every agent chat renders this, but the prompt is rare — keep the gateway preference and
   // shared-cache subscriptions out of the common path until it actually fires.
-  if (!open) return null
+  if (!open || mandatoryGateOpen) return null
   return <GatewayPrompt onOpenChange={setOpen} />
 }
 
