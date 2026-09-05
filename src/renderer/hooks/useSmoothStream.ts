@@ -4,8 +4,6 @@ interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
   /** Optional external control. Omit to let the hook manage it via `update(_, isComplete)`. */
   streamDone?: boolean
-  /** Fires after a completed stream drains, with the exact published text. */
-  onSettled?: (text: string) => void
   minDelay?: number
   initialText?: string
 }
@@ -95,7 +93,6 @@ const MIN_STEP = 1
 export const useSmoothStream = ({
   onUpdate,
   streamDone: externalStreamDone,
-  onSettled,
   minDelay = 10,
   initialText = ''
 }: UseSmoothStreamOptions) => {
@@ -130,10 +127,6 @@ export const useSmoothStream = ({
   const onUpdateRef = useRef(onUpdate)
   useEffect(() => {
     onUpdateRef.current = onUpdate
-  })
-  const onSettledRef = useRef(onSettled)
-  useEffect(() => {
-    onSettledRef.current = onSettled
   })
 
   const addChunk = useCallback((chunk: string) => {
@@ -237,7 +230,6 @@ export const useSmoothStream = ({
       if (streamDone) {
         onUpdateRef.current(displayedTextRef.current)
         animationFrameRef.current = null
-        onSettledRef.current?.(displayedTextRef.current)
         return
       }
       // Stamp stream-start while idling pre-first-token, so the first
@@ -265,7 +257,6 @@ export const useSmoothStream = ({
         animationFrameRef.current = requestAnimationFrame(renderLoop)
       } else {
         animationFrameRef.current = null
-        onSettledRef.current?.(displayedTextRef.current)
       }
       return
     }
@@ -336,7 +327,6 @@ export const useSmoothStream = ({
       animationFrameRef.current = requestAnimationFrame(renderLoop)
     } else {
       animationFrameRef.current = null
-      onSettledRef.current?.(displayedTextRef.current)
     }
   }, [streamDone, minDelay])
 
