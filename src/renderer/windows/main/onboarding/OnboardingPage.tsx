@@ -280,11 +280,11 @@ export default function OnboardingPage() {
     const expectedStatus = cloudStatus
     void ipcApi
       .request('cherry_cloud.models.sync')
-      .then(({ entitledModelIds, quotaExhaustedModelIds }) => {
+      .then(({ availableModelIdsByFeature, quotaExhaustedModelIds }) => {
         if (expectedStatus !== cloudStatusRef.current) return
 
         const exhaustedModelIds = new Set(quotaExhaustedModelIds)
-        const agentModelId = entitledModelIds.find((modelId) => !exhaustedModelIds.has(modelId))
+        const agentModelId = availableModelIdsByFeature.agent.find((modelId) => !exhaustedModelIds.has(modelId))
         if (agentModelId) {
           void completeWithCloudAgentModel(agentModelId, expectedStatus)
         } else {

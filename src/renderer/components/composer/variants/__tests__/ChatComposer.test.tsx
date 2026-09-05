@@ -145,7 +145,7 @@ const modelBWithFunctionCall = {
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock }, useIpcOn: vi.fn() }))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {

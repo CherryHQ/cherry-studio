@@ -20,6 +20,7 @@ import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
@@ -152,7 +153,8 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   const { providers } = useProviders()
   const { model: defaultModel } = useModelById(asUniqueModelId(detail?.aiModelId))
   const { model: quickModel } = useModelById(asUniqueModelId(detail?.aiQuickModelId))
-  const chatModelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
+  const baseChatModelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
+  const chatModelFilter = useCherryCloudModelFilter('chat', baseChatModelFilter)
   // A plain column write: DataApi, not a command. The panel's own state still comes from `mini_app.detail`.
   const { trigger: patchMiniApp } = useMutation('PATCH', '/mini-apps/:appId')
   const patchModels = (body: { aiModelId?: UniqueModelId | null; aiQuickModelId?: UniqueModelId | null }) =>
