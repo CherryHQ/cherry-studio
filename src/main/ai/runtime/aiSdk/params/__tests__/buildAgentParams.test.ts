@@ -354,6 +354,49 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.plugins.map((plugin) => plugin.name)).not.toContain('urlContext')
   })
 
+  it('keeps request tools for DeepSeek DSML models without native function calling', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'deepseek', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek' }
+      }
+    })
+    const model = makeModel({
+      id: 'deepseek::deepseek-v4-flash',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-v4-flash',
+      capabilities: []
+    })
+    const toolSearch = {} as Tool
+    const registryTool: ToolEntry = {
+      name: 'unrequested_builtin',
+      namespace: 'test',
+      description: 'Must not leak into an assistant-less gateway request',
+      defer: 'never',
+      tool: {} as Tool
+    }
+    registry.register(registryTool)
+
+    try {
+      const result = await buildAgentParams({
+        request: { callOverrides: { tools: { ToolSearch: toolSearch } } },
+        signal: undefined,
+        provider,
+        model
+      })
+
+      expect(result.tools).toEqual({ ToolSearch: toolSearch })
+      expect(result.plugins.map((plugin) => plugin.name)).toContain('deepseekDsmlParser')
+    } finally {
+      registry.deregister(registryTool.name)
+    }
+  })
+
   it('keeps URL Context when Gemini 3 receives function tools', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'google', providerSettings: {} },

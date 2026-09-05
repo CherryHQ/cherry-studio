@@ -68,6 +68,7 @@ const NULL_CONTAINER = null
  */
 export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
   private readonly toClientToolName?: (toolName: string) => string
+  private readonly toolInputBuffers = new Map<string, string>()
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -150,10 +151,21 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       // === Tool Events ===
-      // Client tools resolve in one `tool-input-available` chunk (full input,
-      // no incremental input deltas to accumulate). Cache reasoning signatures
-      // off its providerMetadata, then frame the Anthropic tool_use block.
-      case 'tool-input-available': {
+      case 'tool-input-start':
+        this.toolInputBuffers.set(chunk.toolCallId, '')
+        break
+
+      case 'tool-input-delta':
+        this.toolInputBuffers.set(
+          chunk.toolCallId,
+          (this.toolInputBuffers.get(chunk.toolCallId) ?? '') + chunk.inputTextDelta
+        )
+        break
+
+      // The gateway does not execute client tools, so forward even calls that its local schema cannot validate.
+      // The outer client owns execution, validation, and recovery.
+      case 'tool-input-available':
+      case 'tool-input-error': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata as Record<string, any> | undefined
         const thoughtSignature = meta?.google?.thoughtSignature
@@ -164,10 +176,16 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
           openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, JSON.parse(JSON.stringify(reasoningDetails)))
         }
+        const bufferedInput = this.toolInputBuffers.get(chunk.toolCallId)
+        this.toolInputBuffers.delete(chunk.toolCallId)
+        const inputJson =
+          chunk.type === 'tool-input-error'
+            ? (bufferedInput ?? (typeof chunk.input === 'string' ? chunk.input : JSON.stringify(chunk.input ?? {})))
+            : JSON.stringify(chunk.input ?? {})
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
           toolName,
-          args: chunk.input
+          inputJson
         })
         break
       }
@@ -188,8 +206,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         throw new Error(chunk.errorText)
 
       default:
-        // start / start-step / finish-step / tool-input-start / tool-input-delta /
-        // source-url / file / abort — no Anthropic SSE equivalent, ignore safely.
+        // start / start-step / finish-step / source-url / file / abort — no Anthropic SSE equivalent, ignore safely.
         break
     }
   }
@@ -373,8 +390,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     }
   }
 
-  private handleToolCall(chunk: { toolCallId: string; toolName: string; args: unknown }): void {
-    const { toolCallId, toolName, args } = chunk
+  private handleToolCall(chunk: { toolCallId: string; toolName: string; inputJson: string }): void {
+    const { toolCallId, toolName, inputJson } = chunk
 
     if (this.state.toolBlocks.has(toolCallId)) {
       return
@@ -382,10 +399,6 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     const index = this.allocateBlockIndex()
     this.state.toolBlocks.set(toolCallId, index)
-
-    // Default arg-less tool calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
-    // which would drop `partial_json` from the emitted `input_json_delta`.
-    const inputJson = JSON.stringify(args ?? {})
 
     this.state.blocks.set(index, {
       type: 'tool_use',
@@ -475,6 +488,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     for (const reasoningId of this.state.thinkingBlocks.keys()) {
       this.stopThinkingBlock(reasoningId)
     }
+    this.toolInputBuffers.clear()
 
     // Emit message_delta with final stop reason and usage
     const usage: MessageDeltaUsage = {

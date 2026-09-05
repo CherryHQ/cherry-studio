@@ -209,6 +209,67 @@ describe('AiSdkToAnthropicSse', () => {
       }
     })
 
+    it('should forward client tool calls that AI SDK cannot validate', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const stream = createMockStream([
+        {
+          type: 'tool-input-error',
+          toolCallId: 'call_unsupported',
+          toolName: 'Skill',
+          input: { skill: 'cherry-assistant-guide' },
+          errorText: 'Tool Skill is not registered in the gateway'
+        },
+        createFinish('stop')
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'content_block_start',
+          content_block: expect.objectContaining({
+            type: 'tool_use',
+            id: 'call_unsupported',
+            name: 'Skill'
+          })
+        })
+      )
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'content_block_delta',
+          delta: { type: 'input_json_delta', partial_json: '{"skill":"cherry-assistant-guide"}' }
+        })
+      )
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: 'message_delta', delta: expect.objectContaining({ stop_reason: 'tool_use' }) })
+      )
+    })
+
+    it('should preserve malformed tool input exactly', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const stream = createMockStream([
+        { type: 'tool-input-start', toolCallId: 'call_malformed', toolName: 'BrokenTool' },
+        { type: 'tool-input-delta', toolCallId: 'call_malformed', inputTextDelta: '{bad' },
+        {
+          type: 'tool-input-error',
+          toolCallId: 'call_malformed',
+          toolName: 'BrokenTool',
+          input: '{bad',
+          errorText: 'Invalid JSON'
+        },
+        createFinish('stop')
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'content_block_delta',
+          delta: { type: 'input_json_delta', partial_json: '{bad' }
+        })
+      )
+    })
+
     it('should restore client tool names before emitting tool_use blocks', async () => {
       const adapter = new AiSdkToAnthropicSse({
         model: 'test:model',

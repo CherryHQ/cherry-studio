@@ -23,7 +23,7 @@ import {
 } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isFunctionCallingModel } from '@shared/utils/model'
+import { isDeepSeekModel, isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -192,7 +192,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         canOffloadToolOutputs
       )
     : {
-        tools: undefined,
+        tools: isDeepSeekModel(model) ? request.callOverrides?.tools : undefined,
         deferredEntries: [] as ToolEntry[],
         hasCitableTools: false,
         mcpToolIds: new Set<string>(),
