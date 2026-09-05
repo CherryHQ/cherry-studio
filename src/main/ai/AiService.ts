@@ -643,10 +643,24 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
-          retryPolicy
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
         },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
@@ -763,10 +777,24 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
-          retryPolicy
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
         }),
         onFallbackActivated: (fallback) => {
           activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
         }
       })
     }

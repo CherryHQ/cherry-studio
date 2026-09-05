@@ -115,6 +115,28 @@ describe('createRetryableWrap', () => {
     expect(onFallbackActivated).toHaveBeenCalledWith(expect.objectContaining({ model: fallback, repairToolCall }))
   })
 
+  it('reactivates the primary before the next model operation', async () => {
+    const activations: string[] = []
+    const primaryGenerate = vi.fn().mockRejectedValueOnce(makeApiError(401)).mockResolvedValueOnce(okResult)
+    const wrap = createRetryableWrap({
+      fallbacks: [
+        () =>
+          Promise.resolve({
+            model: makeFakeLanguageModel('claude-x', vi.fn().mockResolvedValue(okResult))
+          })
+      ],
+      onPrimaryActivated: () => activations.push('primary'),
+      onFallbackActivated: () => activations.push('fallback'),
+      retryPolicy: policy()
+    })
+    const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
+
+    await wrapped.doGenerate({ prompt: [] } as never)
+    await wrapped.doGenerate({ prompt: [] } as never)
+
+    expect(activations).toEqual(['primary', 'fallback', 'primary'])
+  })
+
   it('resolves fallbacks lazily — never invoked on the happy path', async () => {
     const resolve = vi.fn(fallbackOf(makeFakeLanguageModel('claude-x', vi.fn().mockResolvedValue(okResult))))
     const wrap = createRetryableWrap({ fallbacks: [resolve], retryPolicy: policy() })

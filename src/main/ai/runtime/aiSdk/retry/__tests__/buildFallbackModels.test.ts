@@ -26,6 +26,9 @@ vi.mock('../../params/buildAgentParams', () => ({
 
 const { buildFallbackModels } = await import('../buildFallbackModels')
 
+const usagePlugin = { name: 'usage' }
+const createUsagePlugin = vi.fn().mockReturnValue(usagePlugin)
+
 const VISION = MODEL_CAPABILITY.IMAGE_RECOGNITION
 const AUDIO = MODEL_CAPABILITY.AUDIO_RECOGNITION
 const VIDEO = MODEL_CAPABILITY.VIDEO_RECOGNITION
@@ -45,13 +48,15 @@ function policy(fallbackModelIds: readonly string[], enabled = true): RetryPolic
 function stubBuildAgentParams(modelId: string) {
   const plugins = [{ name: `mw-${modelId}` }]
   const repairToolCall = vi.fn()
+  const credentialReceipt = { attribution: 'matched' as const, id: 'fallback-key', masked: 'sk-f****back' }
   buildAgentParams.mockResolvedValue({
     sdkConfig: { providerId: 'anthropic', providerSettings: {}, modelId },
+    credentialReceipt,
     plugins,
     options: { temperature: 0.2, maxOutputTokens: 128, repairToolCall },
     nativeFileSupport: ALL_NATIVE_SUPPORT
   })
-  return { plugins, repairToolCall }
+  return { plugins, repairToolCall, credentialReceipt }
 }
 
 const baseArgs = {
@@ -61,7 +66,8 @@ const baseArgs = {
   primaryHasTools: false,
   requiredNativeFileSupport: NO_NATIVE_SUPPORT,
   extraFeatures: [],
-  retryPolicy: policy([])
+  retryPolicy: policy([]),
+  createUsagePlugin
 }
 
 describe('buildFallbackModels', () => {
@@ -99,7 +105,7 @@ describe('buildFallbackModels', () => {
 
   it('resolves a fallback with its OWN plugins and lifts its OWN param overrides', async () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
-    const { plugins, repairToolCall } = stubBuildAgentParams('claude-x')
+    const { plugins, repairToolCall, credentialReceipt } = stubBuildAgentParams('claude-x')
 
     const [resolve] = buildFallbackModels({
       ...baseArgs,
@@ -109,7 +115,15 @@ describe('buildFallbackModels', () => {
     const fallback = await resolve()
 
     // The fallback's middleware plugins are passed to resolveLanguageModel.
-    expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', plugins)
+    expect(createUsagePlugin).toHaveBeenCalledWith({
+      provider: expect.objectContaining({ id: 'anthropic' }),
+      model: expect.objectContaining({ id: 'anthropic::claude' }),
+      sdkModelId: 'claude-x',
+      credentialReceipt
+    })
+    expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
+    const buildOptions = buildAgentParams.mock.calls[0][0]
+    expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })
     expect(fallback?.model).toMatchObject({ modelId: 'claude-x' })

@@ -11,12 +11,13 @@ sources:
 
 User-configurable retry for model calls, built on
 [`ai-retry`](https://github.com/zirkelc/ai-retry) (v1.x, AI SDK v6). When a
-call fails, the wrapper first retries the **same model** on retryable API
-errors (429 / 503 / 529 and other `isRetryable` errors, honoring `Retry-After`
-headers with optional exponential backoff — `TimeoutError`s are deliberately
-not retried, see below), then **falls back** to the user's configured fallback
-models in order. Retry happens at the model layer — below the agent loop, so
-tool state and hook composition are untouched.
+call fails with 401/429 and another enabled API key is available, the wrapper
+first rotates to that key. Other retryable API errors (503 / 529 and other
+`isRetryable` errors, honoring `Retry-After` headers with optional exponential
+backoff — `TimeoutError`s are deliberately not retried, see below) retry the
+**same model**, then **fall back** to the user's configured fallback models in
+order. Retry happens at the model layer — below the agent loop, so tool state
+and hook composition are untouched.
 
 ```text
 AiService.streamText/generateText

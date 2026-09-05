@@ -168,6 +168,47 @@ describe('createRetryableWrap API key failover', () => {
     }
   })
 
+  it.each([401, 429])('continues key failover when replacement-key retry ends with HTTP %s', async (statusCode) => {
+    vi.useFakeTimers()
+    try {
+      const attempts: string[] = []
+      const secondKeyGenerate = vi
+        .fn<() => Promise<typeof okResult>>()
+        .mockImplementationOnce(async () => {
+          attempts.push('key-2')
+          throw makeApiError(503)
+        })
+        .mockImplementationOnce(async () => {
+          attempts.push('key-2')
+          throw makeApiError(statusCode)
+        })
+      const thirdKeyGenerate = vi.fn(async () => {
+        attempts.push('key-3')
+        return okResult
+      })
+      const wrap = createRetryableWrap({
+        apiKeyFallbacks: [
+          fallbackOf(makeFakeLanguageModel('same-model', secondKeyGenerate)),
+          fallbackOf(makeFakeLanguageModel('same-model', thirdKeyGenerate))
+        ],
+        fallbacks: [],
+        retryPolicy: policy(true)
+      })
+      const primaryGenerate = vi.fn(async () => {
+        attempts.push('key-1')
+        throw makeApiError(401)
+      })
+
+      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] } as never)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await pending
+
+      expect(attempts).toEqual(['key-1', 'key-2', 'key-2', 'key-3'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('preserves API key errors in order when every key fails', async () => {
     const firstError = makeApiError(401)
     const lastError = makeApiError(429)

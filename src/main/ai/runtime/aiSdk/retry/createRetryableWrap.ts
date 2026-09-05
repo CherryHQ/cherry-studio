@@ -18,7 +18,7 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
-import { APICallError, type ToolCallRepairFunction, type ToolSet } from 'ai'
+import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
   type LanguageModel,
@@ -72,6 +72,8 @@ export interface CreateRetryableWrapOptions {
   onRetryEvent?: (event: RetryPartData) => void
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
+  /** Restores request-scoped helpers when a new operation starts from the primary model. */
+  onPrimaryActivated?: () => void
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
@@ -107,9 +109,10 @@ function apiKeyFallbackRetryable(
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
     const attemptError = context.current.error
+    const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
     if (
-      !APICallError.isInstance(attemptError) ||
-      (attemptError.statusCode !== 401 && attemptError.statusCode !== 429)
+      !APICallError.isInstance(terminalError) ||
+      (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)
     ) {
       return undefined
     }
@@ -178,6 +181,18 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   ]
 
   return (base) => {
+    const primary = options.onPrimaryActivated
+      ? wrapLanguageModel({
+          model: base,
+          middleware: {
+            specificationVersion: 'v3',
+            transformParams: async ({ params }) => {
+              options.onPrimaryActivated?.()
+              return params
+            }
+          }
+        })
+      : base
     let retryActive = false
     const settleRetryStatus = () => {
       if (!retryActive) return
@@ -201,7 +216,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     const keyPoolModel =
       apiKeyFallbacks.length > 0
         ? createRetryableModel({
-            model: base,
+            model: primary,
             retries: [apiKeyFallbackRetryable(apiKeyFallbacks, options.onFallbackActivated, wrapApiKeyFallback)],
             onRetry: (context) => {
               const event = { ...describeAttempt(context), modelId: base.modelId }
@@ -214,7 +229,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               onFailure: settleRetryStatus
             })
           })
-        : base
+        : primary
 
     if (!options.retryPolicy.enabled) return keyPoolModel
 

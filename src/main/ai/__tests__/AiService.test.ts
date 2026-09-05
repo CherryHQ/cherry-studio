@@ -1373,7 +1373,7 @@ describe('AiService tool approval', () => {
   it('honors explicit retries with API key failover when model retry is disabled', async () => {
     const service = createService()
     const keyFallback = vi.fn()
-    mockBuildApiKeyFallbackModels.mockReturnValue([keyFallback])
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
     mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
     mockReadRetryPolicy.mockReturnValue({
       enabled: false,
@@ -1455,6 +1455,7 @@ describe('AiService tool approval', () => {
 
     const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
       onFallbackActivated: (fallback: { repairToolCall: typeof fallbackRepair }) => void
+      onPrimaryActivated: () => void
     }
     const agentOptions = mockCreateAgent.mock.calls[0][0] as {
       agentSettings: { experimental_repairToolCall: (options: never) => Promise<null> }
@@ -1466,6 +1467,10 @@ describe('AiService tool approval', () => {
     retryOptions.onFallbackActivated({ repairToolCall: fallbackRepair })
     await repair({} as never)
     expect(fallbackRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onPrimaryActivated()
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledTimes(2)
   })
 
   it('passes an explicit API key override to key-pool resolution', async () => {
