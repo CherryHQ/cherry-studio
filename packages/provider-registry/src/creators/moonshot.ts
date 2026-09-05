@@ -13,8 +13,10 @@ export default defineCreator({
     // claude-code guide: requests without it are rejected) — always-on, the
     // explicit `toggle: false` stops the generic toggle below.
     { pattern: '^kimi-k2[.-]7-code', toggle: false },
-    // K3+ supports low/high/max thinking effort and can disable thinking.
-    { pattern: '^kimi-k[3-9]\\d*(?:[.-]\\d+)?', effort: ['low', 'high', 'max'], toggle: true },
+    // K3 supports low/high/max thinking effort and can disable thinking; K3 Fast
+    // exposes the same effort vocabulary but is always-on.
+    { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
+    { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
     // Kimi K2.5+ exposes the thinking toggle; kimi-k2-thinking is always-on.
     { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
     // The thinking budget is a K2.x-era knob — K3 controls depth via
