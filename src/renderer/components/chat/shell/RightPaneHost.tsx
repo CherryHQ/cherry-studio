@@ -1,6 +1,6 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
@@ -177,7 +177,7 @@ function useRightPaneResize({
   /** Dragging well past the minimum width closes the pane (mirrors the left list's drag-collapse). */
   onDragClose?: () => void
 }) {
-  const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
+  const [storedWidth, setStoredWidth] = useWindowScopedPersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
   const pendingDragCloseRef = useRef(false)

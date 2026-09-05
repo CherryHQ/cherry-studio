@@ -1,5 +1,6 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCallback } from 'react'
+
+import { useWindowScopedPersistCache } from './useWindowScopedPersistCache'
 
 const RIGHT_PANE_OPEN_OVERRIDE_CACHE_KEY = {
   chat: 'ui.chat.right_pane_open_override',
@@ -23,7 +24,7 @@ export function useClassicLayoutRightPaneOpen(
   surface: 'chat' | 'agent',
   { enabled, defaultOpen }: ClassicLayoutRightPaneOpenOptions
 ): readonly [boolean, ClassicLayoutPaneOpenSetter] {
-  const [storedOverride, setStoredOverride] = usePersistCache(RIGHT_PANE_OPEN_OVERRIDE_CACHE_KEY[surface])
+  const [storedOverride, setStoredOverride] = useWindowScopedPersistCache(RIGHT_PANE_OPEN_OVERRIDE_CACHE_KEY[surface])
   const paneOpen = enabled && (storedOverride ?? defaultOpen)
   const setPaneOpen = useCallback<ClassicLayoutPaneOpenSetter>(
     (open, options) => {
