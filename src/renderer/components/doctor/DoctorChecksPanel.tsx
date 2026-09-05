@@ -33,6 +33,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const interaction = session.interaction
   const dataPath = viewModel.report?.basics.userDataPath
   const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
+  const restoreExpandedCheckRef = useRef<DoctorCheckId | null>(null)
 
   useEffect(() => {
     if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
@@ -47,7 +48,11 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   }, [interaction.kind, session.revealedEvidence])
 
   useEffect(() => {
-    if (interaction.kind === 'confirm-evidence') restoreActionCheckRef.current = interaction.checkId
+    if (interaction.kind === 'confirm-evidence') {
+      restoreExpandedCheckRef.current = interaction.checkId
+    } else if (interaction.kind === 'idle') {
+      restoreExpandedCheckRef.current = null
+    }
   }, [interaction])
 
   const copyResults = async () => {
@@ -127,7 +132,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
           {viewModel.rows.length > 0 ? (
             <DoctorCheckResults
               controller={controller}
-              initialExpandedCheckId={restoreActionCheckRef.current ?? undefined}
+              initialExpandedCheckId={restoreExpandedCheckRef.current ?? restoreActionCheckRef.current ?? undefined}
             />
           ) : (
             <Alert
