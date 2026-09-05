@@ -85,6 +85,9 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
   const [copyEmailFallback, setCopyEmailFallback] = useState(false)
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const revealButtonRef = useRef<HTMLButtonElement>(null)
+  const exportButtonRef = useRef<HTMLButtonElement>(null)
+  const confirmationHeadingRef = useRef<HTMLHeadingElement>(null)
+  const confirmationWasOpenRef = useRef(false)
   const closeResetTimerRef = useRef<number | null>(null)
   const confirmedExportTimerRef = useRef<number | null>(null)
   const status = exportState.status
@@ -160,6 +163,21 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
   useEffect(() => {
     if (status === 'saved') revealButtonRef.current?.focus()
   }, [status])
+
+  useEffect(() => {
+    if (isConfirmationOpen) {
+      confirmationWasOpenRef.current = true
+      confirmationHeadingRef.current?.focus()
+      return
+    }
+    if (!confirmationWasOpenRef.current) return
+    if (status === 'idle') {
+      exportButtonRef.current?.focus()
+      confirmationWasOpenRef.current = false
+    } else if (status === 'saved') {
+      confirmationWasOpenRef.current = false
+    }
+  }, [isConfirmationOpen, status])
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
@@ -340,7 +358,9 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
         {embedded && isConfirmationOpen ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <h3 className="font-semibold text-base">{t('settings.about.diagnostics.privacy.title')}</h3>
+              <h3 ref={confirmationHeadingRef} tabIndex={-1} className="font-semibold text-base">
+                {t('settings.about.diagnostics.privacy.title')}
+              </h3>
               <p className="text-muted-foreground text-sm leading-6">
                 {t('settings.about.diagnostics.privacy.description')}
               </p>
@@ -476,7 +496,12 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
             <Button variant="outline" disabled={status === 'saving'} onClick={() => handleOpenChange(false)}>
               {t('settings.about.diagnostics.actions.cancel')}
             </Button>
-            <Button variant="emphasis" loading={status === 'saving'} disabled={!canExport} onClick={handleExport}>
+            <Button
+              ref={exportButtonRef}
+              variant="emphasis"
+              loading={status === 'saving'}
+              disabled={!canExport}
+              onClick={handleExport}>
               {t(
                 status === 'saving'
                   ? 'settings.about.diagnostics.actions.exporting'
