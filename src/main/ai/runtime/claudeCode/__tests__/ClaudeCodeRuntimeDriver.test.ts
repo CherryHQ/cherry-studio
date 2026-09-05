@@ -1979,6 +1979,114 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('emits a live context-usage reading on each top-level message_start', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: {
+          id: 'req-1',
+          model: 'sonnet-sdk',
+          usage: { input_tokens: 100, output_tokens: 1, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 }
+        }
+      }
+    })
+    // Subagent lanes run in their own context and must not move the session ring.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: 'tool-1',
+      event: {
+        type: 'message_start',
+        message: { id: 'req-sub', model: 'sonnet-sdk', usage: { input_tokens: 50_000, output_tokens: 1 } }
+      }
+    })
+    // A usage-less start (sparse gateway reporting) must not zero the ring mid-turn.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_start', message: { id: 'req-2', model: 'sonnet-sdk', usage: {} } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'live-usage-result',
+      usage: { input_tokens: 100, output_tokens: 5, cache_read_input_tokens: 800, cache_creation_input_tokens: 100 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'context-usage')).toEqual([
+      {
+        type: 'context-usage',
+        usage: { categories: [], totalTokens: 1000, maxTokens: 200_000, percentage: 0.5, model: 'sonnet-sdk' }
+      }
+    ])
+    await connection.close()
+  })
+
+  it('sizes the live context-usage window from the connection model id suffix', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'deepseek-chat[1m]' },
+      settings: {},
+      sdkModelId: 'deepseek-chat[1m]',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'deepseek::deepseek-chat' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'req-1m', model: 'deepseek-chat', usage: { input_tokens: 300_000, output_tokens: 1 } }
+      }
+    })
+
+    for (;;) {
+      const event = (await events.next()).value
+      if (event?.type === 'context-usage') {
+        // The API-reported id never carries the suffix, so the reading is stamped with the
+        // configured id — the one the renderer's staleness filter matches against.
+        expect(event.usage).toEqual({
+          categories: [],
+          totalTokens: 300_000,
+          maxTokens: 1_000_000,
+          percentage: 30,
+          model: 'deepseek-chat[1m]'
+        })
+        break
+      }
+    }
+    await connection.close()
+  })
+
   it('preserves message-start input buckets when terminal usage only reports output', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

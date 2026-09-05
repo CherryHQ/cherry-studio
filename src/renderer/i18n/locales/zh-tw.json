@@ -546,6 +546,8 @@
   "backup.error.active_data_writers": "仍有對話或 Agent 正在執行。請等待其完成後再試一次。",
   "backup.error.disk_full": "磁碟空間不足。請清理空間後再試一次。",
   "backup.error.disk_full_with_available": "磁碟空間不足，目前可用 {{available}}。請清理空間後再試一次。",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.error.webdav_tls_certificate": "無法驗證 WebDAV 伺服器的 TLS 憑證。若伺服器使用自簽或私有 CA 憑證，可在 設定 → 資料 → WebDAV 開啟「允許自簽憑證」（會降低傳輸安全性）。",
   "backup.progress.completed": "備份完成",
   "backup.progress.compressing": "壓縮檔案...",

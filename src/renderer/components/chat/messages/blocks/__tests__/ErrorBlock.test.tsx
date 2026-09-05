@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,6 +106,29 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('common.detail')).toBeNull()
   })
 
+  it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: 'Not logged in \u00b7 Please run /login',
+          stack: null,
+          cause: null,
+          errors: ['Not logged in \u00b7 Please run /login']
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses structured provider data when classifying an error', () => {
     render(
       <ErrorBlock
@@ -184,6 +208,41 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('offers provider settings recovery when a retry error wraps a 401', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_RetryError',
+          message: 'Failed after 2 attempts. Last error:',
+          stack: null,
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 401,
+            responseBody: '{"error":{"message":"Invalid Authentication"}}'
+          },
+          errors: [
+            {
+              name: 'AI_APICallError',
+              statusCode: 401,
+              responseBody: '{"error":{"message":"Invalid Authentication"}}'
+            }
+          ]
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses injected diagnosis capability for unknown errors', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {
@@ -231,5 +290,27 @@ describe('ErrorBlock', () => {
 
     expect(await screen.findByText('中文摘要')).toBeInTheDocument()
     expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
+  })
+
+  it('offers network settings for a client-certificate authentication failure', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'StreamError',
+          message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED',
+          stack: 'Error: net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
+    await user.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
   })
 })
