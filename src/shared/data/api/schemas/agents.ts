@@ -61,6 +61,7 @@ export const AgentConfigurationSchema = z
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
+    default_workspace_id: z.string().min(1).optional(),
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
