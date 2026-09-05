@@ -11,6 +11,7 @@ import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/Mo
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -691,11 +692,12 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
 
-  const modelSelectorFilter = useCallback<ModelSelectorFilter>(
+  const baseModelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
       !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
+  const modelSelectorFilter = useCherryCloudModelFilter('translate', baseModelSelectorFilter)
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {

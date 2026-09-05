@@ -61,6 +61,7 @@ describe('Cherry Cloud response contracts', () => {
             context_window: 200_000,
             max_output_tokens: 8_192,
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+            available_features: ['agent'],
             model_metadata: { tier: 'work' }
           }
         ],
@@ -97,7 +98,8 @@ describe('Cherry Cloud response contracts', () => {
       display_name: 'Claude Test',
       endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       context_window: 200_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      available_features: ['agent']
     }
 
     expect(cloudModelListSchema.parse({ data: [model] }).data[0].capabilities).toBeUndefined()
@@ -120,7 +122,8 @@ describe('Cherry Cloud response contracts', () => {
       endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       context_window: 200_000,
       max_output_tokens: 8_192,
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      available_features: ['agent']
     }
 
     expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude?test' }] }).success).toBe(false)

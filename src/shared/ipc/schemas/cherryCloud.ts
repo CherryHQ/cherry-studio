@@ -10,8 +10,18 @@ export const cherryCloudStatusSchema = z.strictObject({
 
 export type CherryCloudStatus = z.infer<typeof cherryCloudStatusSchema>
 
+export const cherryCloudModelFeatureSchema = z.enum(['agent', 'chat', 'translate'])
+
+export type CherryCloudModelFeature = z.infer<typeof cherryCloudModelFeatureSchema>
+
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
+  freeModelIds: z.array(UniqueModelIdSchema),
+  availableModelIdsByFeature: z.strictObject({
+    agent: z.array(UniqueModelIdSchema),
+    chat: z.array(UniqueModelIdSchema),
+    translate: z.array(UniqueModelIdSchema)
+  }),
   quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
 })
 

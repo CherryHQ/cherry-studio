@@ -4,6 +4,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -71,7 +72,8 @@ export function ChatConversationControls({
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
   const { t } = useTranslation()
-  const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
+  const baseChatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
+  const chatModelFilter = useCherryCloudModelFilter('chat', baseChatModelFilter)
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)

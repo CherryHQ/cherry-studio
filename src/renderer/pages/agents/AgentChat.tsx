@@ -25,7 +25,7 @@ import {
 import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -210,7 +210,6 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
-  const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -460,7 +459,6 @@ const AgentChat = ({
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}
-              isModelDisabled={isModelDisabled}
               onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
             />
           ) : undefined
