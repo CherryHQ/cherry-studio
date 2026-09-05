@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
 
-import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import {
   BaseService,
   DependsOn,
@@ -12,7 +13,11 @@ import {
 } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ClaudeCodeProcessManager, type SpawnProcess } from '../ClaudeCodeProcessManager'
+import {
+  ClaudeCodeProcessManager,
+  createClaudeCodeProcessDiagnostics,
+  type SpawnProcess
+} from '../ClaudeCodeProcessManager'
 
 /** The production class takes no constructor args (container contract); tests swap the seam here. */
 class TestProcessManager extends ClaudeCodeProcessManager {
@@ -24,6 +29,7 @@ class TestProcessManager extends ClaudeCodeProcessManager {
 
 function createFakeChild(options: { pid?: number } = {}) {
   const emitter = new EventEmitter()
+  const stderr = new PassThrough()
   const pid = 'pid' in options ? options.pid : 123
   let killed = false
   let exitCode: number | null = null
@@ -36,6 +42,7 @@ function createFakeChild(options: { pid?: number } = {}) {
     pid,
     stdin: {},
     stdout: {},
+    stderr,
     get killed() {
       return killed
     },
@@ -49,10 +56,11 @@ function createFakeChild(options: { pid?: number } = {}) {
     on: emitter.on.bind(emitter),
     once: emitter.once.bind(emitter),
     off: emitter.off.bind(emitter)
-  } as unknown as SpawnedProcess
+  } as unknown as ReturnType<SpawnProcess>
 
   return {
     process,
+    stderr,
     kill,
     setExited(code: number | null, signal: NodeJS.Signals | null) {
       exitCode = code
@@ -126,12 +134,15 @@ describe('ClaudeCodeProcessManager', () => {
       signal: controller.signal
     }
 
-    expect(manager.spawn(options)).toBe(child.process)
+    const managed = manager.spawn(options)
+    expect(managed).not.toBe(child.process)
+    expect(managed.stdin).toBe(child.process.stdin)
+    expect(managed.stdout).toBe(child.process.stdout)
     expect(spawnProcess).toHaveBeenCalledWith('/opt/claude', ['--output-format', 'stream-json'], {
       cwd: '/workspace',
       env: { ANTHROPIC_API_KEY: 'test-key' },
       signal: controller.signal,
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     })
 
@@ -139,6 +150,28 @@ describe('ClaudeCodeProcessManager', () => {
     child.emitExit(0, null, false)
     manager.killAll('SIGTERM')
     expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('drains a bounded stderr tail before delivering exit diagnostics', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.write(`discarded-${'x'.repeat(2200)}\nAuthentication failed: api_key=sk-ant-private`)
+    child.emitExit(1)
+    expect(onExit).not.toHaveBeenCalled()
+
+    child.stderr.end()
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledExactlyOnceWith(1, null))
+
+    expect(diagnostics.terminalReason).toContain('Claude Code process exited with code 1')
+    expect(diagnostics.terminalReason).toContain('sk-ant-private')
+    expect(diagnostics.terminalReason).not.toContain('discarded-')
+    expect(diagnostics.category).toBe('auth')
+    expect(diagnostics.exitCode).toBe(1)
   })
 
   it('stops tracking a child whose spawn fails before receiving a pid', () => {

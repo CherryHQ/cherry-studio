@@ -25,6 +25,40 @@ export interface ErrorClassification {
   navTarget: string | null
 }
 
+const CLAUDE_CODE_EXIT_CATEGORIES = new Set<ErrorClassification['category']>([
+  'auth',
+  'permission',
+  'model',
+  'quota',
+  'rate_limit',
+  'network',
+  'proxy',
+  'server',
+  'mcp',
+  'unknown'
+])
+
+function classifyClaudeCodeExit(
+  category: ErrorClassification['category'],
+  providerSuffix: string
+): ErrorClassification {
+  const providerCategories = new Set<ErrorClassification['category']>([
+    'auth',
+    'permission',
+    'model',
+    'quota',
+    'rate_limit'
+  ])
+  const navTarget = providerCategories.has(category)
+    ? `/settings/provider${providerSuffix}`
+    : category === 'network' || category === 'proxy'
+      ? '/settings/general'
+      : category === 'mcp'
+        ? '/settings/mcp/servers'
+        : null
+  return { category, i18nKey: `error.diagnosis.${category}`, navTarget }
+}
+
 export function isQuotaErrorMessage(message: string): boolean {
   const msg = message.toLowerCase()
 
@@ -81,6 +115,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const errorBag = error as Record<string, unknown>
+  const providerSuffix = providerId ? `?id=${providerId}` : ''
+  const explicitClaudeCodeCategory = errorBag.claudeCodeExitCategory
+  if (
+    typeof explicitClaudeCodeCategory === 'string' &&
+    CLAUDE_CODE_EXIT_CATEGORIES.has(explicitClaudeCodeCategory as ErrorClassification['category'])
+  ) {
+    return classifyClaudeCodeExit(explicitClaudeCodeCategory as ErrorClassification['category'], providerSuffix)
+  }
   const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
 
   switch (finishReason) {
@@ -93,7 +135,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody.toLowerCase() : ''

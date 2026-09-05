@@ -268,7 +268,6 @@ vi.mock('../streamAdapter', async (importActual) => {
 })
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -440,6 +439,54 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await connection.close()
   })
 
+  it('surfaces the diagnostics owned by the consumed warm process without exposing stderr', async () => {
+    const nextQueryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => nextQueryResult.promise }
+      }
+    }
+    mocks.consumeWarmQuery.mockResolvedValue({
+      warmQuery: { query: vi.fn(() => query) },
+      processDiagnostics: {
+        reference: 'warm-diagnostic-ref',
+        terminalReason: 'Claude Code process exited with code 1. stderr: api_key=sk-ant-private',
+        category: 'auth',
+        exitCode: 1
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    nextQueryResult.reject(new Error('Claude Code process exited with code 1'))
+
+    const event = await events.next()
+    expect(event.value).toMatchObject({
+      type: 'error',
+      error: {
+        claudeCodeExitCategory: 'auth',
+        diagnosticReference: 'warm-diagnostic-ref',
+        processExitCode: 1
+      }
+    })
+    expect(JSON.stringify(event.value)).not.toContain('sk-ant-private')
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Claude Code query loop failed',
+      expect.objectContaining({
+        diagnosticReference: 'warm-diagnostic-ref',
+        terminalReason: expect.stringContaining('sk-ant-private')
+      })
+    )
+    void connection.close()
+  })
+
   it('keys the warm lookup on the turn notification authority so a differently-scoped park is not reused', async () => {
     const queryQueue = createAsyncQueue<any>()
     mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
@@ -534,7 +581,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       modelId: 'claude-code::sonnet' as any
     })
 
-    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toEqual(expect.any(Function))
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
     void connection.close()
   })
 
@@ -2789,7 +2837,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // user message with its per-message resume cleared.
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
+    expect(retrySpawn.options).toMatchObject({
+      model: 'sonnet',
+      resume: undefined,
+      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    })
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 
@@ -2849,7 +2901,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
+    expect(retrySpawn.options).toMatchObject({
+      model: 'sonnet',
+      resume: undefined,
+      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    })
     await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
       value: { type: 'user', session_id: '' },
       done: false

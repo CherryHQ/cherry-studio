@@ -124,6 +124,35 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
+  it('shows only the safe Claude Code exit status and diagnostic reference', () => {
+    const diagnoseMessageError = vi.fn()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          diagnosticReference: 'diagnostic-ref',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
+    expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('ignores non-serializable provider data when classifying an error', () => {
     const circularData: Record<string, unknown> = {}
     circularData.self = circularData

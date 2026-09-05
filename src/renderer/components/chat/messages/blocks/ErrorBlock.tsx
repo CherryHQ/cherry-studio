@@ -34,6 +34,18 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
 
+  const errorBag = error as Record<string, unknown> | undefined
+  if (typeof errorBag?.claudeCodeExitCategory === 'string') {
+    const reference = typeof errorBag.diagnosticReference === 'string' ? errorBag.diagnosticReference : ''
+    if (typeof errorBag.processExitCode === 'number') {
+      return t('error.claude_code_exit.code', { code: errorBag.processExitCode, reference })
+    }
+    if (typeof errorBag.processExitSignal === 'string') {
+      return t('error.claude_code_exit.signal', { signal: errorBag.processExitSignal, reference })
+    }
+    return t('error.claude_code_exit.start', { reference })
+  }
+
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
   const errorStatus =
@@ -94,7 +106,9 @@ const MessageErrorInfo: React.FC<{
   const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
   const errorData = (error as Record<string, unknown> | undefined)?.data
   const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
+  const errorClaudeCodeExitCategory = (error as Record<string, unknown> | undefined)?.claudeCodeExitCategory
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const isClaudeCodeExit = typeof (error as Record<string, unknown> | undefined)?.claudeCodeExitCategory === 'string'
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
@@ -110,6 +124,8 @@ const MessageErrorInfo: React.FC<{
     }
   }
   const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
+  const classificationClaudeCodeExitCategory =
+    typeof errorClaudeCodeExitCategory === 'string' ? errorClaudeCodeExitCategory : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => {
@@ -125,12 +141,16 @@ const MessageErrorInfo: React.FC<{
         : {}),
       ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
       ...(classificationData !== undefined ? { data: classificationData } : {}),
-      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
+      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {}),
+      ...(classificationClaudeCodeExitCategory !== undefined
+        ? { claudeCodeExitCategory: classificationClaudeCodeExitCategory }
+        : {})
     }
 
     return classifyError(classificationError, providerId)
   }, [
     classificationData,
+    classificationClaudeCodeExitCategory,
     classificationFinishReason,
     classificationResponseBody,
     classificationStatus,
@@ -139,7 +159,14 @@ const MessageErrorInfo: React.FC<{
   ])
 
   useEffect(() => {
-    if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
+    if (
+      isClaudeCodeExit ||
+      hasAppOwnedI18nKey ||
+      classification.category !== 'unknown' ||
+      !errorMessage ||
+      !error ||
+      !diagnoseMessageError
+    )
       return
     let cancelled = false
     diagnoseMessageError({
@@ -159,7 +186,16 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, hasAppOwnedI18nKey, i18n.language, message, partId])
+  }, [
+    classification.category,
+    diagnoseMessageError,
+    errorMessage,
+    hasAppOwnedI18nKey,
+    i18n.language,
+    isClaudeCodeExit,
+    message,
+    partId
+  ])
 
   const diagnosisContext = useMemo(
     () => ({
