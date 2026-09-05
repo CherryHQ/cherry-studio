@@ -29,7 +29,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
-import { attachGatewayProviderContext, buildStreamErrorFrame } from './errors'
+import { buildStreamErrorFrame, withGatewayProviderContext } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
@@ -362,7 +362,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             return sseListener.onPaused(result)
           },
           onError: (result) => {
-            const error = attachGatewayProviderContext(result.error, providerId, modelId)
+            const error = withGatewayProviderContext(result.error, providerId, modelId)
             if (startupState !== 'pending') return sseListener.onError({ ...result, error })
 
             fail(error)
@@ -456,7 +456,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       })
       rejectDone(streamInterruptedError())
     },
-    onError: (result) => rejectDone(attachGatewayProviderContext(result.error, providerId, modelId)),
+    onError: (result) => rejectDone(withGatewayProviderContext(result.error, providerId, modelId)),
     isAlive: () => !aborted
   }
 

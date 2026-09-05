@@ -361,15 +361,15 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.type).toBe('forbidden_error')
     })
 
-    it('messages: an upstream 401 identifies provider/model and gives an authentication recovery action', async () => {
+    it('messages: an upstream 401 reports the requested route without attributing the failing fallback', async () => {
       mockProcessMessage.mockRejectedValueOnce({
         name: 'Error',
         message: 'User not found',
         stack: null,
         statusCode: 401,
         gatewayErrorKind: 'upstream_provider',
-        providerId: 'openrouter',
-        modelId: 'deepseek/deepseek-v4-flash-0731',
+        requestedProviderId: 'openrouter',
+        requestedModelId: 'deepseek/deepseek-v4-flash-0731',
         requestBodyValues: { messages: ['SECRET REQUEST'] }
       })
       const { status, body } = await read(
@@ -382,7 +382,7 @@ describe('API gateway routes (integration)', () => {
       expect(body.type).toBe('error') // Anthropic envelope
       expect(body.error.type).toBe('authentication_error')
       expect(body.error.message).toBe(
-        'Provider "openrouter" authentication failed for model "deepseek/deepseek-v4-flash-0731". Check the provider credentials and account access.'
+        'Gateway request for "openrouter:deepseek/deepseek-v4-flash-0731" received an upstream authentication failure. Check the requested route, any configured fallback, and account access.'
       )
       expect(JSON.stringify(body)).not.toContain('User not found')
       expect(JSON.stringify(body)).not.toContain('SECRET REQUEST')
@@ -405,15 +405,15 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.message).toBe('Maximum context length exceeded')
     })
 
-    it('chat: an upstream 503 keeps its status and gives provider/model recovery context', async () => {
+    it('chat: an upstream 503 reports the requested route without attributing the failing fallback', async () => {
       mockProcessMessage.mockRejectedValueOnce({
         name: 'AI_APICallError',
         message: 'Service unavailable',
         stack: null,
         statusCode: 503,
         gatewayErrorKind: 'upstream_provider',
-        providerId: 'openrouter',
-        modelId: 'deepseek/deepseek-v4-flash-0731'
+        requestedProviderId: 'openrouter',
+        requestedModelId: 'deepseek/deepseek-v4-flash-0731'
       })
       const { status, body } = await read(
         await post(app, '/v1/chat/completions', {
@@ -425,7 +425,7 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(503)
       expect(body.error.type).toBe('server_error')
       expect(body.error.message).toBe(
-        'Provider "openrouter" request failed for model "deepseek/deepseek-v4-flash-0731" (HTTP 503). Check the provider status and model access.'
+        'Gateway request for "openrouter:deepseek/deepseek-v4-flash-0731" failed upstream (HTTP 503). Check the requested route, any configured fallback, and model access.'
       )
       expect(JSON.stringify(body)).not.toContain('Service unavailable')
     })

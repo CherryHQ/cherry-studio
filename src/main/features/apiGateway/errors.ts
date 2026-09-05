@@ -12,13 +12,18 @@ const GATEWAY_PROVIDER_ERROR_KIND = 'upstream_provider'
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
-export function attachGatewayProviderContext(
+export function withGatewayProviderContext(
   error: SerializedError,
   providerId: string,
   modelId: string
 ): SerializedError {
   if (typeof error.statusCode !== 'number') return error
-  return Object.assign(error, { gatewayErrorKind: GATEWAY_PROVIDER_ERROR_KIND, providerId, modelId })
+  return {
+    ...error,
+    gatewayErrorKind: GATEWAY_PROVIDER_ERROR_KIND,
+    requestedProviderId: providerId,
+    requestedModelId: modelId
+  }
 }
 
 const messageOf = (error: unknown, fallback: string): string =>
@@ -96,8 +101,8 @@ function extractError(error: unknown): {
   status?: number
   message?: string
   type?: string
-  providerId?: string
-  modelId?: string
+  requestedProviderId?: string
+  requestedModelId?: string
   isGatewayProviderError: boolean
 } {
   if (error === null || typeof error !== 'object') return { isGatewayProviderError: false }
@@ -107,8 +112,8 @@ function extractError(error: unknown): {
     message?: unknown
     error?: { type?: unknown; message?: unknown }
     gatewayErrorKind?: unknown
-    providerId?: unknown
-    modelId?: unknown
+    requestedProviderId?: unknown
+    requestedModelId?: unknown
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
   const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
@@ -116,28 +121,31 @@ function extractError(error: unknown): {
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
-  const providerId = typeof e.providerId === 'string' && e.providerId.length > 0 ? e.providerId : undefined
-  const modelId = typeof e.modelId === 'string' && e.modelId.length > 0 ? e.modelId : undefined
+  const requestedProviderId =
+    typeof e.requestedProviderId === 'string' && e.requestedProviderId.length > 0 ? e.requestedProviderId : undefined
+  const requestedModelId =
+    typeof e.requestedModelId === 'string' && e.requestedModelId.length > 0 ? e.requestedModelId : undefined
   return {
     status,
     message,
     type,
-    providerId,
-    modelId,
+    requestedProviderId,
+    requestedModelId,
     isGatewayProviderError: e.gatewayErrorKind === GATEWAY_PROVIDER_ERROR_KIND
   }
 }
 
-function gatewayProviderMessage(status: number, providerId: string, modelId: string): string {
+function gatewayProviderMessage(status: number, requestedProviderId: string, requestedModelId: string): string {
+  const requestedAddress = `${requestedProviderId}:${requestedModelId}`
   let summary: string
   if (status === 401) {
-    summary = `Provider "${providerId}" authentication failed for model "${modelId}". Check the provider credentials and account access.`
+    summary = `Gateway request for "${requestedAddress}" received an upstream authentication failure. Check the requested route, any configured fallback, and account access.`
   } else if (status === 403) {
-    summary = `Provider "${providerId}" denied access to model "${modelId}". Check the account and model permissions.`
+    summary = `Gateway request for "${requestedAddress}" received an upstream access denial. Check the requested route, any configured fallback, and model permissions.`
   } else if (status === 429) {
-    summary = `Provider "${providerId}" rate limited model "${modelId}". Retry later or check the provider quota.`
+    summary = `Gateway request for "${requestedAddress}" received an upstream rate limit. Check the requested route, any configured fallback, and provider quota before retrying.`
   } else {
-    summary = `Provider "${providerId}" request failed for model "${modelId}" (HTTP ${status}). Check the provider status and model access.`
+    summary = `Gateway request for "${requestedAddress}" failed upstream (HTTP ${status}). Check the requested route, any configured fallback, and model access.`
   }
   return summary
 }
@@ -151,11 +159,16 @@ function gatewayProviderMessage(status: number, providerId: string, modelId: str
 function safeMessage(
   status: number | undefined,
   message: string | undefined,
-  context?: { isGatewayProviderError: boolean; providerId?: string; modelId?: string }
+  context?: { isGatewayProviderError: boolean; requestedProviderId?: string; requestedModelId?: string }
 ): string {
   const fallback = 'Internal server error'
-  if (status !== undefined && context?.isGatewayProviderError && context.providerId && context.modelId) {
-    return gatewayProviderMessage(status, context.providerId, context.modelId)
+  if (
+    status !== undefined &&
+    context?.isGatewayProviderError &&
+    context.requestedProviderId &&
+    context.requestedModelId
+  ) {
+    return gatewayProviderMessage(status, context.requestedProviderId, context.requestedModelId)
   }
   if (status !== undefined) return message && message.length > 0 ? message : fallback
   return isDev && message && message.length > 0 ? message : fallback

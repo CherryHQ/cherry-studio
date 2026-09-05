@@ -731,20 +731,26 @@ describe('processMessage (streaming)', () => {
 })
 
 describe('processMessage (error & pause)', () => {
-  it('rejects the original provider error with gateway context before semantic commitment', async () => {
+  it('rejects a gateway-local copy without mutating the stream manager error', async () => {
     const { response, listener } = await startStreaming()
     const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }
+    const originalError = structuredClone(error)
 
     listener.onChunk({ type: 'start' } as any)
     void listener.onError({ status: 'error', error } as any)
 
-    await expect(response).rejects.toBe(error)
-    expect(error).toMatchObject({
+    const rejected = await response.then(
+      () => undefined,
+      (reason: unknown) => reason
+    )
+    expect(rejected).not.toBe(error)
+    expect(rejected).toMatchObject({
       statusCode: 400,
       gatewayErrorKind: 'upstream_provider',
-      providerId: 'openai',
-      modelId: 'gpt-4'
+      requestedProviderId: 'openai',
+      requestedModelId: 'gpt-4'
     })
+    expect(error).toEqual(originalError)
   })
 
   it('streaming: an error after commitment emits a dialect error frame, not the raw SerializedError', async () => {
@@ -768,7 +774,7 @@ describe('processMessage (error & pause)', () => {
     const text = await readAll(res.body)
     expect(text).toContain('"error"')
     expect(text).toContain(
-      'Provider \\"openai\\" rate limited model \\"gpt-4\\". Retry later or check the provider quota.'
+      'Gateway request for \\"openai:gpt-4\\" received an upstream rate limit. Check the requested route, any configured fallback, and provider quota before retrying.'
     )
     expect(text).not.toContain('Provider rejected the request')
     expect(text).not.toContain('secret stack')
@@ -843,8 +849,8 @@ describe('processMessage (error & pause)', () => {
 
     await expect(resPromise).rejects.toMatchObject({
       statusCode: 401,
-      providerId: 'openrouter',
-      modelId: 'deepseek/deepseek-v4-flash-0731'
+      requestedProviderId: 'openrouter',
+      requestedModelId: 'deepseek/deepseek-v4-flash-0731'
     })
   })
 
