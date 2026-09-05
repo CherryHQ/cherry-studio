@@ -43,10 +43,10 @@ import {
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { areDifferentModelIdentities, type UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -1936,7 +1936,9 @@ export class MessageService {
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
-   * - 'parent' (default): Sets activeNodeId to the deleted message's parent
+   * - 'parent' (default): For non-cascade deletion of an active grouped assistant,
+   *   promotes the newest surviving reply from another model; otherwise, including
+   *   same-model regeneration and cascade deletion, uses the deleted message's parent
    * - 'clear': Sets activeNodeId to null
    *
    * All operations are performed within a transaction for consistency.
@@ -2021,7 +2023,38 @@ export class MessageService {
 
         // Check if activeNodeId is affected
         if (topic.activeNodeId === id) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
+          if (activeNodeStrategy === 'clear') {
+            newActiveNodeId = null
+          } else if (message.role === 'assistant' && message.siblingsGroupId !== 0) {
+            const survivingReplies = tx
+              .select({
+                id: messageTable.id,
+                modelId: messageTable.modelId,
+                messageSnapshot: messageTable.messageSnapshot
+              })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.topicId, message.topicId),
+                  eq(messageTable.parentId, message.parentId),
+                  eq(messageTable.role, 'assistant'),
+                  eq(messageTable.siblingsGroupId, message.siblingsGroupId),
+                  ne(messageTable.id, id),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+              .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
+              .all()
+            const survivingReply = survivingReplies.find((reply) =>
+              areDifferentModelIdentities(
+                { modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model },
+                { modelId: reply.modelId, modelSnapshot: reply.messageSnapshot?.model }
+              )
+            )
+            newActiveNodeId = survivingReply?.id ?? parentFallback
+          } else {
+            newActiveNodeId = parentFallback
+          }
         }
 
         // Hard delete this message

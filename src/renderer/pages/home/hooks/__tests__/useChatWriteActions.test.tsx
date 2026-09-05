@@ -378,8 +378,8 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
     expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
     const reconcile = vi.mocked(cache.seedOptimisticBranch).mock.calls[1][0]
-    reconcile([])
-    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']))
+    reconcile([], 'a1')
+    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']), 'a1')
     expect(invalidateMessages).toHaveBeenCalledWith(['a1-old', 'a1', 'a2'])
   })
 

@@ -24,16 +24,98 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
+import { areDifferentModelIdentities } from '@shared/data/types/model'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
-function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
-  return items
-    .filter((item) => !removedIds.has(item.message.id))
-    .map((item) =>
-      item.siblingsGroup ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) } : item
+function branchWithoutIds(
+  items: BranchMessage[],
+  removedIds: Set<string>,
+  activeNodeId: string | null
+): BranchMessage[] {
+  return items.flatMap((item) => {
+    const siblingsGroup = item.siblingsGroup?.filter((sibling) => !removedIds.has(sibling.id)) ?? []
+    if (!removedIds.has(item.message.id)) {
+      return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
+    }
+
+    const differentModelReplies = siblingsGroup.filter((sibling) =>
+      areDifferentModelIdentities(
+        { modelId: item.message.modelId, modelSnapshot: item.message.messageSnapshot?.model },
+        { modelId: sibling.modelId, modelSnapshot: sibling.messageSnapshot?.model }
+      )
     )
+
+    if (
+      item.message.id !== activeNodeId ||
+      item.message.role !== 'assistant' ||
+      item.message.siblingsGroupId === 0 ||
+      differentModelReplies.length === 0
+    ) {
+      return []
+    }
+
+    const message = differentModelReplies.reduce((newest, sibling) =>
+      sibling.createdAt > newest.createdAt || (sibling.createdAt === newest.createdAt && sibling.id > newest.id)
+        ? sibling
+        : newest
+    )
+    const remainingSiblings = siblingsGroup.filter((sibling) => sibling.id !== message.id)
+    return [{ message, ...(remainingSiblings.length > 0 ? { siblingsGroup: remainingSiblings } : {}) }]
+  })
+}
+
+/** When a transform promotes a sibling into the active slot, follow activeNodeId. */
+function activeNodeIdAfterOptimisticTransform(
+  previousItems: BranchMessage[],
+  nextItems: BranchMessage[],
+  activeNodeId: string | null,
+  rootId: string | null
+): string | null {
+  if (!activeNodeId) return activeNodeId
+  if (nextItems.some((item) => item.message.id === activeNodeId)) return activeNodeId
+
+  const previousActive = previousItems.find((item) => item.message.id === activeNodeId)
+  if (!previousActive) return activeNodeId
+  const fallbackId = previousActive.message.parentId === rootId ? null : previousActive.message.parentId
+  if (!previousActive.siblingsGroup?.length) return fallbackId
+
+  const previousSiblingIds = new Set(previousActive.siblingsGroup.map((sibling) => sibling.id))
+  const promoted = nextItems.find((item) => previousSiblingIds.has(item.message.id))
+  return promoted?.message.id ?? fallbackId
+}
+
+function reparentAfterOptimisticTransform(
+  previousPages: BranchMessagesResponse[],
+  nextPages: BranchMessagesResponse[]
+): BranchMessagesResponse[] {
+  const messagesFromPages = (pages: BranchMessagesResponse[]) =>
+    pages.flatMap((page) => page.items.flatMap((item) => [item.message, ...(item.siblingsGroup ?? [])]))
+  const retainedIds = new Set(messagesFromPages(nextPages).map((message) => message.id))
+  const removedParents = new Map(
+    messagesFromPages(previousPages)
+      .filter((message) => !retainedIds.has(message.id))
+      .map((message) => [message.id, message.parentId])
+  )
+  if (removedParents.size === 0) return nextPages
+
+  const reparent = (message: SharedMessage): SharedMessage => {
+    let parentId = message.parentId
+    while (parentId && removedParents.has(parentId)) {
+      parentId = removedParents.get(parentId) ?? null
+    }
+    return parentId === message.parentId ? message : { ...message, parentId }
+  }
+
+  return nextPages.map((page) => ({
+    ...page,
+    items: page.items.map((item) => ({
+      ...item,
+      message: reparent(item.message),
+      ...(item.siblingsGroup ? { siblingsGroup: item.siblingsGroup.map(reparent) } : {})
+    }))
+  }))
 }
 
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
@@ -83,11 +165,19 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
    * item list for that page.
    */
   const seedOptimisticBranch = useCallback(
-    async (transform: (items: BranchMessage[]) => BranchMessage[]) => {
+    async (transform: (items: BranchMessage[], activeNodeId: string | null) => BranchMessage[]) => {
       await mutate(
         (pages) => {
           if (!pages) return pages
-          return pages.map((page) => ({ ...page, items: transform(page.items) }))
+          const nextPages = pages.map((page) => {
+            const items = transform(page.items, page.activeNodeId)
+            return {
+              ...page,
+              items,
+              activeNodeId: activeNodeIdAfterOptimisticTransform(page.items, items, page.activeNodeId, page.rootId)
+            }
+          })
+          return reparentAfterOptimisticTransform(pages, nextPages)
         },
         { revalidate: false }
       )

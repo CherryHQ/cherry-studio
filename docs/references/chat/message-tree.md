@@ -19,15 +19,15 @@ canvas) rely on. Schema: `src/main/data/db/schemas/message.ts`. Service:
 ## Structure
 
 A topic's messages form a tree stored as an **adjacency list** — each row points at its
-parent via `parentId`. Multi-model responses (one user turn, N assistant replies) are
-**sibling groups**: rows that share a `parentId` and a non-zero `siblingsGroupId`.
+parent via `parentId`. Edit/resend branches and alternative responses are **sibling groups**:
+rows that share a `parentId` and a non-zero `siblingsGroupId`.
 
 | Column | Meaning |
 |---|---|
 | `parentId` | Parent message id. `NULL` **only** for the virtual root (see below). |
 | `topicId` | Owning topic (FK, `ON DELETE CASCADE`). |
 | `role` | `user` / `assistant` / `system` content, or `root` (virtual root sentinel). |
-| `siblingsGroupId` | `0` = normal single branch; `>0` = members of one multi-model group under the same parent. |
+| `siblingsGroupId` | `0` = normal single branch; non-zero = members of one edit/resend, multi-model, or regeneration cohort under the same parent. |
 | `topic.activeNodeId` | The currently-selected leaf — the "where we are" pointer that read paths walk up from. |
 
 ### Virtual root

@@ -142,7 +142,9 @@ export function useChatWriteActions(params: Params): Result {
     const operation = (async () => {
       const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
       if (hasClearContextPart(activeMessage?.parts)) {
-        await seedOptimisticBranch((items) => branchWithoutIds(items, new Set([activeNodeId])))
+        await seedOptimisticBranch((items, branchActiveNodeId) =>
+          branchWithoutIds(items, new Set([activeNodeId]), branchActiveNodeId)
+        )
         try {
           await deleteMessageTrigger({ params: { id: activeNodeId }, query: { cascade: false } })
           logger.info('Removed context boundary', { messageId: activeNodeId, topicId: topic.id })
@@ -220,7 +222,9 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const optimisticIds = new Set([id])
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
+      await seedOptimisticBranch((prev, branchActiveNodeId) =>
+        branchWithoutIds(prev, optimisticIds, branchActiveNodeId)
+      )
 
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
@@ -245,10 +249,14 @@ export function useChatWriteActions(params: Params): Result {
       }
       // Optimistically remove only the rendered representatives. The service resolves the
       // complete sibling group inside its transaction and returns the authoritative ids.
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(uniqueMessageIds)))
+      await seedOptimisticBranch((prev, branchActiveNodeId) =>
+        branchWithoutIds(prev, new Set(uniqueMessageIds), branchActiveNodeId)
+      )
       try {
         const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
-        await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
+        await seedOptimisticBranch((prev, branchActiveNodeId) =>
+          branchWithoutIds(prev, new Set(result.deletedIds), branchActiveNodeId)
+        )
         invalidateCachedMessageUiStates(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
