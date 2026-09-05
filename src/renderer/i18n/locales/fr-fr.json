@@ -4833,6 +4833,7 @@
   "settings.shortcuts.categories.topic": "Conversation et Sujets",
   "settings.shortcuts.conflict_with": "Déjà utilisé par \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copier le dernier message",
+  "settings.shortcuts.cycle_reasoning_effort": "Changer l’effort de raisonnement",
   "settings.shortcuts.edit_last_user_message": "Éditer le dernier message utilisateur",
   "settings.shortcuts.empty": "Aucun raccourci n’est disponible dans ce groupe",
   "settings.shortcuts.exit_fullscreen": "Quitter le plein écran",

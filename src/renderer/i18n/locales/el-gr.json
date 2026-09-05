@@ -4833,6 +4833,7 @@
   "settings.shortcuts.categories.topic": "Συζήτηση και Θέματα",
   "settings.shortcuts.conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
+  "settings.shortcuts.cycle_reasoning_effort": "Εναλλαγή επιπέδου συλλογισμού",
   "settings.shortcuts.edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
   "settings.shortcuts.empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
   "settings.shortcuts.exit_fullscreen": "Έξοδος από πλήρη οθόνη",

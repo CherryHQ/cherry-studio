@@ -4833,6 +4833,7 @@
   "settings.shortcuts.categories.topic": "会話と話題",
   "settings.shortcuts.conflict_with": "すでに「{{name}}」によって使用されています",
   "settings.shortcuts.copy_last_message": "最後のメッセージをコピー",
+  "settings.shortcuts.cycle_reasoning_effort": "推論強度を切り替える",
   "settings.shortcuts.edit_last_user_message": "最後のユーザーメッセージを編集",
   "settings.shortcuts.empty": "このグループには利用可能なショートカットはありません",
   "settings.shortcuts.exit_fullscreen": "フルスクリーンを終了",

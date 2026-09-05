@@ -4833,6 +4833,7 @@
   "settings.shortcuts.categories.topic": "Разговор и темы",
   "settings.shortcuts.conflict_with": "Уже используется \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Копировать последнее сообщение",
+  "settings.shortcuts.cycle_reasoning_effort": "Переключить уровень рассуждения",
   "settings.shortcuts.edit_last_user_message": "Редактировать последнее сообщение пользователя",
   "settings.shortcuts.empty": "В этой группе нет доступных ярлыков",
   "settings.shortcuts.exit_fullscreen": "Выйти из полноэкранного режима",

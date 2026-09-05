@@ -523,6 +523,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.chat.model.select': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.chat.reasoning.cycle': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.quick_assistant.toggle': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.screenshot.capture': PreferenceTypes.PreferenceShortcutType
@@ -852,6 +854,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.chat.message.edit_last_user': { binding: ['CommandOrControl', 'Shift', 'E'], enabled: false },
     'shortcut.chat.message.search': { binding: ['CommandOrControl', 'F'], enabled: true },
     'shortcut.chat.model.select': { binding: ['CommandOrControl', 'Shift', 'M'], enabled: true },
+    'shortcut.chat.reasoning.cycle': { binding: ['CommandOrControl', 'Shift', '.'], enabled: true },
     'shortcut.quick_assistant.toggle': { binding: ['CommandOrControl', 'E'], enabled: false },
     'shortcut.screenshot.capture': { binding: ['CommandOrControl', 'Shift', 'A'], enabled: true },
     'shortcut.selection.capture_text': { binding: [], enabled: false },
