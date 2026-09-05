@@ -37,9 +37,11 @@ import {
   ChevronRight,
   FolderSearch,
   Import,
+  LayoutGrid,
   Library,
   Pencil,
   Plus,
+  Rows2,
   Search,
   Tag,
   Trash2
@@ -230,9 +232,7 @@ export const ResourceGrid: FC<Props> = ({
   const columnCount = isSettings
     ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
     : responsiveColumnCount
-  const layoutLabel = t(
-    columnCount === 1 ? 'settings.skills.layout.two_columns' : 'settings.skills.layout.single_column'
-  )
+  const layoutLabel = t(columnCount === 1 ? 'common.layout.two_columns' : 'common.layout.single_column')
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
@@ -406,23 +406,7 @@ export const ResourceGrid: FC<Props> = ({
                 title={layoutLabel}
                 disabled={responsiveColumnCount < 2}
                 onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                <svg
-                  width={20}
-                  height={20}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  aria-hidden="true">
-                  <rect x={2} y={5} width={columnCount === 1 ? 20 : 8} height={5} rx={1} />
-                  <rect x={2} y={14} width={columnCount === 1 ? 20 : 8} height={5} rx={1} />
-                  {columnCount === 2 && (
-                    <>
-                      <rect x={14} y={5} width={8} height={5} rx={1} />
-                      <rect x={14} y={14} width={8} height={5} rx={1} />
-                    </>
-                  )}
-                </svg>
+                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
               </Button>
             )}
           </div>
