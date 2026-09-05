@@ -48,7 +48,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.
 
 vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => {
   const React = require('react')
-  const DiagnosticUploadPanel = ({ ref, description, onBusyChange, onDescriptionChange }) => {
+  const DiagnosticUploadPanel = ({ ref, description, onBusyChange, onClose, onDescriptionChange }) => {
     React.useImperativeHandle(ref, () => ({ requestClose: async () => true }))
     return React.createElement(
       React.Fragment,
@@ -58,14 +58,22 @@ vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => {
         value: description,
         onChange: (event: ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange(event.target.value)
       }),
-      React.createElement('button', { type: 'button', onClick: () => onBusyChange?.(true) }, 'Start report operation')
+      React.createElement('button', { type: 'button', onClick: () => onBusyChange?.(true) }, 'Start report operation'),
+      React.createElement('button', { type: 'button', onClick: onClose }, 'Close report panel')
     )
   }
   return { DiagnosticUploadPanel }
 })
 
 vi.mock('@renderer/components/feedback/DiagnosticBundlePanel', () => ({
-  default: () => <div>settings.doctor.panels.export</div>
+  default: ({ onClose }) => (
+    <div>
+      settings.doctor.panels.export
+      <button type="button" onClick={onClose}>
+        Close export panel
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -114,6 +122,27 @@ function completedDoctorState(
   }
 }
 
+function reportableDoctorState(): DoctorState {
+  const state = completedDoctorState([
+    {
+      id: 'logs-recent-findings',
+      status: 'warn',
+      durationMs: 1,
+      attribution: 'app-bug',
+      detail: { variant: 'findings' },
+      actions: [{ kind: 'report' }]
+    }
+  ])
+  if (state.status !== 'completed') throw new Error('Expected a completed Doctor state')
+  return {
+    ...state,
+    report: {
+      ...state.report,
+      summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
 afterEach(async () => {
   cleanup()
   vi.useFakeTimers()
@@ -143,7 +172,7 @@ describe('DoctorPopup', () => {
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
   })
 
-  it('renders secondary-panel back navigation as an accessible icon-only action', async () => {
+  it('treats a directly opened report as a standalone problem report', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
@@ -151,11 +180,12 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'report' })
     })
 
-    const backButton = await screen.findByRole('button', { name: 'settings.doctor.actions.back_to_checks' })
-    expect(backButton).toHaveTextContent(/^$/)
+    expect(await screen.findByRole('heading', { name: 'settings.doctor.panels.report' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'settings.doctor.actions.back_to_checks' })).not.toBeInTheDocument()
 
-    await user.hover(backButton)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('settings.doctor.actions.back_to_checks')
+    await user.click(screen.getByRole('button', { name: 'Close report panel' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('exposes advanced tools as a collapsed accordion', async () => {
@@ -253,13 +283,15 @@ describe('DoctorPopup', () => {
 
   it('keeps the editable report draft while navigating panels', async () => {
     const user = userEvent.setup()
+    mocks.doctorState = reportableDoctorState()
     render(<PopupHost />)
 
     act(() => {
-      void DoctorPopup.show({ initialPanel: 'report', initialDescription: 'safe first draft' })
+      void DoctorPopup.show({ initialPanel: 'checks', initialDescription: 'safe first draft' })
     })
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
     expect(
       await screen.findByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })
     ).toHaveValue('safe first draft')
@@ -272,12 +304,48 @@ describe('DoctorPopup', () => {
     await waitFor(() =>
       expect(screen.getByText('settings.doctor.panel_descriptions.checks').parentElement).toHaveFocus()
     )
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
-    await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.actions.report_problem' }))
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
 
     expect(screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })).toHaveValue(
       'safe first draft reviewed'
     )
+  })
+
+  it('returns to system diagnostics when an internally opened report closes', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = reportableDoctorState()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.report_problem' }))
+    expect(screen.getByRole('heading', { name: 'settings.doctor.panels.report' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Close report panel' }))
+
+    expect(screen.getByRole('dialog')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
+  })
+
+  it('uses the export title and keeps generic problem reporting out of the checks menu', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    expect(await screen.findByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    expect(screen.queryByRole('menuitem', { name: 'settings.doctor.actions.report_problem' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.panels.export' }))
+
+    expect(screen.getByRole('heading', { name: 'settings.doctor.panels.export' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
+    expect(screen.getByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
   })
 
   it('announces whether quick basic checks or full checks are running', async () => {
