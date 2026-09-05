@@ -1,6 +1,8 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ProviderUtils from '@shared/utils/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderApiOptionsDrawer from '../ProviderApiOptionsDrawer'
 
@@ -10,6 +12,18 @@ const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
 const isSystemProviderMock = vi.fn()
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any
+  HTMLElement.prototype.hasPointerCapture ??= () => false
+  HTMLElement.prototype.releasePointerCapture ??= () => {}
+  HTMLElement.prototype.setPointerCapture ??= () => {}
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
@@ -44,8 +58,11 @@ vi.mock('@shared/utils/provider', async (importOriginal) => ({
   isSystemProvider: (...args: unknown[]) => isSystemProviderMock(...args)
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button type="button" onClick={onClick} {...props}>
         {children}
@@ -167,6 +184,33 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
+  // The provider query lands a round trip after the write, so the sibling field
+  // commits against a snapshot that predates it. Tabbing from one field to the
+  // next must not write the pre-edit threshold back.
+  it('keeps a just-saved threshold when the sibling field commits before the query catches up', () => {
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    const threshold = screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
+    fireEvent.change(threshold, { target: { value: '2048' } })
+    fireEvent.blur(threshold)
+
+    const lastN = screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')
+    fireEvent.change(lastN, { target: { value: '5' } })
+    fireEvent.blur(lastN)
+
+    expect(updateProviderMock).toHaveBeenLastCalledWith({
+      providerSettings: {
+        ...provider.settings,
+        cacheControl: {
+          enabled: true,
+          tokenThreshold: 2048,
+          cacheSystemMessage: true,
+          cacheLastNMessages: 5
+        }
+      }
+    })
+  })
+
   it('shows default Anthropic cache values when cacheControl is unset', () => {
     useProviderMock.mockReturnValue({
       provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
@@ -175,8 +219,29 @@ describe('ProviderApiOptionsDrawer', () => {
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue('1024')
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue('2')
+  })
+
+  it('persists a one-hour Anthropic cache lifetime without dropping sibling settings', async () => {
+    const user = userEvent.setup()
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole('combobox', { name: 'settings.provider.api.options.anthropic_cache.cache_ttl' }))
+    await user.click(screen.getByRole('option', { name: 'settings.provider.api.options.anthropic_cache.cache_ttl_1h' }))
+
+    expect(updateProviderMock).toHaveBeenCalledWith({
+      providerSettings: {
+        ...provider.settings,
+        cacheControl: {
+          enabled: true,
+          tokenThreshold: 1024,
+          cacheSystemMessage: true,
+          cacheLastNMessages: 2,
+          ttl: '1h'
+        }
+      }
+    })
   })
 
   it('renders nothing for a non-OpenAI provider without anthropic cache support', () => {

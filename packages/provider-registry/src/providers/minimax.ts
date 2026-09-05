@@ -89,6 +89,7 @@ export const minimaxOverrides = [
 export default openaiCompatible({
   id: 'minimax',
   name: 'MiniMax',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.minimaxi.com/v1/',
   anthropic: 'https://api.minimaxi.com/anthropic',
   website: {

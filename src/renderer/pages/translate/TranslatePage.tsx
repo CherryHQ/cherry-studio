@@ -7,7 +7,8 @@ import { loggerService } from '@logger'
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDrag } from '@renderer/hooks/useDrag'
@@ -67,6 +68,7 @@ import type {
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
+import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -656,8 +658,10 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
+  const translateReasoning = useTranslateReasoningEffort()
+
+  const modelSelectorFilter = useCallback<ModelSelectorFilter>(
+    (model) =>
       !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
@@ -915,7 +919,7 @@ const TranslatePage: FC = () => {
   return (
     <div
       data-ui="translate.view"
-      className="relative flex h-full flex-col overflow-hidden bg-background"
+      className="relative flex h-full flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -925,7 +929,7 @@ const TranslatePage: FC = () => {
       )}
       <Navbar />
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
@@ -1001,6 +1005,14 @@ const TranslatePage: FC = () => {
                 </Button>
               }
             />
+            {translateReasoning.supportsReasoning && translateReasoning.model && (
+              <ModelSpeedControl
+                side="bottom"
+                model={translateReasoning.model}
+                reasoningEffort={translateReasoning.effort}
+                onReasoningEffortChange={translateReasoning.selectEffort}
+              />
+            )}
             <Button
               variant="ghost"
               size="icon-sm"

@@ -31,9 +31,7 @@ const TranslateOutputPane = ({
   const markdownPlugins = useMemo(() => ({ ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) }), [])
 
   return (
-    <div
-      data-ui="translate.output"
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <Scrollbar
         ref={ref}
         onScroll={onScroll}
