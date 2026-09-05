@@ -41,22 +41,29 @@ export const installVersionChannel = defineDoctorCheck({
 export const installUpdateAvailable = defineDoctorCheck({
   id: 'install-update-available',
   async run() {
-    const { currentVersion, updateInfo } = await application.get('AppUpdaterService').checkForUpdates()
-    if (!updateInfo) return { status: 'pass' }
+    const update = await application.get('AppUpdaterService').queryUpdateAvailability()
+    if (update.status === 'current') return { status: 'pass' }
+    if (update.status === 'unsupported')
+      return {
+        status: 'warn',
+        attribution: 'user-fixable',
+        detail: { variant: 'unsupported' },
+        actions: [{ kind: 'navigate', target: '/settings/about' }]
+      }
 
-    const runningVersion = String(currentVersion)
+    const runningVersion = update.currentVersion
     return {
       status: 'warn',
       attribution: 'user-fixable',
       detail: {
         variant: 'available',
-        params: { currentVersion: runningVersion, availableVersion: updateInfo.version }
+        params: { currentVersion: runningVersion, availableVersion: update.version }
       },
-      actions: [{ kind: 'install_update' }],
-      devMessage: `Update ${updateInfo.version} is available for ${runningVersion}`,
+      actions: [{ kind: 'navigate', target: '/settings/about' }],
+      devMessage: `Update ${update.version} is available for ${runningVersion}`,
       evidence: [
         { key: 'currentVersion', value: runningVersion, dataClass: 'public' },
-        { key: 'availableVersion', value: updateInfo.version, dataClass: 'public' }
+        { key: 'availableVersion', value: update.version, dataClass: 'public' }
       ]
     }
   },

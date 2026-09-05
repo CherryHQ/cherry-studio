@@ -4,13 +4,15 @@ import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const services = vi.hoisted(() => ({
-  checkForUpdates: vi.fn(),
+  queryUpdateAvailability: vi.fn(),
   loadNativeCaptureBackend: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AppUpdaterService: { checkForUpdates: services.checkForUpdates } } as never)
+  return mockApplicationFactory({
+    AppUpdaterService: { queryUpdateAvailability: services.queryUpdateAvailability }
+  } as never)
 })
 vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
   loadNativeCaptureBackend: services.loadNativeCaptureBackend
@@ -24,7 +26,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   vi.mocked(app.getVersion).mockReturnValue('2.0.0')
-  services.checkForUpdates.mockResolvedValue({ currentVersion: '2.0.0', updateInfo: null })
+  services.queryUpdateAvailability.mockResolvedValue({ status: 'current', currentVersion: '2.0.0' })
   services.loadNativeCaptureBackend.mockReturnValue({})
 })
 
@@ -68,21 +70,36 @@ describe('install-version-channel', () => {
 })
 
 describe('install-update-available', () => {
+  it('distinguishes unsupported updates from an up-to-date app', async () => {
+    services.queryUpdateAvailability.mockResolvedValue({ status: 'unsupported' })
+    await expect(installUpdateAvailable.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      detail: { variant: 'unsupported' },
+      actions: [{ kind: 'navigate', target: '/settings/about' }]
+    })
+  })
+
+  it('propagates query failure for the engine to report an error', async () => {
+    services.queryUpdateAvailability.mockRejectedValue(new Error('query failed'))
+    await expect(installUpdateAvailable.run(ctx)).rejects.toThrow('query failed')
+  })
+
   it('passes when the updater reports no newer release', async () => {
     await expect(installUpdateAvailable.run(ctx)).resolves.toEqual({ status: 'pass' })
   })
 
-  it('warns with the available version and an in-Doctor install action', async () => {
-    services.checkForUpdates.mockResolvedValue({
+  it('warns with the available version and an About settings action', async () => {
+    services.queryUpdateAvailability.mockResolvedValue({
       currentVersion: '2.0.0',
-      updateInfo: { version: '2.1.0' }
+      status: 'available',
+      version: '2.1.0'
     })
 
     await expect(installUpdateAvailable.run(ctx)).resolves.toMatchObject({
       status: 'warn',
       attribution: 'user-fixable',
       detail: { variant: 'available', params: { currentVersion: '2.0.0', availableVersion: '2.1.0' } },
-      actions: [{ kind: 'install_update' }]
+      actions: [{ kind: 'navigate', target: '/settings/about' }]
     })
   })
 })

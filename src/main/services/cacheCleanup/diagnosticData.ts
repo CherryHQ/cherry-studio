@@ -1,7 +1,7 @@
 import { application } from '@application'
-import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
+import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 
-import { captureStep, measurePaths, removeCleanupDirectoryContents, resultFromSteps, toSizeSnapshot } from './shared'
+import { measurePaths, toSizeSnapshot } from './shared'
 
 function getDiagnosticPaths() {
   return {
@@ -11,22 +11,15 @@ function getDiagnosticPaths() {
   }
 }
 
-export async function inspectDiagnosticData(): Promise<CacheCleanupSizeSnapshot> {
+export async function inspectDiagnosticData(signal?: AbortSignal): Promise<CacheCleanupSizeSnapshot> {
   const paths = getDiagnosticPaths()
-  const measurement = await measurePaths([
-    { item: 'logs', path: paths.logs },
-    { item: 'crash_dumps', path: paths.crashDumps },
-    { item: 'trace', path: paths.trace }
-  ])
+  const measurement = await measurePaths(
+    [
+      { item: 'logs', path: paths.logs },
+      { item: 'crash_dumps', path: paths.crashDumps },
+      { item: 'trace', path: paths.trace }
+    ],
+    signal
+  )
   return toSizeSnapshot(measurement, 'exact')
-}
-
-export async function clearDiagnosticData(): Promise<CacheCleanupGroupResult> {
-  const paths = getDiagnosticPaths()
-  const [logSteps, crashDumpSteps, traceStep] = await Promise.all([
-    removeCleanupDirectoryContents({ item: 'logs', path: paths.logs, kind: 'directory' }),
-    removeCleanupDirectoryContents({ item: 'crash_dumps', path: paths.crashDumps, kind: 'directory' }),
-    captureStep('trace', () => application.get('TraceStorageService').cleanLocalData())
-  ])
-  return resultFromSteps('logs', [...logSteps, ...crashDumpSteps, traceStep])
 }

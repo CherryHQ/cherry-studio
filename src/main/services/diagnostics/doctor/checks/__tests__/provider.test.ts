@@ -155,7 +155,7 @@ describe('provider-cherry-account', () => {
       status: 'warn',
       attribution: 'user-fixable',
       detail: { variant: 'signed_out' },
-      actions: [{ kind: 'open_cherry_account' }]
+      actions: []
     })
   })
 })
