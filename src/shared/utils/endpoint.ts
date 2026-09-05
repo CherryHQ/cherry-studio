@@ -1,5 +1,5 @@
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
