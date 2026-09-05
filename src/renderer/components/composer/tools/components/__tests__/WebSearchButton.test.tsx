@@ -395,7 +395,7 @@ describe('WebSearchButton', () => {
   })
 
   it('predicts built-in search from the supported provider default endpoint', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', false)
     mocks.provider = {
       id: 'new-api',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,

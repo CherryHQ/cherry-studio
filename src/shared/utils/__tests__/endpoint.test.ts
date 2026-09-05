@@ -1,3 +1,4 @@
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
@@ -164,5 +165,21 @@ describe('resolveCanonicalEndpoint', () => {
       endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       gatewayProviderOptionsKey: 'anthropic'
     })
+  })
+
+  it('uses managed Cherry Cloud model endpoints without local endpoint configs', () => {
+    const cloud = provider({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      presetProviderId: CHERRYAI_PROVIDER_ID,
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: undefined
+    })
+    const cloudModel = model({
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-go`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(resolveCanonicalEndpoint(cloud, cloudModel).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 })
