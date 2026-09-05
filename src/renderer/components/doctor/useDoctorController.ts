@@ -136,9 +136,14 @@ export function useDoctorController({
   )
 
   useEffect(() => {
+    if (!sharedCacheReady || autoRunRequestedRef.current) return
+    if (doctorState.status === 'running') {
+      autoRunRequestedRef.current = true
+      return
+    }
     const shouldAutoRun =
       doctorState.status === 'idle' || (autoRunPolicy === 'when-not-running' && doctorState.status !== 'running')
-    if (!sharedCacheReady || !shouldAutoRun || autoRunRequestedRef.current) return
+    if (!shouldAutoRun) return
     autoRunRequestedRef.current = true
     void run('quick')
   }, [autoRunPolicy, doctorState.status, run, sharedCacheReady])

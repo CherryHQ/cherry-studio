@@ -183,7 +183,7 @@ describe('useDoctorController', () => {
       results: []
     }
 
-    renderHook(() =>
+    const { rerender } = renderHook(() =>
       useDoctorController({
         autoRunPolicy: 'when-not-running',
         initialPanel: 'checks',
@@ -192,6 +192,11 @@ describe('useDoctorController', () => {
       })
     )
 
+    await act(async () => {})
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+
+    mocks.doctorState = completedDoctorState()
+    rerender()
     await act(async () => {})
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
   })
