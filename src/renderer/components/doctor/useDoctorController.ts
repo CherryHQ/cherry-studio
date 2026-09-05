@@ -141,8 +141,7 @@ export function useDoctorController({
       autoRunRequestedRef.current = true
       return
     }
-    const shouldAutoRun =
-      doctorState.status === 'idle' || (autoRunPolicy === 'when-not-running' && doctorState.status !== 'running')
+    const shouldAutoRun = doctorState.status === 'idle' || autoRunPolicy === 'when-not-running'
     if (!shouldAutoRun) return
     autoRunRequestedRef.current = true
     void run('quick')
