@@ -43,8 +43,10 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
+import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -89,6 +91,7 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
 
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
@@ -853,10 +856,18 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
+    let result: Awaited<ReturnType<typeof aiCoreGenerateImage>>
+    try {
+      result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        ...imageParams,
+        onProviderCall: createProviderCallHandler(imageUsageContext)
+      })
+    } catch (error) {
+      if (NoImageGeneratedError.isInstance(error)) {
+        return { files: [], validation: { receivedCount: 0, rejected: [] } }
+      }
+      throw error
+    }
 
     const images = result.images ?? []
     const dataUrls: Base64String[] = []
@@ -865,7 +876,7 @@ export class AiService extends BaseService {
       const mediaType = image.mediaType || 'image/png'
       if (!mediaType.startsWith('image/')) {
         rejected.push({ index, reason: 'unsupported_media_type' })
-      } else if (!image.base64) {
+      } else if (!image.base64 || !GENERATED_IMAGE_BASE64_SCHEMA.safeParse(image.base64).success) {
         rejected.push({ index, reason: 'invalid_image_data' })
       } else {
         dataUrls.push(`data:${mediaType};base64,${image.base64}`)
