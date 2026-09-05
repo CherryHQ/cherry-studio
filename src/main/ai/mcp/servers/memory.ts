@@ -7,6 +7,8 @@ import { Mutex } from 'async-mutex' // 引入 Mutex
 import { promises as fs } from 'fs'
 import path from 'path'
 
+import { containsUnresolvedConfigPlaceholder } from '../mcpPlaceholder'
+
 const logger = loggerService.withContext('McpServer:Memory')
 
 // Define memory file path
@@ -344,7 +346,7 @@ class MemoryServer {
 
   constructor(envPath: string = '') {
     const configuredPath = envPath.trim()
-    if (configuredPath === 'YOUR_MEMORY_FILE_PATH') {
+    if (containsUnresolvedConfigPlaceholder(configuredPath)) {
       throw Object.assign(new Error('Memory MCP path contains an unresolved placeholder'), {
         code: 'MCP_UNRESOLVED_PLACEHOLDER',
         path: configuredPath

@@ -43,15 +43,28 @@ describe('MemoryServer', () => {
     await expect(readFile(path.join(tempDir, 'default-memory.json'), 'utf8')).resolves.toContain('"entities": []')
   })
 
-  it.each(['YOUR_MEMORY_FILE_PATH', '  YOUR_MEMORY_FILE_PATH  '])(
-    'rejects the unresolved built-in placeholder before accessing the file system as %j',
-    (configuredPath) => {
-      expect(() => new MemoryServer(configuredPath)).toThrow(
-        expect.objectContaining({
-          code: 'MCP_UNRESOLVED_PLACEHOLDER',
-          path: 'YOUR_MEMORY_FILE_PATH'
-        })
-      )
+  it.each([
+    ['YOUR_MEMORY_FILE_PATH', 'YOUR_MEMORY_FILE_PATH'],
+    ['  YOUR_MEMORY_FILE_PATH  ', 'YOUR_MEMORY_FILE_PATH'],
+    ['${MEMORY_FILE_PATH}', '${MEMORY_FILE_PATH}'],
+    ['  YOUR_CUSTOM_MEMORY_PATH  ', 'YOUR_CUSTOM_MEMORY_PATH'],
+    ['C:\\%USERPROFILE%\\memory.json', 'C:\\%USERPROFILE%\\memory.json']
+  ])('rejects unresolved placeholders before accessing the file system as %j', (configuredPath, expectedPath) => {
+    expect(() => new MemoryServer(configuredPath)).toThrow(
+      expect.objectContaining({
+        code: 'MCP_UNRESOLVED_PLACEHOLDER',
+        path: expectedPath
+      })
+    )
+  })
+
+  it.each(['memory-${not-placeholder}.json', 'YOUR_MEMORY_FILE_PATH/graph.json', 'memory-%20.json'])(
+    'accepts a literal path that does not contain a supported placeholder as %j',
+    async (configuredPath) => {
+      const result = await listTools(new MemoryServer(configuredPath))
+
+      expect(result.tools.length).toBeGreaterThan(0)
+      await expect(readFile(path.resolve(configuredPath), 'utf8')).resolves.toContain('"entities": []')
     }
   )
 })

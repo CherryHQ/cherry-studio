@@ -2,6 +2,8 @@ import type { LoggerService } from '@logger'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 
+import { containsUnresolvedConfigPlaceholder } from './mcpPlaceholder'
+
 type Runner = {
   /** Bundled binary to fall back on when the command is missing from PATH; defaults to the command. */
   bundled?: string
@@ -38,8 +40,6 @@ const RUNNERS: Record<string, Runner> = {
   uv: uvRunner
 }
 
-const UNRESOLVED_COMMAND_PLACEHOLDER = /\$\{[A-Za-z_][A-Za-z0-9_]*\}|%[A-Za-z_][A-Za-z0-9_]*%|^YOUR_[A-Z0-9_]+$/
-
 export type LaunchCommand = {
   command: string
   args: string[]
@@ -69,7 +69,7 @@ export async function resolveLaunchCommand({
   if (!normalizedCommand) {
     throw new Error('MCP stdio command cannot be empty')
   }
-  if (UNRESOLVED_COMMAND_PLACEHOLDER.test(normalizedCommand)) {
+  if (containsUnresolvedConfigPlaceholder(normalizedCommand)) {
     throw Object.assign(new Error(`MCP stdio command contains an unresolved placeholder: '${normalizedCommand}'`), {
       code: 'MCP_UNRESOLVED_PLACEHOLDER',
       path: normalizedCommand
