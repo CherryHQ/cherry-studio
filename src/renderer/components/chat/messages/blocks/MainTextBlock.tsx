@@ -497,6 +497,7 @@ const MainTextBlock: React.FC<Props> = ({
         <ChatMarkdown
           block={block}
           inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          linkifyFilePaths={role === 'assistant'}
           postProcess={processContent}
           trustedCitations={trustedCitations}
         />
