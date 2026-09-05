@@ -25,6 +25,7 @@ interface StreamContentState {
   id: string
   textBuffer: string
   dsmlBuffer: string
+  pendingToolCalls: ParsedDsmlCall[]
   inDsml: boolean
   activeOpenTag: string
   activeCloseTag: string
@@ -104,6 +105,25 @@ function generateToolCallId(): string {
   return `dsml_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
+function enqueueToolCalls(
+  controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
+  calls: ParsedDsmlCall[]
+) {
+  for (const call of calls) {
+    const id = generateToolCallId()
+    const inputJson = JSON.stringify(call.args)
+    controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
+    controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
+    controller.enqueue({ type: 'tool-input-end', id })
+    controller.enqueue({
+      type: 'tool-call',
+      toolCallId: id,
+      toolName: call.toolName,
+      input: inputJson
+    })
+  }
+}
+
 function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
@@ -124,6 +144,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
             id,
             textBuffer: '',
             dsmlBuffer: '',
+            pendingToolCalls: [],
             inDsml: false,
             activeOpenTag: DSML_DELIMITERS[0].open,
             activeCloseTag: DSML_DELIMITERS[0].close
@@ -195,19 +216,13 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
             state.activeOpenTag + blockContent + state.activeCloseTag
           )
         } else {
-          for (const call of calls) {
-            const id = generateToolCallId()
-            const inputJson = JSON.stringify(call.args)
-            controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
-            controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
-            controller.enqueue({ type: 'tool-input-end', id })
-            controller.enqueue({
-              type: 'tool-call',
-              toolCallId: id,
-              toolName: call.toolName,
-              input: inputJson
-            })
-          }
+          // A tool call extracted from a reasoning block must not overtake the
+          // block's reasoning-end event. Anthropic content blocks are ordered;
+          // emitting tool_use while thinking is still open yields an invalid
+          // request at the gateway. Text blocks can keep the historical
+          // streaming behavior, while reasoning calls are released at end.
+          if (state.kind === 'reasoning') state.pendingToolCalls.push(...calls)
+          else enqueueToolCalls(controller, calls)
           extractedToolCalls = true
           logger.info(`Parsed ${calls.length} DSML tool call(s)`, {
             tools: calls.map((c) => c.toolName)
@@ -244,8 +259,12 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
                 } else if (state?.textBuffer) {
                   enqueueContentDelta(controller, kind, id, state.textBuffer)
                 }
-                contentStates.delete(key)
                 controller.enqueue(chunk)
+                if (state?.pendingToolCalls.length) {
+                  enqueueToolCalls(controller, state.pendingToolCalls)
+                  state.pendingToolCalls = []
+                }
+                contentStates.delete(key)
                 return
               }
 
@@ -287,6 +306,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
                 } else if (state.textBuffer) {
                   enqueueContentDelta(controller, state.kind, state.id, state.textBuffer)
                 }
+                if (state.pendingToolCalls.length) enqueueToolCalls(controller, state.pendingToolCalls)
               }
               contentStates.clear()
             }

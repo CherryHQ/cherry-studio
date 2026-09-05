@@ -424,6 +424,23 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(finish.finishReason.unified).toBe('tool-calls')
   })
 
+  it('closes a reasoning block before emitting its extracted tool calls', async () => {
+    const deltas = [
+      '<｜DSML｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜DSML｜tool_calls>'
+    ]
+    const events = await runStream(deltas, 'stop', 'reasoning')
+    const reasoningEndIndex = events.findIndex((event) => event.type === 'reasoning-end')
+    const firstToolEventIndex = events.findIndex((event) => event.type === 'tool-input-start')
+
+    expect(reasoningEndIndex).toBeGreaterThanOrEqual(0)
+    expect(firstToolEventIndex).toBeGreaterThan(reasoningEndIndex)
+    expect(events.filter((event) => event.type === 'tool-call')).toHaveLength(1)
+  })
+
   it('keeps interleaved text and reasoning parser state isolated by content block', async () => {
     const parts: LanguageModelV3StreamPart[] = [
       { type: 'stream-start', warnings: [] },
