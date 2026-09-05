@@ -532,7 +532,8 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -558,7 +559,7 @@ const ChatComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -1369,7 +1370,7 @@ const ChatComposerInner = ({
   )
 
   const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {
-    const items = [customizePanelItem]
+    const items: QuickPanelListItem[] = []
     if (!chatWrite || pinnedToolIds.includes(CHAT_CLEAR_CONTEXT_TOOL_ID)) return items
 
     const label = t('chat.input.new.context')
@@ -1383,7 +1384,11 @@ const ChatComposerInner = ({
       action: () => void handleStartNewContext()
     })
     return items
-  }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
+  }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
