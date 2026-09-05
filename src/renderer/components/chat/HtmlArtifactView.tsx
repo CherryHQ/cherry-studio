@@ -4,8 +4,11 @@ import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
   HtmlArtifactPopupHost,
-  useHtmlArtifactPopupContext,
-  useOptionalHtmlArtifactPopupContext
+  useApprovedInteractiveHtml,
+  useHtmlArtifactPopupActions,
+  useHtmlArtifactPopupSession,
+  useIsHtmlArtifactPopupOpen,
+  useOptionalHtmlArtifactPopupActions
 } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import {
   canConsumeVerticalWheel,
@@ -405,8 +408,8 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
 })
 
 export function HtmlArtifactPopupOutlet() {
-  const popupContext = useHtmlArtifactPopupContext()
-  const popupSession = popupContext.popupSession
+  const popupSession = useHtmlArtifactPopupSession()
+  const popupActions = useHtmlArtifactPopupActions()
   if (!popupSession) return null
 
   // Opening the full-screen popup is the explicit viewing action, so it never renders a
@@ -439,9 +442,9 @@ export function HtmlArtifactPopupOutlet() {
         )}
         onClose={() => {
           if (approvesInlineInteractive) {
-            popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
+            popupActions.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
           }
-          popupContext.closePopup()
+          popupActions.closePopup()
         }}
       />
     </Suspense>
@@ -458,8 +461,8 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   isStreaming = false
 }: HtmlArtifactViewProps & { artifactId: string }) {
   const { t } = useTranslation()
-  const popupContext = useHtmlArtifactPopupContext()
-  const { syncPopup } = popupContext
+  const popupActions = useHtmlArtifactPopupActions()
+  const { syncPopup } = popupActions
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
@@ -469,10 +472,11 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     () => kind === 'document' && htmlArtifactPreviewRequiresInteractive(html),
     [html, kind]
   )
-  const approvedInteractiveHtml = popupContext.approvedInteractiveHtmlById[artifactId]
+  const approvedInteractiveHtml = useApprovedInteractiveHtml(artifactId)
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
-  const isPopupOpen = !isStreaming && popupContext.popupSession?.artifactId === artifactId
+  const popupIsOpen = useIsHtmlArtifactPopupOpen(artifactId)
+  const isPopupOpen = !isStreaming && popupIsOpen
   const showCode = !isStreaming && viewMode === 'code'
   const completedSurfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const surfaceHeight = isStreaming
@@ -492,11 +496,11 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     setZoom(DEFAULT_ZOOM)
   }
   const handleApproveInteractivePreview = () => {
-    popupContext.approveInteractiveHtml(artifactId, html)
+    popupActions.approveInteractiveHtml(artifactId, html)
     setViewMode('preview')
   }
   const handleOpenPopup = () => {
-    popupContext.openPopup({
+    popupActions.openPopup({
       artifactId,
       html,
       title,
@@ -680,11 +684,11 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
 })
 
 export const HtmlArtifactView = memo(function HtmlArtifactView(props: HtmlArtifactViewProps) {
-  const popupContext = useOptionalHtmlArtifactPopupContext()
+  const popupActions = useOptionalHtmlArtifactPopupActions()
   const generatedArtifactId = useId()
   const artifactId = props.artifactId ?? generatedArtifactId
 
-  return popupContext ? (
+  return popupActions ? (
     <HtmlArtifactViewContent {...props} artifactId={artifactId} />
   ) : (
     <HtmlArtifactPopupHost>
