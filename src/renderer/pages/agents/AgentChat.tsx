@@ -11,6 +11,7 @@ import ConversationCenterState from '@renderer/components/chat/shell/Conversatio
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { ConversationSuggestions } from '@renderer/components/chat/shell/ConversationSuggestions'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -32,7 +33,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -592,6 +593,8 @@ const AgentChat = ({
   )
 }
 
+const AGENT_SUGGESTION_FOCUS = 'concrete tasks involving inspection, implementation, review, and verification'
+
 interface AgentChatSessionCenterProps {
   session: AgentSessionEntity
   runtime: AgentChatRuntimeState
@@ -627,6 +630,7 @@ const AgentChatSessionCenter = ({
   composerLaunchOptions,
   openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
@@ -675,6 +679,24 @@ const AgentChatSessionCenter = ({
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
             title={homeWelcomeText ?? ''}
+            footer={
+              activeAgent && agentId && !isMultiSelectMode ? (
+                <ConversationSuggestions
+                  focus={AGENT_SUGGESTION_FOCUS}
+                  conversationId={runtime.sessionId}
+                  topicId={buildAgentSessionTopicId(runtime.sessionId)}
+                  persona={{
+                    name: activeAgent.name,
+                    description: getAgentDescriptionForDisplay(activeAgent, t)
+                  }}
+                  fallback={[
+                    t('agent.home.suggestions.inspect'),
+                    t('agent.home.suggestions.plan'),
+                    t('agent.home.suggestions.review')
+                  ]}
+                />
+              ) : null
+            }
           />
         </div>
       )}

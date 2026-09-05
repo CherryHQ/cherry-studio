@@ -20,7 +20,16 @@ const activeAgentMock = vi.hoisted(() => ({
   lookupId: undefined as string | null | undefined
 }))
 const activeModelMock = vi.hoisted(() => ({
-  value: { id: 'provider::model-1', name: 'Model 1' } as any,
+  value: {
+    id: 'provider::model-1',
+    providerId: 'provider',
+    apiModelId: 'model-1',
+    name: 'Model 1',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } as any,
   isLoading: false,
   lookupId: undefined as string | null | undefined
 }))
@@ -358,7 +367,16 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.value = { id: 'agent-1', model: 'provider::model-1' }
     activeAgentMock.isLoading = false
     activeAgentMock.lookupId = undefined
-    activeModelMock.value = { id: 'provider::model-1', name: 'Model 1' }
+    activeModelMock.value = {
+      id: 'provider::model-1',
+      providerId: 'provider',
+      apiModelId: 'model-1',
+      name: 'Model 1',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
     activeModelMock.isLoading = false
     activeModelMock.lookupId = undefined
     modelSwitchConfirmationCacheMock.value = false

@@ -6,6 +6,7 @@ import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedCo
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -32,6 +33,7 @@ import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
+import { agentSkillToComposerToken } from '../agentComposerTokens'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -3466,6 +3468,177 @@ describe('AgentComposer', () => {
       expect.anything(),
       expect.anything()
     )
+  })
+
+  it('fills only the current session draft while preserving its tokens and without sending', async () => {
+    const skillToken: ComposerSerializedToken = {
+      ...agentSkillToComposerToken(reviewSkill),
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getDraft.mockImplementation(() => ({ text: skillToken.promptText, tokens: [skillToken] }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('other-session'),
+        text: 'Ignore me'
+      })
+    })
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: `${skillToken.promptText} Review the current changes`,
+      tokens: [skillToken]
+    })
+    expect(mocks.surfaceProps?.text).toBe(`${skillToken.promptText} Review the current changes`)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
+  })
+
+  it('does not replace typed draft text when a suggestion is clicked', async () => {
+    mocks.getDraft.mockImplementation(() => ({ text: 'already typed', tokens: [] }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).not.toBe('Review the current changes')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('fills an empty parked draft while input history is previewed', async () => {
+    seedInputHistory(['previous agent prompt'])
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: knowledgePrompt,
+      tokens: [{ ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt }],
+      files: [file],
+      knowledgeBaseIds: [knowledgeBaseOne.id],
+      workspaceKey: 'workspace-1\0/workspace',
+      agentId: 'agent-1'
+    })
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map((token, index) => ({ ...token, index, textOffset: 0 })) ?? []
+    }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: `file:${file.fileTokenSourceId}` }),
+          expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}` })
+        ])
+      )
+    })
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    })
+
+    mocks.replaceDraft.mockClear()
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: `${knowledgePrompt} Review the current changes`,
+      tokens: expect.arrayContaining([
+        expect.objectContaining({ id: `file:${file.fileTokenSourceId}` }),
+        expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}` })
+      ])
+    })
+    expect(mocks.surfaceProps?.text).toBe(`${knowledgePrompt} Review the current changes`)
+    expect(mocks.files).toEqual([file])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not replace a typed parked draft while input history is previewed', async () => {
+    seedInputHistory(['previous agent prompt'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="suggestion-session"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('already typed')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('already typed'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    })
+
+    mocks.replaceDraft.mockClear()
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, {
+        topicId: buildAgentSessionTopicId('suggestion-session'),
+        text: 'Review the current changes'
+      })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
   it('adopts launch options that arrive after the restored session first renders', async () => {
