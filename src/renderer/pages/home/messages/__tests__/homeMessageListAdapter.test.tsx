@@ -90,6 +90,10 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelFilter: () => () => true
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({

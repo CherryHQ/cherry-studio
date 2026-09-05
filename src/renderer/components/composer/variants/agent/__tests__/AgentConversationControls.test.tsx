@@ -25,6 +25,24 @@ const mocks = vi.hoisted(() => ({
     isEnabled: true,
     isHidden: false
   } satisfies Model,
+  sharedFreeModel: {
+    id: 'cherryai-subscription::shared-free',
+    providerId: 'cherryai-subscription',
+    name: 'Shared free cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  paidModel: {
+    id: 'cherryai-subscription::paid',
+    providerId: 'cherryai-subscription',
+    name: 'Paid cloud model',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
   regularModel: {
     id: 'openai::regular',
     providerId: 'openai',
@@ -44,7 +62,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
       {trigger}
       {[
         { key: 'available', model: mocks.availableModel },
+        { key: 'shared-free', model: mocks.sharedFreeModel },
         { key: 'exhausted', model: mocks.exhaustedModel },
+        { key: 'paid', model: mocks.paidModel },
         { key: 'regular', model: mocks.regularModel }
       ].map(({ key, model }) => (
         <button key={key} type="button" disabled={isModelDisabled?.(model)}>
@@ -66,11 +86,12 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelAvailability: () => ({
-    getModelQuotaStatus: (model: Model) => {
-      if (model.id === mocks.availableModel.id) return 'available'
+    getModelFreeQuotaStatus: (model: Model) => {
+      if (model.id === mocks.availableModel.id || model.id === mocks.sharedFreeModel.id) return 'available'
       if (model.id === mocks.exhaustedModel.id) return 'exhausted'
       return undefined
     },
+    isModelExclusiveToAgent: (model: Model) => model.id === mocks.availableModel.id,
     isModelDisabled: (model: Model) => model.id === mocks.exhaustedModel.id
   })
 }))
@@ -85,7 +106,8 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.session.workspace_selector.no_project': 'No project',
         'models.detail.free_quota_exhausted': '免费额度已用完，待重置',
-        'models.detail.limited_time_free': '限时免费，仅限于工作模块内使用'
+        'models.detail.limited_time_free': '限时免费',
+        'models.detail.limited_time_free_agent_only': '限时免费，仅限于工作模块内使用'
       })[key] ?? key
   })
 }))
@@ -107,8 +129,10 @@ describe('AgentConversationControls', () => {
     )
 
     expect(screen.getByTestId('available-description')).toHaveTextContent('限时免费，仅限于工作模块内使用')
+    expect(screen.getByTestId('shared-free-description')).toHaveTextContent('限时免费')
     expect(screen.getByTestId('exhausted-description')).toHaveTextContent('免费额度已用完，待重置')
     expect(screen.getByTestId('exhausted-description').closest('button')).toBeDisabled()
+    expect(screen.getByTestId('paid-description')).toBeEmptyDOMElement()
     expect(screen.getByTestId('regular-description')).toBeEmptyDOMElement()
     expect(screen.getByTestId('regular-description').closest('button')).not.toBeDisabled()
   })

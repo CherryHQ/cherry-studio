@@ -34,6 +34,10 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelDisabled: () => () => false
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelFilter: (_feature: string, filter?: (model: unknown) => boolean) => filter ?? (() => true)
+}))
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipc.request }
 }))

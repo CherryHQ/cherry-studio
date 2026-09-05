@@ -4,6 +4,7 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
@@ -78,7 +79,8 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
-  const assistantModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const baseAssistantModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const assistantModelFilter = useCherryCloudModelFilter('chat', baseAssistantModelFilter, open)
 
   useEffect(() => {
     if (!error) return
@@ -108,7 +110,7 @@ function AgentEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
-  const modelFilter = useAgentModelFilter(agent?.type)
+  const modelFilter = useAgentModelFilter(agent?.type, open)
   const isModelDisabled = useAgentModelDisabled(open)
 
   useEffect(() => {

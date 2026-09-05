@@ -10,6 +10,12 @@ import { useAgentModelAvailability, useAgentModelDisabled, useAgentModelFilter }
 const mocks = vi.hoisted(() => ({
   availability: {
     entitledModelIds: [] as Model['id'][],
+    freeModelIds: [] as Model['id'][],
+    availableModelIdsByFeature: {
+      agent: [] as Model['id'][],
+      chat: [] as Model['id'][],
+      translate: [] as Model['id'][]
+    },
     quotaExhaustedModelIds: [] as Model['id'][]
   },
   ipcRequest: vi.fn(),
@@ -86,10 +92,20 @@ describe('useAgentModelFilter', () => {
     expect(result.current(model([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
   })
 
-  it('keeps Cloud models visible so the disabled predicate owns availability', () => {
-    const { result } = renderHook(() => useAgentModelFilter(undefined))
+  it('shows Cloud models only when the server enables them for agents', async () => {
+    const agentModel = cloudModel('agent-model')
+    const chatModel = cloudModel('chat-model')
+    mocks.availability = {
+      entitledModelIds: [agentModel.id, chatModel.id],
+      freeModelIds: [],
+      availableModelIdsByFeature: { agent: [agentModel.id], chat: [chatModel.id], translate: [] },
+      quotaExhaustedModelIds: []
+    }
+    mocks.ipcRequest.mockImplementation(async () => mocks.availability)
+    const { result } = renderHook(() => useAgentModelFilter(undefined), { wrapper: wrapper() })
 
-    expect(result.current(cloudModel('deepseek-go'))).toBe(true)
+    await waitFor(() => expect(result.current(agentModel)).toBe(true))
+    expect(result.current(chatModel)).toBe(false)
   })
 
   describe('pi agents', () => {
@@ -131,7 +147,12 @@ describe('useAgentModelFilter', () => {
 
 describe('useAgentModelDisabled', () => {
   beforeEach(() => {
-    mocks.availability = { entitledModelIds: [], quotaExhaustedModelIds: [] }
+    mocks.availability = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+      quotaExhaustedModelIds: []
+    }
     mocks.ipcRequest.mockReset().mockImplementation(async () => mocks.availability)
     mocks.statusChanged = undefined
   })
@@ -146,19 +167,29 @@ describe('useAgentModelDisabled', () => {
   })
 
   it('applies entitlements and quota exhaustion from the synchronized snapshot', async () => {
-    const available = cloudModel('deepseek-go')
+    const paid = cloudModel('deepseek-go')
+    const free = cloudModel('deepseek-free-available')
     const exhausted = cloudModel('deepseek-free')
     mocks.availability = {
-      entitledModelIds: [available.id, exhausted.id],
+      entitledModelIds: [paid.id, free.id, exhausted.id],
+      freeModelIds: [free.id, exhausted.id],
+      availableModelIdsByFeature: {
+        agent: [paid.id, free.id, exhausted.id],
+        chat: [paid.id],
+        translate: [paid.id]
+      },
       quotaExhaustedModelIds: [exhausted.id]
     }
     const { result } = renderHook(() => useAgentModelAvailability(), { wrapper: wrapper() })
 
-    await waitFor(() => expect(result.current.isModelDisabled(available)).toBe(false))
+    await waitFor(() => expect(result.current.isModelDisabled(paid)).toBe(false))
+    expect(result.current.isModelDisabled(free)).toBe(false)
     expect(result.current.isModelDisabled(exhausted)).toBe(true)
-    expect(result.current.getModelQuotaStatus(available)).toBe('available')
-    expect(result.current.getModelQuotaStatus(exhausted)).toBe('exhausted')
-    expect(result.current.getModelQuotaStatus(model())).toBeUndefined()
+    expect(result.current.getModelFreeQuotaStatus(paid)).toBeUndefined()
+    expect(result.current.getModelFreeQuotaStatus(free)).toBe('available')
+    expect(result.current.getModelFreeQuotaStatus(exhausted)).toBe('exhausted')
+    expect(result.current.isModelExclusiveToAgent(free)).toBe(true)
+    expect(result.current.isModelExclusiveToAgent(paid)).toBe(false)
   })
 
   it('does not synchronize while disabled', async () => {
@@ -172,6 +203,8 @@ describe('useAgentModelDisabled', () => {
     const cloud = cloudModel('deepseek-go')
     mocks.availability = {
       entitledModelIds: [cloud.id],
+      freeModelIds: [cloud.id],
+      availableModelIdsByFeature: { agent: [cloud.id], chat: [], translate: [] },
       quotaExhaustedModelIds: []
     }
     const pendingRefresh = deferred<typeof mocks.availability>()
@@ -184,6 +217,8 @@ describe('useAgentModelDisabled', () => {
     act(() => mocks.statusChanged?.())
     pendingRefresh.resolve({
       entitledModelIds: [cloud.id],
+      freeModelIds: [cloud.id],
+      availableModelIdsByFeature: { agent: [cloud.id], chat: [], translate: [] },
       quotaExhaustedModelIds: []
     })
 
