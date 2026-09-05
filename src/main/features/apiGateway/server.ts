@@ -53,7 +53,7 @@ export class ApiGateway {
    * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
    * activation (a restart builds a fresh `ApiGateway`, and a port change is a stop→start).
    */
-  private readonly mcpSessions = new McpSessionStore()
+  private mcpSessions = new McpSessionStore()
 
   async start(): Promise<ApiGatewayRuntimeAddress> {
     if (this.startPromise) return this.startPromise
@@ -91,7 +91,9 @@ export class ApiGateway {
           host: currentHost,
           port: currentPort
         })
+        await this.mcpSessions.closeAll()
         await this.closeHttpServer()
+        this.mcpSessions = new McpSessionStore()
         this.cleanupFailedStart()
         return this.startInternal()
       }

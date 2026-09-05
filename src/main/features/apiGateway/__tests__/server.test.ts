@@ -2,6 +2,8 @@ import { createServer, type Server as HttpServer } from 'node:http'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { McpSessionStore } from '../McpSessionStore'
+
 /**
  * Server lifecycle tests for `ApiGateway` (start/stop) against the real
  * `@elysia/node` adapter on an ephemeral port. Restart at the service level is
@@ -15,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   buildApp: vi.fn(),
+  mcpSessionStores: [] as McpSessionStore[],
   port: 0,
   onBuildApp: undefined as ((port: number) => void) | undefined,
   setPreference: vi.fn<(key: string, value: unknown) => Promise<void>>(async () => undefined)
@@ -42,7 +45,8 @@ vi.mock('@logger', () => ({
 vi.mock('../app', async () => {
   const { Elysia } = await import('elysia')
   const { node } = await import('@elysia/node')
-  mocks.buildApp.mockImplementation(({ port }: { port: number }) => {
+  mocks.buildApp.mockImplementation(({ port, mcpSessions }: { port: number; mcpSessions: McpSessionStore }) => {
+    mocks.mcpSessionStores.push(mcpSessions)
     mocks.onBuildApp?.(port)
     return new Elysia({ adapter: node() }).get('/health', () => 'ok')
   })
@@ -67,6 +71,7 @@ const close = (server: HttpServer): Promise<void> =>
 
 describe('ApiGateway server lifecycle', () => {
   let gateway: ApiGateway | null = null
+  let closeAllSpy: ReturnType<typeof vi.spyOn> | undefined
   const extraGateways: ApiGateway[] = []
   const occupiedServers: HttpServer[] = []
 
@@ -74,7 +79,9 @@ describe('ApiGateway server lifecycle', () => {
     mocks.port = 0
     mocks.onBuildApp = undefined
     mocks.buildApp.mockClear()
+    mocks.mcpSessionStores.length = 0
     mocks.setPreference.mockClear()
+    closeAllSpy = undefined
   })
 
   afterEach(async () => {
@@ -82,6 +89,7 @@ describe('ApiGateway server lifecycle', () => {
     gateway = null
     await Promise.all(extraGateways.splice(0).map((item) => item.stop().catch(() => {})))
     await Promise.all(occupiedServers.splice(0).map((server) => close(server).catch(() => {})))
+    closeAllSpy?.mockRestore()
   })
 
   it('starts and reports running', async () => {
@@ -162,10 +170,15 @@ describe('ApiGateway server lifecycle', () => {
     mocks.setPreference.mockImplementationOnce(async (_key, value) => {
       mocks.port = value as number
     })
+    closeAllSpy = vi.spyOn(McpSessionStore.prototype, 'closeAll')
     gateway = new ApiGateway()
 
     const address = await gateway.start()
 
+    const [retiredStore, , freshStore] = mocks.mcpSessionStores
+    expect(mocks.mcpSessionStores).toEqual([retiredStore, retiredStore, freshStore, freshStore])
+    expect(closeAllSpy).toHaveBeenCalledOnce()
+    expect(closeAllSpy.mock.instances[0]).toBe(retiredStore)
     expect(mocks.setPreference).toHaveBeenCalledOnce()
     expect(address.port).toBe(mocks.port)
     expect(portOf(gateway)).toBe(mocks.port)
