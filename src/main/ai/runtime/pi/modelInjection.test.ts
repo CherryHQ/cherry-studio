@@ -298,6 +298,28 @@ describe('buildPiProviderInjection', () => {
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
   })
 
+  it('adds stable TokenDance app attribution', () => {
+    const provider = makeProvider({
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://tokendance.space/gateway'
+        }
+      },
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    })
+
+    const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'gpt-5' }), REAL_KEY)
+
+    expect(injection.providerConfig.headers).toEqual({
+      'x-trace': 'on',
+      'X-App-URL': 'app://cherryai.com.cn'
+    })
+  })
+
   it('hands pi header values it resolves back to the literals the user typed', async () => {
     const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const provider = makeProvider({

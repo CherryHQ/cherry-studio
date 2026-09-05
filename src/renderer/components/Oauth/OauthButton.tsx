@@ -5,7 +5,8 @@ import {
   oauthWithAihubmix,
   oauthWithAiOnly,
   oauthWithPPIO,
-  oauthWithSiliconFlow
+  oauthWithSiliconFlow,
+  oauthWithTokenDance
 } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
@@ -26,7 +27,8 @@ const API_KEY_OAUTH_LAUNCHERS: Record<
   aihubmix: oauthWithAihubmix,
   ppio: oauthWithPPIO,
   '302ai': oauthWith302AI,
-  aionly: oauthWithAiOnly
+  aionly: oauthWithAiOnly,
+  tokendance: oauthWithTokenDance
 }
 
 interface Props extends React.ComponentProps<typeof Button> {
