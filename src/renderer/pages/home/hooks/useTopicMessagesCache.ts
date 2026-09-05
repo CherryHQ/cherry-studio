@@ -92,20 +92,30 @@ function reparentAfterOptimisticTransform(
 ): BranchMessagesResponse[] {
   const messagesFromPages = (pages: BranchMessagesResponse[]) =>
     pages.flatMap((page) => page.items.flatMap((item) => [item.message, ...(item.siblingsGroup ?? [])]))
+  const previousMessages = messagesFromPages(previousPages)
   const retainedIds = new Set(messagesFromPages(nextPages).map((message) => message.id))
   const removedParents = new Map(
-    messagesFromPages(previousPages)
-      .filter((message) => !retainedIds.has(message.id))
-      .map((message) => [message.id, message.parentId])
+    previousMessages.filter((message) => !retainedIds.has(message.id)).map((message) => [message.id, message.parentId])
   )
   if (removedParents.size === 0) return nextPages
 
+  let nextGroupId = Math.max(0, ...previousMessages.map((message) => message.siblingsGroupId)) + 1
+  const movedGroups = new Map<string | null, Map<number, number>>()
   const reparent = (message: SharedMessage): SharedMessage => {
     let parentId = message.parentId
     while (parentId && removedParents.has(parentId)) {
       parentId = removedParents.get(parentId) ?? null
     }
-    return parentId === message.parentId ? message : { ...message, parentId }
+    if (parentId === message.parentId) return message
+    if (message.siblingsGroupId === 0) return { ...message, parentId }
+
+    let sourceGroups = movedGroups.get(message.parentId)
+    if (!sourceGroups) {
+      sourceGroups = new Map()
+      movedGroups.set(message.parentId, sourceGroups)
+    }
+    if (!sourceGroups.has(message.siblingsGroupId)) sourceGroups.set(message.siblingsGroupId, nextGroupId++)
+    return { ...message, parentId, siblingsGroupId: sourceGroups.get(message.siblingsGroupId)! }
   }
 
   return nextPages.map((page) => ({

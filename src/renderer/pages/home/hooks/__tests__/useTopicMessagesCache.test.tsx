@@ -201,7 +201,8 @@ describe('useTopicMessagesCache', () => {
     }
     const activeDescendant = {
       ...message('follow-up', 'user', '2026-08-28T00:00:03.000Z'),
-      parentId: historicalParent.id
+      parentId: historicalParent.id,
+      siblingsGroupId: 0
     }
     const pages = [
       branchPage([{ message: activeDescendant }], activeDescendant.id),
@@ -224,6 +225,54 @@ describe('useTopicMessagesCache', () => {
     const nextPages = await mutate.mock.results[0]?.value
     expect(nextPages?.[0]?.items).toEqual([{ message: { ...activeDescendant, parentId: historicalParent.parentId } }])
     expect(nextPages?.[1]?.items).toEqual([])
+  })
+
+  it('rebases a moved sibling group so it cannot collide at the destination parent', async () => {
+    const historicalParent = {
+      ...message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b'),
+      parentId: 'question-1',
+      siblingsGroupId: 0
+    }
+    const destinationReply = {
+      ...message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a'),
+      parentId: historicalParent.parentId,
+      siblingsGroupId: 5
+    }
+    const movedUser = {
+      ...message('follow-up-b', 'user', '2026-08-28T00:00:04.000Z'),
+      parentId: historicalParent.id,
+      siblingsGroupId: 5
+    }
+    const movedSibling = {
+      ...message('follow-up-a', 'user', '2026-08-28T00:00:03.000Z'),
+      parentId: historicalParent.id,
+      siblingsGroupId: 5
+    }
+    const pages = [
+      branchPage([{ message: movedUser, siblingsGroup: [movedSibling] }], movedUser.id),
+      branchPage([{ message: historicalParent }, { message: destinationReply }], movedUser.id)
+    ]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set([historicalParent.id]), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    const movedGroup = nextPages?.[0]?.items[0]
+    expect(movedGroup?.message.parentId).toBe(historicalParent.parentId)
+    expect(movedGroup?.siblingsGroup?.[0]?.parentId).toBe(historicalParent.parentId)
+    expect(movedGroup?.message.siblingsGroupId).toBe(movedGroup?.siblingsGroup?.[0]?.siblingsGroupId)
+    expect(movedGroup?.message.siblingsGroupId).not.toBe(destinationReply.siblingsGroupId)
+    expect(nextPages?.[1]?.items).toEqual([{ message: destinationReply }])
   })
 
   it('does not promote an off-path user sibling when the selected user branch is removed', () => {
