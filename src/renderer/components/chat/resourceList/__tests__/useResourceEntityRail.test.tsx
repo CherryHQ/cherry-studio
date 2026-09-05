@@ -69,8 +69,6 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
     {
       initialProps: {
         entities: ENTITIES,
-        resources: RESOURCES,
-        getResourceParentId: (resource) => resource.entityId,
         activeEntityId: 'assistant-a',
         isLoading: false,
         isError: false,
@@ -99,32 +97,10 @@ describe('useResourceEntityRail', () => {
   })
 
   it('shows loading only while there are no confirmed entity rows', () => {
-    const { result } = renderRail({ isLoading: true, resources: [] })
+    const { result } = renderRail({ isLoading: true, entities: [] })
 
     expect(result.current.listStatus).toBe('loading')
     expect(result.current.items).toEqual([])
-  })
-
-  it('hides a brand-new entity that owns no resources while keeping the others shown', () => {
-    const { result } = renderRail({
-      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
-      // assistant-c owns no resources yet; only a and b do.
-      resources: RESOURCES
-    })
-
-    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
-  })
-
-  it('shows and selects an entity without resources when the owner list opts in', () => {
-    const { result } = renderRail({
-      activeEntityId: 'assistant-c',
-      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
-      resources: RESOURCES,
-      showEntitiesWithoutResources: true
-    })
-
-    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b', 'assistant-c'])
-    expect(result.current.selectedId).toBe('assistant-c')
   })
 
   it('updates selection while keeping the list mounted during loading', () => {
@@ -135,8 +111,6 @@ describe('useResourceEntityRail', () => {
 
     rerender({
       entities: ENTITIES,
-      resources: RESOURCES,
-      getResourceParentId: (resource) => resource.entityId,
       activeEntityId: 'assistant-b',
       isLoading: true,
       isError: false,
@@ -177,11 +151,6 @@ describe('useResourceEntityRail', () => {
         { id: 'assistant-a', name: 'Assistant A', icon: 'A', orderKey: 'a' },
         { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b', pinned: true },
         { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
-      ],
-      resources: [
-        { id: 'topic-a', entityId: 'assistant-a', updatedAt: 3 },
-        { id: 'topic-b', entityId: 'assistant-b', updatedAt: 2 },
-        { id: 'topic-c', entityId: 'assistant-c', updatedAt: 1 }
       ]
     })
 
@@ -246,8 +215,6 @@ describe('useResourceEntityRail', () => {
 
     rerender({
       entities: ENTITIES,
-      resources: RESOURCES,
-      getResourceParentId: (resource) => resource.entityId,
       activeEntityId: 'assistant-a',
       isLoading: false,
       isError: false,
