@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { type DoctorPanel, useDoctorController } from '@renderer/hooks/doctor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -118,17 +118,15 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
         }}>
         <DialogHeader className="flex-row items-start gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
           {controller.session.activePanel !== 'checks' && canReturnToChecks ? (
-            <Tooltip content={t('settings.doctor.actions.back_to_checks')}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('settings.doctor.actions.back_to_checks')}
-                disabled={!controller.canChangePanel}
-                onClick={() => void returnToChecks()}>
-                <ArrowLeft className="size-4" aria-hidden />
-              </Button>
-            </Tooltip>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('settings.doctor.actions.back_to_checks')}
+              disabled={!controller.canChangePanel}
+              onClick={() => void returnToChecks()}>
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
           ) : null}
           <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{panelTitle}</DialogTitle>
