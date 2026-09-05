@@ -43,7 +43,7 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
  * chat-default steps so image, embedding, rerank, audio, and video work stays on its operation endpoint. The gateway
  * step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`).
+ * (see `gatewayChatRouting`).
  *
  * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
  * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
