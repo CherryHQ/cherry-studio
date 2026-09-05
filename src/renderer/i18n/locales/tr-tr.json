@@ -4831,6 +4831,7 @@
   "settings.shortcuts.categories.topic": "Konuşmalar",
   "settings.shortcuts.conflict_with": "Zaten \"{{name}}\" tarafından kullanılıyor",
   "settings.shortcuts.copy_last_message": "Son Mesajı Kopyala",
+  "settings.shortcuts.cycle_reasoning_effort": "Akıl Yürütme Düzeyini Değiştir",
   "settings.shortcuts.edit_last_user_message": "Son Kullanıcı Mesajını Düzenle",
   "settings.shortcuts.empty": "Bu grupta kullanılabilir kısayol yok",
   "settings.shortcuts.exit_fullscreen": "Tam Ekrandan Çık",

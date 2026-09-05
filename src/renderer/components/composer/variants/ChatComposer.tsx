@@ -25,6 +25,7 @@ import { getComposerToolConfig } from '@renderer/components/composer/tools/regis
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
+  getNextComposerReasoningEffort,
   ModelSpeedControl,
   resolveSupportedReasoningEffort,
   resolveSupportedServiceTier

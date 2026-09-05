@@ -26,6 +26,7 @@ import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
+  getNextComposerReasoningEffort,
   ModelSpeedControl,
   resolveSupportedReasoningEffort,
   resolveSupportedServiceTier

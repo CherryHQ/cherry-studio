@@ -160,6 +160,15 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
+/** Return the next selectable reasoning effort for the composer shortcut. */
+export function getNextComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption | undefined {
+  const reasoningOptions = getComposerReasoningOptions(model)
+  if (reasoningOptions.length <= 1) return undefined
+
+  const currentIndex = reasoningOptions.indexOf(resolveSupportedReasoningEffort(model, effort))
+  return reasoningOptions[(currentIndex + 1) % reasoningOptions.length]
+}
+
 /** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
 export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
   const control = model.requestControls?.serviceTier
