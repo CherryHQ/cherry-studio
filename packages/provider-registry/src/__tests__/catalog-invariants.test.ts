@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
+import { PROVIDERS } from '../providers'
 import { SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
@@ -140,6 +141,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(leaking).toEqual([])
   })
 
+  it('Fireworks rows carry account-scoped wire ids', () => {
+    const invalid = overrides
+      .filter(({ providerId }) => providerId === 'fireworks')
+      .filter(({ apiModelId }) => !apiModelId?.match(/^accounts\/fireworks\/(models|routers)\//))
+      .map(({ modelId }) => modelId)
+
+    expect(invalid).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -187,6 +197,22 @@ describe('catalog invariants (data/*.json)', () => {
     })
     expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
     expect(deepseekLatest?.pricing).toBeUndefined()
+  })
+
+  it('keeps the declared OpenRouter GPT image route out of the OpenAI creator catalog', () => {
+    expect(PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds).toEqual(['gpt-5-4-image-2'])
+    expect(ids).not.toContain('gpt-5-4-image-2')
+    expect(
+      providerModelOverrides.find(
+        (override) => override.providerId === 'openrouter' && override.apiModelId === 'openai/gpt-5.4-image-2'
+      )
+    ).toMatchObject({
+      modelId: 'gpt-5-4-image-2',
+      capabilities: { add: expect.arrayContaining(['image-generation']) },
+      endpointTypes: expect.arrayContaining(['openai-image-generation']),
+      name: 'OpenAI: GPT-5.4 Image 2',
+      ownedBy: 'openrouter'
+    })
   })
 
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {

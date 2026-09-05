@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.10",
+    "version": "2.0.12",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
@@ -77,6 +77,7 @@
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
       "/settings/screenshot",
+      "/settings/search",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -478,16 +479,12 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
+    "version": "767516d2e8178b83",
     "count": 61,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -560,6 +557,10 @@
       {
         "id": "ollama",
         "name": "Ollama"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
       },
       {
         "id": "new-api",
@@ -787,6 +788,11 @@
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
+    },
+    {
+      "value": "tr-TR",
+      "flag": "🇹🇷",
+      "label": "Türkçe"
     }
   ],
   "agents": {
@@ -830,7 +836,8 @@
         "maxMessages": null,
         "compress": {
           "enabled": true,
-          "modelId": null
+          "modelId": null,
+          "thresholdPercent": 80
         }
       },
       "limits": {

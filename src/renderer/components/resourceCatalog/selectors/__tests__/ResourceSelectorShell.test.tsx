@@ -345,6 +345,37 @@ describe('ResourceSelectorShell', () => {
       await waitFor(() => expect(getRow('Beta')).toHaveAttribute('data-active', 'true'))
       expect(scrollIntoView).not.toHaveBeenCalled()
     })
+
+    it('does not rebuild an unrelated option when focus moves between rows', () => {
+      let unrelatedNameReads = 0
+      const unrelatedItem: Item = {
+        id: '3',
+        get name() {
+          unrelatedNameReads += 1
+          return 'Gamma'
+        }
+      }
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[ITEMS[0], ITEMS[1], unrelatedItem]}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+      expect(getRow('Alpha')).toHaveAttribute('data-active', 'true')
+      unrelatedNameReads = 0
+
+      fireEvent.mouseEnter(getRow('Beta').closest('[data-option-row]') as HTMLElement)
+
+      expect(getRow('Beta')).toHaveAttribute('data-active', 'true')
+      expect(unrelatedNameReads).toBe(0)
+    })
   })
 
   describe('value adapter', () => {

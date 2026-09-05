@@ -11,6 +11,7 @@ const {
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
   oauthRuntimeServiceMock,
+  platformMock,
   windowManagerMock
 } = vi.hoisted(() => {
   const appMock = {
@@ -41,6 +42,11 @@ const {
   const oauthRuntimeServiceMock = {
     handleDeepLinkCallback: vi.fn()
   }
+  const platformMock = {
+    isLinux: false,
+    isPortable: false,
+    isWin: false
+  }
   const windowManagerMock = {
     getWindowType: vi.fn(() => 'main'),
     onWindowCreatedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
@@ -55,6 +61,7 @@ const {
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
     oauthRuntimeServiceMock,
+    platformMock,
     windowManagerMock
   }
 })
@@ -102,6 +109,8 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
+vi.mock('@main/core/platform', () => platformMock)
+
 vi.mock('../handlers/mcpInstall', () => ({
   parseMcpInstallProtocolUrl: handlersMock.parseMcpInstallProtocolUrl
 }))
@@ -138,6 +147,9 @@ describe('ProtocolService', () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
+    platformMock.isLinux = false
+    platformMock.isPortable = false
+    platformMock.isWin = false
     oauthRuntimeServiceMock.handleDeepLinkCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
@@ -145,6 +157,7 @@ describe('ProtocolService', () => {
   afterEach(() => {
     process.argv = originalArgv
     setDefaultApp(originalDefaultApp)
+    vi.unstubAllEnvs()
   })
 
   it('logs malformed protocol URLs instead of throwing', async () => {
@@ -163,6 +176,22 @@ describe('ProtocolService', () => {
 
     expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
     expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio')
+  })
+
+  it('registers the stable launcher for packaged Windows portable builds', async () => {
+    setDefaultApp(false)
+    platformMock.isPortable = true
+    platformMock.isWin = true
+    vi.stubEnv('PORTABLE_EXECUTABLE_FILE', 'D:\\Apps\\Cherry Studio Portable.exe')
+
+    await (service as any).onInit()
+
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith(
+      'cherrystudio',
+      'D:\\Apps\\Cherry Studio Portable.exe',
+      []
+    )
   })
 
   it('registers the dev protocol handler with an absolute app entry', async () => {
