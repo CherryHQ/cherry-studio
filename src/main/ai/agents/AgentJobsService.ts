@@ -22,6 +22,7 @@ import { triggersEqual, type UpdateJobScheduleDto } from '@shared/data/api/schem
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { agentTaskJobHandler } from './agentTaskJobHandler'
+import { repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentJobsService')
 
@@ -84,6 +85,23 @@ export class AgentJobsService extends BaseService {
         })
       })
     )
+
+    // The heartbeat schedule is derived state of the agent configuration —
+    // re-sync on saves carrying the heartbeat keys, so switch/interval
+    // changes take effect on the next tick instead of after a restart.
+    this.registerDisposable(
+      agentService.onAgentUpdated(({ updates, agent }) => {
+        const configPatch = updates.configuration
+        if (!configPatch) return
+        if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
+        void syncHeartbeatSchedule(agent.id).catch((error) => {
+          logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
+        })
+      })
+    )
+
+    // Startup repair pass for migrated rows and producer-less agents (#19203).
+    void repairHeartbeatSchedules()
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
