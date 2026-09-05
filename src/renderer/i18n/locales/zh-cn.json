@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "当前：使用默认窗口打开链接",
   "miniApp.popup.open_link_external_on": "当前：在浏览器中打开链接",
   "miniApp.popup.refresh": "刷新",
+  "miniApp.popup.restart": "重启小程序",
   "miniApp.remove_from_launchpad": "从启动台移除",
   "miniApp.remove_from_sidebar": "从侧边栏移除",
   "miniApp.reorder_failed": "小程序排序更新失败",

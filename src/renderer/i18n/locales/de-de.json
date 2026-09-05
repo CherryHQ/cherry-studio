@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
   "miniApp.popup.open_link_external_on": "Aktuell: Links im Browser öffnen",
   "miniApp.popup.refresh": "Aktualisieren",
+  "miniApp.popup.restart": "Mini-App neu starten",
   "miniApp.remove_from_launchpad": "Aus Launchpad entfernen",
   "miniApp.remove_from_sidebar": "Aus Seitenleiste entfernen",
   "miniApp.reorder_failed": "Mini-Apps konnten nicht neu angeordnet werden",

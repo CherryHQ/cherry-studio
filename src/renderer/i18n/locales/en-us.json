@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Current: Open links in default window",
   "miniApp.popup.open_link_external_on": "Current: Open links in browser",
   "miniApp.popup.refresh": "Refresh",
+  "miniApp.popup.restart": "Restart MiniApp",
   "miniApp.remove_from_launchpad": "Remove from Launchpad",
   "miniApp.remove_from_sidebar": "Remove from Sidebar",
   "miniApp.reorder_failed": "Failed to reorder mini-apps",

@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "現在：デフォルトのウィンドウで開く",
   "miniApp.popup.open_link_external_on": "現在：ブラウザで開く",
   "miniApp.popup.refresh": "更新",
+  "miniApp.popup.restart": "ミニアプリを再起動",
   "miniApp.remove_from_launchpad": "スタート画面から削除",
   "miniApp.remove_from_sidebar": "サイドバーから削除",
   "miniApp.reorder_failed": "ミニアプリの並び替えに失敗しました",

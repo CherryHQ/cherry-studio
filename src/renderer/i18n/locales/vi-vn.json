@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
   "miniApp.popup.open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
   "miniApp.popup.refresh": "Làm mới",
+  "miniApp.popup.restart": "Khởi động lại Mini-app",
   "miniApp.remove_from_launchpad": "Xóa khỏi Launchpad",
   "miniApp.remove_from_sidebar": "Gỡ khỏi Thanh bên",
   "miniApp.reorder_failed": "Không thể sắp xếp lại mini-app",

@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "目前：使用預設視窗開啟連結",
   "miniApp.popup.open_link_external_on": "目前：在瀏覽器中開啟連結",
   "miniApp.popup.refresh": "重新整理",
+  "miniApp.popup.restart": "重新啟動小程式",
   "miniApp.remove_from_launchpad": "從啟動台移除",
   "miniApp.remove_from_sidebar": "從側邊欄移除",
   "miniApp.reorder_failed": "小程式排序更新失敗",

@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
   "miniApp.popup.open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
   "miniApp.popup.refresh": "Ανανέωση",
+  "miniApp.popup.restart": "Επανεκκίνηση μικροεφαρμογής",
   "miniApp.remove_from_launchpad": "Κατάργηση από το Launchpad",
   "miniApp.remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
   "miniApp.reorder_failed": "Αποτυχία αναδιάταξης μικροεφαρμογών",

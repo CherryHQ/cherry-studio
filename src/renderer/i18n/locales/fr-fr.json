@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Actuel : ouvrir les liens dans la fenêtre par défaut",
   "miniApp.popup.open_link_external_on": "Actuel : ouvrir les liens dans le navigateur",
   "miniApp.popup.refresh": "Actualiser",
+  "miniApp.popup.restart": "Redémarrer le mini-programme",
   "miniApp.remove_from_launchpad": "Supprimer du tableau de bord",
   "miniApp.remove_from_sidebar": "Supprimer de la barre latérale",
   "miniApp.reorder_failed": "Échec du réordonnancement des mini-applications",

@@ -11,7 +11,12 @@ import {
   trimMiniAppKeepAlive
 } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
-import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  clearWebviewState,
+  getWebviewLoaded,
+  onWebviewRecreateRequest,
+  setWebviewLoaded
+} from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -62,6 +67,20 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+  // Changing one app's epoch remounts only its Electron <webview> node,
+  // retaining every other mini-app in the pool.
+  const [webviewEpochs, setWebviewEpochs] = useState<Record<string, number>>({})
+
+  useEffect(
+    () =>
+      onWebviewRecreateRequest((appId) => {
+        setWebviewEpochs((current) => ({
+          ...current,
+          [appId]: (current[appId] ?? 0) + 1
+        }))
+      }),
+    []
+  )
 
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
@@ -303,6 +322,7 @@ const MiniAppTabsPool: React.FC = () => {
               paneGeometry(splitOpen, isPrimaryPane, isSplitPane)
             )}>
             <WebviewContainer
+              key={`${app.appId}:${webviewEpochs[app.appId] ?? 0}`}
               appid={app.appId}
               url={app.url}
               kind={app.kind}

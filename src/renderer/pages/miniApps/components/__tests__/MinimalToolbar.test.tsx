@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,6 +51,7 @@ const renderToolbar = (app: MiniAppType) =>
       webviewRef={{ current: null }}
       currentUrl={null}
       onReload={vi.fn()}
+      onRestart={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
       onSplit={vi.fn()}
@@ -59,6 +61,30 @@ const renderToolbar = (app: MiniAppType) =>
 afterEach(cleanup)
 
 describe('MinimalToolbar', () => {
+  it('invokes restart without reloading the current WebView', async () => {
+    const user = userEvent.setup()
+    const onReload = vi.fn()
+    const onRestart = vi.fn()
+
+    render(
+      <MinimalToolbar
+        app={site}
+        webviewRef={{ current: null }}
+        currentUrl={site.url}
+        onReload={onReload}
+        onRestart={onRestart}
+        onOpenDevTools={vi.fn()}
+        splitMode="open"
+        onSplit={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /restart|重启/i }))
+
+    expect(onRestart).toHaveBeenCalledOnce()
+    expect(onReload).not.toHaveBeenCalled()
+  })
+
   it('opens the same detail panel the launcher tile offers, for a local app only', () => {
     renderToolbar(localApp)
     fireEvent.click(screen.getByRole('button', { name: /view details|查看详情/i }))

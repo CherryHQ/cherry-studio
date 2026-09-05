@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
   "miniApp.popup.open_link_external_on": "Curent: Deschide linkurile în browser",
   "miniApp.popup.refresh": "Reîmprospătează",
+  "miniApp.popup.restart": "Repornește MiniApp",
   "miniApp.remove_from_launchpad": "Elimină din Launchpad",
   "miniApp.remove_from_sidebar": "Elimină din bara laterală",
   "miniApp.reorder_failed": "Nu s-a putut schimba ordinea miniaplicațiilor",

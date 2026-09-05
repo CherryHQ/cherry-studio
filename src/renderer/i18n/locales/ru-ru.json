@@ -2503,6 +2503,7 @@
   "miniApp.popup.open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
   "miniApp.popup.open_link_external_on": "Текущий: Открыть ссылки в браузере",
   "miniApp.popup.refresh": "Обновить",
+  "miniApp.popup.restart": "Перезапустить мини-приложение",
   "miniApp.remove_from_launchpad": "Удалить из стартового экрана",
   "miniApp.remove_from_sidebar": "Удалить из боковой панели",
   "miniApp.reorder_failed": "Не удалось изменить порядок мини-приложений",

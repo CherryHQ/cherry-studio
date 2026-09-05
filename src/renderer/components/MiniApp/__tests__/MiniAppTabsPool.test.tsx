@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
+  recreateListeners: new Set<(appId: string) => void>(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>,
@@ -121,6 +122,10 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/utils/webviewStateManager', () => ({
   clearWebviewState: mocks.clearWebviewState,
   getWebviewLoaded: () => false,
+  onWebviewRecreateRequest: (listener: (appId: string) => void) => {
+    mocks.recreateListeners.add(listener)
+    return () => mocks.recreateListeners.delete(listener)
+  },
   setWebviewLoaded: vi.fn()
 }))
 
@@ -171,6 +176,7 @@ describe('MiniAppTabsPool', () => {
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
     mocks.clearWebviewState.mockReset()
+    mocks.recreateListeners.clear()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -178,6 +184,27 @@ describe('MiniAppTabsPool', () => {
 
   /** Latest value the pool published for `webview.focused`. */
   const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('recreates only the requested WebView and retains the rest of the pool', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' }
+    ]
+    mocks.activeTabId = 't1'
+
+    const { container } = render(<MiniAppTabsPool />)
+    const alphaBefore = webviewOf(container, 'alpha')
+    const bravoBefore = webviewOf(container, 'bravo')
+
+    act(() => {
+      mocks.recreateListeners.forEach((listener) => listener('alpha'))
+    })
+
+    expect(webviewOf(container, 'alpha')).not.toBe(alphaBefore)
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+  })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
