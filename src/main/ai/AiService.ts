@@ -1245,9 +1245,9 @@ export class AiService extends BaseService {
         })
       }
     } else {
-      // Latency is the probe's measured output — thinking tokens would pollute it
-      // for reasoning-capable models whose provider default enables reasoning.
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
+      // Connectivity probes must not force a provider-specific reasoning dialect.
+      // Some compatible endpoints reject `none` even though their models work with the field omitted.
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
     }
 
     try {
