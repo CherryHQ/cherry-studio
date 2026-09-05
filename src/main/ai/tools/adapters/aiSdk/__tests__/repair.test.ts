@@ -69,38 +69,23 @@ describe('createAiRepair', () => {
     expect(params.output).toBeDefined()
   })
 
-  it('unwraps a repair envelope only when the original tool schema validates its arguments', async () => {
-    const complexSchema = z.object({
-      paths: z.array(z.string()),
-      options: z.object({ filters: z.array(z.object({ field: z.string(), values: z.array(z.string()) })) })
-    })
-    const expected = {
-      paths: ['a.ts', 'b.ts'],
-      options: { filters: [{ field: 'status', values: ['open', 'closed'] }] }
-    }
-    generateText.mockResolvedValue({ output: { arguments: expected } })
-
-    const repaired = await repair({
-      system: undefined,
-      messages: [],
-      toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { paths: 'a.ts' }),
-      tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: complexSchema } } as never,
-      inputSchema: async () => z.toJSONSchema(complexSchema) as never,
-      error: inputErr
-    })
+  it('re-parses a double-encoded original call without asking the model', async () => {
+    const doubleEncoded = JSON.stringify(JSON.stringify({ query: 'hello world' }))
+    const repaired = await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, doubleEncoded))
 
     expect(repaired).not.toBeNull()
-    expect(JSON.parse(repaired!.input)).toEqual(expected)
+    expect(JSON.parse(repaired!.input)).toEqual({ query: 'hello world' })
+    expect(generateText).not.toHaveBeenCalled()
   })
 
-  it('validates and unwraps repair envelopes for tools backed by JSON Schema', async () => {
+  it('rejects a repair that violates a JSON-Schema-backed tool (the SDK carries no validator there)', async () => {
     const schemaJson: JSONSchema7 = {
       type: 'object',
       properties: { query: { type: 'string' } },
       required: ['query'],
       additionalProperties: false
     }
-    generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
+    generateText.mockResolvedValue({ output: { query: 42 } })
 
     const repaired = await repair({
       system: undefined,
@@ -111,8 +96,7 @@ describe('createAiRepair', () => {
       error: inputErr
     })
 
-    expect(repaired).not.toBeNull()
-    expect(JSON.parse(repaired!.input)).toEqual({ query: 'hello world' })
+    expect(repaired).toBeNull()
   })
 
   it('fails closed when a JSON Schema cannot be converted for validation', async () => {
@@ -129,45 +113,6 @@ describe('createAiRepair', () => {
     })
 
     expect(repaired).toBeNull()
-  })
-
-  it('canonicalizes an empty-parameter repair to an empty object', async () => {
-    const emptySchema = z.object({})
-    generateText.mockResolvedValue({ output: { arguments: {} } })
-
-    const repaired = await repair({
-      system: undefined,
-      messages: [],
-      toolCall: makeToolCall('empty_tool', undefined),
-      tools: { empty_tool: { inputSchema: emptySchema } } as never,
-      inputSchema: async () => z.toJSONSchema(emptySchema) as never,
-      error: inputErr
-    })
-
-    expect(repaired).not.toBeNull()
-    expect(JSON.parse(repaired!.input)).toEqual({})
-  })
-
-  it('preserves a schema whose canonical input is an arguments field', async () => {
-    const argumentsSchema = z.object({ arguments: z.object({ query: z.string() }) })
-    const repairArgumentsTool = createAiRepair({
-      providerId: 'openai',
-      providerSettings: { apiKey: 'test' },
-      modelId: 'gpt-4o-mini'
-    })
-    generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
-
-    const repaired = await repairArgumentsTool({
-      system: undefined,
-      messages: [],
-      toolCall: makeToolCall('arguments_tool', { query: 'hello world' }),
-      tools: { arguments_tool: { inputSchema: argumentsSchema } } as never,
-      inputSchema: async () => z.toJSONSchema(argumentsSchema) as never,
-      error: inputErr
-    })
-
-    expect(repaired).not.toBeNull()
-    expect(JSON.parse(repaired!.input)).toEqual({ arguments: { query: 'hello world' } })
   })
 
   it('reuses the request usage middleware so repair is an independent invocation', async () => {
@@ -199,7 +144,7 @@ describe('createAiRepair', () => {
   })
 
   it('returns null when the structured repair still violates the tool schema', async () => {
-    generateText.mockResolvedValue({ output: { arguments: { query: 42 } } })
+    generateText.mockResolvedValue({ output: { query: 42 } })
 
     expect(await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, { q: 42 }))).toBeNull()
   })

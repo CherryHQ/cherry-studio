@@ -29,6 +29,14 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   getUsagePlugins?: () => AiPlugin[]
 }
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
   return async ({ toolCall, tools, error, inputSchema }) => {
     if (!InvalidToolInputError.isInstance(error)) return null
@@ -40,7 +48,40 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       return null
     }
 
+    let schema = asSchema(tools[toolCall.toolName].inputSchema)
+    if (!schema.validate) {
+      try {
+        schema = asSchema(z.fromJSONSchema(schemaJson as Parameters<typeof z.fromJSONSchema>[0]))
+      } catch (err) {
+        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
+          toolName: toolCall.toolName,
+          toolCallId: toolCall.toolCallId
+        })
+        return null
+      }
+    }
+
+    /** Canonical input, or undefined when the value does not fit the tool schema. */
+    const canonicalize = async (value: unknown): Promise<unknown> => {
+      const direct = await safeValidateTypes({ value, schema })
+      if (direct.success) return direct.value
+      // Double-encoded arguments — the one malformation a re-parse alone canonicalizes.
+      if (typeof value !== 'string') return undefined
+      const reparsed = await safeValidateTypes({ value: parseJson(value), schema })
+      return reparsed.success ? reparsed.value : undefined
+    }
+
     const inputStr = typeof toolCall.input === 'string' ? toolCall.input : JSON.stringify(toolCall.input)
+
+    const parsedInput = parseJson(inputStr)
+    const canonicalInput = parsedInput === undefined ? undefined : await canonicalize(parsedInput)
+    if (canonicalInput !== undefined) {
+      logger.info('Repaired tool call without AI', {
+        toolName: toolCall.toolName,
+        toolCallId: toolCall.toolCallId
+      })
+      return { ...toolCall, input: JSON.stringify(canonicalInput) }
+    }
 
     const prompt = [
       `The previous tool call had invalid arguments. Produce a corrected JSON object that matches the schema, preserving the original intent.`,
@@ -79,29 +120,8 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       return null
     }
 
-    let schema = asSchema(tools[toolCall.toolName].inputSchema)
-    if (!schema.validate) {
-      try {
-        schema = asSchema(z.fromJSONSchema(schemaJson as Parameters<typeof z.fromJSONSchema>[0]))
-      } catch (err) {
-        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
-          toolName: toolCall.toolName,
-          toolCallId: toolCall.toolCallId
-        })
-        return null
-      }
-    }
-    let validated = await safeValidateTypes({ value: repaired, schema })
-    if (
-      !validated.success &&
-      typeof repaired === 'object' &&
-      !Array.isArray(repaired) &&
-      Object.keys(repaired).length === 1 &&
-      'arguments' in repaired
-    ) {
-      validated = await safeValidateTypes({ value: repaired.arguments, schema })
-    }
-    if (!validated.success) {
+    const validated = await canonicalize(repaired)
+    if (validated === undefined) {
       logger.warn('AI repair returned invalid structured output', {
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
@@ -113,6 +133,6 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       toolName: toolCall.toolName,
       toolCallId: toolCall.toolCallId
     })
-    return { ...toolCall, input: JSON.stringify(validated.value) }
+    return { ...toolCall, input: JSON.stringify(validated) }
   }
 }
