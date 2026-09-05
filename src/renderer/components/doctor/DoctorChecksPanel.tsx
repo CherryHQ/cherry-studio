@@ -1,4 +1,8 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Alert,
   Badge,
   Button,
@@ -117,34 +121,36 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             />
           )}
 
-          <details className="rounded-xl border border-border px-4 py-3">
-            <summary className="cursor-pointer font-medium text-sm">{t('settings.doctor.advanced.title')}</summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={controller.isInteracting}
-                onClick={() => void controller.toggleDevTools()}>
-                {t('settings.about.debug.title')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={controller.isInteracting}
-                onClick={() => void controller.openLogsPath()}>
-                {t('settings.about.diagnostics.sources.logs.title')}
-              </Button>
-              {dataPath ? (
+          <Accordion type="single" collapsible className="rounded-xl border border-border px-4">
+            <AccordionItem value="advanced-tools" className="border-0 first:border-t-0">
+              <AccordionTrigger className="py-3 font-medium">{t('settings.doctor.advanced.title')}</AccordionTrigger>
+              <AccordionContent className="flex flex-wrap gap-2 pt-0 pb-3">
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={controller.isInteracting}
-                  onClick={() => void controller.openPath(dataPath)}>
-                  {t('settings.doctor.basics.data_path')}
+                  onClick={() => void controller.toggleDevTools()}>
+                  {t('settings.about.debug.title')}
                 </Button>
-              ) : null}
-            </div>
-          </details>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={controller.isInteracting}
+                  onClick={() => void controller.openLogsPath()}>
+                  {t('settings.about.diagnostics.sources.logs.title')}
+                </Button>
+                {dataPath ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={controller.isInteracting}
+                    onClick={() => void controller.openPath(dataPath)}>
+                    {t('settings.doctor.basics.data_path')}
+                  </Button>
+                ) : null}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       </Scrollbar>
 
