@@ -93,12 +93,24 @@ vi.mock('../McpServerFields', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
-    McpEndpointField: ({ form }: { form: { register: (name: 'command') => Record<string, unknown> } }) => (
-      <label>
-        Command
-        <input {...form.register('command')} />
-      </label>
-    ),
+    McpEndpointField: ({
+      form,
+      serverType
+    }: {
+      form: { register: (name: 'baseUrl' | 'command') => Record<string, unknown> }
+      serverType: McpServer['type']
+    }) =>
+      serverType === 'stdio' ? (
+        <label>
+          Command
+          <input {...form.register('command')} />
+        </label>
+      ) : serverType === 'inMemory' ? null : (
+        <label>
+          URL
+          <input {...form.register('baseUrl')} />
+        </label>
+      ),
     McpIdentityFields: ({ form }: { form: { register: (name: 'name') => Record<string, unknown> } }) => (
       <label>
         Server name
@@ -106,12 +118,19 @@ vi.mock('../McpServerFields', async (importOriginal) => {
       </label>
     ),
     McpRuntimeFields: () => null,
-    McpTransportFields: ({ form }: { form: { register: (name: 'env') => Record<string, unknown> } }) => (
-      <label>
-        Environment
-        <textarea {...form.register('env')} />
-      </label>
-    )
+    McpTransportFields: ({
+      form,
+      serverType
+    }: {
+      form: { register: (name: 'env') => Record<string, unknown> }
+      serverType: McpServer['type']
+    }) =>
+      serverType === 'stdio' || serverType === 'inMemory' ? (
+        <label>
+          Environment
+          <textarea {...form.register('env')} />
+        </label>
+      ) : null
   }
 })
 
@@ -247,6 +266,27 @@ describe('McpSettings', () => {
     await user.click(screen.getByRole('button', { name: 'common.edit' }))
 
     expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
+  })
+
+  it('focuses the endpoint URL when a remote server is unavailable', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'remote-server',
+      name: 'Remote Server',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example.com/mcp',
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'Connection failed'
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'URL' })).toHaveFocus()
   })
 
   it('renders selectable MCP logs and copies them to the clipboard', async () => {

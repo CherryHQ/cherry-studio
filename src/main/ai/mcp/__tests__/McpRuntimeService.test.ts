@@ -435,6 +435,22 @@ describe('McpRuntimeService.setServerStatus', () => {
 
     expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(2)
   })
+
+  it('preserves structured diagnostics when the same error is reported again without details', () => {
+    const service = new McpRuntimeService()
+    const error = new Error('Connection closed')
+
+    service.setServerStatus('server-1', 'error', error, { code: 'EPERM', path: 'C:\\MCP\\server.exe' })
+    service.setServerStatus('server-1', 'error', error)
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toMatchObject({
+      state: 'error',
+      lastError: 'Connection closed',
+      errorCode: 'EPERM',
+      errorPath: 'C:\\MCP\\server.exe'
+    })
+    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
+  })
 })
 
 describe('McpRuntimeService connect single-flight', () => {

@@ -231,21 +231,21 @@ export class McpRuntimeService extends BaseService {
 
     const lastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
-    const errorProperties = error && typeof error === 'object' ? (error as { code?: unknown; path?: unknown }) : {}
-    const code = details?.code ?? errorProperties.code
-    const errorCode =
-      state === 'error' && (typeof code === 'string' || typeof code === 'number') ? String(code) : undefined
-    const path = details?.path ?? errorProperties.path
-    const errorPath =
-      state === 'error' && (typeof path === 'string' || typeof path === 'number') ? String(path) : undefined
-
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
+    const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
+    const repeatsCurrentError = current?.state === 'error' && state === 'error' && current.lastError === lastError
+    const errorProperties = error && typeof error === 'object' ? (error as { code?: unknown; path?: unknown }) : {}
+    const code = details?.code ?? errorProperties.code ?? (repeatsCurrentError ? current.errorCode : undefined)
+    const errorCode =
+      state === 'error' && (typeof code === 'string' || typeof code === 'number') ? String(code) : undefined
+    const path = details?.path ?? errorProperties.path ?? (repeatsCurrentError ? current.errorPath : undefined)
+    const errorPath =
+      state === 'error' && (typeof path === 'string' || typeof path === 'number') ? String(path) : undefined
 
     // setShared dedups via isEqual, but lastCheckedAt changes every call, so without this
     // guard every status touch (ping/list/prewarm hot paths) would broadcast IPC to all
     // windows. lastCheckedAt has no UI consumer, so leaving it stale on no-op writes is safe.
-    const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
     if (
       current &&
       current.state === state &&

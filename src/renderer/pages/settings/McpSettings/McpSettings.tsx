@@ -431,7 +431,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
     error: t('settings.mcp.runtimeStatus.error', 'Error')
   }[server.isActive ? runtimeStatus.state : 'disabled']
-  const focusRuntimeErrorField = () => form.setFocus(serverType === 'stdio' ? 'command' : 'env')
+  const focusRuntimeErrorField = () =>
+    form.setFocus(serverType === 'stdio' ? 'command' : serverType === 'inMemory' ? 'env' : 'baseUrl')
 
   const fieldsProps = {
     form,
