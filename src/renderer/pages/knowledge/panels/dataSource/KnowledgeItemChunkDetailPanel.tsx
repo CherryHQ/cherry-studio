@@ -150,11 +150,12 @@ const KnowledgeItemChunkDetailPanel = ({
           getItemKey={getChunkKey}
           estimateSize={estimateChunkSize}
           itemContainerStyle={CHUNK_ITEM_CONTAINER_STYLE}
-          className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          autoHideScrollbar={false}
+          className="min-h-0 flex-1 px-4 py-3">
           {renderChunk}
         </DynamicVirtualList>
       ) : (
-        <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
           {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
           {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
           {!isItemLoading && !isLoading && !itemError && error ? (

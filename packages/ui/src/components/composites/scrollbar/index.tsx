@@ -4,11 +4,18 @@ import { throttle } from 'es-toolkit/compat'
 import * as React from 'react'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
+  /**
+   * Hide the scrollbar when scrolling stops.
+   *
+   * @default true
+   */
+  autoHideScrollbar?: boolean
   onScroll?: () => void
 }
 
 const Scrollbar = ({
   ref,
+  autoHideScrollbar = true,
   children,
   className,
   onScroll: externalOnScroll,
@@ -26,13 +33,15 @@ const Scrollbar = ({
   }, [])
 
   const handleScroll = React.useCallback(() => {
+    if (!autoHideScrollbar) return
+
     setIsScrolling(true)
     clearScrollingTimeout()
     timeoutRef.current = setTimeout(() => {
       setIsScrolling(false)
       timeoutRef.current = null
     }, 1500)
-  }, [clearScrollingTimeout])
+  }, [autoHideScrollbar, clearScrollingTimeout])
 
   const throttledInternalScrollHandler = React.useMemo(
     () => throttle(handleScroll, 100, { leading: true, trailing: true }),
@@ -51,16 +60,24 @@ const Scrollbar = ({
     }
   }, [clearScrollingTimeout, throttledInternalScrollHandler])
 
+  const isScrollbarVisible = !autoHideScrollbar || isScrolling
+
   return (
     <div
       {...htmlProps}
       ref={ref}
-      className={cn('overflow-y-auto [scrollbar-gutter:stable]', className)}
+      className={cn(
+        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms]',
+        isScrollbarVisible
+          ? '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]'
+          : '[&::-webkit-scrollbar-thumb]:bg-transparent',
+        className
+      )}
       data-scrolling={isScrolling ? 'true' : 'false'}
       onScroll={combinedOnScroll}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
+        scrollbarColor: isScrollbarVisible ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
       }}>
       {children}
     </div>
