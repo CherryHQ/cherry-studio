@@ -123,10 +123,37 @@ function createCompletedPanelController(): DoctorController {
   } as DoctorController
 }
 
+function createSecondaryEvidencePanelController(): DoctorController {
+  const controller = createCompletedPanelController()
+  const evidenceRow = controller.viewModel.rows[0]
+  const firstRow = {
+    ...evidenceRow,
+    id: 'runtime-managed-tools',
+    result: {
+      ...evidenceRow.result!,
+      id: 'runtime-managed-tools',
+      detail: { variant: 'failed' },
+      evidence: [],
+      actions: []
+    },
+    actions: []
+  } as DoctorController['viewModel']['rows'][number]
+  const rows = [firstRow, evidenceRow]
+
+  return {
+    ...controller,
+    viewModel: {
+      ...controller.viewModel,
+      rows,
+      groups: [{ domain: 'runtime', status: 'warn', rows }]
+    }
+  } as DoctorController
+}
+
 function EvidenceFocusHarness() {
   const [interaction, setInteraction] = useState<DoctorInteraction>({ kind: 'idle' })
   const [revealedEvidence, setRevealedEvidence] = useState<DoctorController['session']['revealedEvidence']>([])
-  const baseController = createCompletedPanelController()
+  const baseController = createSecondaryEvidencePanelController()
   const controller = {
     ...baseController,
     cancelConfirmation: () => setInteraction({ kind: 'idle' }),
@@ -246,7 +273,7 @@ describe('DoctorCheckList interactions', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('moves focus to newly revealed evidence after consent', async () => {
+  it('restores a non-default check and moves focus to newly revealed evidence after consent', async () => {
     const user = userEvent.setup()
     render(
       <Dialog defaultOpen>

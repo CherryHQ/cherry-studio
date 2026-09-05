@@ -28,18 +28,28 @@ import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Circl
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
+export function DoctorCheckResults({
+  controller,
+  initialExpandedCheckId
+}: {
+  readonly controller: DoctorController
+  readonly initialExpandedCheckId?: DoctorCheckId
+}) {
   const { t } = useTranslation()
   const { viewModel } = controller
+  const restoredRow = viewModel.rows.find((row) => row.id === initialExpandedCheckId)
+  const defaultExpandedDomains = new Set(defaultExpandedDoctorDomains(viewModel.groups))
+  if (restoredRow) defaultExpandedDomains.add(restoredRow.domain)
 
   return (
     <Accordion
       key={viewModel.report?.runId ?? `${viewModel.status}-${viewModel.tier ?? 'none'}`}
       type="multiple"
-      defaultValue={[...defaultExpandedDoctorDomains(viewModel.groups)]}
-      className="rounded-xl border border-border px-4">
+      defaultValue={[...defaultExpandedDomains]}
+      className="rounded-xl border border-border px-4 [&>[data-slot=accordion-item]:first-child]:border-t-0">
       {viewModel.groups.map((group) => {
-        const defaultRow = group.rows.find(isDoctorRowExpandedByDefault)
+        const defaultRow =
+          group.rows.find((row) => row.id === initialExpandedCheckId) ?? group.rows.find(isDoctorRowExpandedByDefault)
 
         return (
           <AccordionItem key={group.domain} value={group.domain}>
@@ -66,7 +76,7 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
                 type="single"
                 collapsible
                 defaultValue={`doctor-${defaultRow?.id ?? group.rows[0]?.id}`}
-                className="rounded-lg border border-border px-2">
+                className="rounded-lg border border-border px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
                 <DoctorCheckList controller={controller} rows={group.rows} />
               </Accordion>
             </AccordionContent>
