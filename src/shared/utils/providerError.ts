@@ -1,3 +1,4 @@
+import type { Serializable } from '../types/serializable'
 import { redactSecretText } from './redaction'
 
 const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
@@ -8,6 +9,20 @@ interface ProviderErrorSource {
   responseBody?: unknown
   data?: unknown
 }
+
+const SAFE_AI_SDK_STRING_FIELDS = [
+  'statusText',
+  'parameter',
+  'role',
+  'toolName',
+  'modelId',
+  'modelType',
+  'providerId',
+  'reason',
+  'functionality',
+  'provider',
+  'finishReason'
+] as const
 
 function actionableText(value: unknown): string {
   if (typeof value !== 'string') return ''
@@ -42,4 +57,28 @@ function payloadText(value: unknown): string {
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || actionableText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
+}
+
+export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>): Record<string, Serializable> {
+  const discriminants: Record<string, Serializable> = {}
+
+  for (const field of SAFE_AI_SDK_STRING_FIELDS) {
+    if (typeof source[field] === 'string') {
+      discriminants[field] = getSafeProviderErrorMessage({ message: source[field] })
+    }
+  }
+  for (const field of ['availableProviders', 'availableTools'] as const) {
+    const value = source[field]
+    if (value === null) discriminants[field] = null
+    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+      discriminants[field] = value.map((item) => getSafeProviderErrorMessage({ message: item }))
+    }
+  }
+  for (const field of ['statusCode', 'maxEmbeddingsPerCall'] as const) {
+    const value = source[field]
+    if (value === null || typeof value === 'number') discriminants[field] = value
+  }
+  if (typeof source.isRetryable === 'boolean') discriminants.isRetryable = source.isRetryable
+
+  return discriminants
 }

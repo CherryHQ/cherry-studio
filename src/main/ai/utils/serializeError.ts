@@ -1,7 +1,7 @@
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { getSafeProviderErrorMessage } from '@shared/utils/providerError'
-import { APICallError } from 'ai'
+import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/utils/providerError'
+import { AISDKError, APICallError } from 'ai'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -25,6 +25,17 @@ function toSerializable(value: unknown): Serializable {
   }
 }
 
+function serializeNestedAiSdkError(error: AISDKError): SerializedError {
+  const source = error as unknown as Record<string, unknown>
+  return {
+    name: getSafeProviderErrorMessage({ message: error.name }),
+    message: getSafeProviderErrorMessage({ message: error.message }),
+    stack: null,
+    cause: null,
+    ...getSafeAiSdkErrorDiscriminants(source)
+  }
+}
+
 function serializeNestedError(value: unknown): Serializable {
   if (APICallError.isInstance(value)) {
     return {
@@ -36,15 +47,18 @@ function serializeNestedError(value: unknown): Serializable {
       isRetryable: value.isRetryable
     }
   }
+  if (AISDKError.isInstance(value)) {
+    return serializeNestedAiSdkError(value)
+  }
   if (value instanceof Error) {
     return {
-      name: value.name ?? null,
+      name: getSafeProviderErrorMessage({ message: value.name }),
       message: getSafeProviderErrorMessage({ message: value.message }),
       stack: null,
       cause: null
     }
   }
-  return toSerializable(value)
+  return null
 }
 
 /** Serialize any Error to a plain object safe for IPC / JSON.

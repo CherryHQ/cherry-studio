@@ -9,7 +9,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
-import { getSafeProviderErrorMessage } from '@shared/utils/providerError'
+import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/utils/providerError'
 import { safeSerialize } from '@shared/utils/serialize'
 import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
@@ -150,6 +150,17 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
   } satisfies SerializedAiSdkNoSuchToolError
 }
 
+const serializeNestedAiSdkError = (error: AISDKError): SerializedError => {
+  const source = error as unknown as Record<string, unknown>
+  return {
+    name: getSafeProviderErrorMessage({ message: error.name }),
+    message: getSafeProviderErrorMessage({ message: error.message }),
+    stack: null,
+    cause: null,
+    ...getSafeAiSdkErrorDiscriminants(source)
+  }
+}
+
 const serializeNestedError = (error: unknown): SerializedError | string | null => {
   if (APICallError.isInstance(error)) {
     return {
@@ -161,15 +172,18 @@ const serializeNestedError = (error: unknown): SerializedError | string | null =
       isRetryable: error.isRetryable
     } satisfies SerializedError
   }
+  if (AISDKError.isInstance(error)) {
+    return serializeNestedAiSdkError(error)
+  }
   if (error instanceof Error) {
     return {
-      name: error.name ?? null,
+      name: getSafeProviderErrorMessage({ message: error.name }),
       message: getSafeProviderErrorMessage({ message: error.message }),
       stack: null,
       cause: null
     } satisfies SerializedError
   }
-  return safeSerialize(error)
+  return null
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {

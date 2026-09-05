@@ -1,7 +1,7 @@
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { APICallError, RetryError } from 'ai'
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -368,6 +368,46 @@ describe('error', () => {
       })
       expect(providerErrorText(serialized)).toBe('upstream socket closed; Authorization: "<redacted>"')
       expect(JSON.stringify(serialized)).not.toMatch(/message-secret|cause-secret/)
+    })
+
+    it('drops unknown nested retry values instead of serializing credentials', () => {
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [
+          'Authorization: Bearer string-secret',
+          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
+        ] as unknown as Error[]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toBeNull()
+      expect(serialized.errors).toEqual([null, null])
+      expect(JSON.stringify(serialized)).not.toMatch(/string-secret|object-secret|nested-secret/)
+    })
+
+    it('preserves safe discriminants from a nested AI SDK error', () => {
+      const terminalError = new NoSuchToolError({
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator']
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toMatchObject({
+        name: 'AI_NoSuchToolError',
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator'],
+        stack: null,
+        cause: null
+      })
+      expect(serialized.errors).toEqual([serialized.lastError])
     })
 
     it('uses the newest retry attempt when lastError is absent', () => {

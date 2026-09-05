@@ -138,6 +138,46 @@ describe('serializeError', () => {
       expect(JSON.stringify(result)).not.toMatch(/message-secret|cause-secret/)
     })
 
+    it('drops unknown nested retry values instead of serializing credentials', () => {
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [
+          'Authorization: Bearer string-secret',
+          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
+        ] as unknown as Error[]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toBeNull()
+      expect(result.errors).toEqual([null, null])
+      expect(JSON.stringify(result)).not.toMatch(/string-secret|object-secret|nested-secret/)
+    })
+
+    it('preserves safe discriminants from a nested AI SDK error', () => {
+      const terminalError = new NoSuchToolError({
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator']
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toMatchObject({
+        name: 'AI_NoSuchToolError',
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator'],
+        stack: null,
+        cause: null
+      })
+      expect(result.errors).toEqual([result.lastError])
+    })
+
     it('serializes a NoSuchToolError with its discriminant fields', () => {
       const noSuchTool = new NoSuchToolError({
         toolName: 'missing_tool',
