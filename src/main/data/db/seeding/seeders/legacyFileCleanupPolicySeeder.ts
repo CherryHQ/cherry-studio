@@ -46,6 +46,7 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
         ON file.id = json_extract(part.value, '$.providerMetadata.cherry.fileEntryId')
       WHERE json_extract(part.value, '$.type') = 'file'
         AND message.created_at <= ${completedAt}
+        AND message.updated_at <= ${completedAt}
         AND file.created_at <= ${completedAt}
       GROUP BY message.id, json_extract(part.value, '$.providerMetadata.cherry.fileEntryId')
       ON CONFLICT (file_entry_id, source_id, role) DO NOTHING
@@ -55,6 +56,7 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
       WITH migrated_file_ref AS (
         SELECT file_entry_id FROM ${agentSessionMessageFileRefTable}
         WHERE created_at <= ${completedAt}
+          AND updated_at <= ${completedAt}
         UNION
         SELECT file_entry_id FROM ${chatMessageFileRefTable}
         WHERE created_at <= ${completedAt}

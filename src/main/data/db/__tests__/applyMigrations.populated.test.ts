@@ -675,6 +675,65 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('does not backfill agent attachments when the source message changed after migration', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const now = Date.now()
+    const completedAt = now + 1
+    const fileEntryId = '56565656-5656-4565-8565-565656565656'
+    const messageId = '67676767-6767-4676-8676-676767676767'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'updated-agent-report', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
+      )
+      .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt, version: '2.0.0', error: null }),
+        completedAt,
+        completedAt
+      )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-agent-updated', 'Workspace', '/tmp/agent-updated', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-agent-updated', 'Session', 'workspace-agent-updated', 'a0', ?, ?, ?)`
+      )
+      .run(now, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-updated', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(
+        messageId,
+        JSON.stringify({
+          parts: [{ type: 'file', providerMetadata: { cherry: { fileEntryId } } }]
+        }),
+        now,
+        completedAt + 1
+      )
+
+    new LegacyFileCleanupPolicySeeder().run(db)
+
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'manual'
+    })
+  })
+
   it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
     applyMigrations(db, resolveMigrationsPath())
     const now = Date.now()
