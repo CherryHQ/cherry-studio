@@ -14,12 +14,15 @@ interface UseTranslateHistoriesOptions {
   star?: boolean
   /** Items per fetched page. Defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT}. */
   pageSize?: number
+  /** Whether history fetching and change listening are active. */
+  enabled?: boolean
 }
 
 export const useTranslateHistories = ({
   search,
   star,
-  pageSize = TRANSLATE_HISTORY_DEFAULT_LIMIT
+  pageSize = TRANSLATE_HISTORY_DEFAULT_LIMIT,
+  enabled = true
 }: UseTranslateHistoriesOptions = {}) => {
   const searchKey = search?.trim() || undefined
   const starKey = star || undefined
@@ -38,6 +41,7 @@ export const useTranslateHistories = ({
   } = useInfiniteQuery('/translate/histories', {
     query,
     limit: pageSize,
+    enabled,
     swrOptions: { keepPreviousData: false }
   })
   const histories = useInfiniteFlatItems(pages)
@@ -85,7 +89,7 @@ export const useTranslateHistories = ({
   // pages in place, which is the same behaviour a regular mutation
   // (`refresh: ['/translate/histories']`) already takes via
   // `invalidatePathPatterns`.
-  useDataChange('/translate/histories', () => {
+  useDataChange(enabled ? '/translate/histories' : [], () => {
     void mutate()
   })
 

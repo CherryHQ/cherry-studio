@@ -6,6 +6,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -74,6 +75,7 @@ const historyFilesMock = vi.hoisted(() => ({
     target: { entryId: 'entry-target', path: '/tmp/files/entry-target.pdf' as AbsoluteFilePath }
   } as TranslationFiles
 }))
+const sidebarModuleLoads = vi.hoisted(() => ({ history: 0, settings: 0 }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -261,59 +263,62 @@ vi.mock('../components/IconButton', () => ({
   }
 }))
 
-vi.mock('../components/TranslateHistory', () => ({
-  default: ({
-    isOpen,
-    onHistoryItemClick
-  }: {
-    isOpen: boolean
-    onHistoryItemClick: (
-      history: {
-        id?: string
-        kind: 'text' | 'file'
-        sourceText: string
-        targetText: string
-        sourceLanguage: string | null
-        targetLanguage: string | null
-      },
-      files?: TranslationFiles
-    ) => void
-  }) =>
-    isOpen ? (
-      <div data-testid="translate-history-open">
-        <button
-          type="button"
-          aria-label="reuse-null-target-history"
-          onClick={() =>
-            onHistoryItemClick({
-              kind: 'text',
-              sourceText: 'hello',
-              targetText: '你好',
-              sourceLanguage: null,
-              targetLanguage: null
-            })
-          }
-        />
-        <button
-          type="button"
-          aria-label="reuse-pdf-history"
-          onClick={() =>
-            onHistoryItemClick(
-              {
-                id: 'history-pdf',
-                kind: 'file',
-                sourceText: 'paper.pdf',
-                targetText: 'paper.zh-CN.pdf',
+vi.mock('../components/TranslateHistory', () => {
+  sidebarModuleLoads.history += 1
+  return {
+    default: ({
+      isOpen,
+      onHistoryItemClick
+    }: {
+      isOpen: boolean
+      onHistoryItemClick: (
+        history: {
+          id?: string
+          kind: 'text' | 'file'
+          sourceText: string
+          targetText: string
+          sourceLanguage: string | null
+          targetLanguage: string | null
+        },
+        files?: TranslationFiles
+      ) => void
+    }) =>
+      isOpen ? (
+        <div data-testid="translate-history-open">
+          <button
+            type="button"
+            aria-label="reuse-null-target-history"
+            onClick={() =>
+              onHistoryItemClick({
+                kind: 'text',
+                sourceText: 'hello',
+                targetText: '你好',
                 sourceLanguage: null,
                 targetLanguage: null
-              },
-              historyFilesMock.files
-            )
-          }
-        />
-      </div>
-    ) : null
-}))
+              })
+            }
+          />
+          <button
+            type="button"
+            aria-label="reuse-pdf-history"
+            onClick={() =>
+              onHistoryItemClick(
+                {
+                  id: 'history-pdf',
+                  kind: 'file',
+                  sourceText: 'paper.pdf',
+                  targetText: 'paper.zh-CN.pdf',
+                  sourceLanguage: null,
+                  targetLanguage: null
+                },
+                historyFilesMock.files
+              )
+            }
+          />
+        </div>
+      ) : null
+  }
+})
 
 vi.mock('../components/TranslateInputPane', () => ({
   default: ({
@@ -399,9 +404,12 @@ vi.mock('../components/TranslateOutputPane', () => ({
   )
 }))
 
-vi.mock('../TranslateSettings', () => ({
-  default: ({ visible }: { visible: boolean }) => (visible ? <div data-testid="translate-settings-open" /> : null)
-}))
+vi.mock('../TranslateSettings', () => {
+  sidebarModuleLoads.settings += 1
+  return {
+    default: ({ visible }: { visible: boolean }) => (visible ? <div data-testid="translate-settings-open" /> : null)
+  }
+})
 
 vi.mock('../pdf/PdfTranslationView', () => {
   const MockPdfTranslationView = (props: {
@@ -555,6 +563,19 @@ describe('TranslatePage', () => {
         readText: fileMock.readText
       }
     }
+  })
+
+  it('loads each optional sidebar only after the user opens it', async () => {
+    const user = userEvent.setup()
+    render(<TranslatePage />)
+
+    expect(sidebarModuleLoads).toEqual({ history: 0, settings: 0 })
+
+    await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    await waitFor(() => expect(sidebarModuleLoads).toEqual({ history: 1, settings: 0 }))
+
+    await user.click(screen.getByRole('button', { name: 'translate.settings.title' }))
+    await waitFor(() => expect(sidebarModuleLoads).toEqual({ history: 1, settings: 1 }))
   })
 
   afterEach(() => {
