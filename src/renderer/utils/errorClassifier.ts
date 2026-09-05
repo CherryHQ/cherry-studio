@@ -93,6 +93,19 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  const retryErrors =
+    error.name === 'AI_RetryError'
+      ? [errorBag.lastError, ...(Array.isArray(errorBag.errors) ? errorBag.errors : [])]
+      : []
+  const hasNestedUnauthorizedStatus = retryErrors.some((nestedError) => {
+    if (typeof nestedError !== 'object' || nestedError === null || Array.isArray(nestedError)) {
+      return false
+    }
+
+    const nestedErrorBag = nestedError as Record<string, unknown>
+    const nestedStatus = nestedErrorBag.statusCode ?? nestedErrorBag.status
+    return nestedStatus === 401 || nestedStatus === '401'
+  })
   const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
@@ -127,6 +140,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     numStatus === 401 ||
+    hasNestedUnauthorizedStatus ||
     msg.includes('invalid_api_key') ||
     msg.includes('invalid api key') ||
     msg.includes('api key is invalid') ||

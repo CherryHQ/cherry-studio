@@ -87,6 +87,7 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
+  const errorName = error?.name ?? null
   const errorStatus =
     (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
@@ -95,6 +96,8 @@ const MessageErrorInfo: React.FC<{
   const errorData = (error as Record<string, unknown> | undefined)?.data
   const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const retryLastError = errorName === 'AI_RetryError' ? error?.lastError : undefined
+  const retryErrors = errorName === 'AI_RetryError' ? error?.errors : undefined
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
@@ -114,7 +117,7 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => {
     const classificationError: SerializedError = {
-      name: null,
+      name: errorName,
       message: errorMessage ?? null,
       stack: null,
       ...(classificationStatus !== undefined
@@ -125,7 +128,9 @@ const MessageErrorInfo: React.FC<{
         : {}),
       ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
       ...(classificationData !== undefined ? { data: classificationData } : {}),
-      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
+      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {}),
+      ...(retryLastError !== undefined ? { lastError: retryLastError } : {}),
+      ...(retryErrors !== undefined ? { errors: retryErrors } : {})
     }
 
     return classifyError(classificationError, providerId)
@@ -135,7 +140,10 @@ const MessageErrorInfo: React.FC<{
     classificationResponseBody,
     classificationStatus,
     errorMessage,
-    providerId
+    errorName,
+    providerId,
+    retryErrors,
+    retryLastError
   ])
 
   useEffect(() => {
