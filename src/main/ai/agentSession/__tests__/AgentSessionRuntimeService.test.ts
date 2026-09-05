@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
+  findFlowHostMessageId: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
+    findFlowHostMessageId: mocks.findFlowHostMessageId,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
@@ -256,6 +258,7 @@ describe('AgentSessionRuntimeService', () => {
         ]
       }
     })
+    mocks.findFlowHostMessageId.mockReturnValue(null)
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
@@ -2265,6 +2268,61 @@ describe('AgentSessionRuntimeService', () => {
           expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
         )
       })
+    })
+
+    it('recovers the flow host row from the database after the entry was rebuilt', async () => {
+      // A fresh entry (restart / session reopen) has no in-memory anchor; the resumed chunks
+      // stream under the original launch tool-call id and must re-anchor to the persisted row.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'resumed-text' },
+        { type: 'text-delta', id: 'resumed-text', delta: 'Resumed findings' },
+        { type: 'text-end', id: 'resumed-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.findFlowHostMessageId).toHaveBeenCalledWith('session-1', 'task-root')
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
+        )
+      })
+    })
+
+    it('does not re-query the database for flow roots that have no host row', async () => {
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const sendChunk = () => {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk: { type: 'text-start', id: 'orphan-text' }
+        })
+      }
+      sendChunk()
+      sendChunk()
+
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
     })
 
     it('publishes detached flow overlays under independent message keys', () => {

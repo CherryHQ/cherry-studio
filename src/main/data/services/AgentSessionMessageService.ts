@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -682,6 +682,33 @@ export class AgentSessionMessageService {
         )
       )
       .all()
+  }
+
+  /**
+   * The assistant host row whose parts contain `rootToolCallId`, for a fresh runtime entry (after
+   * a process restart or session reopen) to re-anchor detached subagent flow chunks to the launch
+   * message. The launch part is the earliest row carrying the id, so ascending creation order and
+   * LIMIT 1 pick it.
+   */
+  findFlowHostMessageId(sessionId: string, rootToolCallId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const row = database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, 'assistant'),
+          sql<boolean>`exists (
+            select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+            where json_extract(part.value, '$.toolCallId') = ${rootToolCallId}
+          )`
+        )
+      )
+      .orderBy(asc(sessionMessagesTable.createdAt))
+      .limit(1)
+      .all()
+    return row[0]?.id ?? null
   }
 
   /**

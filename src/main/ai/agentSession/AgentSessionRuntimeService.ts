@@ -286,6 +286,8 @@ type AgentSessionRuntimeEntry = {
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
+  /** Flow roots whose host row was already looked up and not found — do not re-query the DB. */
+  checkedFlowHostMisses?: Set<string>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2045,7 +2047,27 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
-    const messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    // A fresh entry (restart or session reopen) has no in-memory anchor. Recover it from the
+    // persisted host row once per root so resumed chunks land on the launch message; the looked-up
+    // rows are already committed, so seeding their accumulator from the DB needs no pending buffer.
+    if (!messageId && !entry.checkedFlowHostMisses?.has(rootToolCallId)) {
+      ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
+      try {
+        const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
+        if (hostMessageId) {
+          ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
+          ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
+          messageId = hostMessageId
+        }
+      } catch (error) {
+        logger.warn('Failed to recover flow host row for detached subagent chunk', {
+          sessionId: entry.sessionId,
+          rootToolCallId,
+          error
+        })
+      }
+    }
     if (!messageId) {
       logger.debug('Ignoring detached subagent flow chunk without a persisted message anchor', {
         sessionId: entry.sessionId,
