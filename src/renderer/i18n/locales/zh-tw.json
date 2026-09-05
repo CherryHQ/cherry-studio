@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "發生位置",
   "error.diagnostic_report.locations.agent": "Agent 對話",
   "error.diagnostic_report.locations.home": "一般對話",
+  "error.diagnostics.back_to_overview": "返回診斷概覽",
+  "error.diagnostics.basic_information": "基本資訊",
   "error.errors": "錯誤",
   "error.finishReason": "結束原因",
   "error.functionality": "功能",

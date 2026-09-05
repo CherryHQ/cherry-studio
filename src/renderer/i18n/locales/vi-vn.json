@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Vị trí",
   "error.diagnostic_report.locations.agent": "Cuộc trò chuyện Agent",
   "error.diagnostic_report.locations.home": "Cuộc trò chuyện thông thường",
+  "error.diagnostics.back_to_overview": "Quay lại tổng quan chẩn đoán",
+  "error.diagnostics.basic_information": "Thông tin cơ bản",
   "error.errors": "Lỗi",
   "error.finishReason": "Lý do kết thúc",
   "error.functionality": "Chức năng",

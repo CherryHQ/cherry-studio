@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Emplacement",
   "error.diagnostic_report.locations.agent": "Conversation Agent",
   "error.diagnostic_report.locations.home": "Conversation standard",
+  "error.diagnostics.back_to_overview": "Retour à la vue d’ensemble du diagnostic",
+  "error.diagnostics.basic_information": "Informations de base",
   "error.errors": "erreur",
   "error.finishReason": "Raison de la fin",
   "error.functionality": "fonction",

@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Konum",
   "error.diagnostic_report.locations.agent": "Ajan konuşması",
   "error.diagnostic_report.locations.home": "Ana sayfa konuşması",
+  "error.diagnostics.back_to_overview": "Tanılama özetine dön",
+  "error.diagnostics.basic_information": "Temel bilgiler",
   "error.errors": "Hatalar",
   "error.finishReason": "Sonlanma Nedeni",
   "error.functionality": "İşlevsellik",

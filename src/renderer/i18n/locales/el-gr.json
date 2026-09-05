@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Τοποθεσία",
   "error.diagnostic_report.locations.agent": "Συνομιλία Agent",
   "error.diagnostic_report.locations.home": "Κανονική συνομιλία",
+  "error.diagnostics.back_to_overview": "Επιστροφή στην επισκόπηση διαγνωστικών",
+  "error.diagnostics.basic_information": "Βασικές πληροφορίες",
   "error.errors": "Λάθος",
   "error.finishReason": "Αιτία λήξης",
   "error.functionality": "λειτουργία",

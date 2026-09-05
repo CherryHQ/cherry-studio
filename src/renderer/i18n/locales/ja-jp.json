@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "発生箇所",
   "error.diagnostic_report.locations.agent": "エージェント会話",
   "error.diagnostic_report.locations.home": "通常の会話",
+  "error.diagnostics.back_to_overview": "診断概要に戻る",
+  "error.diagnostics.basic_information": "基本情報",
   "error.errors": "エラー",
   "error.finishReason": "終了理由",
   "error.functionality": "機能",

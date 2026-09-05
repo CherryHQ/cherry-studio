@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Local",
   "error.diagnostic_report.locations.agent": "Conversa com agente",
   "error.diagnostic_report.locations.home": "Conversa normal",
+  "error.diagnostics.back_to_overview": "Voltar à visão geral do diagnóstico",
+  "error.diagnostics.basic_information": "Informações básicas",
   "error.errors": "erro",
   "error.finishReason": "Motivo de término",
   "error.functionality": "funcionalidade",

@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Location",
   "error.diagnostic_report.locations.agent": "Agent conversation",
   "error.diagnostic_report.locations.home": "Home conversation",
+  "error.diagnostics.back_to_overview": "Back to diagnostic overview",
+  "error.diagnostics.basic_information": "Basic information",
   "error.errors": "Errors",
   "error.finishReason": "Finish Reason",
   "error.functionality": "Functionality",

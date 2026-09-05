@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Ort",
   "error.diagnostic_report.locations.agent": "Agent-Unterhaltung",
   "error.diagnostic_report.locations.home": "Normale Unterhaltung",
+  "error.diagnostics.back_to_overview": "Zurück zur Diagnoseübersicht",
+  "error.diagnostics.basic_information": "Grundinformationen",
   "error.errors": "Fehler",
   "error.finishReason": "Beendigungsgrund",
   "error.functionality": "Funktion",

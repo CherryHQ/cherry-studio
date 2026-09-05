@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "发生位置",
   "error.diagnostic_report.locations.agent": "Agent 对话",
   "error.diagnostic_report.locations.home": "普通对话",
+  "error.diagnostics.back_to_overview": "返回诊断概览",
+  "error.diagnostics.basic_information": "基础信息",
   "error.errors": "错误",
   "error.finishReason": "结束原因",
   "error.functionality": "功能",

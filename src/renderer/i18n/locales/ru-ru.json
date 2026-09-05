@@ -1240,6 +1240,8 @@
   "error.diagnostic_report.location": "Место",
   "error.diagnostic_report.locations.agent": "Диалог с агентом",
   "error.diagnostic_report.locations.home": "Обычный диалог",
+  "error.diagnostics.back_to_overview": "Назад к обзору диагностики",
+  "error.diagnostics.basic_information": "Основная информация",
   "error.errors": "ошибка",
   "error.finishReason": "Причина завершения",
   "error.functionality": "функция",
