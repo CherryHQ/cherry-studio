@@ -75,6 +75,13 @@ export function normalizeRequestedSelection(
   return (model.reasoning?.selectableEfforts ?? []).includes(selection) ? selection : 'default'
 }
 
+/** The concrete tiers a model declares — its vocabulary minus the two non-tier selections. */
+function declaredEfforts(model: Model): Exclude<ReasoningEffort, 'none' | 'auto'>[] {
+  return (model.reasoning?.selectableEfforts ?? []).filter(
+    (effort): effort is Exclude<ReasoningEffort, 'none' | 'auto'> => effort !== 'none' && effort !== 'auto'
+  )
+}
+
 /**
  * Project a selection onto what this model declares: the value itself, the
  * nearest effort it does declare, or `undefined` when it declares none.
@@ -93,11 +100,9 @@ export function resolveSelection(
     return selectable.includes(selection) ? selection : undefined
   }
 
-  const declared = selectable.filter(
-    (effort): effort is Exclude<ReasoningEffort, 'none' | 'auto'> => effort !== 'none' && effort !== 'auto'
-  )
-  // `selectableEfforts` is the model's UI vocabulary. A cross-dialect request can still carry
-  // canonical `auto`; let the wire profile map it when the target has adjustable effort tiers.
+  const declared = declaredEfforts(model)
+  // A cross-dialect request can still carry canonical `auto`; let the wire profile map it when the
+  // target has adjustable effort tiers. {@link resolveModeEffort} holds that mapping to this set.
   if (selection === 'auto') {
     return selectable.includes(selection) || declared.length > 0 ? selection : undefined
   }
@@ -117,12 +122,26 @@ function resolveMode(
   return profile.effort
 }
 
+/**
+ * An `effortMap` entry keyed by a real tier translates a selection the model already declared into
+ * the vendor's token, so it is deliberately outside the model's vocabulary and must stand. The
+ * `auto` entry is different: `auto` is synthesized per provider and never checked against a model,
+ * so it is the one value that reaches the wire unvalidated. Project it onto a declared tier first,
+ * then translate that tier exactly as an explicit selection would be.
+ */
 function resolveModeEffort(
   selection: CanonicalReasoningSelection,
-  mode: ReasoningWireMode
+  mode: ReasoningWireMode,
+  model: Model
 ): ReasoningEffort | undefined {
   if (selection === 'default' || selection === 'none') return undefined
-  return mode.effortMap?.[selection] ?? selection
+  const mapped = mode.effortMap?.[selection] ?? selection
+  if (selection !== 'auto' || mapped === 'auto') return mapped
+
+  const declared = declaredEfforts(model)
+  const projected = nearestThinkingOption(mapped, declared)
+  const nearest = declared.find((effort) => effort === projected)
+  return nearest ? (mode.effortMap?.[nearest] ?? nearest) : mapped
 }
 
 function resolveModeBudget(
@@ -166,7 +185,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   const mode = resolveMode(selection, input.profile)
   if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
 
-  const effort = resolveModeEffort(selection, mode)
+  const effort = resolveModeEffort(selection, mode, input.model)
   const budgetTokens =
     'budget' in mode ? resolveModeBudget(selection, input.model, mode.budget, input.maxTokens) : undefined
 

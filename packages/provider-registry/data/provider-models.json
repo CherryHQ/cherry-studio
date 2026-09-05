@@ -17264,12 +17264,14 @@
           },
           "wire": {
             "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
               "operations": [
                 {
                   "target": "reasoningEffort",
                   "value": {
-                    "source": "literal",
-                    "value": "medium"
+                    "source": "effort"
                   }
                 }
               ]
@@ -17361,12 +17363,14 @@
           },
           "wire": {
             "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
               "operations": [
                 {
                   "target": "reasoningEffort",
                   "value": {
-                    "source": "literal",
-                    "value": "medium"
+                    "source": "effort"
                   }
                 }
               ]
@@ -17966,7 +17970,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "high"
+                "auto": "medium"
               },
               "operations": [
                 {
@@ -18018,7 +18022,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "high"
+                "auto": "medium"
               },
               "operations": [
                 {
@@ -38745,5 +38749,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "198c8902bf305786"
+  "version": "f48da95f7a82ba57"
 }
