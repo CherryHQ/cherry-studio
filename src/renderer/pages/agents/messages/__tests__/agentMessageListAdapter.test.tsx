@@ -163,6 +163,12 @@ vi.mock('@renderer/services/ExportService', () => ({
   messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 const {
   clearPendingAgentSessionImageActionsForTest,
@@ -186,7 +192,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
+  it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
@@ -306,6 +312,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.meta.aiUsageMessageKind).toBe('agent-session')
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
+    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
@@ -315,6 +322,20 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+
+    ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
+    await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
+    expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist/report.md'
+    })
+
+    ipcApiRequest.mockResolvedValueOnce({ kind: 'directory' })
+    await expect(value?.actions.isDirectory?.('dist')).resolves.toBe(true)
+    expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist'
+    })
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })
@@ -401,22 +422,27 @@ describe('useAgentMessageListProviderValue', () => {
     dataApiMocks.get.mockResolvedValue({
       data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
     })
+    const diagnosticReport = { location: 'Interactive Agent conversation' }
 
     const Probe = () => {
-      useAgentMessageListProviderValue({
+      const params = {
         topic,
         messages: [],
         partsByMessageId: {},
+        diagnosticReport,
         isLoading: false,
         messageNavigation: 'anchor'
-      })
+      }
+      useAgentMessageListProviderValue(params)
       return null
     }
     render(<Probe />)
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      diagnosticReport: { location: string }
       persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
     }
+    expect(options.diagnosticReport).toEqual(diagnosticReport)
     await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
@@ -433,6 +459,70 @@ describe('useAgentMessageListProviderValue', () => {
         }
       }
     })
+  })
+
+  it('omits diagnostic-report actions when the consumer does not provide that capability', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Read-only Agent tool flow',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
+  })
+
+  it('exposes diagnostic report launch only to the interactive message consumer', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const openDiagnosticReport = vi.fn()
+    let interactiveValue: MessageListProviderValue | undefined
+    let captureValue: MessageListProviderValue | undefined
+
+    const Probe = ({ capture = false }: { capture?: boolean }) => {
+      const value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        imageActionConsumer: capture ? 'capture' : undefined,
+        messageNavigation: 'anchor',
+        openDiagnosticReport
+      })
+      if (capture) captureValue = value
+      else interactiveValue = value
+      return null
+    }
+
+    const view = render(<Probe />)
+    view.rerender(<Probe capture />)
+
+    expect(interactiveValue?.actions.openDiagnosticReport).toBe(openDiagnosticReport)
+    expect(captureValue?.actions.openDiagnosticReport).toBeUndefined()
   })
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {
@@ -728,6 +818,10 @@ describe('useAgentMessageListProviderValue', () => {
 
     const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
     render(<CaptureProbe />)
+
+    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ diagnosticReport: undefined })
+    )
 
     const captureRuntime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),

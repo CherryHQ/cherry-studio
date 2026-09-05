@@ -144,6 +144,7 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 // Import the functions to test AFTER setting up mocks
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { markdownToPlainText } from '@renderer/utils/markdown'
+import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 
 import {
   exportMarkdownToObsidian,
@@ -509,6 +510,20 @@ describe('ExportService', () => {
 
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('[^1]: [Example](https://example.com)')
+    })
+
+    it('resolves a [cite:id] re-cited from an earlier message in a topic export', async () => {
+      const earlier = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+      const followUp = createExportView([{ type: 'text', text: 'Still 3%. [cite:3f2a1b9c-1]' }])
+
+      const markdown = await messagesToMarkdown(withPriorCitationParts([earlier, followUp]))
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('Still 3%. [^1]')
+      expect(markdown.match(/\[\^1\]: \[Example\]\(https:\/\/example\.com\)/g)).toHaveLength(2)
     })
 
     it('should resolve tool-part [cite:id] markers and list their sources', async () => {

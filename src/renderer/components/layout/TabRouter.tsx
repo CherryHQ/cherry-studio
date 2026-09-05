@@ -33,10 +33,16 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
 
+  // External retargets update tab.url before an async route can replace the outgoing page.
+  // Cover that interval so teardown effects cannot repaint stale page loading UI.
+  const [resolvedHref, setResolvedHref] = useState(tab.url)
+  const transitionUrl = tab.url !== resolvedHref ? tab.url : null
+
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
+      setResolvedHref(nextHref)
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
@@ -47,7 +53,14 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
-      void router.navigate({ to: tab.url })
+      // Split path and query: a query-bearing href string in `to` loses the
+      // search through validateSearch round-trips (route-dependent), so pass
+      // the parsed query as the structured `search` param instead
+      const [pathname, search] = tab.url.split('?')
+      void router.navigate({
+        to: pathname,
+        search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+      })
     }
   }, [router, tab.url])
 
@@ -71,6 +84,13 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
               <RouterProvider router={router} />
             </DialogPortalContainerProvider>
           </PortalContainerProvider>
+          {transitionUrl && (
+            <div
+              data-testid="tab-route-transition-cover"
+              className="absolute inset-0 z-50 bg-card"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </TabIdProvider>
     </Activity>

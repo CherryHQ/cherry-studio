@@ -440,6 +440,37 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await connection.close()
   })
 
+  it('keys the warm lookup on the turn notification authority so a differently-scoped park is not reused', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const notificationContext = {
+      sourceChannel: null,
+      channels: [{ id: 'channel-1', type: 'telegram' }],
+      allowAnyOwnedChannel: false
+    }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      notificationContext
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(expect.objectContaining({ notificationContext }))
+    await connection.close()
+  })
+
   it('connects with an opaque resume token and sends user input into the SDK queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -3191,6 +3222,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // before trace mode was on can never be reused (and the miss disposes it).
     expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(
       expect.objectContaining({
+        connectionRebuildSignature: 'sig-1',
         options: expect.objectContaining({
           env: expect.objectContaining({ TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01` })
         })

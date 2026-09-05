@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const stubApp = (id: string): MiniAppType => ({
+  kind: 'site',
   appId: id,
   presetMiniAppId: id as MiniAppType['presetMiniAppId'],
   status: 'pinned',
@@ -38,7 +39,19 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 // `pinned` stays empty on purpose: presets seed as `enabled`, so a picker that
 // read the launchpad's pinned list would be blank for a fresh install.
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({ miniApps: mocks.miniApps, pinned: [] })
+  useMiniApps: () => ({
+    miniApps: mocks.miniApps,
+    pinned: [],
+    openedKeepAliveMiniApps: [],
+    currentMiniAppId: '',
+    miniAppShow: false,
+    updateAppStatus: vi.fn(),
+    hideMiniApp: vi.fn(),
+    removeCustomMiniApp: vi.fn()
+  })
+}))
+vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
+  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: vi.fn() })
 }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openMiniAppInSplit: mocks.openMiniAppInSplit })
@@ -53,7 +66,7 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
     disabled
   }: {
     app: MiniAppType
-    onOpen?: (app: MiniAppType, name: string) => void
+    onOpen?: (appId: string, name: string) => void
     disabled?: boolean
   }) => (
     // Mirrors the real tile: `disabled` drops it from the tab order and blocks
@@ -65,7 +78,7 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
       aria-disabled={disabled || undefined}
       onClick={() => {
         if (disabled) return
-        onOpen ? onOpen(app, app.name) : mocks.openTab()
+        onOpen ? onOpen(app.appId, app.name) : mocks.openTab()
       }}>
       {app.name}
     </button>
@@ -92,7 +105,7 @@ describe('SplitPanePicker', () => {
     // Routing to the mini app (the launchpad's behaviour) would replace the
     // whole tab, tearing down the very split the user just opened.
     expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.openMiniAppInSplit).toHaveBeenCalledWith(expect.objectContaining({ appId: 'kimi' }), 'kimi')
+    expect(mocks.openMiniAppInSplit).toHaveBeenCalledWith(expect.objectContaining({ appId: 'kimi' }))
   })
 
   it('disables the app already shown in the other pane for pointer and keyboard alike', () => {

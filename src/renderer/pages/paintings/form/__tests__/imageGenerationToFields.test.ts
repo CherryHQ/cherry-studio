@@ -1,7 +1,15 @@
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
+import { type BaseConfigItem, isOptionsConfigItem, type OptionItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'
+
+function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
+  if (!item || !isOptionsConfigItem(item) || !Array.isArray(item.options)) {
+    throw new Error('Expected an option-based field with static options')
+  }
+  return item.options
+}
 
 /**
  * Locks the derivation contract under the unified schema: `modes[mode].supports`
@@ -41,12 +49,7 @@ describe('imageGenerationToFields', () => {
     expect(byKey.numImages?.min).toBe(1)
     expect(byKey.numImages?.max).toBe(10)
     expect(byKey.quality?.type).toBe('select')
-    expect((byKey.quality!.options as { value: string }[]).map((o) => o.value)).toEqual([
-      'low',
-      'medium',
-      'high',
-      'auto'
-    ])
+    expect(staticOptions(byKey.quality).map((o) => o.value)).toEqual(['low', 'medium', 'high', 'auto'])
     expect(byKey.moderation?.type).toBe('select')
     expect(byKey.background?.type).toBe('select')
   })
@@ -67,26 +70,26 @@ describe('imageGenerationToFields', () => {
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     // Semantic enums → translatable i18n labelKey, no raw label.
-    expect(byKey.quality!.options).toEqual([
+    expect(staticOptions(byKey.quality)).toEqual([
       { labelKey: 'paintings.quality_options.standard', value: 'standard' },
       { labelKey: 'paintings.quality_options.hd', value: 'hd' }
     ])
-    expect(byKey.styleType!.options).toEqual([
+    expect(staticOptions(byKey.styleType)).toEqual([
       { labelKey: 'paintings.style_type_options.auto', value: 'AUTO' },
       { labelKey: 'paintings.style_type_options.realistic', value: 'REALISTIC' }
     ])
     // style / function: label is localized, but the option value is preserved
     // verbatim (incl. the `<...>` form) — that raw value is what reaches the request body.
-    expect(byKey.style!.options).toEqual([
+    expect(staticOptions(byKey.style)).toEqual([
       { labelKey: 'paintings.style_options.natural', value: 'natural' },
       { labelKey: 'paintings.style_options.photography', value: '<photography>' }
     ])
-    expect(byKey.function!.options).toEqual([
+    expect(staticOptions(byKey.function)).toEqual([
       { labelKey: 'paintings.dashscope.function_options.expand', value: 'expand' },
       { labelKey: 'paintings.dashscope.function_options.remove_watermark', value: 'remove_watermark' }
     ])
     // Literal enum (ratios) → raw value as label, no labelKey (nothing to translate).
-    expect(byKey.aspectRatio!.options).toEqual([
+    expect(staticOptions(byKey.aspectRatio)).toEqual([
       { label: '1:1', value: '1:1' },
       { label: '16:9', value: '16:9' }
     ])
@@ -107,17 +110,11 @@ describe('imageGenerationToFields', () => {
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     expect(byKey.aspectRatio?.type).toBe('select')
-    expect((byKey.aspectRatio!.options as { value: string }[]).map((o) => o.value)).toEqual([
-      '1:1',
-      '9:16',
-      '16:9',
-      '3:4',
-      '4:3'
-    ])
+    expect(staticOptions(byKey.aspectRatio).map((o) => o.value)).toEqual(['1:1', '9:16', '16:9', '3:4', '4:3'])
     expect(byKey.numImages?.max).toBe(1)
     expect(byKey.seed?.type).toBe('input')
     expect(byKey.personGeneration?.type).toBe('select')
-    expect((byKey.personGeneration!.options as { value: string }[]).map((o) => o.value)).toContain('DONT_ALLOW')
+    expect(staticOptions(byKey.personGeneration).map((o) => o.value)).toContain('DONT_ALLOW')
   })
 
   it('flux-kontext-pro: safetyTolerance range slider with default 6', () => {
@@ -226,7 +223,7 @@ describe('imageGenerationToFields', () => {
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     expect(byKey.size?.type).toBe('sizeChips')
-    const sizeValues = (byKey.size!.options as { value: string }[]).map((o) => o.value)
+    const sizeValues = staticOptions(byKey.size).map((o) => o.value)
     expect(sizeValues).toContain('1024x1024')
     expect(sizeValues).toContain('custom')
     expect(byKey.customSize?.type).toBe('customSize')
@@ -246,7 +243,7 @@ describe('imageGenerationToFields', () => {
     })
     const size = items.find((item) => item.key === 'size')
 
-    expect(size?.options).toEqual([{ labelKey: 'paintings.custom_size', value: 'custom' }])
+    expect(staticOptions(size)).toEqual([{ labelKey: 'paintings.custom_size', value: 'custom' }])
   })
 
   it('size without paired customSize: no custom chip', () => {
