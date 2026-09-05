@@ -3,10 +3,32 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  doctorState: { status: 'idle' } as DoctorState,
+  cacheReady: true,
+  doctorState: { status: 'idle' } as DoctorState | undefined,
+  readyListeners: new Set<() => void>(),
+  appUpdateState: {
+    info: null,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    downloadProgress: 0,
+    available: false,
+    ignore: false,
+    manualCheck: false
+  },
   request: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn()
+}))
+
+vi.mock('@data/CacheService', () => ({
+  cacheService: {
+    isSharedCacheReady: () => mocks.cacheReady,
+    onSharedCacheReady: (listener: () => void) => {
+      mocks.readyListeners.add(listener)
+      return () => mocks.readyListeners.delete(listener)
+    }
+  }
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -14,18 +36,7 @@ vi.mock('@data/hooks/useCache', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
-  useAppUpdateState: () => ({
-    appUpdateState: {
-      info: null,
-      checking: false,
-      downloading: false,
-      downloaded: false,
-      downloadProgress: 0,
-      available: false,
-      ignore: false,
-      manualCheck: false
-    }
-  })
+  useAppUpdateState: () => ({ appUpdateState: mocks.appUpdateState })
 }))
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
@@ -56,7 +67,10 @@ import { useDoctorController } from '../useDoctorController'
 describe('useDoctorController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.cacheReady = true
     mocks.doctorState = { status: 'idle' }
+    mocks.readyListeners.clear()
+    Object.assign(mocks.appUpdateState, { downloaded: false, info: null })
     mocks.request.mockResolvedValue({ status: 'completed' })
   })
 
@@ -69,6 +83,47 @@ describe('useDoctorController', () => {
       })
     )
     expect(mocks.request.mock.calls.some(([, input]) => input && 'checkIds' in input)).toBe(false)
+  })
+
+  it('waits for shared-cache hydration before deciding that no report exists', async () => {
+    mocks.cacheReady = false
+    mocks.doctorState = undefined
+    const { rerender } = renderHook(() =>
+      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
+    )
+
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+
+    mocks.doctorState = {
+      status: 'completed',
+      report: {
+        schemaVersion: 1,
+        runId: 'hydrated-run',
+        tier: 'quick',
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        basics: {
+          version: '2.0.0',
+          edition: 'global',
+          channel: 'latest',
+          platform: 'darwin',
+          arch: 'arm64',
+          osRelease: '25.0.0',
+          runtime: {},
+          isPackaged: true,
+          isPortable: false,
+          userDataPath: '/tmp/cherry'
+        },
+        results: [],
+        summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    mocks.cacheReady = true
+    act(() => mocks.readyListeners.forEach((listener) => listener()))
+    rerender()
+
+    await waitFor(() => expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything()))
   })
 
   it('switches a report action to the report panel without copying Doctor results into the draft', async () => {
@@ -197,5 +252,33 @@ describe('useDoctorController', () => {
 
     expect(mocks.request).toHaveBeenCalledWith('app.get_info')
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_path', '/Users/local/CherryStudio/logs')
+  })
+
+  it('executes every non-fix backend action with its exact public contract', async () => {
+    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    const onNavigate = vi.fn()
+    const onInstallUpdate = vi.fn()
+    const releaseInfo = { version: '2.1.0' }
+    Object.assign(mocks.appUpdateState, { downloaded: true, info: releaseInfo })
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onInstallUpdate, onNavigate }))
+
+    await act(async () =>
+      result.current.executeAction('provider-api-key-present', { kind: 'navigate', target: 'provider' })
+    )
+    await act(async () =>
+      result.current.executeAction('network-endpoint-update', {
+        kind: 'open_external',
+        url: 'https://cherry-ai.com/status'
+      })
+    )
+    await act(async () => result.current.executeAction('provider-cherry-account', { kind: 'open_cherry_account' }))
+    await act(async () => result.current.executeAction('install-update-available', { kind: 'install_update' }))
+    await act(async () => result.current.executeAction('config-hardware-acceleration', { kind: 'relaunch' }))
+
+    expect(onNavigate).toHaveBeenCalledWith('provider')
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://cherry-ai.com/status')
+    expect(mocks.request).toHaveBeenCalledWith('cherry_cloud.login.start')
+    expect(onInstallUpdate).toHaveBeenCalledWith(releaseInfo)
+    expect(mocks.request).toHaveBeenCalledWith('app.relaunch')
   })
 })

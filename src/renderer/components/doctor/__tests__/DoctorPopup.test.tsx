@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
+vi.mock('@data/CacheService', () => ({
+  cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
+}))
 vi.mock('@data/hooks/useCache', () => ({ useSharedCacheValue: () => mocks.doctorState }))
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({
@@ -109,6 +112,9 @@ describe('DoctorPopup', () => {
     )
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
+    await waitFor(() =>
+      expect(screen.getByText('settings.doctor.panel_descriptions.checks').parentElement).toHaveFocus()
+    )
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
 
@@ -194,6 +200,7 @@ describe('DoctorPopup', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.reclaimable 300 MB')
     expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.irreversible')
     expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.duration')
+    expect(screen.getByRole('alert').closest('[tabindex="-1"]')).toHaveFocus()
     expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
@@ -204,5 +211,59 @@ describe('DoctorPopup', () => {
         fixId: 'cleanup'
       })
     )
+    expect(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' })).toHaveFocus()
+  })
+
+  it('masks consent-required evidence and reveals it in place after confirmation', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = {
+      status: 'completed',
+      report: {
+        schemaVersion: 1,
+        runId: 'run-sensitive',
+        tier: 'quick',
+        startedAt: new Date(Date.now() - 1_000).toISOString(),
+        finishedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        basics: {
+          version: '2.0.0',
+          edition: 'global',
+          channel: 'latest',
+          platform: 'darwin',
+          arch: 'arm64',
+          osRelease: '25.0.0',
+          runtime: {},
+          isPackaged: true,
+          isPortable: false,
+          userDataPath: '/Users/local/CherryStudio'
+        },
+        results: [
+          {
+            id: 'logs-recent-findings',
+            status: 'warn',
+            durationMs: 1,
+            evidence: [{ key: 'request-body', value: 'private response', dataClass: 'consent_required' }]
+          }
+        ],
+        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    const details = await screen.findByText('settings.doctor.evidence.local_details')
+    await user.click(details)
+    expect(screen.queryByText('private response')).not.toBeInTheDocument()
+    expect(screen.getByText('••••••')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
+
+    const revealed = await screen.findByText('private response')
+    expect(details.closest('details')).toHaveAttribute('open')
+    expect(revealed.closest('dl')).toHaveFocus()
   })
 })

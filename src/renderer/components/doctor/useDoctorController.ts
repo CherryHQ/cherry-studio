@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -68,7 +69,9 @@ export function useDoctorController({
   onNavigate
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
-  const doctorState = useSharedCacheValue('doctor.state') ?? IDLE_DOCTOR_STATE
+  const cachedDoctorState = useSharedCacheValue('doctor.state')
+  const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
+  const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
   const { mcpServers } = useMcpServers()
   const [session, dispatch] = useReducer(
@@ -79,6 +82,11 @@ export function useDoctorController({
   const [now, setNow] = useState(Date.now)
   const autoRunRequestedRef = useRef(false)
   const expandedRunIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (sharedCacheReady) return
+    return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
+  }, [sharedCacheReady])
 
   useEffect(() => {
     if (doctorState.status !== 'completed') return
@@ -123,10 +131,10 @@ export function useDoctorController({
   )
 
   useEffect(() => {
-    if (doctorState.status !== 'idle' || autoRunRequestedRef.current) return
+    if (!sharedCacheReady || doctorState.status !== 'idle' || autoRunRequestedRef.current) return
     autoRunRequestedRef.current = true
     void run('quick')
-  }, [doctorState.status, run])
+  }, [doctorState.status, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (doctorState.status !== 'running' || doctorState.tier !== 'live') return
