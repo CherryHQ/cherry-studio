@@ -119,6 +119,16 @@ const MinimalToolbar: FC<Props> = ({
   const addressInputRef = useRef<HTMLInputElement | null>(null)
   const isAddressEditingRef = useRef(false)
   const previousAppIdRef = useRef(app.appId)
+  const addressLoadGenerationRef = useRef(0)
+  const addressLoadOwnerRef = useRef({ appId: app.appId, webview, webviewRevision })
+  addressLoadOwnerRef.current = { appId: app.appId, webview, webviewRevision }
+
+  useEffect(
+    () => () => {
+      addressLoadGenerationRef.current += 1
+    },
+    []
+  )
 
   useEffect(() => {
     const appChanged = previousAppIdRef.current !== app.appId
@@ -294,19 +304,31 @@ const MinimalToolbar: FC<Props> = ({
       setAddressValue(normalizedAddress)
       addressInputRef.current?.blur()
 
-      try {
-        void webview.loadURL(normalizedAddress).catch((error) => {
-          logger.error('Failed to navigate WebView from address bar', error as Error)
-          restoreCurrentPageUrl()
-          toast.error(t('miniApp.error.load_failed'))
-        })
-      } catch (error) {
+      const loadGeneration = ++addressLoadGenerationRef.current
+      const loadOwner = { appId: app.appId, webview, webviewRevision }
+      const handleLoadFailure = (error: unknown) => {
+        const currentOwner = addressLoadOwnerRef.current
+        if (
+          addressLoadGenerationRef.current !== loadGeneration ||
+          webviewRef.current !== webview ||
+          currentOwner.appId !== loadOwner.appId ||
+          currentOwner.webview !== loadOwner.webview ||
+          currentOwner.webviewRevision !== loadOwner.webviewRevision
+        ) {
+          return
+        }
         logger.error('Failed to navigate WebView from address bar', error as Error)
         restoreCurrentPageUrl()
         toast.error(t('miniApp.error.load_failed'))
       }
+
+      try {
+        void webview.loadURL(normalizedAddress).catch(handleLoadFailure)
+      } catch (error) {
+        handleLoadFailure(error)
+      }
     },
-    [addressValue, restoreCurrentPageUrl, t, webview]
+    [addressValue, app.appId, restoreCurrentPageUrl, t, webview, webviewRef, webviewRevision]
   )
 
   const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {

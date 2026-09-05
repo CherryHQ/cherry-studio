@@ -181,28 +181,37 @@ export class WebviewService extends BaseService {
     if (announceIfLoaded && !contents.isLoadingMainFrame()) annotationSession.announce()
   }
 
-  private requireOwnedGuest(webviewId: number, senderId: WindowId | null) {
-    const hostWindow = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+  private findOwnedGuest(webviewId: number, senderId: WindowId | null): Electron.WebContents | null {
     const guest = webContents.fromId(webviewId)
+    if (!guest || guest.isDestroyed()) return null
 
-    if (
-      !hostWindow ||
-      !guest ||
-      guest.isDestroyed() ||
-      guest.getType?.() !== 'webview' ||
-      guest.hostWebContents !== hostWindow.webContents
-    ) {
+    const hostWindow = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+
+    if (!hostWindow || guest.getType?.() !== 'webview' || guest.hostWebContents !== hostWindow.webContents) {
       throw new Error('The caller does not own this webview')
     }
 
     return guest
   }
 
-  private requireOwnedSiteWebview(webviewId: number, senderId: WindowId | null) {
-    const guest = this.requireOwnedGuest(webviewId, senderId)
+  private requireOwnedGuest(webviewId: number, senderId: WindowId | null) {
+    const guest = this.findOwnedGuest(webviewId, senderId)
+    if (!guest) throw new Error('The caller does not own this webview')
+    return guest
+  }
+
+  private findOwnedSiteWebview(webviewId: number, senderId: WindowId | null): Electron.WebContents | null {
+    const guest = this.findOwnedGuest(webviewId, senderId)
+    if (!guest) return null
     if (guest.session !== session.fromPartition(WEBVIEW_PARTITION)) {
       throw new Error('The caller does not own this webview')
     }
+    return guest
+  }
+
+  private requireOwnedSiteWebview(webviewId: number, senderId: WindowId | null) {
+    const guest = this.findOwnedSiteWebview(webviewId, senderId)
+    if (!guest) throw new Error('The caller does not own this webview')
     return guest
   }
 
@@ -226,11 +235,12 @@ export class WebviewService extends BaseService {
   }
 
   setSpellCheckerEnabled(webviewId: number, isEnable: boolean, senderId: WindowId | null): void {
-    this.requireOwnedGuest(webviewId, senderId).session.setSpellCheckerEnabled(isEnable)
+    this.findOwnedGuest(webviewId, senderId)?.session.setSpellCheckerEnabled(isEnable)
   }
 
   setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {
-    configureOpenLinkExternal(this.requireOwnedSiteWebview(webviewId, senderId), isExternal)
+    const webview = this.findOwnedSiteWebview(webviewId, senderId)
+    if (webview) configureOpenLinkExternal(webview, isExternal)
   }
 
   /**

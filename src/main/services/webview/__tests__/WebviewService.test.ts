@@ -308,6 +308,20 @@ describe('WebviewService webview ownership', () => {
     expect(guestSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
   })
 
+  it('ignores best-effort guest settings after the guest has detached', () => {
+    expect(() => service.setSpellCheckerEnabled(7, false, 'owner')).not.toThrow()
+    expect(() => service.setOpenLinkExternal(7, true, 'owner')).not.toThrow()
+
+    const destroyedGuest = createContents(7, host)
+    destroyedGuest.isDestroyed.mockReturnValue(true)
+    guestById.set(7, destroyedGuest)
+
+    expect(() => service.setSpellCheckerEnabled(7, false, 'owner')).not.toThrow()
+    expect(() => service.setOpenLinkExternal(7, true, 'owner')).not.toThrow()
+    expect(siteSession.setSpellCheckerEnabled).not.toHaveBeenCalled()
+    expect(destroyedGuest.setWindowOpenHandler).not.toHaveBeenCalled()
+  })
+
   it('changes popup policy only for an owned site webview', () => {
     const guest = createContents(7, host)
     guestById.set(7, guest)
