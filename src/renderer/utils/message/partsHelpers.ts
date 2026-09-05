@@ -69,8 +69,10 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
 export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
   if (!hasTextParts(parts)) return false
 
-  const lastTextIndex = parts.findLastIndex((part) => part.type === 'text')
-  return parts
+  // Translations are derived and dropped by the same save, so they never displace a file.
+  const kept = parts.filter((part) => part.type !== 'data-translation')
+  const lastTextIndex = kept.findLastIndex((part) => part.type === 'text')
+  return kept
     .flatMap((part, index) => (part.type === 'file' ? [index] : []))
     .every((fileIndex, offset) => fileIndex === lastTextIndex + 1 + offset)
 }

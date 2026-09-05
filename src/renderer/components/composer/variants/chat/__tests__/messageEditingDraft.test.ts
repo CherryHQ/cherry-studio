@@ -52,7 +52,8 @@ const anchorsOf = (draftTokens: ComposerSerializedToken[]) =>
 
 /**
  * Mirrors what the editor hands back. Anchors carry an id and nothing else on purpose:
- * `ComposerTokenNode.renderHTML` drops `payload`, so a cut, pasted or dragged chip arrives this way.
+ * `ComposerTokenNode.renderHTML` drops `payload`, so anything that survives a DOM round trip —
+ * a drag, an undo, the editor's own copy of the document — keeps only the id.
  */
 const editedDraft = (value: string, anchors: Array<{ partIndex: number; textOffset: number; messageId?: string }>) => ({
   text: value,
@@ -142,7 +143,7 @@ describe('replaceEditedMessageParts', () => {
     ).toEqual([text('edited before'), originalParts[1], text('edited after')])
   })
 
-  it('resolves an anchor that arrives with only its id, as a cut-and-pasted chip does', () => {
+  it('resolves an anchor from its id alone, the only field a DOM round trip preserves', () => {
     const originalParts = parts(text('before tool'), tool('tool-1'), text('after tool'))
     const draft = editedDraft('moved\n\ntext', [{ partIndex: 1, textOffset: 'moved\n'.length }])
 
@@ -154,7 +155,7 @@ describe('replaceEditedMessageParts', () => {
     ])
   })
 
-  it('ignores an anchor pasted in from another message instead of splicing that index', () => {
+  it('ignores an anchor addressed to another message instead of splicing that index', () => {
     const originalParts = parts(text('before tool'), tool('tool-1'), text('after tool'))
     const draft = editedDraft('one\n\ntwo', [
       { partIndex: 1, textOffset: 'one\n'.length, messageId: 'assistant-message-2' }

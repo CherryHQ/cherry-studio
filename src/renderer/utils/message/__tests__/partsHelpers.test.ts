@@ -27,6 +27,14 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'data-citation', data: {} }
       )
     },
+    // The derived translation is dropped by the same save, so it does not displace the file
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'data-translation', data: { content: 'translation', targetLanguage: 'en-us' } },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
     {
       messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
     },
