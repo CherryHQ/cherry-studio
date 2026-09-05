@@ -46,6 +46,21 @@ describe('assertPrebuiltPackages', () => {
 })
 
 describe('keepPackages', () => {
+  it.each(['arm64', 'x64'])('ships the matching Windows %s Claude executable outside ASAR', (arch) => {
+    const packageManifest = JSON.parse(readFileSync('package.json', 'utf8')) as {
+      dependencies: Record<string, string>
+      optionalDependencies: Record<string, string>
+    }
+    const builderConfig = parse(readFileSync('electron-builder.yml', 'utf8')) as { asarUnpack: string[] }
+    const packageName = `@anthropic-ai/claude-agent-sdk-win32-${arch}`
+
+    expect(packageManifest.optionalDependencies[packageName]).toBe(
+      packageManifest.dependencies['@anthropic-ai/claude-agent-sdk']
+    )
+    expect(keepPackages('win32', arch)).toContain(packageName)
+    expect(builderConfig.asarUnpack).toContain('node_modules/@anthropic-ai/claude-agent-sdk-*/**')
+  })
+
   it.each([
     ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
     ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
