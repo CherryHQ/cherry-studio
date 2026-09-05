@@ -210,6 +210,7 @@
 | [Mini App Reference](./references/mini-app/README.md) | Entry point for building a Cherry Studio mini app — what a package is, the host API, and where each rule lives |
 | [Activity log](./references/mini-app/activity-log.md) | What the host records about a mini app's behaviour — every refusal, every call that leaves the sandbox, every permission decision — and what it never records |
 | [Capabilities](./references/mini-app/capabilities.md) | The window.cherry API method by method — signatures, return shapes, the seven error names, quotas and rate limits |
+| [Mini App Database API Design](./references/mini-app/database-api-design.md) | Proposed Mini App private SQLite API with host-managed transactions, isolation, quotas, and ORM adapters - not implemented |
 | [Lifecycle](./references/mini-app/lifecycle.md) | How a mini app lives and dies — no shutdown notice, write-on-change persistence, visibility and locale events, quiesce during updates |
 | [Manifest](./references/mini-app/manifest.md) | Every manifest.json field, the appId rules, permission declarations and wildcard expansion, and the network host allowlist |
 | [Packaging](./references/mini-app/packaging.md) | Building a .miniapp archive, what the installer rejects, the install consent flow, distribution manifests, updates, rollback and uninstall |
