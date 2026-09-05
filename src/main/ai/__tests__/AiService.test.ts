@@ -53,6 +53,9 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const TINY_SVG_BASE64 = Buffer.from(
   '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
 ).toString('base64')
+const PREFIXED_SVG_BASE64 = Buffer.from(
+  '<svg:svg xmlns:svg="http://www.w3.org/2000/svg"><svg:rect width="1" height="1"/></svg:svg>'
+).toString('base64')
 
 vi.mock('@application', () => ({
   application: {
@@ -723,6 +726,7 @@ describe('AiService', () => {
       mockGenerateImage.mockResolvedValue({
         images: [
           { base64: TINY_SVG_BASE64, mediaType: 'image/svg+xml' },
+          { base64: PREFIXED_SVG_BASE64, mediaType: 'image/svg+xml' },
           { base64: textBase64, mediaType: 'image/svg+xml' },
           { base64: htmlBase64, mediaType: 'image/svg+xml' },
           { base64: dtdBase64, mediaType: 'image/svg+xml' }
@@ -742,20 +746,25 @@ describe('AiService', () => {
           paramValues: {}
         })
       ).resolves.toEqual({
-        files: [file],
+        files: [file, file],
         validation: {
-          receivedCount: 4,
+          receivedCount: 5,
           rejected: [
-            { index: 1, reason: 'invalid_image_data' },
             { index: 2, reason: 'invalid_image_data' },
-            { index: 3, reason: 'invalid_image_data' }
+            { index: 3, reason: 'invalid_image_data' },
+            { index: 4, reason: 'invalid_image_data' }
           ]
         }
       })
-      expect(createInternalEntry).toHaveBeenCalledOnce()
-      expect(createInternalEntry).toHaveBeenCalledWith({
+      expect(createInternalEntry).toHaveBeenCalledTimes(2)
+      expect(createInternalEntry).toHaveBeenNthCalledWith(1, {
         source: 'base64',
         data: `data:image/svg+xml;base64,${TINY_SVG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(createInternalEntry).toHaveBeenNthCalledWith(2, {
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${PREFIXED_SVG_BASE64}`,
         cleanupPolicy: 'delete_when_unreferenced'
       })
     })

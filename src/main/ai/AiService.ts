@@ -27,14 +27,14 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
-import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { OutputFor } from '@shared/ipc/types'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
@@ -105,8 +105,13 @@ function isValidSvgImage(data: Buffer): boolean {
 
     const document = svgParser.parse(source)
     const roots = Object.keys(document).filter((key) => key !== '?xml')
-    const root = roots.length === 1 && roots[0] === 'svg' ? document.svg : undefined
-    return typeof root === 'object' && root !== null && root['@_xmlns'] === SVG_NAMESPACE
+    if (roots.length !== 1) return false
+
+    const rootName = roots[0]
+    const [prefix, localName] = rootName.includes(':') ? rootName.split(':') : ['', rootName]
+    const root = localName === 'svg' ? document[rootName] : undefined
+    const namespaceAttribute = prefix ? `@_xmlns:${prefix}` : '@_xmlns'
+    return typeof root === 'object' && root !== null && root[namespaceAttribute] === SVG_NAMESPACE
   } catch {
     return false
   }
@@ -298,10 +303,7 @@ export interface AiImageRequest extends AiBaseRequest {
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
-export interface AiImageResult {
-  files: FileEntry[]
-  validation?: GeneratedImageValidation
-}
+export type AiImageResult = OutputFor<'ai.image.generate'>
 
 /**
  * Map a painting input-image / mask string to FileManager create params. Preserves
@@ -890,7 +892,7 @@ export class AiService extends BaseService {
 
     const images = result.images ?? []
     const dataUrls: Base64String[] = []
-    const rejected: GeneratedImageValidation['rejected'] = []
+    const rejected: NonNullable<AiImageResult['validation']>['rejected'] = []
     for (const [index, image] of images.entries()) {
       const mediaType = image.mediaType || 'image/png'
       if (!mediaType.startsWith('image/')) {
