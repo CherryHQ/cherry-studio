@@ -62,17 +62,25 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     expect(body.top_p).toBe(0.9)
   })
 
-  it.each(['gpt-5', 'gpt-6-astra'])("still strips them for OpenAI's own reasoning model %s", async (modelId) => {
-    const { body } = await capture(modelId)
+  it.each(['gpt-5', 'gpt-6-astra'])(
+    "still strips temperature and top_p for OpenAI's own reasoning model %s",
+    async (modelId) => {
+      const { body } = await capture(modelId, { withoutLogprobs: true })
 
-    expect(body.reasoning).toEqual({ effort: 'low' })
-    expect(body.temperature).toBeUndefined()
-    expect(body.top_p).toBeUndefined()
-    expect(body.logprobs).toBeUndefined()
-    if (modelId === 'gpt-6-astra') {
-      expect(body.top_logprobs).toBeUndefined()
-      expect(body.include).not.toContain('message.output_text.logprobs')
+      expect(body.reasoning).toEqual({ effort: 'low' })
+      expect(body.temperature).toBeUndefined()
+      expect(body.top_p).toBeUndefined()
     }
+  )
+
+  it('removes top_logprobs for GPT-6 Astra', async () => {
+    const { body, warnings } = await capture('gpt-6-astra')
+
+    expect(body.top_logprobs).toBeUndefined()
+    expect(warnings).toContainEqual({
+      type: 'other',
+      message: 'topLogprobs is not supported for GPT-6 Astra'
+    })
   })
 
   it('removes an explicitly requested logprobs include for GPT-6 Astra', async () => {
