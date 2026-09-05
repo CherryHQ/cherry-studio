@@ -2,7 +2,6 @@ import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-uti
 import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv'
 import {
   InvalidToolInputError,
   jsonSchema,
@@ -13,9 +12,9 @@ import {
 } from 'ai'
 
 import type { AppProviderSettingsMap } from '../../../types'
+import { createMcpJsonSchemaValidator } from './mcpSchema'
 
 const logger = loggerService.withContext('repairToolCall')
-const jsonSchemaValidator = new AjvJsonSchemaValidator()
 
 type AppProviderId = StringKeys<AppProviderSettingsMap>
 
@@ -50,10 +49,10 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       }
     } else {
       try {
-        const validator = jsonSchemaValidator.getValidator(schemaJson as never)
+        const validator = createMcpJsonSchemaValidator(schemaJson)
         validate = async (value) => {
           const result = validator(value)
-          return result.valid ? result.data : undefined
+          return result.success ? result.value : undefined
         }
       } catch (err) {
         logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {

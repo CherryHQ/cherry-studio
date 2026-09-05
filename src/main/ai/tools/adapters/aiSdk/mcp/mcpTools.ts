@@ -5,9 +5,10 @@ import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
-import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
+import { type JSONSchema7, type Tool } from 'ai'
 
 import { getRequestContext } from '../context'
+import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
@@ -40,7 +41,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     metadata: { cherry: { tool: metadata } },
-    inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
+    inputSchema: createMcpInputSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, options) => {
       const { toolCallId, abortSignal } = options

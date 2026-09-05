@@ -122,6 +122,27 @@ describe('createAiRepair', () => {
     expect(repaired).toBeNull()
   })
 
+  it('rejects a JSON Schema repair that violates Draft 2020-12 unevaluatedProperties', async () => {
+    const schemaJson = {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+      unevaluatedProperties: false
+    } as JSONSchema7
+    generateText.mockResolvedValue({ output: { query: 'hello world', unexpected: true } })
+
+    const repaired = await repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall('mcp_search', 'not json at all'),
+      tools: { mcp_search: { inputSchema: jsonSchema(schemaJson) } } as never,
+      inputSchema: async () => schemaJson as never,
+      error: inputErr
+    })
+
+    expect(repaired).toBeNull()
+  })
+
   it('unwraps a single arguments envelope when only its contents match the JSON Schema', async () => {
     const schemaJson: JSONSchema7 = {
       type: 'object',
