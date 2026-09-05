@@ -174,6 +174,22 @@ describe('ClaudeCodeProcessManager', () => {
     expect(diagnostics.exitCode).toBe(1)
   })
 
+  it('bounds the stderr tail by UTF-8 bytes', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.end(`discarded-${'界'.repeat(700)}\nHTTP 429 rate limit exceeded`)
+    child.emitExit(1)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledExactlyOnceWith(1, null))
+
+    expect(diagnostics.terminalReason).toContain('HTTP 429 rate limit exceeded')
+    expect(diagnostics.terminalReason).not.toContain('discarded-')
+  })
+
   it('stops tracking a child whose spawn fails before receiving a pid', () => {
     const child = createFakeChild({ pid: undefined })
     const manager = new TestProcessManager(vi.fn(() => child.process))

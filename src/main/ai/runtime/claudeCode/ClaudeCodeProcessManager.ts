@@ -21,6 +21,15 @@ const logger = loggerService.withContext('ClaudeCodeProcessManager')
 const STDERR_TAIL_LIMIT = 2048
 const STDERR_DRAIN_GRACE_MS = 200
 
+function utf8Tail(text: string): string {
+  const bytes = Buffer.from(text)
+  if (bytes.length <= STDERR_TAIL_LIMIT) return text
+
+  let start = bytes.length - STDERR_TAIL_LIMIT
+  while ((bytes[start] & 0xc0) === 0x80) start++
+  return bytes.subarray(start).toString()
+}
+
 type TrackedSpawnedProcess = SpawnedProcess & { readonly pid?: number }
 type SpawnedChildProcess = TrackedSpawnedProcess & { readonly stderr: Readable }
 
@@ -123,7 +132,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   }
 
   private appendStderr(text: string): void {
-    this.stderrTail = `${this.stderrTail}${text}`.slice(-STDERR_TAIL_LIMIT)
+    this.stderrTail = utf8Tail(`${this.stderrTail}${text}`)
   }
 
   private deliverExit(): void {
