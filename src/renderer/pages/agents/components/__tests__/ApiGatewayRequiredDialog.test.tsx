@@ -1,3 +1,4 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +17,7 @@ vi.mock('@renderer/ipc', () => ({ useIpcOn: useIpcOnMock }))
 vi.mock('@renderer/hooks/useApiGateway', () => ({
   useApiGateway: () => ({ startApiGateway: startApiGatewayMock })
 }))
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 describe('ApiGatewayRequiredDialog', () => {
   beforeEach(() => {
