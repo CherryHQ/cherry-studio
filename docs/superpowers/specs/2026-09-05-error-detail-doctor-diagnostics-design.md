@@ -28,7 +28,8 @@ This change combines those existing frontend experiences into one error-diagnost
 - Doctor results are not added to diagnostic bundles or problem descriptions.
 - The existing safe problem-description projection is not broadened.
 - The existing error copy formatter does not gain a new whitelist or include AI or Doctor output.
-- No nested dialog is introduced.
+- No nested dialog is introduced for page navigation. Existing fix and evidence confirmations remain child dialogs
+  because they are independent confirmation interactions.
 - No global provider, context, store, or event bus is introduced.
 
 ## Existing Repository Practices to Reuse
@@ -38,7 +39,11 @@ This change combines those existing frontend experiences into one error-diagnost
 - `AiDiagnosisSection` owns the existing AI request, cached-result, error, retry, and unmount behavior. Its service call and persistence behavior remain unchanged.
 - `useDoctorController` observes shared `doctor.state` and delegates run, cancel, fix, and action behavior to the existing IPC contracts.
 - `DoctorChecksPanel` already implements grouped results, evidence, fixes, confirmations, and closed-set action handling. The integrated view reuses a narrow extracted renderer component instead of creating a second state machine.
-- The popup remains a single `ContentPopup`; its full-details experience is an internal view transition, consistent with avoiding unnecessary nested dialogs.
+- Dedicated multi-page dialogs in the repository keep their active page and dynamic header in the same component.
+  `DoctorDialog` and `ProviderApiSetupDialog` place a contextual back action directly before `DialogTitle`.
+- `ContentPopup` provides a static title and arbitrary body content. Because its body cannot control the header without
+  broadening the shared API, the error-detail flow uses a dedicated `createPopup` Dialog while preserving the existing
+  `showErrorDetailPopup(...)` caller API and popup single-flight behavior.
 
 ## Information Architecture
 
@@ -54,9 +59,16 @@ The overview is the default view and contains, in order:
 
 ### Full error details
 
-View Details replaces the overview content inside the same popup. It renders the existing complete `renderErrorDetails(error)` output without transforming or truncating it. A Back to Diagnostic Overview control returns to the overview.
+View Details replaces the overview content inside the same popup. It renders the existing complete
+`renderErrorDetails(error)` output without transforming or truncating it. On this page, the single Dialog header shows
+an icon-only Back to Diagnostic Overview action immediately before the Error Details title. The action has a localized
+accessible name and tooltip. The details body contains no second back action or repeated Error Details heading.
 
 The overview host, AI diagnosis state, and Doctor controller stay mounted while the full-details page is visible. Switching views therefore does not stop AI diagnosis, cancel Doctor, or lose a result received while viewing details.
+
+The dedicated error-detail popup owns the `activeView` state because it also owns `DialogHeader`. Entering the details
+page moves focus to the header title; returning to the overview restores focus to the View Details action. A page switch
+changes presentation only and never resolves or closes the popup.
 
 ## Basic Information Card
 
@@ -109,6 +121,9 @@ AI diagnosis is visually aligned with Doctor rows but remains a separate fronten
 ### Network and services checks
 
 - The section-header action requests the existing live run tier.
+- A live request starts a new authoritative run with a new `runId` and an initially empty result list. The backend selects
+  both catalog tiers (`quick` and `live`), so all basic checks run again before or alongside the additional network and
+  service checks. It does not extend or reuse results from the previous basic report.
 - While a Doctor run is active, the action displays progress and prevents a duplicate request.
 - After the live run begins, the same grouped list expands to the actual results returned from the 26-item catalog; no placeholder rows are generated.
 - The user-visible labels remain Basic Check and Network and Services Check; internal tier values are never exposed.
@@ -149,10 +164,12 @@ Behavior-focused renderer tests should demonstrate:
 
 - the compact basic fields are shown and Copy produces the same output as before;
 - View Details and Back switch internal views without unmounting the diagnostic hosts or canceling Doctor;
+- the details page places its Back action in the Dialog header before the sole Error Details title, with no duplicate
+  heading or back action in the body;
 - uncached AI diagnosis and Doctor basic checks start concurrently;
 - cached AI results are displayed without a duplicate request;
 - an already-running Doctor execution is observed without a duplicate run;
-- Network and Services Check starts the existing live tier and displays only actual catalog results;
+- Network and Services Check starts a fresh live run, re-runs quick checks, and displays only actual catalog results;
 - AI output is excluded from Doctor counts, copied error details, and problem-report prefill;
 - the footer exposes only Report Problem when reporting is supported;
 - Doctor row actions and fix confirmations retain their observable behavior.
