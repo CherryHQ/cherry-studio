@@ -180,7 +180,8 @@ function collectV1TopicOrderIds(source: AssistantState | undefined): string[] {
   const seen = new Set<string>()
 
   const visit = (assistant: OldAssistant | undefined): void => {
-    for (const topic of assistant?.topics ?? []) {
+    const topics = Array.isArray(assistant?.topics) ? assistant.topics : []
+    for (const topic of topics) {
       if (!topic.id || seen.has(topic.id)) continue
       seen.add(topic.id)
       topicIds.push(topic.id)

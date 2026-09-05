@@ -748,6 +748,29 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
     expect(internal.reduxTopicOrderIds).toEqual(['topic-A', 'topic-X'])
   })
+
+  it('ignores a malformed non-array topics field without aborting migration preparation', async () => {
+    const migrator = new ChatMigrator()
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(0),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({ assistants: [{ id: 'ast-1', topics: {} }] })
+        }
+      },
+      sharedData: new Map()
+    }
+
+    await expect(migrator.prepare(ctx as any)).resolves.toMatchObject({ success: true })
+    expect((migrator as unknown as { reduxTopicOrderIds: string[] }).reduxTopicOrderIds).toEqual([])
+  })
 })
 
 describe('ChatMigrator message block index', () => {
