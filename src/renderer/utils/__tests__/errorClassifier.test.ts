@@ -66,6 +66,22 @@ describe('classifyError', () => {
     expect(result.category).toBe('rate_limit')
   })
 
+  it.each([
+    ['direct', makeError({ statusCode: 400 })],
+    [
+      'retry-wrapped',
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [{ name: 'AI_APICallError', statusCode: 400 }]
+      })
+    ]
+  ])('offers provider settings recovery for a %s HTTP 400', (_kind, error) => {
+    const result = classifyError(error, 'openai')
+
+    expect(result.category).toBe('unknown')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   // Auth
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))

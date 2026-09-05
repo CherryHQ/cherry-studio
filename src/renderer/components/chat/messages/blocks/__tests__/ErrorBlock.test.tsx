@@ -243,6 +243,23 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('offers the active provider settings for a generic HTTP 400', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Bad Request', stack: null, statusCode: 400 }}
+        message={message}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'error.diagnosis.go_to_settings' }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses injected diagnosis capability for unknown errors', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {
