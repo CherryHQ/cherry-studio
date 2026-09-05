@@ -78,14 +78,14 @@ describe('createAiRepair', () => {
     expect(generateText).not.toHaveBeenCalled()
   })
 
-  it('leaves a JSON-Schema-backed tool to its server — no fabricated client validator', async () => {
+  it('rejects a JSON Schema repair that violates uniqueItems', async () => {
     const schemaJson: JSONSchema7 = {
       type: 'object',
-      properties: { query: { type: 'string' } },
-      required: ['query'],
+      properties: { tags: { type: 'array', items: { type: 'string' }, uniqueItems: true } },
+      required: ['tags'],
       additionalProperties: false
     }
-    generateText.mockResolvedValue({ output: { query: 42 } })
+    generateText.mockResolvedValue({ output: { tags: ['duplicate', 'duplicate'] } })
 
     const repaired = await repair({
       system: undefined,
@@ -96,8 +96,69 @@ describe('createAiRepair', () => {
       error: inputErr
     })
 
+    expect(repaired).toBeNull()
+  })
+
+  it('rejects a JSON Schema repair that violates contains', async () => {
+    const schemaJson: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        values: { type: 'array', items: { type: 'number' }, contains: { const: 42 } }
+      },
+      required: ['values'],
+      additionalProperties: false
+    }
+    generateText.mockResolvedValue({ output: { values: [1, 2] } })
+
+    const repaired = await repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall('mcp_search', 'not json at all'),
+      tools: { mcp_search: { inputSchema: jsonSchema(schemaJson) } } as never,
+      inputSchema: async () => schemaJson as never,
+      error: inputErr
+    })
+
+    expect(repaired).toBeNull()
+  })
+
+  it('unwraps a single arguments envelope when only its contents match the JSON Schema', async () => {
+    const schemaJson: JSONSchema7 = {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+      additionalProperties: false
+    }
+    generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
+
+    const repaired = await repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall('mcp_search', { q: 'hello world' }),
+      tools: { mcp_search: { inputSchema: jsonSchema(schemaJson) } } as never,
+      inputSchema: async () => schemaJson as never,
+      error: inputErr
+    })
+
     expect(repaired).not.toBeNull()
-    expect(JSON.parse(repaired!.input)).toEqual({ query: 42 })
+    expect(JSON.parse(repaired!.input)).toEqual({ query: 'hello world' })
+  })
+
+  it('preserves an arguments field accepted by the tool schema', async () => {
+    const schema = z.object({ arguments: z.object({ query: z.string() }) })
+    generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
+
+    const repaired = await repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall('arguments_tool', { query: 'hello world' }),
+      tools: { arguments_tool: { inputSchema: schema } } as never,
+      inputSchema: async () => z.toJSONSchema(schema) as never,
+      error: inputErr
+    })
+
+    expect(repaired).not.toBeNull()
+    expect(JSON.parse(repaired!.input)).toEqual({ arguments: { query: 'hello world' } })
   })
 
   it('reuses the request usage middleware so repair is an independent invocation', async () => {

@@ -2,6 +2,7 @@ import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-uti
 import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv'
 import {
   InvalidToolInputError,
   jsonSchema,
@@ -14,6 +15,7 @@ import {
 import type { AppProviderSettingsMap } from '../../../types'
 
 const logger = loggerService.withContext('repairToolCall')
+const jsonSchemaValidator = new AjvJsonSchemaValidator()
 
 type AppProviderId = StringKeys<AppProviderSettingsMap>
 
@@ -39,19 +41,52 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       return null
     }
 
-    // A `jsonSchema()`-wrapped schema (e.g. MCP) carries no validator, so this
-    // validates nothing and the server stays the authority — same stance as
-    // `meta/toolInvoke.ts` and the SDK's own dispatch path.
     const schema = asSchema(tools[toolCall.toolName].inputSchema)
+    let validate: (value: unknown) => Promise<unknown | undefined>
+    if (schema.validate) {
+      validate = async (value) => {
+        const result = await safeValidateTypes({ value, schema })
+        return result.success ? result.value : undefined
+      }
+    } else {
+      try {
+        const validator = jsonSchemaValidator.getValidator(schemaJson as never)
+        validate = async (value) => {
+          const result = validator(value)
+          return result.valid ? result.data : undefined
+        }
+      } catch (err) {
+        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
+          toolName: toolCall.toolName,
+          toolCallId: toolCall.toolCallId
+        })
+        return null
+      }
+    }
 
     /** Canonical input, or undefined when the value does not fit the tool schema. */
     const canonicalize = async (value: unknown): Promise<unknown> => {
-      const direct = await safeValidateTypes({ value, schema })
-      if (direct.success) return direct.value
-      // Double-encoded arguments — the one malformation a re-parse alone canonicalizes.
-      if (typeof value !== 'string') return undefined
-      const reparsed = await safeParseJSON({ text: value, schema })
-      return reparsed.success ? reparsed.value : undefined
+      const candidates = [value]
+      if (typeof value === 'string') {
+        const reparsed = await safeParseJSON({ text: value })
+        if (reparsed.success) candidates.push(reparsed.value)
+      }
+
+      for (const candidate of candidates) {
+        const direct = await validate(candidate)
+        if (direct !== undefined) return direct
+        if (
+          typeof candidate === 'object' &&
+          candidate !== null &&
+          !Array.isArray(candidate) &&
+          Object.keys(candidate).length === 1 &&
+          'arguments' in candidate
+        ) {
+          const unwrapped = await validate(candidate.arguments)
+          if (unwrapped !== undefined) return unwrapped
+        }
+      }
+      return undefined
     }
 
     const inputStr = typeof toolCall.input === 'string' ? toolCall.input : JSON.stringify(toolCall.input)
