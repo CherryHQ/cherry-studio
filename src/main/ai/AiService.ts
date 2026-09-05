@@ -822,6 +822,7 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
+      maxRetries: 0,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
