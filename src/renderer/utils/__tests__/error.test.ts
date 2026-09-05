@@ -272,56 +272,96 @@ describe('error', () => {
       ).toBe('Chute not available on your plan')
     })
 
-    it('reads the OpenAI-shaped nested message', () => {
+    it.each([
+      [400, '{"detail":{"message":"invalid model id"}}', 'invalid model id'],
+      [429, '{"error":{"message":"concurrency limit reached"}}', 'concurrency limit reached'],
+      [502, '{"message":"upstream service unavailable"}', 'upstream service unavailable']
+    ])('extracts the provider message from an HTTP %s response', (statusCode, responseBody, expected) => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
-          message: 'Forbidden',
+          message: null,
           stack: null,
-          responseBody: '{"error":{"message":"model access denied","type":"invalid_request_error"}}'
+          statusCode,
+          responseBody
         })
-      ).toBe('model access denied')
+      ).toBe(expected)
     })
 
-    it('reads a message nested under detail.error.message', () => {
+    it('extracts the final provider message from a retry error', () => {
       expect(
         providerErrorText({
-          name: 'AI_APICallError',
-          message: '429 Too Many Requests',
+          name: 'AI_RetryError',
+          message: 'Failed after retries. Last error:',
           stack: null,
-          statusCode: 429,
-          responseBody:
-            '{"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"global_concurrency_rate_limit_exceeded"}}}'
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 429,
+            responseBody: '{"error":{"message":"concurrency limit reached"}}'
+          },
+          errors: []
         })
-      ).toBe('Model API rate limit exceeded; please retry later')
+      ).toBe('concurrency limit reached')
     })
 
-    it('reads a message nested under detail.message', () => {
+    it('uses the newest retry attempt when lastError is absent', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_RetryError',
+          message: 'Failed after retries. Last error:',
+          stack: null,
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: null,
+          errors: [
+            { statusCode: 400, responseBody: '{"error":{"message":"older invalid request"}}' },
+            { statusCode: 502, responseBody: '{"error":{"message":"latest upstream failure"}}' }
+          ]
+        })
+      ).toBe('latest upstream failure')
+    })
+
+    it('extracts structured provider data when the response body is absent', () => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
-          message: 'Bad Request',
+          message: null,
           stack: null,
-          responseBody: '{"detail":{"message":"invalid model id"}}'
+          statusCode: 400,
+          responseBody: null,
+          data: { error: { message: 'invalid model id' } }
         })
       ).toBe('invalid model id')
     })
 
-    it('falls back to the raw body for an unrecognised shape', () => {
+    it('does not display unknown fields from a structured provider body', () => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
           message: 'Forbidden',
           stack: null,
-          responseBody: '{"code":40301,"reason":"blocked"}'
+          responseBody: '{"token":"secret","internal":"trace"}'
         })
-      ).toBe('{"code":40301,"reason":"blocked"}')
+      ).toBe('Forbidden')
     })
 
-    it('falls back to the raw body when it is not JSON', () => {
+    it('does not display an unstructured provider body', () => {
       expect(
         providerErrorText({ name: 'AI_APICallError', message: 'Forbidden', stack: null, responseBody: '<html>nope' })
-      ).toBe('<html>nope')
+      ).toBe('Forbidden')
+    })
+
+    it('redacts credentials from an extracted provider message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: null,
+          stack: null,
+          responseBody: '{"error":{"message":"Authorization: Bearer sk-provider-secret"}}'
+        })
+      ).toBe('Authorization: "<redacted>"')
     })
 
     it('falls back to message when there is no body', () => {
@@ -329,8 +369,9 @@ describe('error', () => {
       expect(providerErrorText(undefined)).toBe('')
     })
 
-    it('truncates an oversized body', () => {
-      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody: 'x'.repeat(600) })
+    it('truncates an oversized provider message', () => {
+      const responseBody = JSON.stringify({ error: { message: 'x'.repeat(600) } })
+      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody })
       expect(result).toHaveLength(501)
       expect(result.endsWith('\u2026')).toBe(true)
     })

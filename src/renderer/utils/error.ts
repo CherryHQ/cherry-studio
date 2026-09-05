@@ -7,8 +7,9 @@ import type {
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
+import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
+import { redactSecretText } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
@@ -324,28 +325,56 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
 }
 
 const PROVIDER_ERROR_TEXT_MAX = 500
+const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
+
+function actionableProviderText(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const text = value.trim()
+  return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
+}
+
+function providerPayloadText(value: unknown): string {
+  if (typeof value === 'string') {
+    const parsed = parseJSON(value)
+    return parsed === null ? '' : providerPayloadText(parsed)
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+
+  const payload = value as Record<string, unknown>
+  const error =
+    payload.error && typeof payload.error === 'object' ? (payload.error as Record<string, unknown>) : undefined
+  const detail =
+    payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : undefined
+  const detailError =
+    detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : undefined
+
+  return (
+    [error?.message, payload.message, detailError?.message, detail?.message, payload.detail, payload.msg, payload.error]
+      .map(actionableProviderText)
+      .find(Boolean) ?? ''
+  )
+}
+
+function retryProviderText(error: SerializedError): string {
+  if (!isSerializedAiSdkRetryError(error)) return ''
+  const attempts = Array.isArray(error.errors) ? [...error.errors].reverse() : []
+  for (const nested of [error.lastError, ...attempts]) {
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue
+    const text = providerErrorText(nested as SerializedError)
+    if (text) return text
+  }
+  return ''
+}
 
 /** The provider's own error text. `message` degrades to the HTTP statusText ("Forbidden")
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
 export function providerErrorText(error: SerializedError | undefined): string {
-  const fallback = error?.message ?? ''
+  if (!error) return ''
+  const fallback = actionableProviderText(error.message)
+  const data = providerPayloadText(error.data)
   const body = typeof error?.responseBody === 'string' ? error.responseBody.trim() : ''
-  if (!body) return fallback
-
-  const parsed = parseJSON(body)
-  // Probe the common shapes one level deep; an unknown shape falls through to the raw body.
-  // Some providers (e.g. AMD) nest the message under `detail.error.message`; probe one
-  // more level there so users see the message, not the raw JSON body.
-  const picked =
-    parsed &&
-    (parsed.error?.message ??
-      parsed.message ??
-      parsed.detail?.error?.message ??
-      parsed.detail?.message ??
-      parsed.detail ??
-      parsed.msg ??
-      parsed.error)
-  const text = typeof picked === 'string' && picked.trim() ? picked.trim() : body
+  const parsedBody = body ? parseJSON(body) : null
+  const text = providerPayloadText(parsedBody) || data || retryProviderText(error) || fallback
   return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
 }
 
