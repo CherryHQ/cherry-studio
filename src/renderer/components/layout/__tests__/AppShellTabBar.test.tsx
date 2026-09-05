@@ -537,6 +537,40 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
+  it('keeps same-icon pinned conversations identifiable and pointer-selectable', async () => {
+    const user = userEvent.setup()
+    const setActiveTab = vi.fn()
+    const tabs = [
+      createTab('agent-write', {
+        url: '/app/agents?sessionId=s1',
+        title: 'Write a function',
+        icon: 'emoji:🤖',
+        isPinned: true
+      }),
+      createTab('agent-review', {
+        url: '/app/agents?sessionId=s2',
+        title: 'Review this PR',
+        icon: 'emoji:🤖',
+        isPinned: true
+      }),
+      createTab('home')
+    ]
+
+    renderTabBar({ tabs, activeTabId: 'home', setActiveTab })
+
+    const writeTab = screen.getByRole('button', { name: 'Write a function' })
+    const reviewTab = screen.getByRole('button', { name: 'Review this PR' })
+    writeTab.setPointerCapture = vi.fn()
+    writeTab.releasePointerCapture = vi.fn()
+
+    expect(writeTab).toHaveTextContent('Write a function')
+    expect(reviewTab).toHaveTextContent('Review this PR')
+    expect(writeTab).toHaveClass('h-[30px]', 'min-w-[56px]', 'max-w-[120px]', 'shrink-0')
+
+    await user.pointer([{ target: writeTab, keys: '[MouseLeft>]' }, { keys: '[/MouseLeft]' }])
+    expect(setActiveTab).toHaveBeenCalledWith('agent-write')
+  })
+
   it('does not request ResourceList reveal when switching chat or agent tabs', () => {
     const setActiveTab = vi.fn()
     const tabs = [
