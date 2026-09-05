@@ -197,6 +197,7 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [diagnosticReportDraft, setDiagnosticReportDraft] = useState<DiagnosticReportDraft | null>(null)
+  const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -294,10 +295,15 @@ const AgentChat = ({
   )
   const handleSessionAgentChange = useCallback(
     async (nextAgentId: string | null) => {
-      if (!sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
-      await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
+      if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
+      setSessionAgentChanging(true)
+      try {
+        await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
+      } finally {
+        setSessionAgentChanging(false)
+      }
     },
-    [sessionSnapshot, updateSession]
+    [sessionAgentChanging, sessionSnapshot, updateSession]
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
@@ -494,6 +500,8 @@ const AgentChat = ({
         isEmptyConversation={isEmptyConversation}
         isMultiSelectMode={isMultiSelectMode}
         sessionMessagesEnabled={sessionMessagesEnabled}
+        onAgentChange={handleSessionAgentChange}
+        agentChanging={sessionAgentChanging}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
         composerLaunchOptions={composerLaunchOptions}
@@ -604,6 +612,8 @@ interface AgentChatSessionCenterProps {
   isEmptyConversation: boolean
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
+  onAgentChange?: (agentId: string | null) => void | Promise<void>
+  agentChanging?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   composerLaunchOptions?: AgentComposerLaunchOptions
@@ -622,6 +632,8 @@ const AgentChatSessionCenter = ({
   isEmptyConversation,
   isMultiSelectMode,
   sessionMessagesEnabled,
+  onAgentChange,
+  agentChanging,
   onOpenCitationsPanel,
   onCreateEmptySession,
   composerLaunchOptions,
@@ -642,6 +654,8 @@ const AgentChatSessionCenter = ({
         stop={runtime.stop}
         isStreaming={runtime.isPending}
         sendDisabled={composerPending}
+        onAgentChange={onAgentChange}
+        agentChanging={agentChanging}
         onCreateEmptySession={onCreateEmptySession}
         composerContext={runtime.composerContext}
         composerLaunchOptions={composerLaunchOptions}

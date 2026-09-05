@@ -84,7 +84,7 @@ export function useAssistantApiById(id: string | undefined) {
 }
 
 /**
- * Assistant mutations (create / update / delete) backed by DataApi.
+ * Assistant mutations (create / update / delete / restore) backed by DataApi.
  */
 export function useAssistantMutations() {
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/assistants', {
@@ -100,12 +100,17 @@ export function useAssistantMutations() {
       ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
     ]
   })
+  const { trigger: restoreTrigger } = useMutation('POST', '/assistants/:id/restore', {
+    refresh: [...ASSISTANTS_REFRESH_KEYS, '/topics']
+  })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)
   const deleteTriggerRef = useRef(deleteTrigger)
+  const restoreTriggerRef = useRef(restoreTrigger)
   createTriggerRef.current = createTrigger
   updateTriggerRef.current = updateTrigger
   deleteTriggerRef.current = deleteTrigger
+  restoreTriggerRef.current = restoreTrigger
 
   const createAssistant = useCallback(async (dto: CreateAssistantDto): Promise<Assistant> => {
     const created = await createTriggerRef.current({ body: dto })
@@ -133,10 +138,17 @@ export function useAssistantMutations() {
     []
   )
 
+  const restoreAssistant = useCallback(async (id: string): Promise<Assistant> => {
+    const restored = await restoreTriggerRef.current({ params: { id } })
+    logger.info('Restored assistant', { id })
+    return restored
+  }, [])
+
   return {
     createAssistant,
     updateAssistant,
     deleteAssistant,
+    restoreAssistant,
     isCreating,
     isUpdating,
     isDeleting

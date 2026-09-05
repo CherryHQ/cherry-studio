@@ -63,6 +63,26 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
 }
 
 describe('topic context menu actions', () => {
+  it('exposes one recoverable Delete action with the Recycle Bin confirmation', async () => {
+    const onDelete = vi.fn()
+    const context = createTopicActionFixture({ onDelete })
+    const actions = resolveTopicMenuActions(context)
+    const deleteAction = actions.find((action) => action.id === 'topic.delete')
+
+    expect(actions.filter((action) => action.danger).map((action) => action.id)).toEqual(['topic.delete'])
+    expect(deleteAction?.label).toBe('common.delete')
+    expect(deleteAction?.confirm).toEqual({
+      title: 'recycle_bin.move.confirm_title',
+      confirmText: 'recycle_bin.move.confirm_action',
+      cancelText: 'common.cancel',
+      destructive: true
+    })
+
+    await executeTopicMenuAction(deleteAction!, context)
+
+    expect(onDelete).toHaveBeenCalledWith(topic)
+  })
+
   it('keeps Save to Notes independent from export and copy preferences', () => {
     const actions = resolveTopicMenuActions(
       createTopicActionFixture({

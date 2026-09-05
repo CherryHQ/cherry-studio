@@ -23,6 +23,9 @@ export const topicTable = sqliteTable(
 
     traceId: text(),
 
+    // Internal identity for the assistant cascade that moved this topic to trash.
+    deletionBatchId: text(),
+
     // Global fractional-indexing order key.
     ...orderKeyColumns,
 

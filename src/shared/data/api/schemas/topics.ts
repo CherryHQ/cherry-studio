@@ -58,7 +58,9 @@ export const ListTopicsQuerySchema = z.strictObject({
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  q: z.string().optional(),
+  /** `true` lists only trashed topics; omitted/false lists active topics. */
+  inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
@@ -137,7 +139,7 @@ export interface ReusableTopicPlaceholderResponse {
   created: boolean
 }
 
-const DeleteTopicsIdsQueryValueSchema = z
+const TopicIdsQueryValueSchema = z
   .string()
   .transform((value) =>
     value
@@ -148,9 +150,15 @@ const DeleteTopicsIdsQueryValueSchema = z
   .pipe(z.array(z.string().min(1)).min(1))
 
 export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: DeleteTopicsIdsQueryValueSchema
+  ids: TopicIdsQueryValueSchema
 })
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+
+export const DeleteTopicQuerySchema = z.strictObject({
+  /** `true` permanently deletes a topic already in the Recycle Bin; omitted/false moves an active topic there. */
+  permanent: z.boolean().optional()
+})
+export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -191,7 +199,8 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Delete an explicit set of topics.
+     * Move an explicit set of topics to the Recycle Bin. Bulk purging has no caller,
+     * so this route is soft-delete-only — purge one at a time via `DELETE /topics/:id`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to
@@ -251,10 +260,19 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Delete a topic and all its messages */
+    /** Omitted/false moves an active topic to the Recycle Bin; `true` permanently deletes one already there. */
     DELETE: {
       params: { id: string }
+      query?: DeleteTopicQuery
       response: void
+    }
+  }
+
+  /** Restore one trashed topic. Pins and tags are not restored. */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 

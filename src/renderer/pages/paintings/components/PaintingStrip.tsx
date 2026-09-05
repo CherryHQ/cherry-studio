@@ -18,7 +18,7 @@ interface PaintingStripProps {
   items: PaintingStripEntry[]
   hasMore: boolean
   loadMore: () => void
-  onDeletePainting: (painting: PaintingData) => void
+  onDeletePainting: (painting: PaintingData) => void | Promise<void>
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
 }
@@ -94,6 +94,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
 }) => {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const target = event.currentTarget
@@ -148,19 +149,24 @@ const PaintingStrip: FC<PaintingStripProps> = ({
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !isDeleting) {
             setPendingDelete(null)
           }
         }}
-        title={t('paintings.button.delete.image.confirm')}
-        confirmText={t('common.delete')}
+        title={t('recycle_bin.move.confirm_title')}
+        confirmText={t('recycle_bin.move.confirm_action')}
         cancelText={t('common.cancel')}
         destructive
-        onConfirm={() => {
-          if (pendingDelete) {
-            onDeletePainting(pendingDelete)
+        confirmLoading={isDeleting}
+        onConfirm={async () => {
+          if (!pendingDelete) return
+
+          setIsDeleting(true)
+          try {
+            await onDeletePainting(pendingDelete)
+          } finally {
+            setIsDeleting(false)
           }
-          setPendingDelete(null)
         }}
       />
     </>

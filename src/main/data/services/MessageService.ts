@@ -2002,10 +2002,8 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
-        // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
-        // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
-        // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
-        // from getDescendantIds for the response and the activeNodeId check.)
+        // Flatten the subtree before deleting so very deep chains do not exceed
+        // SQLite's trigger-recursion limit when ON DELETE CASCADE fires.
         for (let i = 0; i < descendantIds.length; i += SQLITE_INARRAY_CHUNK) {
           const chunk = descendantIds.slice(i, i + SQLITE_INARRAY_CHUNK)
           this.flattenUnderTx(tx, id, inArray(messageTable.id, chunk))
@@ -2024,7 +2022,6 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
-        // Hard delete this message
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })

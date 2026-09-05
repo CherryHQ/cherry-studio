@@ -75,12 +75,6 @@ const HistoryTopBar = ({
   )
   const canBulkDelete = bulkDeleteCount > 0 && !!onBulkDelete
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
-  const deleteTitle =
-    mode === 'assistant' ? t('history.records.bulkDeleteTopics.title') : t('history.records.bulkDeleteSessions.title')
-  const deleteDescription =
-    mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.description', { count: bulkDeleteCount })
-      : t('history.records.bulkDeleteSessions.description', { count: bulkDeleteCount })
 
   useEffect(() => {
     if (!moveDialogOpen) return
@@ -193,9 +187,8 @@ const HistoryTopBar = ({
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={deleteTitle}
-        description={deleteDescription}
-        confirmText={t('common.delete')}
+        title={t('recycle_bin.move.confirm_title')}
+        confirmText={t('recycle_bin.move.confirm_action')}
         cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {

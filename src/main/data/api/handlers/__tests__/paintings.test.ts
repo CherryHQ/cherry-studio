@@ -6,6 +6,7 @@ const {
   getPaintingByIdMock,
   updatePaintingMock,
   deletePaintingMock,
+  restorePaintingMock,
   reorderPaintingMock,
   reorderPaintingBatchMock
 } = vi.hoisted(() => ({
@@ -14,6 +15,7 @@ const {
   getPaintingByIdMock: vi.fn(),
   updatePaintingMock: vi.fn(),
   deletePaintingMock: vi.fn(),
+  restorePaintingMock: vi.fn(),
   reorderPaintingMock: vi.fn(),
   reorderPaintingBatchMock: vi.fn()
 }))
@@ -25,6 +27,7 @@ vi.mock('@data/services/PaintingService', () => ({
     getById: getPaintingByIdMock,
     update: updatePaintingMock,
     delete: deletePaintingMock,
+    restore: restorePaintingMock,
     reorder: reorderPaintingMock,
     reorderBatch: reorderPaintingBatchMock
   }
@@ -174,6 +177,56 @@ describe('paintingHandlers', () => {
 
     expect(getPaintingByIdMock).toHaveBeenCalledWith('painting-1')
     expect(updatePaintingMock).toHaveBeenCalledWith('painting-1', { prompt: 'updated' })
-    expect(deletePaintingMock).toHaveBeenCalledWith('painting-1')
+    expect(deletePaintingMock).toHaveBeenCalledWith('painting-1', {})
+  })
+
+  it('forwards inTrash to the service on list', async () => {
+    listPaintingsMock.mockResolvedValueOnce({ items: [], total: 0, nextCursor: undefined })
+
+    await paintingHandlers['/paintings'].GET({ query: { inTrash: true } } as never)
+
+    expect(listPaintingsMock).toHaveBeenCalledWith({
+      inTrash: true,
+      limit: PAINTINGS_DEFAULT_LIMIT
+    })
+  })
+
+  it('parses the delete query and forwards permanent', async () => {
+    deletePaintingMock.mockReturnValue(undefined)
+
+    await paintingHandlers['/paintings/:id'].DELETE({
+      params: { id: 'painting-1' },
+      query: { permanent: true }
+    } as never)
+
+    expect(deletePaintingMock).toHaveBeenCalledWith('painting-1', { permanent: true })
+  })
+
+  it('rejects an invalid delete query before calling the service', async () => {
+    await expect(
+      paintingHandlers['/paintings/:id'].DELETE({
+        params: { id: 'painting-1' },
+        query: { permanent: 'yes' } as never
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    await expect(
+      paintingHandlers['/paintings/:id'].DELETE({
+        params: { id: 'painting-1' },
+        query: { cascade: true } as never
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    expect(deletePaintingMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates restore by id', async () => {
+    restorePaintingMock.mockReturnValueOnce({ id: 'painting-1' })
+
+    await expect(paintingHandlers['/paintings/:id/restore'].POST({ params: { id: 'painting-1' } })).resolves.toEqual({
+      id: 'painting-1'
+    })
+
+    expect(restorePaintingMock).toHaveBeenCalledWith('painting-1')
   })
 })

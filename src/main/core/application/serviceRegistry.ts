@@ -64,6 +64,7 @@ import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
+import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
@@ -162,7 +163,8 @@ export const services = {
   AutoBackupService,
   ProviderRegistryUpdaterService,
   SchedulerService,
-  JobManager
+  JobManager,
+  TrashService
 } as const
 
 /** Auto-derived service name to instance type mapping */

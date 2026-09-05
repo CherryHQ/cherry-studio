@@ -29,8 +29,19 @@ const mocks = vi.hoisted(() => ({
   hasTerminalPersistenceInFlight: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  },
   terminalListeners: new Set<(event: any) => void>(),
   idleListeners: new Set<(event: any) => void>()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => mocks.logger
+  }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -672,7 +683,7 @@ describe('AgentSessionDeliveryService', () => {
     await expect(drain).resolves.toEqual({ stragglerIds: [] })
   })
 
-  it('closes every affected runtime when deleting an Agent', async () => {
+  it('pauses every affected runtime before closing it when deleting an Agent with Sessions', async () => {
     mocks.deleteAgent.mockReturnValue({
       deleted: true,
       deletedSessionIds: ['target'],
@@ -684,7 +695,11 @@ describe('AgentSessionDeliveryService', () => {
 
     await service.deleteAgent('agent-1', true)
 
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:target', 'target-agent-deleted')
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
+    expect(mocks.pauseRuntimeTurn.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.closeSession.mock.invocationCallOrder[0]
+    )
   })
 
   it('pauses an active retained Session before closing it after Agent deletion', async () => {
@@ -704,6 +719,41 @@ describe('AgentSessionDeliveryService', () => {
     )
   })
 
+  it('resolves committed Agent deletion and retries deliveries when runtime close fails', async () => {
+    const closeError = new Error('close failed')
+    mocks.deleteAgent.mockReturnValue({
+      deleted: true,
+      affectedSessionIds: ['target'],
+      deliveryResults: [{ ...accepted, sessionId: 'sender', delivery: { ...accepted.delivery, status: 'failed' } }]
+    })
+    mocks.closeSession.mockRejectedValue(closeError)
+    const service = new AgentSessionDeliveryService()
+
+    await expect(service.deleteAgent('agent-1', false)).resolves.toEqual({ deleted: true })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.listAccepted).toHaveBeenCalledWith('sender')
+    expect(mocks.listAccepted).toHaveBeenCalledWith('target')
+    expect(mocks.logger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ sessionId: 'target', error: closeError })
+    )
+  })
+
+  it('retries affected retained Sessions after permanent Agent deletion', async () => {
+    mocks.deleteAgent.mockReturnValue({
+      deleted: true,
+      affectedSessionIds: ['target'],
+      deliveryResults: []
+    })
+    const service = new AgentSessionDeliveryService()
+
+    await service.deleteAgent('agent-1', true, true)
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.listAccepted).toHaveBeenCalledWith('target')
+  })
+
   it('deletes every Session owned by a protected Agent through the delivery owner', async () => {
     mocks.deleteByAgentId.mockReturnValue({
       deletedIds: ['session-1', 'session-not-loaded'],
@@ -716,7 +766,7 @@ describe('AgentSessionDeliveryService', () => {
       deletedIds: ['session-1', 'session-not-loaded']
     })
 
-    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1')
+    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', { permanent: false })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
   })

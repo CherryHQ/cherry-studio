@@ -13,6 +13,7 @@ import { topicService } from '@data/services/TopicService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DeleteTopicQuerySchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
@@ -67,10 +68,15 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.update(params.id, parsed)
     },
 
-    DELETE: async ({ params }) => {
-      topicService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteTopicQuerySchema.parse(query ?? {})
+      topicService.delete(params.id, { permanent: parsed.permanent })
       return undefined
     }
+  },
+
+  '/topics/:id/restore': {
+    POST: async ({ params }) => topicService.restore(params.id)
   },
 
   '/topics/:id/move': {

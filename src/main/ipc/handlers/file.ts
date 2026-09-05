@@ -134,8 +134,9 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     application.get('FileManager').batchCreateInternalEntries(items),
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
-  'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
-  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
+  'file.batch_permanent_delete_from_trash': async ({ ids }) =>
+    application.get('FileManager').batchPermanentDeleteFromTrash(ids),
+  'file.batch_remove_from_library': async ({ ids }) => application.get('FileManager').batchRemoveFromLibrary(ids),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   // Guard the destination only: sources legitimately live inside managed storage
   // (attachments, generated images) and copying reads them without mutating.

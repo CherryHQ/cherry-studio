@@ -745,6 +745,13 @@
       "description": "Command shortcut: screenshot.capture (unified command system)"
     },
     {
+      "targetKey": "data.trash.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Trash retention in days before automatic purge; 0 = never auto-purge (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "feature.mini_app.check_updates_on_open",
       "type": "boolean",
       "defaultValue": true,

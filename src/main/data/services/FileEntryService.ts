@@ -293,6 +293,9 @@ export interface FileEntryService {
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): void
 
+  /** Hard-delete trashed entries older than the retention cutoff. */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
+
   /** Tx-scoped variant of `delete` for composing write flows. */
   deleteTx(tx: DbOrTx, id: FileEntryId): void
 }
@@ -869,6 +872,29 @@ class FileEntryServiceImpl implements FileEntryService {
 
   deleteTx(tx: DbOrTx, id: FileEntryId): void {
     tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[] {
+    const rows = tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(
+        and(
+          isNotNull(fileEntryTable.deletedAt),
+          lt(fileEntryTable.deletedAt, cutoffMs),
+          // A trashed file can still back a live painting or message — the ref rows
+          // FK-cascade, so purging here would strip the image out from under it.
+          // It stays in the trash until the last holder is gone.
+          ...persistentRefAbsenceConditions()
+        )
+      )
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tx.delete(fileEntryTable).where(inArray(fileEntryTable.id, ids)).run()
+    return ids
   }
 }
 

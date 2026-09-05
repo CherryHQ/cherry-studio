@@ -46,6 +46,8 @@ export interface TopicMoveAssistantTarget {
   icon?: ReactNode
 }
 
+type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
+
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
   isActiveInCurrentTab: boolean
@@ -55,7 +57,7 @@ export interface TopicActionContext {
   onCopyImage: TopicMenuHandler
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -509,13 +511,12 @@ topicActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   danger: true,
-  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
-  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
+  // Deleting the last topic is allowed: the handler selects a neighbour when one exists and
+  // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
   availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
-    title: t('chat.topics.manage.delete.confirm.title'),
-    description: t('chat.topics.manage.delete.confirm.content', { count: 1 }),
-    confirmText: t('common.delete'),
+    title: t('recycle_bin.move.confirm_title'),
+    confirmText: t('recycle_bin.move.confirm_action'),
     cancelText: t('common.cancel'),
     destructive: true
   })

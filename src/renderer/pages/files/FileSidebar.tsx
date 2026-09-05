@@ -1,11 +1,11 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
-import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
+import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type SidebarFilter =
-  | { kind: 'library'; value: 'all' | 'trash' }
+  | { kind: 'library'; value: 'all' }
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
 
 type SidebarEntry = {
@@ -26,8 +26,7 @@ const TYPE_ENTRIES: SidebarEntry[] = [
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' },
-  { kind: 'library', value: 'trash', label: (t) => t('files.trash'), icon: Trash2, countKey: 'trash' }
+  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' }
 ]
 
 export function FileSidebar({

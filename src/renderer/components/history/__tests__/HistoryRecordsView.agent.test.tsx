@@ -1,5 +1,9 @@
 import { cacheService } from '@renderer/data/CacheService'
+import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -11,11 +15,14 @@ type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
 const hookMocks = vi.hoisted(() => ({
   deleteSession: vi.fn(),
+  deleteSessionWithOutcome: vi.fn(),
   deleteSessions: vi.fn(),
   promptShow: vi.fn(),
+  reload: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
   openConversationTab: vi.fn(),
+  restoreSession: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -25,6 +32,16 @@ const hookMocks = vi.hoisted(() => ({
   useSessions: vi.fn(),
   useUpdateSession: vi.fn(),
   virtualListRenderRows: [] as VirtualListRenderRow[]
+}))
+
+const recycleBinFeedbackMocks = vi.hoisted(() => ({
+  showRecycleBinBatchUndo: vi.fn(),
+  showRecycleBinUndo: vi.fn()
+}))
+
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -266,6 +283,10 @@ vi.mock('react-i18next', () => {
         'common.saved': 'Saved',
         'common.select_all': 'Select all',
         'common.unnamed': 'Untitled',
+        'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
+        'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
+        'recycle_bin.already_moved': 'Already in Recycle Bin',
+        'recycle_bin.move_failed': 'Could not move to Recycle Bin',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
         'history.records.bulkDeleteSessions.title': 'Delete selected tasks',
@@ -388,7 +409,10 @@ function setupAgentHistory({
     error: undefined,
     isLoading: false,
     deleteSession: hookMocks.deleteSession,
+    deleteSessionWithOutcome: hookMocks.deleteSessionWithOutcome,
     deleteSessions: hookMocks.deleteSessions,
+    reload: hookMocks.reload,
+    restoreSession: hookMocks.restoreSession,
     togglePin: hookMocks.togglePin
   })
 
@@ -416,9 +440,15 @@ describe('HistoryRecordsView agent mode', () => {
     confirmActionShow.mockClear()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
+    hookMocks.deleteSessionWithOutcome.mockReset()
+    hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'succeeded' })
+    hookMocks.restoreSession.mockReset()
+    hookMocks.restoreSession.mockResolvedValue(undefined)
     hookMocks.deleteSessions.mockReset()
     hookMocks.deleteSessions.mockResolvedValue({ deletedIds: ['session-alpha'], deletedCount: 1 })
     hookMocks.promptShow.mockReset()
+    hookMocks.reload.mockReset()
+    hookMocks.reload.mockResolvedValue(undefined)
     hookMocks.togglePin.mockReset()
     hookMocks.togglePin.mockResolvedValue(undefined)
     hookMocks.updateSession.mockReset()
@@ -451,6 +481,8 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
     hookMocks.virtualListRenderRows.length = 0
+    recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
+    recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
 
     if (!agentHistoryLoaded) {
       await import('../AgentHistoryRecords')
@@ -461,7 +493,9 @@ describe('HistoryRecordsView agent mode', () => {
         error: undefined,
         isLoading: false,
         deleteSession: hookMocks.deleteSession,
+        deleteSessionWithOutcome: hookMocks.deleteSessionWithOutcome,
         deleteSessions: hookMocks.deleteSessions,
+        reload: hookMocks.reload,
         togglePin: hookMocks.togglePin
       })
       const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
@@ -722,10 +756,6 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('bulk deletes selected sessions from the query toolbar', async () => {
-    hookMocks.deleteSessions.mockResolvedValueOnce({
-      deletedIds: ['session-alpha', 'session-beta'],
-      deletedCount: 2
-    })
     const { onClose, onRecordSelect } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [
@@ -756,24 +786,132 @@ describe('HistoryRecordsView agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected tasks')
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected task(s)?')
-    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Delete 2 selected task(s)?')
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha', 'session-beta'])
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledTimes(2)
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenNthCalledWith(1, 'session-alpha', { showFeedback: false })
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenNthCalledWith(2, 'session-beta', { showFeedback: false })
+    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
     expect(onRecordSelect).toHaveBeenCalledWith('session-gamma')
     expect(onClose).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    hookMocks.restoreSession.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Restore failed'))
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-alpha'],
+      failed: [{ id: 'session-beta', error: 'Restore failed' }]
+    })
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
+  })
+
+  it('keeps failed bulk sessions selected and excludes them from Undo', async () => {
+    hookMocks.deleteSessionWithOutcome
+      .mockResolvedValueOnce({ status: 'succeeded' })
+      .mockResolvedValueOnce({ status: 'failed', error: 'Beta delete failed' })
+    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
+    })
+
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(hookMocks.restoreSession).toHaveBeenCalledExactlyOnceWith('session-alpha')
+  })
+
+  it('reports all stale bulk sessions once without changing selection or active state', async () => {
+    hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
+    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
+    })
+
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('reports non-stale bulk session failures once without changing selection or active state', async () => {
+    hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'failed', error: 'Delete failed' })
+    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
+    })
+
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not move to Recycle Bin')
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('keeps a stale bulk session selected and only offers Undo for the successful id', async () => {
+    hookMocks.deleteSessionWithOutcome
+      .mockResolvedValueOnce({ status: 'succeeded' })
+      .mockResolvedValueOnce({ status: 'stale' })
+    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
+    })
+
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(hookMocks.restoreSession).toHaveBeenCalledExactlyOnceWith('session-alpha')
   })
 
   it('skips pinned sessions when bulk deleting from the query toolbar', async () => {
-    hookMocks.deleteSessions.mockResolvedValueOnce({
-      deletedIds: ['session-alpha'],
-      deletedCount: 1
-    })
     const { onClose, onRecordSelect } = setupAgentHistory({
       sessions: [
         createSession(),
@@ -796,13 +934,15 @@ describe('HistoryRecordsView agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected task(s)?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha'])
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
+      showFeedback: false
+    })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -816,7 +956,7 @@ describe('HistoryRecordsView agent mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
     expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
-    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
+    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
   })
 
   it('excludes pinned sessions from row selection and select all', () => {
@@ -1056,23 +1196,34 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('deletes a session from the history row action column without selecting the row', async () => {
+    hookMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-alpha'))
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' } as never)
     const { onClose, onRecordSelect } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
 
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
       await flushAnimationFrame()
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Alpha session',
+      onUndo: expect.any(Function)
+    })
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+    expect(hookMocks.restoreSession).toHaveBeenCalledWith('session-alpha')
+    expect(getActiveSession).toHaveBeenCalledWith('/agent-sessions/session-alpha')
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
+    getActiveSession.mockRestore()
   })
 
   it('confirms session deletion and moves the active session when needed', async () => {
@@ -1085,7 +1236,9 @@ describe('HistoryRecordsView agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
+    expect(confirmActionShow).toHaveBeenCalledWith(
+      expect.objectContaining({ content: undefined, title: 'Move to Recycle Bin?', okText: 'Move to Recycle Bin' })
+    )
 
     await act(async () => {
       await flushAnimationFrame()
@@ -1133,5 +1286,6 @@ describe('HistoryRecordsView agent mode', () => {
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 })

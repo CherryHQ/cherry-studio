@@ -245,4 +245,23 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * query) without the host reaching into driver internals. Optional.
    */
   onSessionIdle?(sessionId: string): void
+  /**
+   * Reclaim on-disk session state that no surviving session row claims, keyed by
+   * the resume tokens the driver itself hands out. The keep-set covers trashed
+   * sessions too — their rows and tokens remain until purge so Restore stays
+   * lossless, and only a purge drops them. Called by the trash purge's agent
+   * orphan sweep after every DB transaction has committed, so it is authoritative. Must be idempotent, must no-op when its root
+   * does not exist, and must leave anything younger than `freshnessGateMs`
+   * alone — an in-flight session may not have persisted its token yet.
+   */
+  reclaimOrphanSessions?(
+    keptResumeTokens: ReadonlySet<string>,
+    options: OrphanSessionReclaimOptions
+  ): Promise<{ removed: string[] }>
+}
+
+export interface OrphanSessionReclaimOptions {
+  /** Artifacts modified within this window are presumed in-flight and skipped. */
+  freshnessGateMs: number
+  now: number
 }
