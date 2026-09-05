@@ -34,6 +34,7 @@ vi.mock('../guardRules', () => ({ CLAUDE_TOOL_GUARD_RULES: [] }))
 vi.mock('../skillDependencies', () => ({ SKILL_TOOL_NAME: 'Skill', checkSkillRuntimeDependencies: vi.fn() }))
 
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+import { rtkRewrite } from '@main/utils/rtk'
 
 import { BASH_HISTORY_LIMIT, BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD } from '../bashNoProgress'
 import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
@@ -147,6 +148,7 @@ describe('bashOutcomeHook', () => {
   const svc = new ClaudeCodeSessionStateService()
   let bashOutcomeHook: HookCallback
   let toolGuardHook: HookCallback
+  let rtkRewriteHook: HookCallback
   let subagentStopHook: HookCallback
 
   beforeEach(() => {
@@ -170,6 +172,7 @@ describe('bashOutcomeHook', () => {
     })
     // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook].
     toolGuardHook = hooks!.PreToolUse![0].hooks[0]
+    rtkRewriteHook = hooks!.PreToolUse![0].hooks[3]
     // PostToolUse: [postToolTimingHook, bashOutcomeHook] — the outcome hook is the second entry.
     bashOutcomeHook = hooks!.PostToolUse![0].hooks[1]
     subagentStopHook = hooks!.SubagentStop![0].hooks[0]
@@ -250,6 +253,84 @@ describe('bashOutcomeHook', () => {
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
     expect(bashOutcomesOf(svc, SESSION)).toBeUndefined()
+  })
+
+  const rewriteViaRtk = async (original: string, rewritten: string, toolUseId: string) => {
+    vi.mocked(rtkRewrite).mockResolvedValueOnce(rewritten)
+    await rtkRewriteHook(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: original },
+        tool_use_id: toolUseId
+      } as never,
+      toolUseId,
+      {} as never
+    )
+  }
+
+  const recordedCommands = () =>
+    (bashOutcomesOf(svc, SESSION) as { command: string }[] | undefined)?.map((e) => e.command)
+
+  it('files an rtk-rewritten call under the original command, so the guard the model retries against sees the run', async () => {
+    const original = 'git status'
+    const rewritten = 'rtk git status'
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      const toolUseId = `tu-rtk-${i}`
+      await rewriteViaRtk(original, rewritten, toolUseId)
+      await fire({ ...bashSuccess({ stdout: 'clean' }), tool_input: { command: rewritten }, tool_use_id: toolUseId })
+    }
+
+    expect(svc.getBashNoProgressRun(SESSION, original)).toBe(BASH_NO_PROGRESS_THRESHOLD)
+    expect(svc.getBashNoProgressRun(SESSION, rewritten)).toBeUndefined()
+
+    const result = (await toolGuardHook(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: original },
+        tool_use_id: 'tu-next'
+      } as never,
+      undefined,
+      {} as never
+    )) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(result.hookSpecificOutput?.additionalContext).toContain('Loop warning')
+  })
+
+  it('a rewrite origin is consumed once, by its own tool_use_id only', async () => {
+    await rewriteViaRtk('git status', 'rtk git status', 'tu-rewritten')
+
+    await fire({ ...bashSuccess({ stdout: 'x' }), tool_input: { command: 'ls' }, tool_use_id: 'tu-plain' })
+    await fire({
+      ...bashSuccess({ stdout: 'x' }),
+      tool_input: { command: 'rtk git status' },
+      tool_use_id: 'tu-rewritten'
+    })
+    await fire({
+      ...bashSuccess({ stdout: 'x' }),
+      tool_input: { command: 'rtk git status' },
+      tool_use_id: 'tu-rewritten'
+    })
+
+    expect(recordedCommands()).toEqual(['ls', 'git status', 'rtk git status'])
+  })
+
+  it('dispose drops rewrite origins that never reached PostToolUse', async () => {
+    await rewriteViaRtk('git status', 'rtk git status', 'tu-denied')
+
+    svc.disposeToolPolicySnapshot(SESSION)
+
+    expect(svc.takeBashRewriteOrigin(SESSION, 'tu-denied')).toBeUndefined()
+    expect((svc as unknown as { bashRewriteOrigins: Map<string, unknown> }).bashRewriteOrigins.size).toBe(0)
+  })
+
+  it('the shutdown sweep drops rewrite origins with every other session map', async () => {
+    await rewriteViaRtk('git status', 'rtk git status', 'tu-denied')
+
+    await (svc as unknown as { onStop(): Promise<void> }).onStop()
+
+    expect(svc.takeBashRewriteOrigin(SESSION, 'tu-denied')).toBeUndefined()
+    expect((svc as unknown as { bashRewriteOrigins: Map<string, unknown> }).bashRewriteOrigins.size).toBe(0)
   })
 
   it('breaks the run when a mutating tool completes between verifier runs', async () => {

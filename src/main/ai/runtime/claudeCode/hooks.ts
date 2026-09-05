@@ -162,6 +162,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const rewritten = await rtkRewrite(command)
     if (!rewritten) return {}
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
+    sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
@@ -239,8 +240,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
 
-    const command = (input.tool_input as { command?: unknown } | undefined)?.command
-    if (typeof command !== 'string') return {}
+    const executedCommand = (input.tool_input as { command?: unknown } | undefined)?.command
+    if (typeof executedCommand !== 'string') return {}
+    const command = sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id) ?? executedCommand
 
     if (input.hook_event_name === 'PostToolUseFailure') {
       if (input.is_interrupt === true) {

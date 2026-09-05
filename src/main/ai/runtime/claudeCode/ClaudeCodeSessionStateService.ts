@@ -52,6 +52,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
+  private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -161,12 +162,35 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.bashOutcomes.delete(this.bashScopeKey(sessionId, agentId))
   }
 
+  /**
+   * An rtk-rewritten Bash call reaches PostToolUse carrying the rewritten command while the guard
+   * evaluated the original. Keyed by tool_use_id so the recorder files the outcome under the
+   * command the guard will see on the next retry.
+   */
+  recordBashRewriteOrigin(sessionId: string, toolUseId: string, originalCommand: string): void {
+    let origins = this.bashRewriteOrigins.get(sessionId)
+    if (!origins) {
+      origins = new Map()
+      this.bashRewriteOrigins.set(sessionId, origins)
+    }
+    origins.set(toolUseId, originalCommand)
+  }
+
+  takeBashRewriteOrigin(sessionId: string, toolUseId: string): string | undefined {
+    const origins = this.bashRewriteOrigins.get(sessionId)
+    if (!origins) return undefined
+    const original = origins.get(toolUseId)
+    origins.delete(toolUseId)
+    return original
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
     for (const key of [...this.bashOutcomes.keys()]) {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
     }
+    this.bashRewriteOrigins.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -243,6 +267,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.steerHolders.clear()
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
+    this.bashRewriteOrigins.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }
