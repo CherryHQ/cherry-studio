@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
+  getFirstUserMessage: vi.fn(),
   updateSession: vi.fn()
 }))
 
@@ -65,6 +66,12 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSession,
     update: mocks.updateSession
+  }
+}))
+
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
+    getFirstUserMessage: mocks.getFirstUserMessage
   }
 }))
 
@@ -589,6 +596,21 @@ describe('TopicNamingService', () => {
       name: 'Generated Title',
       isNameManuallyEdited: false
     })
+  })
+
+  it.each([
+    ['truncated first-message title', 'x'.repeat(50), false, `${'x'.repeat(50)} later content`, true],
+    ['generated title', 'Generated Title', false, 'First user text', false],
+    ['manual title', 'Manual Title', true, 'First user text', false]
+  ])('reports a %s as auto-naming eligible: %s', (_case, name, isNameManuallyEdited, firstUserText, expected) => {
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', name, isNameManuallyEdited })
+    mocks.getFirstUserMessage.mockReturnValue({
+      id: 'user-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: firstUserText }] }
+    })
+
+    expect(createService().canAutoNameAgentSession('session-1')).toBe(expected)
   })
 
   it('allows summary rename after first-message extraction and summary extraction see the same message data', async () => {

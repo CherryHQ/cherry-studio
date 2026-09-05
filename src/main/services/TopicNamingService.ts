@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -144,6 +145,21 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 }
 
 export class TopicNamingService {
+  canAutoNameAgentSession(sessionId: string): boolean {
+    const session = this.getAgentSession(sessionId, 'initial')
+    if (!session || session.isNameManuallyEdited) return false
+    if (isDefaultAgentSessionName(session.name)) return true
+
+    try {
+      const firstUserMessage = agentSessionMessageService.getFirstUserMessage(sessionId)
+      const firstUserText = firstUserMessage ? getMainTextContentFromMessageData(firstUserMessage.data) : undefined
+      return canAutoRenameAgentSessionName(session.name, firstUserText)
+    } catch (error) {
+      logger.debug('Failed to inspect agent session auto-naming eligibility', { sessionId, error: error as Error })
+      return false
+    }
+  }
+
   maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
       const topic = this.getTopic(topicId)

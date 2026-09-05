@@ -3307,6 +3307,45 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
+  it.each(['paused', 'error'] as const)(
+    'keeps automatic naming pending when the first assistant turn is %s',
+    async (status) => {
+      const service = new AgentSessionRuntimeService()
+      const first = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1'),
+        shouldAutoName: true
+      })
+
+      if (status === 'paused') {
+        await persistenceListener(first).onPaused({ status, isTopicDone: true, finalMessage: undefined })
+        terminalListener(first).onPaused({ status, isTopicDone: true })
+      } else {
+        const error = { name: 'Error', message: 'first turn failed' }
+        await persistenceListener(first).onError({ status, isTopicDone: true, error, finalMessage: undefined })
+        terminalListener(first).onError({ status, isTopicDone: true, error })
+      }
+
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      await persistenceListener(second).onDone({
+        status: 'success',
+        isTopicDone: true,
+        finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+      })
+
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledOnce()
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
+        id: 'assistant-2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'recovered' }]
+      })
+    }
+  )
+
   it('persists empty paused terminals to the active assistant placeholder', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

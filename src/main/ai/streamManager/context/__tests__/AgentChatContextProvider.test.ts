@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
+  canAutoNameAgentSession: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 
 vi.mock('@main/services/TopicNamingService', () => ({
   topicNamingService: {
+    canAutoNameAgentSession: mocks.canAutoNameAgentSession,
     maybeRenameAgentSessionFromFirstUserMessage: mocks.maybeRenameAgentSessionFromFirstUserMessage,
     maybeRenameAgentSession: mocks.maybeRenameAgentSession
   }
@@ -132,6 +134,7 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.hasSessionMessages.mockReturnValue(false)
+    mocks.canAutoNameAgentSession.mockReturnValue(true)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
         return {
@@ -407,8 +410,19 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
   })
 
-  it('does not auto-name a later idle turn in a session with messages', async () => {
+  it('retries auto-naming on a later idle turn while the temporary title remains', async () => {
     mocks.hasSessionMessages.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.canAutoNameAgentSession).toHaveBeenCalledWith('session-1')
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: true }))
+  })
+
+  it('does not auto-name a later idle turn once the session has a stable title', async () => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.canAutoNameAgentSession.mockReturnValue(false)
 
     await provider.prepareDispatch(makeSubscriber(), openReq())
 
