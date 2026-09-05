@@ -67,6 +67,16 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
   )
 }
 
+export function DoctorCheckList({ controller }: { readonly controller: DoctorController }) {
+  return (
+    <div className="divide-y divide-border rounded-xl border border-border px-2">
+      {controller.viewModel.rows.map((row) => (
+        <DoctorCheckRow key={row.id} controller={controller} row={row} />
+      ))}
+    </div>
+  )
+}
+
 export function DoctorConfirmationView({
   controller,
   onResolve
