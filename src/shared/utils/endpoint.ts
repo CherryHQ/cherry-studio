@@ -31,9 +31,10 @@ export function resolveCanonicalEndpoint(
   // An endpointTypes entry still carries an unambiguous operation contract, so
   // preserve its dedicated semantics even for those legacy rows.
   const capabilities = model.capabilities ?? []
-  const hasDeclaredDedicatedEndpoint = model.endpointTypes?.some(
+  const hasAnyDedicatedEndpoint = model.endpointTypes?.some(
     (endpointType) => endpointImpliedCapability(endpointType) !== undefined
   )
+  const hasDeclaredDedicatedEndpoint = endpointImpliedCapability(model.endpointTypes?.[0]) !== undefined
   // A missing image/embedding/etc. configuration must not silently fall through
   // to a chat endpoint that happens to be configured.
   const nonChat = isNonChatModel({ ...model, capabilities }) || Boolean(hasDeclaredDedicatedEndpoint)
@@ -85,7 +86,7 @@ export function resolveCanonicalEndpoint(
       // non-chat capabilities. Trust that declaration only when the row does not
       // advertise any dedicated protocol; a missing provider configuration must
       // not silently reroute a dedicated model through a chat endpoint.
-      return impliedCapability === undefined && !hasDeclaredDedicatedEndpoint
+      return impliedCapability === undefined && !hasAnyDedicatedEndpoint
     })
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =

@@ -187,6 +187,19 @@ describe('resolvePiProviderInfo', () => {
     })
   })
 
+  it('keeps the model-advertised protocol when no configured CLI endpoint intersects it', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example' } } }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: '',
+      endpointType: 'openai-responses'
+    })
+  })
+
   it('normalizes the Google endpoint to the v1beta API required by Pi', () => {
     expect(
       resolvePiProviderInfo(

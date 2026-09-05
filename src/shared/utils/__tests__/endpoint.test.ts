@@ -38,6 +38,16 @@ describe('resolveCanonicalEndpoint', () => {
     expect(resolveCanonicalEndpoint(provider(), legacyModel).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
+  it('keeps a chat-capable model on chat when a secondary dedicated endpoint is declared', () => {
+    const multimodalChatModel = model({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveCanonicalEndpoint(provider(), multimodalChatModel).endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
   it('skips a stale default whose endpoint configuration is missing', () => {
     const stale = provider({
       endpointConfigs: {
