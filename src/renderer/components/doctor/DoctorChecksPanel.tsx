@@ -10,18 +10,16 @@ import {
   Scrollbar,
   Skeleton
 } from '@cherrystudio/ui'
+import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import type { DoctorCheckId } from '@shared/types/doctor'
 import { ChevronDown, Copy, RotateCcw } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorCheckResults, DoctorConfirmationView } from './DoctorCheckResults'
-import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS } from './doctorContent'
-import { formatDoctorReportForCopy } from './formatDoctorCopy'
-import type { DoctorController } from './useDoctorController'
-
 const logger = loggerService.withContext('DoctorChecksPanel')
 
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
@@ -164,7 +162,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             {t('settings.doctor.actions.cancel_run')}
           </Button>
         ) : null}
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" disabled={!controller.canChangePanel}>
               {t('settings.doctor.actions.more')}
@@ -212,9 +210,15 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
   if (viewModel.status === 'running') {
     const completed = viewModel.rows.filter((row) => row.status !== 'pending').length
     return (
-      <div className="space-y-2 rounded-xl bg-secondary p-4" role="status" aria-live="polite">
+      <div className="space-y-2 rounded-xl bg-secondary p-4 text-secondary-foreground" role="status" aria-live="polite">
         <div className="flex items-center justify-between gap-3">
-          <p className="font-medium text-sm">{t('settings.doctor.summary.running')}</p>
+          <p className="font-medium text-sm">
+            {t(
+              viewModel.tier === 'live'
+                ? 'settings.doctor.summary.running_full'
+                : 'settings.doctor.summary.running_basic'
+            )}
+          </p>
           <span className="text-muted-foreground text-xs">
             {t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })}
           </span>
@@ -240,7 +244,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
       ['optional', 'settings.doctor.summary.optional']
     ] as const
     return (
-      <div className="space-y-4 rounded-xl bg-secondary p-4">
+      <div className="space-y-4 rounded-xl bg-secondary p-4 text-secondary-foreground">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-medium text-sm">

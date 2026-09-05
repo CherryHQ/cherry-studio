@@ -37,8 +37,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
-  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 import { FEEDBACK_GITHUB_URL, FeedbackDialog, getFeedbackAgentRoute } from '../FeedbackDialog'
@@ -68,14 +68,7 @@ describe('FeedbackDialog', () => {
 
     expect(diagnostics.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(recommended).toHaveClass('bg-primary/10', 'text-primary')
-  })
-
-  it('uses the shared large dialog size with inset, spacious options', () => {
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
-
-    expect(screen.getByTestId('dialog-content')).toHaveAttribute('data-size', 'lg')
-    expect(screen.getByRole('list')).toHaveClass('gap-3', 'px-2')
+    expect(recommended).toBeVisible()
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {

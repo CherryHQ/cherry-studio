@@ -1,18 +1,4 @@
-import {
-  Alert,
-  Button,
-  Checkbox,
-  DescriptionSwitch,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Scrollbar,
-  SegmentedControl
-} from '@cherrystudio/ui'
-import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
+import { Alert, Button, Checkbox, DescriptionSwitch, DialogFooter, Scrollbar, SegmentedControl } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -27,12 +13,12 @@ import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import { createFilePathHandle } from '@shared/utils/file'
 import { CircleCheck } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
+import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
-const logger = loggerService.withContext('DiagnosticBundleDialog')
+const logger = loggerService.withContext('DiagnosticBundlePanel')
 const RANGE_OPTIONS = [
   { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
   { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
@@ -49,12 +35,10 @@ type ExportState =
   | { readonly status: 'saving' }
   | { readonly result: SavedResult; readonly status: 'saved' }
 
-interface DiagnosticBundleDialogProps {
+interface DiagnosticBundlePanelProps {
   readonly appVersion: string
-  readonly embedded?: boolean
   readonly onBusyChange?: (busy: boolean) => void
-  readonly onOpenChange: (open: boolean) => void
-  readonly open: boolean
+  readonly onClose: () => void
 }
 
 function isDestinationConflictError(error: unknown): boolean {
@@ -65,13 +49,7 @@ function isDestinationConflictError(error: unknown): boolean {
   )
 }
 
-const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
-  appVersion,
-  embedded = false,
-  onBusyChange,
-  onOpenChange,
-  open
-}) => {
+const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onBusyChange, onClose }) => {
   const { t } = useTranslation()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
@@ -88,56 +66,10 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
   const exportButtonRef = useRef<HTMLButtonElement>(null)
   const confirmationHeadingRef = useRef<HTMLHeadingElement>(null)
   const confirmationWasOpenRef = useRef(false)
-  const closeResetTimerRef = useRef<number | null>(null)
-  const confirmedExportTimerRef = useRef<number | null>(null)
   const status = exportState.status
   const savedResult = exportState.status === 'saved' ? exportState.result : null
 
   useEffect(() => {
-    if (open || embedded) {
-      if (closeResetTimerRef.current !== null) {
-        window.clearTimeout(closeResetTimerRef.current)
-        closeResetTimerRef.current = null
-      }
-      return
-    }
-    if (confirmedExportTimerRef.current !== null) {
-      window.clearTimeout(confirmedExportTimerRef.current)
-      confirmedExportTimerRef.current = null
-    }
-    closeResetTimerRef.current = window.setTimeout(() => {
-      closeResetTimerRef.current = null
-      setRange('24h')
-      setIncludeLogs(true)
-      setIncludeTraces(true)
-      setIncludeChatRecords(false)
-      setConsent(false)
-      setIsConfirmationOpen(false)
-      setInspectResult(null)
-      setInspectError(false)
-      setIsInspecting(false)
-      setCopyEmailFallback(false)
-      setExportState({ status: 'idle' })
-    }, DIALOG_CLOSE_DURATION_MS)
-    return () => {
-      if (closeResetTimerRef.current !== null) {
-        window.clearTimeout(closeResetTimerRef.current)
-        closeResetTimerRef.current = null
-      }
-    }
-  }, [embedded, open])
-
-  useEffect(
-    () => () => {
-      if (confirmedExportTimerRef.current !== null) {
-        window.clearTimeout(confirmedExportTimerRef.current)
-      }
-    },
-    []
-  )
-
-  useEffect(() => {
-    if (!open) return
     let active = true
     setIsInspecting(true)
     setInspectError(false)
@@ -158,7 +90,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
     return () => {
       active = false
     }
-  }, [open, range])
+  }, [range])
 
   useEffect(() => {
     if (status === 'saved') revealButtonRef.current?.focus()
@@ -186,7 +118,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
   const effectiveIncludeTraces = includeTraces && tracesAvailable
   const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
   const includesSensitiveData = effectiveIncludeLogs || effectiveIncludeTraces || effectiveIncludeChatRecords
-  const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
+  const isInspectionPending = !inspectError && (isInspecting || inspectResult === null)
   const canExport = inspectResult !== null && !isInspectionPending && !inspectError && status !== 'saving'
   const hasInspectWarnings = inspectResult?.hasWarnings ?? false
   const hasSavedWarnings = savedResult?.hasWarnings ?? false
@@ -214,13 +146,11 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
     setConsent(false)
   }
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && status === 'saving') return
-    if (!nextOpen) {
-      setIsConfirmationOpen(false)
-      setConsent(false)
-    }
-    onOpenChange(nextOpen)
+  const handleClose = () => {
+    if (status === 'saving') return
+    setIsConfirmationOpen(false)
+    setConsent(false)
+    onClose()
   }
 
   const performExport = async () => {
@@ -273,16 +203,9 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
   }
 
   const handleConfirmedExport = () => {
-    if (!consent || confirmedExportTimerRef.current !== null) return
+    if (!consent) return
     setIsConfirmationOpen(false)
-    if (embedded) {
-      void performExport()
-      return
-    }
-    confirmedExportTimerRef.current = window.setTimeout(() => {
-      confirmedExportTimerRef.current = null
-      void performExport()
-    }, DIALOG_CLOSE_DURATION_MS)
+    void performExport()
   }
 
   const handleReveal = async () => {
@@ -331,31 +254,13 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
     value
   }))
 
-  const panel = (
-    <DiagnosticBundleFrame
-      embedded={embedded}
-      open={open}
-      dialogContentProps={{
-        size: 'xl',
-        className: 'grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0',
-        closeOnOverlayClick: status !== 'saving',
-        showCloseButton: status !== 'saving',
-        onEscapeKeyDown: (event) => {
-          if (status === 'saving') event.preventDefault()
-        }
-      }}>
-      {!embedded ? (
-        <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-          <DialogTitle>{t('settings.about.diagnostics.dialog.title')}</DialogTitle>
-          <DialogDescription>{t('settings.about.diagnostics.dialog.description')}</DialogDescription>
-        </DialogHeader>
-      ) : null}
-
+  return (
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
         <span className="sr-only" role="status">
           {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
         </span>
-        {embedded && isConfirmationOpen ? (
+        {isConfirmationOpen ? (
           <div className="space-y-4">
             <div className="space-y-2">
               <h3 ref={confirmationHeadingRef} tabIndex={-1} className="font-semibold text-base">
@@ -464,7 +369,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
       </Scrollbar>
 
       <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-        {embedded && isConfirmationOpen ? (
+        {isConfirmationOpen ? (
           <>
             <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
               {t('settings.about.diagnostics.actions.cancel')}
@@ -475,7 +380,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
           </>
         ) : status === 'saved' ? (
           <>
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            <Button variant="outline" onClick={handleClose}>
               {t('settings.about.diagnostics.actions.close')}
             </Button>
             <Button ref={revealButtonRef} variant="outline" onClick={() => void handleReveal()}>
@@ -493,7 +398,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
           </>
         ) : (
           <>
-            <Button variant="outline" disabled={status === 'saving'} onClick={() => handleOpenChange(false)}>
+            <Button variant="outline" disabled={status === 'saving'} onClick={handleClose}>
               {t('settings.about.diagnostics.actions.cancel')}
             </Button>
             <Button
@@ -511,77 +416,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
           </>
         )}
       </DialogFooter>
-    </DiagnosticBundleFrame>
-  )
-
-  return (
-    <>
-      {embedded ? (
-        panel
-      ) : (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-          {panel}
-        </Dialog>
-      )}
-
-      {!embedded ? (
-        <Dialog open={isConfirmationOpen} onOpenChange={handleConfirmationOpenChange}>
-          <DialogContent showCloseButton={false}>
-            <DialogHeader>
-              <DialogTitle>{t('settings.about.diagnostics.privacy.title')}</DialogTitle>
-              <DialogDescription className="leading-6">
-                {t('settings.about.diagnostics.privacy.description')}
-              </DialogDescription>
-            </DialogHeader>
-
-            <p className="text-muted-foreground text-sm leading-6">
-              {t('settings.about.diagnostics.limit', {
-                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
-              })}
-            </p>
-
-            <label className="flex cursor-pointer items-center gap-3 text-sm">
-              <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
-              <span>{t('settings.about.diagnostics.privacy.consent')}</span>
-            </label>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
-                {t('settings.about.diagnostics.actions.cancel')}
-              </Button>
-              <Button variant="emphasis" disabled={!consent} onClick={handleConfirmedExport}>
-                {t('settings.about.diagnostics.actions.export')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </>
+    </div>
   )
 }
 
-function DiagnosticBundleFrame({
-  children,
-  dialogContentProps,
-  embedded,
-  open
-}: {
-  readonly children: ReactNode
-  readonly dialogContentProps: React.ComponentProps<typeof DialogContent>
-  readonly embedded: boolean
-  readonly open: boolean
-}) {
-  if (embedded) {
-    return (
-      <div
-        hidden={!open}
-        className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden"
-        aria-hidden={!open}>
-        {children}
-      </div>
-    )
-  }
-  return <DialogContent {...dialogContentProps}>{children}</DialogContent>
-}
-
-export default DiagnosticBundleDialog
+export default DiagnosticBundlePanel

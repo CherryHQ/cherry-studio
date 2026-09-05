@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   showDoctor: vi.fn()
 }))
 
-vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
-  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -78,26 +78,34 @@ describe('AboutSettings diagnostics entry', () => {
     })
   })
 
-  it('places system diagnostics next to the debug panel and opens the shared Doctor', async () => {
+  it('indexes the visible system diagnostics row', async () => {
+    const { entries } = await import('../about.search')
+
+    const diagnosticsEntry = entries.find((entry) => entry.anchorId === 'diagnostics')
+    expect(diagnosticsEntry?.titleKey).toBe('settings.doctor.entry.title')
+    expect(diagnosticsEntry?.aliases).toEqual(expect.arrayContaining(['diagnostics', 'bundle', '诊断', '诊断包']))
+    expect(entries.some((entry) => entry.anchorId === 'debug-tools')).toBe(false)
+  })
+
+  it('opens system diagnostics without retaining a separate debug entry', async () => {
     const user = userEvent.setup()
     await renderAboutSettings()
 
-    const diagnostics = screen.getByRole('button', { name: 'settings.doctor.actions.run_basic' })
-    const debug = screen.getByRole('button', { name: 'settings.about.debug.open' })
-    const buttons = screen.getAllByRole('button')
-    expect(buttons.indexOf(debug)).toBe(buttons.indexOf(diagnostics) + 1)
+    const diagnostics = screen.getByRole('button', { name: 'settings.doctor.entry.button' })
+    expect(screen.queryByRole('button', { name: 'settings.about.debug.open' })).not.toBeInTheDocument()
 
     await user.click(diagnostics)
     expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks' })
   })
 
-  it('opens the existing feedback entry on the Doctor problem-report panel', async () => {
+  it('opens the feedback channel chooser without bypassing it', async () => {
     const user = userEvent.setup()
     await renderAboutSettings()
 
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.feedback.button' }))
 
-    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
+    expect(screen.getByRole('heading', { name: 'settings.about.feedback.dialog.title' })).toBeVisible()
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
   })
 })
 

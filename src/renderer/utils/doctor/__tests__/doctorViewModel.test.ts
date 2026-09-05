@@ -1,10 +1,11 @@
 import type { DoctorAction, DoctorCheckResult, DoctorReport, DoctorState } from '@shared/types/doctor'
-import { DOCTOR_CHECK_IDS } from '@shared/types/doctor'
+import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
 import { describe, expect, it } from 'vitest'
 
 import { buildDoctorViewModel, defaultExpandedDoctorDomains } from '../doctorViewModel'
 
 const NOW = Date.parse('2026-09-04T09:00:00.000Z')
+const QUICK_CHECK_IDS = DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick')
 
 function result(
   id: DoctorCheckResult['id'],
@@ -60,7 +61,6 @@ describe('buildDoctorViewModel', () => {
 
     const viewModel = buildDoctorViewModel(state, NOW)
 
-    expect(viewModel.rows).toHaveLength(26)
     expect(viewModel.rows.map((row) => row.id)).toEqual(DOCTOR_CHECK_IDS)
     expect(viewModel.rows[0]).toMatchObject({ id: 'install-version-channel', status: 'pass' })
     expect(viewModel.rows[1]).toMatchObject({ id: 'install-update-available', status: 'pending' })
@@ -78,7 +78,7 @@ describe('buildDoctorViewModel', () => {
 
     const viewModel = buildDoctorViewModel(state, NOW)
 
-    expect(viewModel.rows).toHaveLength(18)
+    expect(viewModel.rows.map((row) => row.id)).toEqual(QUICK_CHECK_IDS)
     expect(viewModel.rows.every((row) => row.status === 'pending')).toBe(true)
     expect(viewModel.rows.some((row) => row.id === 'install-update-available')).toBe(false)
     expect(viewModel.canCancel).toBe(false)
@@ -142,6 +142,17 @@ describe('buildDoctorViewModel', () => {
     expect(viewModel.rows.map((row) => row.id)).toEqual(['network-online', 'logs-recent-findings'])
     expect(viewModel.problemCount).toBe(0)
     expect(viewModel.summary).toMatchObject({ error: 1, skip: 1 })
+  })
+
+  it('does not mark a group as passing when one of its checks was skipped', () => {
+    const state: DoctorState = {
+      status: 'completed',
+      report: report([result('network-online', 'pass'), result('network-dns-resolution', 'skip')])
+    }
+
+    const viewModel = buildDoctorViewModel(state, NOW)
+
+    expect(viewModel.groups.find((group) => group.domain === 'network')?.status).toBe('neutral')
   })
 
   it('normalizes completed results to catalog order and classifies every summary item once', () => {

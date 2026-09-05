@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +46,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import DiagnosticBundleDialog from '@renderer/components/feedback/DiagnosticBundleDialog'
+import DiagnosticBundlePanel from '@renderer/components/feedback/DiagnosticBundlePanel'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
@@ -74,22 +74,21 @@ const chatRecordsSwitchName = /^settings\.about\.diagnostics\.sources\.chat_reco
 const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title /
 const tracesSwitchName = /^settings\.about\.diagnostics\.sources\.traces\.title /
 
-function renderDialog() {
-  render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={vi.fn()} />)
+function renderPanel() {
+  render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
 }
 
 async function confirmSensitiveExport(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
-  const confirmation = screen.getAllByRole('dialog').at(-1)!
-  const checkbox = within(confirmation).getByRole('checkbox')
-  const confirmButton = within(confirmation).getByRole('button', {
+  const checkbox = screen.getByRole('checkbox')
+  const confirmButton = screen.getByRole('button', {
     name: 'settings.about.diagnostics.actions.export'
   })
   await user.click(checkbox)
   await user.click(confirmButton)
 }
 
-describe('DiagnosticBundleDialog', () => {
+describe('DiagnosticBundlePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('electron', { process: { platform: 'darwin' } })
@@ -100,9 +99,9 @@ describe('DiagnosticBundleDialog', () => {
     })
   })
 
-  it('keeps sensitive-source confirmation inline when embedded in Doctor', async () => {
+  it('keeps sensitive-source confirmation inline', async () => {
     const user = userEvent.setup()
-    render(<DiagnosticBundleDialog appVersion="2.0.0" embedded open onOpenChange={vi.fn()} />)
+    render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
@@ -118,7 +117,7 @@ describe('DiagnosticBundleDialog', () => {
 
   it('shows sensitive data confirmation only after export is requested', async () => {
     const user = userEvent.setup()
-    renderDialog()
+    renderPanel()
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
     expect(screen.getByRole('switch', { name: logsSwitchName })).toBeChecked()
@@ -132,13 +131,12 @@ describe('DiagnosticBundleDialog', () => {
     expect(exportButton).toBeEnabled()
     await user.click(exportButton)
 
-    const confirmation = screen.getAllByRole('dialog').at(-1)!
-    expect(within(confirmation).getByText('settings.about.diagnostics.privacy.title')).toBeInTheDocument()
-    const checkbox = within(confirmation).getByRole('checkbox')
+    expect(screen.getByText('settings.about.diagnostics.privacy.title')).toBeInTheDocument()
+    const checkbox = screen.getByRole('checkbox')
     // Alignment is the regression contract: the consent control and its label share one vertical center.
     expect(checkbox.closest('label')).toHaveClass('items-center')
     expect(checkbox).not.toHaveClass('mt-0.5')
-    const confirmButton = within(confirmation).getByRole('button', {
+    const confirmButton = screen.getByRole('button', {
       name: 'settings.about.diagnostics.actions.export'
     })
     expect(confirmButton).toBeDisabled()
@@ -160,7 +158,7 @@ describe('DiagnosticBundleDialog', () => {
 
   it('requires consent and exports chat history when it is the only selected sensitive source', async () => {
     const user = userEvent.setup()
-    renderDialog()
+    renderPanel()
 
     await screen.findByText('settings.about.diagnostics.sources.chat_records.title')
     await user.click(screen.getByRole('switch', { name: logsSwitchName }))
@@ -168,11 +166,10 @@ describe('DiagnosticBundleDialog', () => {
     await user.click(screen.getByRole('switch', { name: chatRecordsSwitchName }))
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
-    const confirmation = screen.getAllByRole('dialog').at(-1)!
-    const consent = within(confirmation).getByRole('checkbox')
+    const consent = screen.getByRole('checkbox')
     expect(consent).not.toBeChecked()
     await user.click(consent)
-    await user.click(within(confirmation).getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.export', {
@@ -186,7 +183,7 @@ describe('DiagnosticBundleDialog', () => {
 
   it('reveals the saved file without embedding its local path in the support email', async () => {
     const user = userEvent.setup()
-    renderDialog()
+    renderPanel()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
     await confirmSensitiveExport(user)
     await screen.findByText('settings.about.diagnostics.success.title')
@@ -232,7 +229,7 @@ describe('DiagnosticBundleDialog', () => {
       if (route === 'diagnostics.bundle.export') return { status: 'canceled' }
       return undefined
     })
-    renderDialog()
+    renderPanel()
 
     await waitFor(() => expect(screen.getByRole('switch', { name: logsSwitchName })).toBeDisabled())
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -259,7 +256,7 @@ describe('DiagnosticBundleDialog', () => {
       }
       return undefined
     })
-    renderDialog()
+    renderPanel()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
 
     await confirmSensitiveExport(user)
@@ -279,14 +276,13 @@ describe('DiagnosticBundleDialog', () => {
       }
       return undefined
     })
-    renderDialog()
+    renderPanel()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
 
     const exportButton = screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
     await user.click(exportButton)
-    const confirmation = screen.getAllByRole('dialog').at(-1)!
-    const consent = within(confirmation).getByRole('checkbox')
-    const confirmButton = within(confirmation).getByRole('button', {
+    const consent = screen.getByRole('checkbox')
+    const confirmButton = screen.getByRole('button', {
       name: 'settings.about.diagnostics.actions.export'
     })
     await user.click(consent)
@@ -300,11 +296,8 @@ describe('DiagnosticBundleDialog', () => {
     await waitFor(() => expect(exportButton).toBeEnabled())
 
     await user.click(exportButton)
-    const nextConfirmation = screen.getAllByRole('dialog').at(-1)!
-    expect(within(nextConfirmation).getByRole('checkbox')).not.toBeChecked()
-    expect(
-      within(nextConfirmation).getByRole('button', { name: 'settings.about.diagnostics.actions.export' })
-    ).toBeDisabled()
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toBeDisabled()
   })
 
   it('falls back to copying the support email when no mail client can be opened', async () => {
@@ -316,7 +309,7 @@ describe('DiagnosticBundleDialog', () => {
       if (route === 'system.shell.open_website') throw new Error('No mail client')
       return undefined
     })
-    renderDialog()
+    renderPanel()
     await screen.findByText('settings.about.diagnostics.sources.logs.title')
     await confirmSensitiveExport(user)
     await screen.findByText('settings.about.diagnostics.success.title')

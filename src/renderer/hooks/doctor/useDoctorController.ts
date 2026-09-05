@@ -5,6 +5,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { buildDoctorViewModel, defaultExpandedDoctorDomains, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
@@ -19,14 +20,12 @@ import type { UpdateInfo } from 'builder-util-runtime'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DOCTOR_CHECK_CONTENT } from './doctorContent'
 import {
   createDoctorSession,
   type DoctorInteraction,
   type DoctorPanel,
   doctorSessionReducer
 } from './doctorSessionReducer'
-import { buildDoctorViewModel, defaultExpandedDoctorDomains } from './doctorViewModel'
 
 const logger = loggerService.withContext('DoctorController')
 const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }

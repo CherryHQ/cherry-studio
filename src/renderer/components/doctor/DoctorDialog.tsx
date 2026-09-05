@@ -1,5 +1,6 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import type { DiagnosticUploadDialogHandle } from '@renderer/components/feedback/DiagnosticUploadDialog'
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
+import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
+import { type DoctorPanel, useDoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -11,13 +12,11 @@ import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
-import type { DoctorPanel } from './doctorSessionReducer'
-import { useDoctorController } from './useDoctorController'
 
-const DiagnosticBundleDialog = lazy(() => import('@renderer/components/feedback/DiagnosticBundleDialog'))
-const DiagnosticUploadDialog = lazy(() =>
-  import('@renderer/components/feedback/DiagnosticUploadDialog').then((module) => ({
-    default: module.DiagnosticUploadDialog
+const DiagnosticBundlePanel = lazy(() => import('@renderer/components/feedback/DiagnosticBundlePanel'))
+const DiagnosticUploadPanel = lazy(() =>
+  import('@renderer/components/feedback/DiagnosticUploadPanel').then((module) => ({
+    default: module.DiagnosticUploadPanel
   }))
 )
 const logger = loggerService.withContext('DoctorDialog')
@@ -36,7 +35,7 @@ type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, 
 
 export function DoctorDialog({ initialDescription, initialPanel, open, resolve }: DoctorDialogProps) {
   const { t } = useTranslation()
-  const reportPanelRef = useRef<DiagnosticUploadDialogHandle>(null)
+  const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
 
   const finishHandoff = useCallback(
@@ -117,20 +116,23 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
         closeLabel={t('common.close')}
         closeOnOverlayClick={!controller.isCloseBlocked}
         showCloseButton={!controller.isCloseBlocked}
-        className="grid h-[min(760px,calc(100vh-2rem))] max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
         onEscapeKeyDown={(event) => {
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
         <DialogHeader className="flex-row items-start gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
           {controller.session.activePanel !== 'checks' ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!controller.canChangePanel}
-              onClick={() => void returnToChecks()}>
-              <ArrowLeft className="size-4" />
-              {t('settings.doctor.actions.back_to_checks')}
-            </Button>
+            <Tooltip content={t('settings.doctor.actions.back_to_checks')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('settings.doctor.actions.back_to_checks')}
+                disabled={!controller.canChangePanel}
+                onClick={() => void returnToChecks()}>
+                <ArrowLeft className="size-4" aria-hidden />
+              </Button>
+            </Tooltip>
           ) : null}
           <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{t('settings.doctor.title')}</DialogTitle>
@@ -144,26 +146,22 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
 
         {controller.session.activePanel === 'export' ? (
           <Suspense fallback={<PanelLoading />}>
-            <DiagnosticBundleDialog
+            <DiagnosticBundlePanel
               appVersion={controller.viewModel.report?.basics.version ?? ''}
-              embedded
-              open
               onBusyChange={setBundleBusy}
-              onOpenChange={(nextOpen) => !nextOpen && controller.setPanel('checks')}
+              onClose={() => controller.setPanel('checks')}
             />
           </Suspense>
         ) : null}
 
         {controller.session.activePanel === 'report' ? (
           <Suspense fallback={<PanelLoading />}>
-            <DiagnosticUploadDialog
+            <DiagnosticUploadPanel
               ref={reportPanelRef}
               description={controller.session.descriptionDraft}
-              embedded
-              open
               onBusyChange={setReportBusy}
               onDescriptionChange={controller.setDescription}
-              onOpenChange={(nextOpen) => !nextOpen && controller.setPanel('checks')}
+              onClose={() => controller.setPanel('checks')}
             />
           </Suspense>
         ) : null}

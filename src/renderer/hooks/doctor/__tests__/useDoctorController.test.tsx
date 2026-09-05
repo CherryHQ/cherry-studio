@@ -59,7 +59,10 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) =>
+      key === 'settings.doctor.report.check_description' ? `${String(values?.title)} [${String(values?.checkId)}]` : key
+  })
 }))
 
 import { useDoctorController } from '../useDoctorController'
@@ -249,18 +252,7 @@ describe('useDoctorController', () => {
     expect(mocks.request.mock.calls.some(([route]) => String(route).startsWith('diagnostics.bundle.'))).toBe(false)
   })
 
-  it('initializes an empty report draft from only the localized check title and public ID', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
-    const { result } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', onInstallUpdate: vi.fn(), onNavigate: vi.fn() })
-    )
-
-    await act(async () => result.current.executeAction('install-native-modules', { kind: 'report' }))
-
-    expect(result.current.session.descriptionDraft).toBe('settings.doctor.report.check_description')
-  })
-
-  it('hands a report action to an embedded host without changing panels', async () => {
+  it('hands an empty report draft to an embedded host using only public check identity', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const onReportProblem = vi.fn()
     const { result } = renderHook(() =>
@@ -274,7 +266,9 @@ describe('useDoctorController', () => {
 
     await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-1'))
 
-    expect(onReportProblem).toHaveBeenCalledWith('settings.doctor.report.check_description')
+    expect(onReportProblem).toHaveBeenCalledWith(
+      'settings.doctor.checks.logs-recent-findings.title [logs-recent-findings]'
+    )
     expect(result.current.session.activePanel).toBe('checks')
   })
 

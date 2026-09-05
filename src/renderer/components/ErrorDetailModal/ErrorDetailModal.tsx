@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
-import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
+import { DoctorPopup } from '@renderer/components/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { loggerService } from '@renderer/services/LoggerService'

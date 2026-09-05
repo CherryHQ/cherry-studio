@@ -1,7 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
-import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useTabs } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -21,7 +20,7 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -36,6 +35,8 @@ import {
 } from '../Sidebar'
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
+
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
 export default function Sidebar({
   ref,
@@ -80,6 +81,8 @@ export default function Sidebar({
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -210,7 +213,8 @@ export default function Sidebar({
     openSettingsTab()
   }, [])
   const handleOpenFeedback = useCallback(() => {
-    void DoctorPopup.show({ initialPanel: 'report' })
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
@@ -393,6 +397,11 @@ export default function Sidebar({
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

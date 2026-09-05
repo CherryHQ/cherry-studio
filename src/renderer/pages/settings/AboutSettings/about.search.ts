@@ -14,13 +14,8 @@ export const entries: SettingsSearchEntry[] = [
   },
   {
     anchorId: 'diagnostics',
-    titleKey: 'settings.about.diagnostics.entry.title',
+    titleKey: 'settings.doctor.entry.title',
     groupKey: 'settings.about.label',
-    aliases: ['diagnostics', '诊断']
-  },
-  {
-    anchorId: 'debug-tools',
-    titleKey: 'settings.about.debug.title',
-    groupKey: 'settings.about.label'
+    aliases: ['diagnostics', 'bundle', '诊断', '诊断包']
   }
 ]

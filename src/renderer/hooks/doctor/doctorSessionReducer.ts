@@ -1,6 +1,5 @@
+import type { DisplayedDoctorDomain } from '@renderer/utils/doctor'
 import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorRunTier } from '@shared/types/doctor'
-
-import type { DisplayedDoctorDomain } from './doctorViewModel'
 
 export type DoctorPanel = 'checks' | 'export' | 'report'
 

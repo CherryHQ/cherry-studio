@@ -10,7 +10,8 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
+import { DoctorPopup } from '@renderer/components/doctor'
+import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
@@ -34,7 +35,6 @@ import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
   Briefcase,
-  Bug,
   Building2,
   Github,
   Globe,
@@ -54,6 +54,7 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
@@ -97,10 +98,6 @@ const AboutSettings: FC = () => {
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
-  }
-
-  const debug = async () => {
-    await ipcApi.request('system.toggle_dev_tools')
   }
 
   const showEnterprise = async () => {
@@ -344,9 +341,9 @@ const AboutSettings: FC = () => {
         <Divider className="my-3" />
         <AboutActionRow
           icon={<MessageSquareText className="size-4.5" />}
-          title={t('settings.doctor.panels.report')}
-          actionLabel={t('settings.doctor.actions.report_problem')}
-          onAction={() => void DoctorPopup.show({ initialPanel: 'report' })}
+          title={t('settings.about.feedback.title')}
+          actionLabel={t('settings.about.feedback.button')}
+          onAction={() => setFeedbackOpen(true)}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -374,18 +371,11 @@ const AboutSettings: FC = () => {
           id="setting-about-diagnostics"
           icon={<Stethoscope className="size-4.5" />}
           title={t('settings.doctor.entry.title')}
-          actionLabel={t('settings.doctor.actions.run_basic')}
+          actionLabel={t('settings.doctor.entry.button')}
           onAction={() => void DoctorPopup.show({ initialPanel: 'checks' })}
         />
-        <Divider className="my-3" />
-        <AboutActionRow
-          id="setting-about-debug-tools"
-          icon={<Bug className="size-4.5" />}
-          title={t('settings.about.debug.title')}
-          actionLabel={t('settings.about.debug.open')}
-          onAction={debug}
-        />
       </SettingGroup>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )
 }

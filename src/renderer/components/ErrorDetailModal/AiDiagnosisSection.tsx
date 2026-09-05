@@ -3,14 +3,10 @@ import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { ChevronDown, CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
-
-export interface AiDiagnosisSectionHandle {
-  runDiagnosis: () => void
-}
 
 const AiDiagnosisSectionWithStatus = memo(
   ({
@@ -20,8 +16,7 @@ const AiDiagnosisSectionWithStatus = memo(
     diagnosisContext,
     blockId,
     onDiagnosisComplete,
-    cachedDiagnosis,
-    ref
+    cachedDiagnosis
   }: {
     error?: SerializedError
     status: 'idle' | 'loading' | 'done' | 'error'
@@ -30,7 +25,6 @@ const AiDiagnosisSectionWithStatus = memo(
     blockId?: string
     onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
     cachedDiagnosis?: DiagnosisResult
-    ref?: React.Ref<AiDiagnosisSectionHandle>
   }) => {
     const { t, i18n } = useTranslation()
     const [result, setResult] = useState<DiagnosisResult | null>(cachedDiagnosis ?? null)
@@ -76,18 +70,16 @@ const AiDiagnosisSectionWithStatus = memo(
       }
     }, [error, i18n.language, onStatusChange, diagnosisContext, blockId, onDiagnosisComplete, t])
 
-    React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
-
     if (status === 'done' && result) {
       return (
         <details
-          className="group rounded-xl border border-border bg-background p-4"
+          className="group rounded-xl border border-border bg-background p-4 text-foreground"
           role="status"
           aria-live="polite"
           aria-atomic="true">
           <summary
             aria-label={t('error.diagnosis.ai_result')}
-            className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
             <span className="flex min-w-0 flex-wrap items-center gap-2">
               <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
               <span className="font-medium text-sm">{t('error.diagnosis.ai_button')}</span>
@@ -97,7 +89,9 @@ const AiDiagnosisSectionWithStatus = memo(
             </span>
             <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
               {t('error.diagnosis.view_details')}
-              <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+              <span className="inline-flex motion-safe:transition-transform motion-safe:group-open:rotate-180">
+                <ChevronDown className="size-4" aria-hidden />
+              </span>
             </span>
           </summary>
           <div className="mt-3 space-y-2 border-border border-t pt-3 text-muted-foreground text-sm leading-6">
@@ -105,8 +99,8 @@ const AiDiagnosisSectionWithStatus = memo(
             {result.steps.length > 0 ? (
               <ol className="space-y-1.5">
                 {result.steps.map((step, index) => (
-                  <li key={`${index}-${step.text}`} className="flex gap-2 rounded-md bg-secondary px-2.5 py-1.5">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+                  <li key={`${index}-${step.text}`} className="flex gap-2 px-2.5 py-1.5">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
                       {index + 1}
                     </span>
                     <span>{step.text}</span>
@@ -121,13 +115,15 @@ const AiDiagnosisSectionWithStatus = memo(
 
     return (
       <div
-        className="rounded-xl border border-border bg-background p-4"
+        className="rounded-xl border border-border bg-background p-4 text-foreground"
         role={status === 'error' ? 'alert' : 'status'}
         aria-live="polite"
         aria-atomic="true">
         <div className="flex flex-wrap items-center gap-2">
           {status === 'loading' ? (
-            <Loader2 className="size-4 shrink-0 text-primary motion-safe:animate-spin" aria-hidden />
+            <span className="inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
+              <Loader2 className="size-4 text-primary" />
+            </span>
           ) : status === 'done' ? (
             <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
           ) : status === 'error' ? (

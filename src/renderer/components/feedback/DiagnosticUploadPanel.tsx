@@ -1,17 +1,4 @@
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Scrollbar,
-  SegmentedControl,
-  Switch,
-  Textarea
-} from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DialogFooter, Scrollbar, SegmentedControl, Switch, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -25,11 +12,11 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('DiagnosticUploadDialog')
+const logger = loggerService.withContext('DiagnosticUploadPanel')
 const RANGE_OPTIONS = [
   { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
   { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
@@ -45,41 +32,30 @@ function discardRetainedUpload(bundleId: string) {
   return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
 }
 
-interface DiagnosticUploadDialogProps {
-  readonly description?: string
-  readonly embedded?: boolean
-  readonly fixedRange?: DiagnosticRange
-  readonly initialDescription?: string
+interface DiagnosticUploadPanelProps {
+  readonly description: string
   readonly onBusyChange?: (busy: boolean) => void
-  readonly onDescriptionChange?: (description: string) => void
-  readonly onOpenChange: (open: boolean) => void
-  readonly open: boolean
+  readonly onClose: () => void
+  readonly onDescriptionChange: (description: string) => void
 }
 
-export interface DiagnosticUploadDialogHandle {
+export interface DiagnosticUploadPanelHandle {
   readonly requestClose: () => Promise<boolean>
 }
 
-export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
+export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   ref,
-  description: controlledDescription,
-  embedded = false,
-  fixedRange,
-  initialDescription,
+  description,
   onBusyChange,
-  onDescriptionChange,
-  onOpenChange,
-  open
-}: DiagnosticUploadDialogProps & { ref?: React.RefObject<DiagnosticUploadDialogHandle | null> }) {
+  onClose,
+  onDescriptionChange
+}: DiagnosticUploadPanelProps & { ref?: React.RefObject<DiagnosticUploadPanelHandle | null> }) {
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
-  const effectiveRange = fixedRange ?? selectedRange
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
   const [includeChatRecords, setIncludeChatRecords] = useState(false)
-  const [internalDescription, setInternalDescription] = useState(initialDescription ?? '')
-  const description = controlledDescription ?? internalDescription
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
@@ -107,12 +83,11 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
   }, [])
 
   useEffect(() => {
-    if (!open) return
     let active = true
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
-      .request('diagnostics.bundle.inspect', { range: effectiveRange })
+      .request('diagnostics.bundle.inspect', { range: selectedRange })
       .then((inspection) => {
         if (active) setInspectResult(inspection)
       })
@@ -128,15 +103,11 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
     return () => {
       active = false
     }
-  }, [effectiveRange, open])
+  }, [selectedRange])
 
   useEffect(() => {
     if (result) primaryActionRef.current?.focus()
   }, [result])
-
-  useEffect(() => {
-    if (!open) setHasAttemptedSubmit(false)
-  }, [open])
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
@@ -144,7 +115,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
   const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
-  const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
+  const isInspectionPending = !inspectError && (isInspecting || inspectResult === null)
   const normalizedDescription = description.trim()
   const descriptionValid =
     normalizedDescription.length > 0 &&
@@ -157,8 +128,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
 
   const changeDescription = (nextDescription: string) => {
-    setInternalDescription(nextDescription)
-    onDescriptionChange?.(nextDescription)
+    onDescriptionChange(nextDescription)
   }
 
   const requestClose = useCallback(async () => {
@@ -180,15 +150,11 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
         if (mountedRef.current) setOperationStatus('idle')
       }
     }
-    onOpenChange(false)
+    onClose()
     return true
-  }, [isBusy, onOpenChange, retainedBundleId, t])
+  }, [isBusy, onClose, retainedBundleId, t])
 
   useImperativeHandle(ref, () => ({ requestClose }), [requestClose])
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) void requestClose()
-  }
 
   const openManualForm = async () => {
     try {
@@ -235,7 +201,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
         includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range: effectiveRange
+        range: selectedRange
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
@@ -294,25 +260,8 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
     value
   }))
 
-  const panel = (
-    <DiagnosticUploadFrame
-      embedded={embedded}
-      open={open}
-      dialogContentProps={{
-        size: 'xl',
-        className: 'grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0',
-        closeOnOverlayClick: !isBusy,
-        showCloseButton: !isBusy,
-        onEscapeKeyDown: (event) => {
-          if (isBusy) event.preventDefault()
-        }
-      }}>
-      {!embedded ? (
-        <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-          <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
-        </DialogHeader>
-      ) : null}
-
+  return (
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
         <span className="sr-only" role="status" aria-live="polite">
           {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
@@ -346,21 +295,19 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
               ) : null}
             </section>
 
-            {fixedRange === undefined ? (
-              <section className="space-y-2">
-                <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                <SegmentedControl<DiagnosticRange>
-                  value={selectedRange}
-                  onValueChange={(nextRange) => {
-                    setSelectedRange(nextRange)
-                    setInspectResult(null)
-                    setAcknowledged(false)
-                  }}
-                  options={rangeOptions}
-                  disabled={isBusy}
-                />
-              </section>
-            ) : null}
+            <section className="space-y-2">
+              <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+              <SegmentedControl<DiagnosticRange>
+                value={selectedRange}
+                onValueChange={(nextRange) => {
+                  setSelectedRange(nextRange)
+                  setInspectResult(null)
+                  setAcknowledged(false)
+                }}
+                options={rangeOptions}
+                disabled={isBusy}
+              />
+            </section>
 
             <section className="divide-y divide-border rounded-xl border border-border">
               <SourceRow
@@ -440,7 +387,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
             <Button
               ref={result.status === 'uploaded' ? primaryActionRef : undefined}
               variant={retainedBundleId ? 'destructive' : 'outline'}
-              onClick={() => handleOpenChange(false)}>
+              onClick={() => void requestClose()}>
               {t(retainedBundleId ? 'common.delete' : 'settings.about.diagnostics.actions.close')}
             </Button>
             {result.status !== 'uploaded' && retainedBundleId ? (
@@ -461,7 +408,7 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
           </>
         ) : (
           <>
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            <Button variant="outline" onClick={() => void requestClose()}>
               {t('settings.about.diagnostics.actions.cancel')}
             </Button>
             <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
@@ -470,40 +417,8 @@ export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
           </>
         )}
       </DialogFooter>
-    </DiagnosticUploadFrame>
+    </div>
   )
-
-  return embedded ? (
-    panel
-  ) : (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {panel}
-    </Dialog>
-  )
-}
-
-function DiagnosticUploadFrame({
-  children,
-  dialogContentProps,
-  embedded,
-  open
-}: {
-  readonly children: ReactNode
-  readonly dialogContentProps: React.ComponentProps<typeof DialogContent>
-  readonly embedded: boolean
-  readonly open: boolean
-}) {
-  if (embedded) {
-    return (
-      <div
-        hidden={!open}
-        className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden"
-        aria-hidden={!open}>
-        {children}
-      </div>
-    )
-  }
-  return <DialogContent {...dialogContentProps}>{children}</DialogContent>
 }
 
 function UploadResultContent({
@@ -602,4 +517,4 @@ function SourceRow({
   )
 }
 
-export default DiagnosticUploadDialog
+export default DiagnosticUploadPanel

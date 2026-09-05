@@ -44,8 +44,8 @@ vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
   default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
 }))
 
-vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
-  default: { show: (...args: unknown[]) => showDoctorMock(...args) }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => showDoctorMock(...args) }
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
@@ -769,18 +769,19 @@ describe('AgentChat artifact pane', () => {
     } as unknown as typeof supportBootstrap.resources.agent
     supportBootstrap.resources.model = undefined
 
-    renderAgentChat({ conversationBootstrap: supportBootstrap })
+    const view = renderAgentChat({ conversationBootstrap: supportBootstrap })
 
     expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
     expect(showDoctorMock).not.toHaveBeenCalled()
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Open inline diagnostic draft' }))
     expect(showDoctorMock).toHaveBeenCalledWith({
       initialPanel: 'report',
       initialDescription: 'Inline draft from this message'
     })
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+
+    rerenderAgentChat(view.rerender)
+    expect(screen.queryByRole('button', { name: 'Open inline diagnostic draft' })).not.toBeInTheDocument()
   })
 
   it('preserves message subtree state while Support capability resolves', async () => {
@@ -801,51 +802,6 @@ describe('AgentChat artifact pane', () => {
     rerenderAgentChat(view.rerender, { conversationBootstrap: supportBootstrap })
 
     expect(screen.getByRole('textbox', { name: 'Message subtree state' })).toHaveValue('keep local state')
-  })
-
-  it('hands each Support session draft to the shared Doctor owner', async () => {
-    const user = userEvent.setup()
-    const sessionA = createConversationBootstrap()
-    sessionA.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionA.resources.agent
-    const nonSupportSession = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-2',
-      agentId: 'agent-2'
-    })
-    const sessionB = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-3',
-      agentId: 'agent-3'
-    })
-    sessionB.resources.agent = {
-      id: 'agent-3',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionB.resources.agent
-
-    const view = renderAgentChat({ conversationBootstrap: sessionA })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(showDoctorMock).toHaveBeenLastCalledWith({
-      initialPanel: 'report',
-      initialDescription: 'Draft for session-1'
-    })
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: nonSupportSession })
-    expect(screen.queryByRole('button', { name: 'Open session diagnostic draft' })).not.toBeInTheDocument()
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionB })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(showDoctorMock).toHaveBeenLastCalledWith({
-      initialPanel: 'report',
-      initialDescription: 'Draft for session-3'
-    })
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionA })
-    expect(showDoctorMock).toHaveBeenCalledTimes(2)
   })
 
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {

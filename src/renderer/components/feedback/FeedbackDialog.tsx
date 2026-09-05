@@ -14,7 +14,7 @@ import {
   ItemTitle
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
+import { DoctorPopup } from '@renderer/components/doctor'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS } from '@renderer/services/popup'

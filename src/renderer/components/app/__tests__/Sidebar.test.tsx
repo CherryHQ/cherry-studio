@@ -490,7 +490,7 @@ describe('app Sidebar', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
-  it('hands problem reporting to the shared Doctor before the floating sidebar closes', async () => {
+  it('opens the feedback channel chooser from the floating sidebar without bypassing it', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 0
     render(<Sidebar />)
@@ -499,12 +499,13 @@ describe('app Sidebar', () => {
     const floatingSidebar = screen.getByTestId('floating-sidebar')
     await user.click(within(floatingSidebar).getByTestId('sidebar-feedback-full'))
 
-    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
+    expect(await screen.findByRole('heading', { name: 'settings.about.feedback.dialog.title' })).toBeVisible()
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
 
     await user.click(within(floatingSidebar).getByRole('button', { name: 'dismiss' }))
 
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
-    expect(mocks.showDoctor).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('heading', { name: 'settings.about.feedback.dialog.title' })).toBeVisible()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

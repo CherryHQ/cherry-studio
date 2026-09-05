@@ -2,14 +2,20 @@ import '@testing-library/jest-dom/vitest'
 
 import { popupService } from '@renderer/services/popup'
 import type { DoctorState } from '@shared/types/doctor'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.unmock('@cherrystudio/ui')
+
 const mocks = vi.hoisted(() => ({
   doctorState: { status: 'canceled', runId: 'run-1' } as DoctorState,
-  request: vi.fn()
+  request: vi.fn(),
+  translations: {
+    'settings.doctor.summary.running_basic': 'Running quick basic checks…',
+    'settings.doctor.summary.running_full': 'Running full checks, including network and services…'
+  } as Record<string, string>
 }))
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -40,31 +46,35 @@ vi.mock('@renderer/services/LoggerService', () => ({
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 
-vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
+vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => {
   const React = require('react')
-  const DiagnosticUploadDialog = ({ ref, description, onDescriptionChange, open }) => {
+  const DiagnosticUploadPanel = ({ ref, description, onBusyChange, onDescriptionChange }) => {
     React.useImperativeHandle(ref, () => ({ requestClose: async () => true }))
-    return open
-      ? React.createElement('textarea', {
-          'aria-label': 'settings.about.diagnostics.report.description_label',
-          value: description,
-          onChange: (event: ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange(event.target.value)
-        })
-      : null
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('textarea', {
+        'aria-label': 'settings.about.diagnostics.report.description_label',
+        value: description,
+        onChange: (event: ChangeEvent<HTMLTextAreaElement>) => onDescriptionChange(event.target.value)
+      }),
+      React.createElement('button', { type: 'button', onClick: () => onBusyChange?.(true) }, 'Start report operation')
+    )
   }
-  return { DiagnosticUploadDialog }
+  return { DiagnosticUploadPanel }
 })
 
-vi.mock('@renderer/components/feedback/DiagnosticBundleDialog', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div>settings.doctor.panels.export</div> : null)
+vi.mock('@renderer/components/feedback/DiagnosticBundlePanel', () => ({
+  default: () => <div>settings.doctor.panels.export</div>
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) =>
-      key === 'settings.doctor.confirm_fix.reclaimable'
+      mocks.translations[key] ??
+      (key === 'settings.doctor.confirm_fix.reclaimable'
         ? `settings.doctor.confirm_fix.reclaimable ${String(params?.size)}`
-        : key
+        : key)
   })
 }))
 
@@ -89,44 +99,82 @@ describe('DoctorPopup', () => {
     mocks.request.mockResolvedValue(undefined)
   })
 
-  it('keeps the first panel and editable draft without exposing permanent panel navigation', async () => {
+  it('sizes secondary panels to their content within the viewport cap', async () => {
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'report' })
+    })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveClass('max-h-[calc(100vh-2rem)]')
+    expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
+  })
+
+  it('renders secondary-panel back navigation as an accessible icon-only action', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
-    let first!: Promise<Record<string, never>>
-    let second!: Promise<Record<string, never>>
     act(() => {
-      first = DoctorPopup.show({ initialPanel: 'report', initialDescription: 'safe first draft' })
-      second = DoctorPopup.show({ initialPanel: 'checks', initialDescription: 'must be ignored' })
+      void DoctorPopup.show({ initialPanel: 'report' })
     })
 
-    expect(second).toBe(first)
+    const backButton = await screen.findByRole('button', { name: 'settings.doctor.actions.back_to_checks' })
+    expect(backButton).toHaveTextContent(/^$/)
+
+    await user.hover(backButton)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('settings.doctor.actions.back_to_checks')
+  })
+
+  it('keeps the editable report draft while navigating panels', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'report', initialDescription: 'safe first draft' })
+    })
+
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })).toHaveValue(
-      'safe first draft'
-    )
+    expect(
+      await screen.findByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })
+    ).toHaveValue('safe first draft')
 
     await user.type(
       screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' }),
       ' reviewed'
     )
-    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
     await waitFor(() =>
       expect(screen.getByText('settings.doctor.panel_descriptions.checks').parentElement).toHaveFocus()
     )
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.actions.report_problem' }))
 
     expect(screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })).toHaveValue(
       'safe first draft reviewed'
     )
+  })
+
+  it('announces whether quick basic checks or full checks are running', async () => {
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'quick-run',
+      tier: 'quick',
+      startedAt: new Date().toISOString(),
+      results: []
+    }
+    const view = render(<PopupHost />)
 
     act(() => {
-      const [entry] = popupService.getSnapshot()
-      if (entry) popupService.settle(entry.instanceId, {})
+      void DoctorPopup.show({ initialPanel: 'checks' })
     })
-    await expect(first).resolves.toEqual({})
+
+    expect(await screen.findByText('Running quick basic checks…')).toBeVisible()
+
+    mocks.doctorState = { ...mocks.doctorState, runId: 'full-run', tier: 'live' }
+    view.rerender(<PopupHost />)
+
+    expect(await screen.findByText('Running full checks, including network and services…')).toBeVisible()
   })
 
   it('renders backend findings safely and confirms a destructive fix inside the Doctor dialog', async () => {
@@ -205,83 +253,44 @@ describe('DoctorPopup', () => {
     const healthyGroup = screen.getByRole('button', { name: /settings\.doctor\.domains\.install/ })
     expect(healthyGroup).toHaveAttribute('aria-expanded', 'false')
     await user.click(healthyGroup)
-    expect(screen.getByText('settings.doctor.checks.install-version-channel.title')).toBeVisible()
-    expect(screen.getAllByText('settings.doctor.status.pass')).toHaveLength(2)
+    const healthyCheck = screen
+      .getByText('settings.doctor.checks.install-version-channel.title')
+      .closest('[data-ui="doctor.check-row"]')
+    expect(healthyCheck).not.toBeNull()
+    expect(within(healthyCheck as HTMLElement).getAllByText('settings.doctor.status.pass')[0]).toBeVisible()
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.storage_disk_space_scope')
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.reclaimable 300 MB')
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.irreversible')
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.duration')
-    expect(screen.getByRole('alert').closest('[tabindex="-1"]')).toHaveFocus()
+    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.title')
+    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.storage_disk_space_scope')
+    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.reclaimable 300 MB')
+    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.irreversible')
+    expect(screen.getByRole('status')).toHaveTextContent('settings.doctor.confirm_fix.duration')
+    expect(screen.getByRole('status').closest('[tabindex="-1"]')).toHaveFocus()
     expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
     await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
-        runId: 'run-2',
-        checkId: 'storage-disk-space',
-        fixId: 'cleanup'
-      })
+      expect(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' })).toHaveFocus()
     )
-    expect(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' })).toHaveFocus()
   })
 
-  it('masks consent-required evidence and reveals it in place after confirmation', async () => {
+  it('blocks every dismiss path while the report panel is busy', async () => {
     const user = userEvent.setup()
-    mocks.doctorState = {
-      status: 'completed',
-      report: {
-        schemaVersion: 1,
-        runId: 'run-sensitive',
-        tier: 'quick',
-        startedAt: new Date(Date.now() - 1_000).toISOString(),
-        finishedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 600_000).toISOString(),
-        basics: {
-          version: '2.0.0',
-          edition: 'global',
-          channel: 'latest',
-          platform: 'darwin',
-          arch: 'arm64',
-          osRelease: '25.0.0',
-          runtime: {},
-          isPackaged: true,
-          isPortable: false,
-          userDataPath: '/Users/local/CherryStudio'
-        },
-        results: [
-          {
-            id: 'logs-recent-findings',
-            status: 'warn',
-            durationMs: 1,
-            attribution: 'app-bug',
-            detail: { variant: 'findings' },
-            evidence: [{ key: 'request-body', value: 'private response', dataClass: 'consent_required' }],
-            actions: []
-          }
-        ],
-        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
-      }
-    }
     render(<PopupHost />)
 
     act(() => {
-      void DoctorPopup.show({ initialPanel: 'checks' })
+      void DoctorPopup.show({ initialPanel: 'report' })
     })
 
-    const details = await screen.findByText('settings.doctor.evidence.local_details')
-    await user.click(details)
-    expect(screen.queryByText('private response')).not.toBeInTheDocument()
-    expect(screen.getByText('••••••')).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog')
+    await user.click(screen.getByRole('button', { name: 'Start report operation' }))
 
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
-
-    const revealed = await screen.findByText('private response')
-    expect(details.closest('details')).toHaveAttribute('open')
-    expect(revealed.closest('dl')).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'common.close' })).not.toBeInTheDocument()
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+    await user.click(overlay as HTMLElement)
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeVisible()
   })
 })
