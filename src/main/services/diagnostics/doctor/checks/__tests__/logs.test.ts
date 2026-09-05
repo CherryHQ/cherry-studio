@@ -1,4 +1,3 @@
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const scan = vi.hoisted(() => ({ collectErrorLogRecords: vi.fn(), diagnose: vi.fn() }))
@@ -26,9 +25,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(Date, 'now').mockReturnValue(2_000_000_000_000)
   scan.collectErrorLogRecords.mockResolvedValue({
-    records: [{ message: 'raw secret log record' }],
-    unparsedLineCount: 2,
-    skippedFileCount: 1,
+    records: [{ timestampMs: 2_000_000_000_000, message: 'raw secret log record' }],
+    unparsedLineCount: 0,
+    skippedFileCount: 0,
     truncated: false
   })
   scan.diagnose.mockReturnValue([])
@@ -37,12 +36,24 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('logs-recent-findings', () => {
-  it('scans the last 24 hours and passes when no rule matches', async () => {
-    await expect(recentLogFindings.run(ctx)).resolves.toEqual({ status: 'pass' })
-    expect(scan.collectErrorLogRecords).toHaveBeenCalledWith('/mock/app.logs', {
-      fromMs: 1_999_913_600_000,
-      toMs: 2_000_000_000_000
+  it('filters the shared seven-day scan to the last 24 hours', async () => {
+    const recent = { timestampMs: 2_000_000_000_000, message: 'recent' }
+    scan.collectErrorLogRecords.mockResolvedValue({
+      records: [recent, { timestampMs: 1_999_800_000_000, message: 'old' }],
+      unparsedLineCount: 0,
+      skippedFileCount: 0,
+      truncated: false
     })
+    await expect(recentLogFindings.run(ctx)).resolves.toEqual({ status: 'pass' })
+    expect(scan.collectErrorLogRecords).toHaveBeenCalledWith(
+      '/mock/app.logs',
+      {
+        fromMs: 1_999_395_200_000,
+        toMs: 2_000_000_000_000
+      },
+      signal
+    )
+    expect(scan.diagnose).toHaveBeenCalledWith([recent])
   })
 
   it('aggregates app and user actions without copying log excerpts into evidence', async () => {
@@ -78,8 +89,22 @@ describe('logs-recent-findings', () => {
     })
   })
 
-  it('uses the centralized logs path', async () => {
-    await recentLogFindings.run(ctx)
-    expect(application.getPath).toHaveBeenCalledWith('app.logs')
-  })
+  it.each([{ unparsedLineCount: 1 }, { skippedFileCount: 1 }, { truncated: true }])(
+    'does not pass an incomplete scan: %j',
+    async (partial) => {
+      scan.collectErrorLogRecords.mockResolvedValue({
+        records: [],
+        unparsedLineCount: 0,
+        skippedFileCount: 0,
+        truncated: false,
+        ...partial
+      })
+      await expect(recentLogFindings.run(ctx)).rejects.toThrow('incomplete')
+      scan.diagnose.mockReturnValue([finding()])
+      await expect(recentLogFindings.run(ctx)).resolves.toMatchObject({
+        status: 'warn',
+        devMessage: expect.stringContaining('Incomplete')
+      })
+    }
+  )
 })

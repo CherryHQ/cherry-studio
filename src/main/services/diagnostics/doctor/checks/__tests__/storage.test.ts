@@ -61,6 +61,21 @@ describe('storage-disk-space', () => {
 })
 
 describe('storage-diagnostic-data-size', () => {
+  it('never treats an unavailable measurement as zero bytes', async () => {
+    inspectDiagnosticData.mockResolvedValue({ bytes: null, accuracy: 'unavailable', completeness: 'partial' })
+    await expect(diagnosticDataSize.run(ctx)).rejects.toThrow('unavailable')
+  })
+
+  it('distinguishes partial measurements from complete measurements', async () => {
+    inspectDiagnosticData.mockResolvedValue({ bytes: MB, accuracy: 'exact', completeness: 'partial' })
+    await expect(diagnosticDataSize.run(ctx)).rejects.toThrow('incomplete')
+    inspectDiagnosticData.mockResolvedValue({ bytes: 201 * MB, accuracy: 'exact', completeness: 'partial' })
+    await expect(diagnosticDataSize.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      detail: { variant: 'large_partial' },
+      evidence: expect.arrayContaining([{ key: 'complete', value: false, dataClass: 'public' }])
+    })
+  })
   it('warns above 200 MB and links to Data settings', async () => {
     inspectDiagnosticData.mockResolvedValue({ bytes: 200 * MB + 1, accuracy: 'exact', completeness: 'complete' })
 

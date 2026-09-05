@@ -3,7 +3,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpServers = vi.hoisted(() => ({ list: vi.fn(), getById: vi.fn() }))
-const runtime = vi.hoisted(() => ({ restartServer: vi.fn() }))
+const runtime = vi.hoisted(() => ({ isReady: true, restartServer: vi.fn() }))
 const cache = vi.hoisted(() => ({ getShared: vi.fn() }))
 const launch = vi.hoisted(() => ({ resolveStdioLaunch: vi.fn() }))
 
@@ -33,6 +33,11 @@ beforeEach(() => {
 })
 
 describe('mcp-servers-connected', () => {
+  it('does not pass when an enabled server has no runtime status', async () => {
+    mcpServers.list.mockReturnValue({ items: [server('starting')] })
+    cache.getShared.mockReturnValue(undefined)
+    await expect(mcpServersConnected.run(ctx)).rejects.toThrow('settled')
+  })
   it('warns for each enabled server in the error state and offers a targeted restart', async () => {
     const working = server('working')
     const brokenA = server('broken-a')
@@ -57,8 +62,17 @@ describe('mcp-servers-connected', () => {
         { kind: 'fix', fixId: 'restart', target: 'broken-b' }
       ]
     })
-    expect(JSON.stringify(result)).not.toContain('secret A')
-    expect(mcpServers.list).toHaveBeenCalledWith({ isActive: true })
+    expect(
+      result.evidence
+        ?.filter((item) => item.dataClass !== 'consent_required')
+        .map((item) => item.value)
+        .join()
+    ).not.toContain('secret A')
+    expect(result.evidence).toContainEqual({
+      key: 'lastErrors',
+      value: 'secret A\nsecret B',
+      dataClass: 'consent_required'
+    })
   })
 
   it('restarts only the targeted active server', async () => {
@@ -70,13 +84,35 @@ describe('mcp-servers-connected', () => {
 })
 
 describe('mcp-launch-commands', () => {
+  it('keeps failed lookup evidence separate from command-not-found findings', async () => {
+    mcpServers.list.mockReturnValue({ items: [server('broken')] })
+    launch.resolveStdioLaunch.mockRejectedValue(new Error('/private/tool: query failed'))
+    const result = await mcpLaunchCommands.run(ctx)
+    expect(result).toMatchObject({ status: 'warn', detail: { variant: 'query_failed' } })
+    expect(result.evidence).toContainEqual({
+      key: 'queryError',
+      value: JSON.stringify({ serverId: 'broken', message: '/private/tool: query failed' }),
+      dataClass: 'consent_required'
+    })
+  })
+
+  it('propagates cancellation rather than recording a missing command', async () => {
+    const controller = new AbortController()
+    mcpServers.list.mockReturnValue({ items: [server('first'), server('second')] })
+    launch.resolveStdioLaunch.mockImplementation(async () => {
+      controller.abort()
+      throw controller.signal.reason
+    })
+    await expect(mcpLaunchCommands.run({ ...ctx, signal: controller.signal })).rejects.toThrow()
+    expect(launch.resolveStdioLaunch).toHaveBeenCalledTimes(1)
+  })
   it('fails when an enabled stdio command cannot be resolved and ignores remote servers', async () => {
     const good = server('good')
     const broken = server('broken', { command: 'missing' })
     const remote = server('remote', { type: 'streamableHttp', command: undefined, baseUrl: 'https://mcp.example' })
     mcpServers.list.mockReturnValue({ items: [good, broken, remote], total: 3, page: 1 })
     launch.resolveStdioLaunch.mockImplementation(({ server: candidate }: { server: McpServer }) =>
-      candidate.id === 'broken' ? Promise.reject(new Error('/private/path is missing')) : Promise.resolve({})
+      Promise.resolve({ launch: { resolution: candidate.id === 'broken' ? 'unresolved' : 'system' } })
     )
 
     const result = await mcpLaunchCommands.run(ctx)
@@ -88,7 +124,7 @@ describe('mcp-launch-commands', () => {
     })
     expect(JSON.stringify(result)).not.toContain('/private/path')
     expect(launch.resolveStdioLaunch).toHaveBeenCalledTimes(2)
-    expect(launch.resolveStdioLaunch).toHaveBeenCalledWith(expect.objectContaining({ requireResolvable: true }))
+    expect(launch.resolveStdioLaunch).toHaveBeenCalledWith(expect.objectContaining({ signal }))
   })
 
   it('passes when every enabled stdio command resolves', async () => {

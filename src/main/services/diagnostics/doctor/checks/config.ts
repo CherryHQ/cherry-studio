@@ -1,7 +1,7 @@
-import { application } from '@application'
 import { bootConfigService } from '@main/data/bootConfig'
-import { collectErrorLogRecords } from '@main/services/diagnostics/scan'
+import { diagnose } from '@main/services/diagnostics/scan'
 
+import { recentLogScan } from '../logScan'
 import { defineDoctorCheck } from '../types'
 
 const DETAIL_BY_ERROR = {
@@ -9,8 +9,6 @@ const DETAIL_BY_ERROR = {
   parse_error: 'parse_error',
   read_error: 'read_error'
 } as const
-
-const RECENT_RENDERER_CRASH_RANGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export const bootConfigValid = defineDoctorCheck({
   id: 'config-boot-config-valid',
@@ -39,16 +37,14 @@ export const bootConfigValid = defineDoctorCheck({
 
 export const hardwareAcceleration = defineDoctorCheck({
   id: 'config-hardware-acceleration',
-  async run() {
+  timeoutMs: 20_000,
+  async run(ctx) {
     if (!bootConfigService.get('app.disable_hardware_acceleration')) return { status: 'pass' }
 
-    const toMs = Date.now()
-    const scanned = await collectErrorLogRecords(application.getPath('app.logs'), {
-      fromMs: toMs - RECENT_RENDERER_CRASH_RANGE_MS,
-      toMs
-    })
-    const hasRecentRendererCrash = scanned.records.some(({ message }) =>
-      message.includes('Renderer process crashed with:')
+    const scanned = await recentLogScan(ctx)
+    if (!scanned.complete) throw new Error('Cannot assess hardware acceleration: the seven-day log scan is incomplete')
+    const hasRecentRendererCrash = diagnose(scanned.records).some(
+      (finding) => finding.ruleId === 'environment-renderer-crashed'
     )
     if (hasRecentRendererCrash) return { status: 'pass' }
     return {

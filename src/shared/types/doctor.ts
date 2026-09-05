@@ -149,7 +149,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'storage',
     tier: 'quick',
     fixes: [],
-    details: ['large'],
+    details: ['large', 'large_partial'],
     requires: []
   },
   'config-boot-config-valid': {
@@ -177,7 +177,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'provider',
     tier: 'quick',
     fixes: [],
-    details: ['missing'],
+    details: ['missing', 'provider_unavailable'],
     requires: ['provider-default-model']
   },
   'provider-cherry-account': {
@@ -248,7 +248,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'mcp',
     tier: 'quick',
     fixes: [],
-    details: ['unresolved'],
+    details: ['unresolved', 'query_failed'],
     requires: []
   },
   'runtime-managed-tools': {

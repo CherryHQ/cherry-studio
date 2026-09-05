@@ -70,8 +70,11 @@ async function probe<Outcome>(
   const started = now()
   const timeout = AbortSignal.timeout(check.timeoutMs)
   const signal = runSignal ? AbortSignal.any([runSignal, timeout]) : timeout
+  const deadlineController = new AbortController()
   // The sleep rejects on cancel and resolves on timeout, so a probe that ignores its signal still settles.
-  const deadline = sleep(check.timeoutMs, undefined, { signal: runSignal }).then(() => {
+  const deadline = sleep(check.timeoutMs, undefined, {
+    signal: runSignal ? AbortSignal.any([runSignal, deadlineController.signal]) : deadlineController.signal
+  }).then(() => {
     throw new Error(`Timed out after ${check.timeoutMs}ms`)
   })
   try {
@@ -87,6 +90,8 @@ async function probe<Outcome>(
           ? error.message
           : String(error)
     return { status: 'error', message, durationMs: now() - started }
+  } finally {
+    deadlineController.abort()
   }
 }
 

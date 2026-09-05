@@ -3,7 +3,12 @@ import type { LoggerService } from '@logger'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
-import { type LaunchCommand, resolveLaunchCommand } from './mcpLaunch'
+import {
+  buildStdioEnvironment,
+  type LaunchCommand,
+  type LaunchResolutionCache,
+  resolveLaunchCommand
+} from './mcpLaunch'
 
 export interface ResolvedStdioLaunch {
   readonly launch: LaunchCommand
@@ -16,19 +21,24 @@ export async function resolveStdioLaunch({
   server,
   args,
   logger,
-  requireResolvable = false
+  signal,
+  resolutionCache
 }: {
   server: McpServer
   args: string[]
   logger: LoggerService
-  requireResolvable?: boolean
+  signal?: AbortSignal
+  resolutionCache?: LaunchResolutionCache
 }): Promise<ResolvedStdioLaunch> {
   let command = server.command ?? ''
+  signal?.throwIfAborted()
   let launchArgs = args
   const serverEnv: Record<string, string> = { ...server.env }
 
   if (server.dxtPath) {
-    const resolvedConfig = application.get('McpPackageService').getResolvedMcpConfig(server.dxtPath)
+    const packages = application.get('McpPackageService')
+    if (!packages.isReady) throw new Error('MCP package service is not ready')
+    const resolvedConfig = packages.getResolvedMcpConfig(server.dxtPath)
     if (resolvedConfig) {
       command = resolvedConfig.command
       launchArgs = resolvedConfig.args
@@ -39,14 +49,15 @@ export async function resolveStdioLaunch({
     }
   }
 
-  const loginShellEnv = await getShellEnv()
+  const loginShellEnv = await getShellEnv(signal)
   const launch = await resolveLaunchCommand({
     command,
     args: launchArgs,
     registryUrl: server.registryUrl,
-    loginShellEnv,
+    loginShellEnv: buildStdioEnvironment(loginShellEnv, serverEnv),
     logger,
-    requireResolvable
+    signal,
+    resolutionCache
   })
   return { launch, loginShellEnv, serverEnv }
 }

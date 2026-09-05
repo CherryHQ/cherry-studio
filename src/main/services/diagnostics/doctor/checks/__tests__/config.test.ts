@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const bootConfig = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getLoadError: vi.fn(), repair: vi.fn() }))
 const scan = vi.hoisted(() => ({ collectErrorLogRecords: vi.fn() }))
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: bootConfig }))
-vi.mock('@main/services/diagnostics/scan', () => scan)
+vi.mock('@main/services/diagnostics/scan', async (importOriginal) => ({ ...(await importOriginal<object>()), ...scan }))
 
 const { bootConfigValid, hardwareAcceleration } = await import('../config')
 const signal = new AbortController().signal
@@ -12,7 +12,12 @@ const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) =>
 beforeEach(() => {
   vi.clearAllMocks()
   bootConfig.get.mockReturnValue(false)
-  scan.collectErrorLogRecords.mockResolvedValue({ records: [] })
+  scan.collectErrorLogRecords.mockResolvedValue({
+    records: [],
+    truncated: false,
+    unparsedLineCount: 0,
+    skippedFileCount: 0
+  })
 })
 
 afterEach(() => vi.restoreAllMocks())
@@ -69,18 +74,38 @@ describe('config-hardware-acceleration', () => {
       detail: { variant: 'disabled_without_recent_crash' },
       actions: [{ kind: 'navigate', target: '/settings/general' }]
     })
-    expect(scan.collectErrorLogRecords).toHaveBeenCalledWith('/mock/app.logs', {
-      fromMs: 1_999_395_200_000,
-      toMs: 2_000_000_000_000
-    })
+    expect(scan.collectErrorLogRecords).toHaveBeenCalledWith(
+      '/mock/app.logs',
+      {
+        fromMs: 1_999_395_200_000,
+        toMs: 2_000_000_000_000
+      },
+      signal
+    )
   })
 
   it('does not recommend acceleration when a recent renderer crash may justify the setting', async () => {
     bootConfig.get.mockReturnValue(true)
     scan.collectErrorLogRecords.mockResolvedValue({
-      records: [{ message: 'Renderer process crashed with: {"reason":"crashed"}' }]
+      records: [
+        { level: 'error', timestampMs: Date.now(), message: 'Renderer process crashed with: {"reason":"crashed"}' }
+      ],
+      truncated: false,
+      unparsedLineCount: 0,
+      skippedFileCount: 0
     })
 
     await expect(hardwareAcceleration.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
+  it('does not suggest enabling acceleration from incomplete crash evidence', async () => {
+    bootConfig.get.mockReturnValue(true)
+    scan.collectErrorLogRecords.mockResolvedValue({
+      records: [],
+      truncated: false,
+      unparsedLineCount: 0,
+      skippedFileCount: 1
+    })
+    await expect(hardwareAcceleration.run(ctx)).rejects.toThrow('incomplete')
   })
 })
