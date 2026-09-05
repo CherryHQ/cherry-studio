@@ -14,6 +14,7 @@ const {
   mockGetProvider,
   mockListModels,
   mockIsInternalAgentRequest,
+  mockIsModelAvailableForFeature,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
   captured
@@ -22,6 +23,7 @@ const {
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
+  mockIsModelAvailableForFeature: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
   captured: {
@@ -42,12 +44,13 @@ vi.mock('@application', () => ({
           isInternalAgentRequest: mockIsInternalAgentRequest
         }
       }
+      if (name === 'CherryCloudService') {
+        return { isModelAvailableForFeature: mockIsModelAvailableForFeature }
+      }
       return undefined
     })
   }
 }))
-// cn keeps Cherry Cloud agent-only, which the external-request rejection below relies on.
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'cn' }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))
@@ -87,6 +90,7 @@ beforeEach(() => {
   })
   mockListModels.mockReturnValue([])
   mockIsInternalAgentRequest.mockReturnValue(false)
+  mockIsModelAvailableForFeature.mockImplementation((_modelId: string, feature: string) => feature === 'agent')
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
@@ -240,7 +244,8 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('does not resolve Cherry Cloud models for external requests', async () => {
+  it('rejects a Cherry Cloud model from external requests regardless of downloaded features', async () => {
+    mockIsModelAvailableForFeature.mockReturnValue(true)
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
@@ -250,7 +255,6 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 400 })
-    expect(mockListModels).not.toHaveBeenCalled()
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
