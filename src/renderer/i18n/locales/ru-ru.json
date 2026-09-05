@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Максимальный вывод",
   "models.detail.model_id": "Идентификатор модели",
   "models.detail.provider": "Провайдер",
+  "models.detail.quota_exhausted": "Лимит тарифа исчерпан; обновите тариф или дождитесь сброса",
   "models.edit": "Редактировать модель",
   "models.function_calling": "Вызов функции",
   "models.group.ungrouped": "Несгруппированные",

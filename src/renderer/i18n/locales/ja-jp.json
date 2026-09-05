@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "最大出力",
   "models.detail.model_id": "モデルID",
   "models.detail.provider": "プロバイダー",
+  "models.detail.quota_exhausted": "プランの利用枠を使い切りました。プランをアップグレードするか、リセットをお待ちください",
   "models.edit": "モデルを編集",
   "models.function_calling": "関数呼び出し",
   "models.group.ungrouped": "グループ化解除",

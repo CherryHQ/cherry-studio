@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Μέγιστη έξοδος",
   "models.detail.model_id": "Ταυτότητα Μοντέλου",
   "models.detail.provider": "Πάροχος",
+  "models.detail.quota_exhausted": "Το όριο του προγράμματος εξαντλήθηκε· αναβαθμίστε το πρόγραμμα ή περιμένετε την επαναφορά",
   "models.edit": "Επεξεργασία μοντέλου",
   "models.function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
   "models.group.ungrouped": "Χωρίς ομαδοποίηση",

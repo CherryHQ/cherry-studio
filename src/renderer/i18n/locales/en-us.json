@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Max output",
   "models.detail.model_id": "Model ID",
   "models.detail.provider": "Provider",
+  "models.detail.quota_exhausted": "Plan quota exhausted; upgrade your plan or wait for reset",
   "models.edit": "Edit Model",
   "models.function_calling": "Function Calling",
   "models.group.ungrouped": "Ungrouped",

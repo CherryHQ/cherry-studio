@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Salida máxima",
   "models.detail.model_id": "ID del modelo",
   "models.detail.provider": "Proveedor",
+  "models.detail.quota_exhausted": "Cuota del plan agotada; mejora tu plan o espera al restablecimiento",
   "models.edit": "Editar modelo",
   "models.function_calling": "Llamada a función",
   "models.group.ungrouped": "Sin agrupar",

@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Ieșire maximă",
   "models.detail.model_id": "ID model",
   "models.detail.provider": "Furnizor",
+  "models.detail.quota_exhausted": "Cota planului a fost epuizată; faceți upgrade planului sau așteptați resetarea",
   "models.edit": "Editează modelul",
   "models.function_calling": "Apelare funcții",
   "models.group.ungrouped": "Neagrupat",

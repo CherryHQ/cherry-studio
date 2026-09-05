@@ -29,6 +29,7 @@ type ModelPredicate = (model: Model, provider?: Provider) => boolean
 type AgentModelAvailability = {
   getModelFreeQuotaStatus: (model: Model) => CherryCloudFreeQuotaStatus | undefined
   isModelExclusiveToAgent: (model: Model) => boolean
+  isModelQuotaExhausted: (model: Model) => boolean
   isModelDisabled: ModelPredicate
 }
 
@@ -50,16 +51,17 @@ export function useAgentModelFilter(agentType: AgentType | undefined, enabled = 
 
 /** Returns Cherry Cloud availability for model selectors in the Work module. */
 export function useAgentModelAvailability(enabled = true): AgentModelAvailability {
-  const { getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature } =
+  const { getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature, isModelQuotaExhausted } =
     useCherryCloudModelAvailability(enabled)
 
   return useMemo(
     () => ({
       getModelFreeQuotaStatus,
       isModelExclusiveToAgent: (model: Model) => isModelExclusiveToFeature(model, 'agent'),
+      isModelQuotaExhausted,
       isModelDisabled: (model: Model) => isModelDisabledForFeature(model, 'agent')
     }),
-    [getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature]
+    [getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature, isModelQuotaExhausted]
   )
 }
 

@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "最大输出",
   "models.detail.model_id": "模型 ID",
   "models.detail.provider": "服务商",
+  "models.detail.quota_exhausted": "套餐额度已用完，请升级套餐或等待重置",
   "models.edit": "编辑模型",
   "models.function_calling": "函数调用",
   "models.group.ungrouped": "未分组",

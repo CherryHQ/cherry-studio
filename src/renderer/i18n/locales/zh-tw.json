@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "最大輸出",
   "models.detail.model_id": "模型 ID",
   "models.detail.provider": "供應商",
+  "models.detail.quota_exhausted": "方案額度已用完，請升級方案或等待重設",
   "models.edit": "編輯模型",
   "models.function_calling": "函式呼叫",
   "models.group.ungrouped": "未群組",

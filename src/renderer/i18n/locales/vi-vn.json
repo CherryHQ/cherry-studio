@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Đầu ra tối đa",
   "models.detail.model_id": "ID mô hình",
   "models.detail.provider": "Nhà cung cấp",
+  "models.detail.quota_exhausted": "Đã dùng hết hạn mức gói; hãy nâng cấp gói hoặc chờ đặt lại",
   "models.edit": "Chỉnh sửa Mô hình",
   "models.function_calling": "Gọi Hàm",
   "models.group.ungrouped": "Chưa nhóm",

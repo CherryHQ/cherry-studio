@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Maks. çıktı",
   "models.detail.model_id": "Model kimliği",
   "models.detail.provider": "Sağlayıcı",
+  "models.detail.quota_exhausted": "Paket kotası tükendi; paketinizi yükseltin veya sıfırlanmasını bekleyin",
   "models.edit": "Modeli Düzenle",
   "models.function_calling": "İşlev Çağırma",
   "models.group.ungrouped": "Gruplanmamış",

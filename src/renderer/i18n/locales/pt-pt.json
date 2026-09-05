@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Saída máxima",
   "models.detail.model_id": "ID do Modelo",
   "models.detail.provider": "Fornecedor",
+  "models.detail.quota_exhausted": "Quota do plano esgotada; atualize o plano ou aguarde a reposição",
   "models.edit": "Editar modelo",
   "models.function_calling": "Chamada de função",
   "models.group.ungrouped": "Não agrupado",

@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Maximale Ausgabe",
   "models.detail.model_id": "Modell-ID",
   "models.detail.provider": "Anbieter",
+  "models.detail.quota_exhausted": "Tarifkontingent aufgebraucht; Tarif hochstufen oder auf Zurücksetzung warten",
   "models.edit": "Modell bearbeiten",
   "models.function_calling": "Funktionsaufruf",
   "models.group.ungrouped": "Nicht gruppiert",

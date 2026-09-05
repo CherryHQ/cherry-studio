@@ -2550,6 +2550,7 @@
   "models.detail.max_output_tokens": "Sortie maximale",
   "models.detail.model_id": "ID du modèle",
   "models.detail.provider": "Fournisseur",
+  "models.detail.quota_exhausted": "Quota du forfait épuisé ; passez à une offre supérieure ou attendez sa réinitialisation",
   "models.edit": "Éditer le modèle",
   "models.function_calling": "Appel de fonction",
   "models.group.ungrouped": "Non groupé",
