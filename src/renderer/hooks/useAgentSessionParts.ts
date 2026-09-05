@@ -50,6 +50,21 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   } as CherryUIMessage
 }
 
+function dropSessionMessageFromPages(
+  pages: CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined,
+  messageId: string
+): CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined {
+  if (!pages) return pages
+  let mutated = false
+  const nextPages = pages.map((page) => {
+    const items = page.items.filter((item) => item.id !== messageId)
+    if (items.length === page.items.length) return page
+    mutated = true
+    return { ...page, items }
+  })
+  return mutated ? nextPages : pages
+}
+
 function reservedUIMessageToAgentSessionMessage(
   sessionId: string,
   message: CherryUIMessage
@@ -98,6 +113,12 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
+  const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
+  const locallyRemovedIdsRef = useRef({ ids: new Set<string>(), sessionId })
+  if (locallyRemovedIdsRef.current.sessionId !== sessionId) {
+    locallyRemovedIdsRef.current = { ids: new Set<string>(), sessionId }
+  }
+  const locallyRemovedIds = locallyRemovedIdsRef.current.ids
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {
@@ -233,9 +254,28 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
-      await deleteMessageTrigger({ params: { sessionId, messageId } })
+      const deleteKey = `${sessionId}:${messageId}`
+      if (locallyRemovedIds.has(messageId)) {
+        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+        return
+      }
+      const inFlightDelete = inFlightDeletePromisesRef.current.get(deleteKey)
+      if (inFlightDelete) return inFlightDelete
+      if (!pages.some((page) => page.items.some((item) => item.id === messageId))) return
+
+      const deletePromise = (async () => {
+        await deleteMessageTrigger({ params: { sessionId, messageId } })
+        locallyRemovedIds.add(messageId)
+        await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
+      })()
+      inFlightDeletePromisesRef.current.set(deleteKey, deletePromise)
+      try {
+        await deletePromise
+      } finally {
+        inFlightDeletePromisesRef.current.delete(deleteKey)
+      }
     },
-    [deleteMessageTrigger, sessionId]
+    [deleteMessageTrigger, locallyRemovedIds, mutate, pages, sessionId]
   )
 
   return {

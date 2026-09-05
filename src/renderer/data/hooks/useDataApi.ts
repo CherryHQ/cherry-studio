@@ -57,7 +57,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
-import useSWRInfinite from 'swr/infinite'
+import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
 
@@ -837,8 +837,23 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     swrOptions?: SWRInfiniteConfiguration
   }
 ): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
+  const swrConfig = useSWRConfig()
+  const { cache, mutate: globalMutate } = swrConfig
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+  const swrOptions = useMemo(
+    () => ({
+      ...DEFAULT_SWR_OPTIONS,
+      ...options?.swrOptions
+    }),
+    [options?.swrOptions]
+  )
+  const globalInfiniteConfig = swrConfig as typeof swrConfig &
+    SWRInfiniteConfiguration<ResponseForPath<TPath, 'GET'>, Error>
+  const revalidateAll = swrOptions.revalidateAll ?? globalInfiniteConfig.revalidateAll ?? false
+  const revalidateFirstPage = swrOptions.revalidateFirstPage ?? globalInfiniteConfig.revalidateFirstPage ?? true
+  const compare = swrOptions.compare ?? swrConfig.compare
+  const onError = swrOptions.onError ?? swrConfig.onError
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
@@ -863,6 +878,15 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     },
     [resolvedPath, options?.query, limit, enabled]
   )
+  const infiniteCacheKey = useMemo(() => unstable_serialize_infinite(getKey), [getKey])
+  const capturedSWRConfig = useMemo(
+    () => ({ ...swrConfig, ...swrOptions, revalidateAll, revalidateFirstPage, compare, onError }),
+    // Captured mutators retain the complete configuration of their owning key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [infiniteCacheKey, revalidateAll, revalidateFirstPage, compare, onError]
+  )
+  const activeInfiniteCacheKeyRef = useRef(infiniteCacheKey)
+  activeInfiniteCacheKeyRef.current = infiniteCacheKey
 
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
     return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
@@ -870,12 +894,79 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     >
   }
 
-  const swrResult = useSWRInfinite(getKey, infiniteFetcher, {
-    ...DEFAULT_SWR_OPTIONS,
-    ...options?.swrOptions
-  })
+  const swrResult = useSWRInfinite(getKey, infiniteFetcher, swrOptions)
 
-  const { error, isLoading, isValidating, mutate, setSize } = swrResult
+  const { error, isLoading, isValidating, mutate: boundMutate, setSize } = swrResult
+  const mutate = useCallback(
+    (async (data, opts) => {
+      const isActiveQuery = activeInfiniteCacheKeyRef.current === infiniteCacheKey
+      const revalidate = typeof opts === 'boolean' ? opts : opts?.revalidate
+      const shouldPopulateCache = typeof opts !== 'object' || opts?.populateCache !== false
+      const result =
+        data === undefined || isActiveQuery
+          ? await boundMutate(data, opts)
+          : await globalMutate(
+              infiniteCacheKey,
+              data as never,
+              {
+                ...(typeof opts === 'object' ? opts : {}),
+                revalidate: false
+              } as never
+            )
+
+      if (data !== undefined && !isActiveQuery && revalidate !== false) {
+        const cachedPages = cache.get(infiniteCacheKey)?.data as ResponseForPath<TPath, 'GET'>[] | undefined
+        if (Array.isArray(cachedPages)) {
+          void (async () => {
+            const revalidatedPages: ResponseForPath<TPath, 'GET'>[] = []
+            let previousPage: CursorPaginationResponse<unknown> | null = null
+            for (let index = 0; index < cachedPages.length; index++) {
+              const pageKey = getKey(index, previousPage)
+              if (!pageKey) break
+              const serializedPageKey = unstable_serialize(pageKey)
+              const cachedPage = cache.get(serializedPageKey)?.data as ResponseForPath<TPath, 'GET'> | undefined
+              const shouldRevalidatePage =
+                typeof revalidate === 'function'
+                  ? revalidate(cachedPage as ResponseForPath<TPath, 'GET'>, pageKey)
+                  : capturedSWRConfig.revalidateAll ||
+                    cachedPage === undefined ||
+                    (capturedSWRConfig.revalidateFirstPage && index === 0) ||
+                    !capturedSWRConfig.compare(cachedPages[index], cachedPage)
+              const page = shouldRevalidatePage
+                ? await getFetcher(
+                    pageKey as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]
+                  )
+                : cachedPage
+
+              if (page === undefined) break
+              if (shouldRevalidatePage) await globalMutate(pageKey, page as never, { revalidate: false })
+              revalidatedPages.push(page as ResponseForPath<TPath, 'GET'>)
+              previousPage = page as CursorPaginationResponse<unknown>
+            }
+            await globalMutate(infiniteCacheKey, revalidatedPages as never, { revalidate: false })
+          })().catch((revalidationError) => {
+            capturedSWRConfig.onError(revalidationError as Error, infiniteCacheKey, capturedSWRConfig as never)
+          })
+        }
+      }
+
+      const cachedPages = cache.get(infiniteCacheKey)?.data
+      if (data !== undefined && revalidate === false && shouldPopulateCache && Array.isArray(cachedPages)) {
+        const pageMutations: Promise<unknown>[] = []
+        let previousPage: CursorPaginationResponse<unknown> | null = null
+        for (let index = 0; index < cachedPages.length; index++) {
+          const page = cachedPages[index] as CursorPaginationResponse<unknown>
+          const pageKey = getKey(index, previousPage)
+          if (pageKey) pageMutations.push(globalMutate(pageKey, page, { revalidate: false }))
+          previousPage = page
+        }
+        await Promise.all(pageMutations)
+      }
+
+      return result
+    }) as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>,
+    [boundMutate, cache, capturedSWRConfig, getKey, globalMutate, infiniteCacheKey]
+  )
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
@@ -908,7 +999,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     loadNext,
     refresh,
     reset,
-    mutate: mutate as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+    mutate
   }
 }
 
