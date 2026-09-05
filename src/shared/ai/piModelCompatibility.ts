@@ -43,6 +43,14 @@ export type PiApi =
   | 'azure-openai-responses'
   | 'google-generative-ai'
 
+/** Endpoint protocols that can be materialized by the Pi runtime. */
+export const PI_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const
+
 /**
  * Map a Cherry endpoint (`endpointType` + resolved `adapterFamily`) to the pi
  * `api` family, or `undefined` when pi cannot speak that provider's protocol.
@@ -96,7 +104,7 @@ export function mapEndpointToPiApi(
  * renderer, which has no main-only resolver, can reuse it).
  */
 function resolveEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return resolveCanonicalEndpoint(provider, model).endpointType
+  return resolveCanonicalEndpoint(provider, model, undefined, PI_ENDPOINT_TYPES).endpointType
 }
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */

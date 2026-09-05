@@ -140,6 +140,19 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/v1')
   })
 
+  it('skips an unsupported provider default and preserves the Pi-compatible model endpoint', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: {
+        'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['ollama-chat', 'openai-chat-completions'] })
+
+    expect(buildPiProviderInjection(provider, model, REAL_KEY).providerConfig.api).toBe('openai-completions')
+  })
+
   it('does not prefer Anthropic Messages for other endpoint combinations', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-responses',

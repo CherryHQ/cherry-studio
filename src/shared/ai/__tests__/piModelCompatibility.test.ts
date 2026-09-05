@@ -89,6 +89,20 @@ describe('resolvePiApi', () => {
     ).toBe('openai-completions')
   })
 
+  it('ignores an unsupported provider default when a Pi endpoint is available', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: {
+        'ollama-chat': { adapterFamily: 'ollama' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+      }
+    })
+
+    expect(resolvePiApi(provider, makeModel({ endpointTypes: ['ollama-chat', 'openai-chat-completions'] }))).toBe(
+      'openai-completions'
+    )
+  })
+
   it('is false for an unmapped provider', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'ollama-chat',
