@@ -841,6 +841,53 @@ describe('WebviewAnnotationController interactions', () => {
     expect(shield?.isConnected).toBe(false)
   })
 
+  it('rediscovers shadow iframes only after DOM mutations while keeping known shields aligned', async () => {
+    const host = document.createElement('section')
+    const shadowRoot = host.attachShadow({ mode: 'open' })
+    const iframe = document.createElement('iframe')
+    shadowRoot.appendChild(iframe)
+    const emptyHost = document.createElement('section')
+    const emptyShadowRoot = emptyHost.attachShadow({ mode: 'open' })
+    document.body.append(host, emptyHost)
+    let left = 10
+    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 20,
+          right: left + 200,
+          bottom: 140,
+          width: 200,
+          height: 120,
+          x: left,
+          y: 20,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const documentQueries = vi.spyOn(document, 'querySelectorAll')
+    const internals = privateController(controller)
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+    const discoveryCount = documentQueries.mock.calls.filter(([selector]) => selector === '*').length
+    expect(discoveryCount).toBeGreaterThan(0)
+    expect(internals.observedRoots.has(emptyShadowRoot)).toBe(true)
+
+    left = 70
+    internals.updatePositions()
+    internals.updatePositions()
+    expect(internals.iframeShields.get(iframe)?.style.left).toBe('70px')
+    expect(documentQueries.mock.calls.filter(([selector]) => selector === '*')).toHaveLength(discoveryCount)
+
+    const addedIframe = document.createElement('iframe')
+    mockRect(addedIframe, 30, 40, 100, 80)
+    emptyShadowRoot.appendChild(addedIframe)
+    await vi.waitFor(() => expect(internals.iframeShields.has(addedIframe)).toBe(true))
+    expect(documentQueries.mock.calls.filter(([selector]) => selector === '*')).toHaveLength(discoveryCount + 1)
+
+    addedIframe.remove()
+    await vi.waitFor(() => expect(internals.iframeShields.has(addedIframe)).toBe(false))
+    expect(documentQueries.mock.calls.filter(([selector]) => selector === '*')).toHaveLength(discoveryCount + 2)
+  })
+
   it('removes iframe input shields when annotation selection is disabled or deactivated', () => {
     const iframe = document.createElement('iframe')
     iframe.id = 'disposable-frame'
