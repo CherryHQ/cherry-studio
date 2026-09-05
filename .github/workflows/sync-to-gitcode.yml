@@ -20,24 +20,23 @@ on:
 permissions:
   contents: read
 
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.event.release.tag_name }}
+
 jobs:
   build-windows-signed:
     runs-on: [self-hosted, windows-signing]
-    outputs:
-      tag: ${{ steps.get-tag.outputs.tag }}
-      update_manifest: ${{ steps.get-tag.outputs.update_manifest }}
+    strategy:
+      matrix:
+        edition: [global, cn]
     steps:
       - name: Get tag name
         id: get-tag
         shell: bash
+        env:
+          EDITION: ${{ matrix.edition }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${{ github.event.release.tag_name }}"
-          fi
-
-          VERSION="${TAG#v}"
+          VERSION="${RELEASE_TAG#v}"
           if [[ "$VERSION" == *-* ]]; then
             PRERELEASE="${VERSION#*-}"
             CHANNEL="${PRERELEASE%%.*}"
@@ -45,29 +44,28 @@ jobs:
           else
             UPDATE_MANIFEST="latest.yml"
           fi
+          if [ "$EDITION" = "cn" ]; then
+            UPDATE_MANIFEST="${UPDATE_MANIFEST%.yml}-cn.yml"
+          fi
 
-          {
-            echo "tag=$TAG"
-            echo "update_manifest=$UPDATE_MANIFEST"
-          } >> "$GITHUB_OUTPUT"
+          echo "update_manifest=$UPDATE_MANIFEST" >> "$GITHUB_OUTPUT"
 
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ steps.get-tag.outputs.tag }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Show checked-out revision
         shell: bash
         run: |
-          echo "Checkout ref: ${{ steps.get-tag.outputs.tag }}"
+          echo "Checkout ref: $RELEASE_TAG"
           git log -1 --format='%H %s'
 
       - name: Set package.json version
         shell: bash
         run: |
-          TAG="${{ steps.get-tag.outputs.tag }}"
-          VERSION="${TAG#v}"
+          VERSION="${RELEASE_TAG#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install Node.js
@@ -114,9 +112,10 @@ jobs:
         run: pnpm install
 
       - name: Build Windows with code signing
+        id: build-windows
         shell: bash
-        run: pnpm build:win
         env:
+          EDITION: ${{ matrix.edition }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
@@ -128,8 +127,22 @@ jobs:
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+        run: |
+          if [ "$EDITION" = "cn" ] && [ ! -f electron-builder.cn.config.cjs ]; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "This historical tag predates the China edition; skipping its package."
+            exit 0
+          fi
+          echo "supported=true" >> "$GITHUB_OUTPUT"
+
+          if [ "$EDITION" = "cn" ]; then
+            pnpm build:win:cn
+          else
+            pnpm build:win
+          fi
 
       - name: List built Windows artifacts
+        if: steps.build-windows.outputs.supported == 'true'
         shell: bash
         env:
           UPDATE_MANIFEST: ${{ steps.get-tag.outputs.update_manifest }}
@@ -138,9 +151,10 @@ jobs:
           ls -la dist/*.exe "dist/$UPDATE_MANIFEST"
 
       - name: Upload signed Windows artifacts
+        if: steps.build-windows.outputs.supported == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: signed-windows-artifacts
+          name: signed-windows-artifacts-${{ matrix.edition }}
           path: |
             dist/*.exe
             dist/${{ steps.get-tag.outputs.update_manifest }}
@@ -152,16 +166,16 @@ jobs:
     needs: build-windows-signed
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ needs.build-windows-signed.outputs.tag }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download GitHub release assets
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
         run: |
           echo "Downloading release assets for $TAG_NAME..."
           mkdir -p release-assets
@@ -179,13 +193,12 @@ jobs:
       - name: Download signed Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          name: signed-windows-artifacts
+          pattern: signed-windows-artifacts-*
           path: signed-windows-artifacts
+          merge-multiple: true
 
       - name: Replace Windows files with signed versions
         shell: bash
-        env:
-          UPDATE_MANIFEST: ${{ needs.build-windows-signed.outputs.update_manifest }}
         run: |
           echo "Replacing Windows files with signed versions..."
 
@@ -194,18 +207,18 @@ jobs:
             echo "ERROR: No signed .exe files found in signed-windows-artifacts/"
             exit 1
           fi
-          if [ ! -f "signed-windows-artifacts/$UPDATE_MANIFEST" ]; then
-            echo "ERROR: No signed $UPDATE_MANIFEST found in signed-windows-artifacts/"
+          if ! ls signed-windows-artifacts/*.yml 1>/dev/null 2>&1; then
+            echo "ERROR: No update manifests found in signed-windows-artifacts/"
             exit 1
           fi
 
           # Remove unsigned Windows files from downloaded assets
-          rm -f release-assets/*.exe "release-assets/$UPDATE_MANIFEST" 2>/dev/null || true
+          rm -f release-assets/*.exe 2>/dev/null || true
 
           # Copy signed Windows files with error checking
           cp signed-windows-artifacts/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp "signed-windows-artifacts/$UPDATE_MANIFEST" release-assets/ || {
-            echo "ERROR: Failed to copy $UPDATE_MANIFEST"
+          cp signed-windows-artifacts/*.yml release-assets/ || {
+            echo "ERROR: Failed to copy update manifests"
             exit 1
           }
 
@@ -217,7 +230,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
         run: |
@@ -254,7 +267,7 @@ jobs:
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
           RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
@@ -293,7 +306,7 @@ jobs:
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
           RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
@@ -467,7 +480,7 @@ jobs:
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ env.RELEASE_TAG }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_RESULT: ${{ needs.build-windows-signed.result }}
           SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}

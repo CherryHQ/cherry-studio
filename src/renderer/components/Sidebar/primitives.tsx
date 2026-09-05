@@ -31,7 +31,7 @@ export function DefaultLogo({ title }: { title: string }) {
 }
 
 export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 24
+  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 23
   const { miniApp } = tab
 
   if (miniApp.logo) {
@@ -85,7 +85,7 @@ export function UserAvatar({
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
+        <EmojiIcon emoji={user.avatar!} fluid fontSize={17} />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

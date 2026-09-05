@@ -36,6 +36,9 @@ describe('buildPathRegistry', () => {
 
     expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
     expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+    expect(registry['feature.cherry_account.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'cherry-account.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {

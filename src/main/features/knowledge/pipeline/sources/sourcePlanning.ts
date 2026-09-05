@@ -13,12 +13,24 @@ export type KnowledgeSourcePlan =
   | { kind: 'needsFileProcessing' }
   | { kind: 'invalid'; reason: string }
 
-export function planKnowledgeItemSource(base: KnowledgeBase, item: KnowledgeItem): KnowledgeSourcePlan {
+export type KnowledgeSourcePlanOptions = {
+  /**
+   * A reindex just re-copied the user's original over this file, so its processed artifact is stale
+   * — run the processor again even though the item is already pinned to one.
+   */
+  forceFileReprocess?: boolean
+}
+
+export function planKnowledgeItemSource(
+  base: KnowledgeBase,
+  item: KnowledgeItem,
+  options: KnowledgeSourcePlanOptions = {}
+): KnowledgeSourcePlan {
   if (isContainerKnowledgeItem(item)) {
     return { kind: 'prepare-root' }
   }
 
-  if (needsFileProcessing(base, item)) {
+  if (needsFileProcessing(base, item, options)) {
     return { kind: 'needsFileProcessing' }
   }
 
@@ -29,14 +41,14 @@ export function planKnowledgeItemSource(base: KnowledgeBase, item: KnowledgeItem
   return { kind: 'invalid', reason: 'Unsupported knowledge item type' }
 }
 
-function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem): boolean {
+function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem, options: KnowledgeSourcePlanOptions): boolean {
   if (item.type !== 'file' || !base.fileProcessorId) {
     return false
   }
 
   // A file that already carries its processed artifact — restored from another base,
   // or already processed once — indexes straight from it; do not reprocess.
-  if (item.data.indexedRelativePath) {
+  if (item.data.indexedRelativePath && !options.forceFileReprocess) {
     return false
   }
 

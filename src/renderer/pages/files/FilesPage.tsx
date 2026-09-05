@@ -964,10 +964,31 @@ function FilesPage() {
 
         startInlineRename(selectedFile.id)
       }
+      if (
+        (isMac ? e.metaKey : e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'a' &&
+        !isImageGrid &&
+        filteredFiles.length > 0
+      ) {
+        e.preventDefault()
+        handleSelectAllVisible(true)
+      }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [
+    embeddedPreview,
+    files,
+    selectedIds,
+    handleDelete,
+    renamingId,
+    startInlineRename,
+    isImageGrid,
+    filteredFiles,
+    handleSelectAllVisible
+  ])
 
   return (
     <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">

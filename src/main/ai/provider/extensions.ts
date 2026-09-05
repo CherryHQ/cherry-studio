@@ -37,6 +37,7 @@ import type { NewApiProviderSettings } from './custom/newapiProvider'
 import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
+import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
@@ -357,6 +358,16 @@ export const DashScopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
+ * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
+ * `/v1/wand/*` endpoints (hunyuan / seedream sync, vidu submit+poll).
+ */
+export const TokenhubExtension = ProviderExtension.create({
+  name: 'tokenhub',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/tokenhub/tokenhubProvider')).createTokenhubProvider(settings)
+} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -406,6 +417,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,

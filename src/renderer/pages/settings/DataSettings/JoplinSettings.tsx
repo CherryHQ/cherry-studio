@@ -81,7 +81,7 @@ const JoplinSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.joplin.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-joplin-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
         <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
           <Input
@@ -95,7 +95,7 @@ const JoplinSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-joplin-token" className="scroll-mt-6">
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.joplin.token')}</span>
           <InfoTooltip

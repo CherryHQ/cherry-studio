@@ -8,7 +8,7 @@
 | `src/main/ai/types/requests.ts` | 83 | `AiBaseRequest`, `AiStreamRequest`, `AiTransportOptions`, `ListModelsRequest` |
 | `src/main/ai/types/merged.ts` | 102 | `AppProviderSettingsMap` extension type merging |
 | `src/main/ai/types/providerConfig.ts` | 45 | `ProviderConfig`, `ProviderCapabilities`, `CompletionsResult` |
-| `src/main/ai/types/index.ts` | — | Re-export barrel (`providerConfig` + `merged`) |
+| `src/main/ai/types/index.ts` | — | Re-export barrel (`approval` + `merged` + `providerConfig` + `requests` + `sampling`) |
 | Tests | `__tests__/AiService.test.ts` (114) | Lifecycle + IPC handler smoke tests |
 
 ## Intent

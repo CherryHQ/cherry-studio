@@ -3,10 +3,12 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { UploadIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { MouseEventHandler, ReactNode } from 'react'
 import { createContext, use } from 'react'
 import type { DropEvent, DropzoneOptions, FileRejection } from 'react-dropzone'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone as useReactDropzone } from 'react-dropzone'
+
+export { useDropzone } from 'react-dropzone'
 
 type DropzoneContextType = {
   src?: File[]
@@ -34,6 +36,9 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(undefined
 export type DropzoneProps = Omit<DropzoneOptions, 'onDrop'> & {
   src?: File[]
   className?: string
+  'aria-label'?: string
+  'data-ui'?: string
+  onClick?: MouseEventHandler<HTMLButtonElement>
   onDrop?: (acceptedFiles: File[], fileRejections: FileRejection[], event: DropEvent) => void
   children?: ReactNode
 }
@@ -49,9 +54,12 @@ export const Dropzone = ({
   src,
   className,
   children,
+  'aria-label': ariaLabel,
+  'data-ui': dataUi,
+  onClick,
   ...props
 }: DropzoneProps) => {
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useReactDropzone({
     accept,
     maxFiles,
     maxSize,
@@ -74,6 +82,7 @@ export const Dropzone = ({
   return (
     <DropzoneContext key={JSON.stringify(src)} value={{ src, accept, maxSize, minSize, maxFiles }}>
       <Button
+        data-ui={dataUi}
         className={cn(
           'relative h-auto w-full flex-col overflow-hidden p-8',
           isDragActive && 'outline-none ring-1 ring-primary/40',
@@ -82,7 +91,7 @@ export const Dropzone = ({
         disabled={disabled}
         type="button"
         variant="outline"
-        {...getRootProps()}>
+        {...getRootProps({ 'aria-label': ariaLabel, onClick, role: 'button' })}>
         <input {...getInputProps()} disabled={disabled} />
         {children}
       </Button>
