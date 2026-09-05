@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   type WebviewAnnotationGuestEvent,
