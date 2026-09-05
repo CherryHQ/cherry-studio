@@ -5,6 +5,8 @@ import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
+import { loggerService } from '@renderer/services/LoggerService'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
@@ -34,14 +36,19 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { CheckCircle, Copy, FileUp, Loader2, Stethoscope } from 'lucide-react'
+import type { UpdateInfo } from 'builder-util-runtime'
+import { ArrowLeft, FileUp } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
-import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
+import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
+
+const logger = loggerService.withContext('ErrorDetailModal')
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -51,6 +58,8 @@ interface ErrorDetailContentProps {
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
+  onDoctorInstallUpdate?: (releaseInfo: UpdateInfo) => void
+  onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
 const truncateLargeData = (
@@ -504,27 +513,15 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   blockId,
   onDiagnosisComplete,
   onOpenDiagnosticReport,
-  cachedDiagnosis
+  cachedDiagnosis,
+  onDoctorInstallUpdate,
+  onDoctorNavigate
 }) => {
   const { t } = useTranslation()
-  const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
+  const [activeView, setActiveView] = useState<'overview' | 'details'>('overview')
   const containerRef = useRef<HTMLDivElement>(null)
-  const isInitialRenderRef = useRef(true)
-
-  // Scroll to bottom when diagnosis status changes, but skip initial render
-  useEffect(() => {
-    if (isInitialRenderRef.current) {
-      isInitialRenderRef.current = false
-      return
-    }
-
-    if (diagStatus !== 'idle') {
-      requestAnimationFrame(() => {
-        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [diagStatus])
+  const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
+  const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -543,13 +540,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     void navigator.clipboard.writeText(errorText)
     toast.success(t('message.copied'))
   }, [error, t])
-
-  const handleDiagnosisComplete = useCallback(
-    async (partId: string, diagnosis: DiagnosisResult) => {
-      await onDiagnosisComplete?.(partId, diagnosis)
-    },
-    [onDiagnosisComplete]
-  )
 
   const openDiagnosticReport = useCallback(() => {
     if (!diagnosticReport || !onOpenDiagnosticReport) return
@@ -570,6 +560,22 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     )
   }, [diagnosticReport, diagnosisContext, error, onOpenDiagnosticReport, t])
 
+  const showDetails = () => {
+    setActiveView('details')
+    requestAnimationFrame(() => {
+      containerRef.current?.scrollTo({ top: 0 })
+      detailsHeadingRef.current?.focus()
+    })
+  }
+
+  const showOverview = () => {
+    setActiveView('overview')
+    requestAnimationFrame(() => {
+      containerRef.current?.scrollTo({ top: 0 })
+      viewDetailsButtonRef.current?.focus()
+    })
+  }
+
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) {
       return <div>{t('error.unknown')}</div>
@@ -586,79 +592,90 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     )
   }
 
-  const handleDiagnose = () => {
-    if (diagStatus === 'loading') return
-    setDiagStatus('loading')
-    diagSectionRef.current?.runDiagnosis()
-  }
-
-  const getDiagButtonText = () => {
-    switch (diagStatus) {
-      case 'loading':
-        return t('error.diagnosis.ai_loading') + '...'
-      case 'done':
-        return t('error.diagnosis.ai_done')
-      default:
-        return t('error.diagnosis.ai_button')
-    }
-  }
-
   return (
     <>
       <ErrorDetailContainer ref={containerRef}>
-        {renderErrorDetails(error)}
-        {diagStatus !== 'idle' && (
-          <AiDiagnosisSectionWithStatus
-            key={blockId ?? error?.message}
-            ref={diagSectionRef}
+        <div hidden={activeView !== 'overview'} className="space-y-4">
+          <ErrorBasicInformation
+            viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
-            status={diagStatus}
-            onStatusChange={setDiagStatus}
             diagnosisContext={diagnosisContext}
-            blockId={blockId}
-            onDiagnosisComplete={handleDiagnosisComplete}
-            cachedDiagnosis={cachedDiagnosis}
+            diagnosticReport={diagnosticReport}
+            onCopy={copyErrorDetails}
+            onViewDetails={showDetails}
           />
-        )}
+          <ErrorDiagnosticsPanel
+            blockId={blockId}
+            cachedDiagnosis={cachedDiagnosis}
+            diagnosisContext={diagnosisContext}
+            error={error}
+            onDiagnosisComplete={onDiagnosisComplete}
+            onInstallUpdate={onDoctorInstallUpdate}
+            onNavigate={onDoctorNavigate}
+            onReportProblem={onOpenDiagnosticReport}
+          />
+        </div>
+
+        {activeView === 'details' ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={showOverview}>
+                <ArrowLeft className="size-4" />
+                {t('error.diagnostics.back_to_overview')}
+              </Button>
+              <h2 ref={detailsHeadingRef} tabIndex={-1} className="font-medium text-sm">
+                {t('error.detail')}
+              </h2>
+            </div>
+            {renderErrorDetails(error)}
+          </div>
+        ) : null}
       </ErrorDetailContainer>
-      <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button variant="outline" onClick={copyErrorDetails}>
-          <Copy size={14} />
-          {t('common.copy')}
-        </Button>
-        {diagnosticReport && onOpenDiagnosticReport ? (
-          <Button variant="outline" onClick={openDiagnosticReport}>
+
+      {diagnosticReport && onOpenDiagnosticReport ? (
+        <div role="group" aria-label={t('error.detail')} className="my-2 mt-4 flex justify-end">
+          <Button variant="emphasis" onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}
           </Button>
-        ) : null}
-        <Button disabled={diagStatus === 'loading'} onClick={handleDiagnose}>
-          {diagStatus === 'loading' ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : diagStatus === 'done' ? (
-            <CheckCircle size={14} />
-          ) : (
-            <Stethoscope size={14} />
-          )}
-          {getDiagButtonText()}
-        </Button>
-      </div>
+        </div>
+      ) : null}
     </>
   )
 }
 
-export function showErrorDetailPopup(params: Omit<ErrorDetailContentProps, 'onOpenDiagnosticReport'>) {
+type ErrorDetailPopupParams = Omit<
+  ErrorDetailContentProps,
+  'onDoctorInstallUpdate' | 'onDoctorNavigate' | 'onOpenDiagnosticReport'
+>
+
+export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
+  const finishHandoff = (action: () => void) => {
+    ContentPopup.hide()
+    window.setTimeout(action, POPUP_EXIT_MS)
+  }
+
   void ContentPopup.show({
     title: i18n.t('error.detail'),
     content: (
       <ErrorDetailContent
         {...params}
-        onOpenDiagnosticReport={(initialDescription) => {
-          ContentPopup.hide()
-          setTimeout(() => {
+        onDoctorNavigate={(target) => finishHandoff(() => openSettingsTab(target))}
+        onDoctorInstallUpdate={(releaseInfo) =>
+          finishHandoff(() => {
+            void import('@renderer/components/UpdateDialogPopup')
+              .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+              .catch((error) => {
+                logger.error('Failed to open the update dialog from error diagnostics', error as Error)
+                toast.error(i18n.t('settings.doctor.messages.action_failed'))
+              })
+          })
+        }
+        onOpenDiagnosticReport={(initialDescription) =>
+          finishHandoff(() => {
             void DoctorPopup.show({ initialPanel: 'report', initialDescription })
-          }, POPUP_EXIT_MS)
-        }}
+          })
+        }
       />
     ),
     width: '60vw',

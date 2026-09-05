@@ -1,4 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { SerializedError } from '@renderer/types/error'
+import { formatError } from '@renderer/utils/error'
+import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,32 +18,97 @@ vi.mock('@renderer/components/popups/ContentPopup', async () => {
   return { default: ContentPopup }
 })
 
+const aiDiagnosis: DiagnosisResult = {
+  category: 'runtime',
+  explanation: 'Check the provider configuration',
+  steps: [],
+  summary: 'Provider failed'
+}
+
+const providerError = {
+  name: 'ProviderError',
+  message: 'failed',
+  stack: 'private stack',
+  statusCode: 503
+} satisfies SerializedError
+
+const passingVersionResult: DoctorCheckResult = {
+  id: 'install-version-channel',
+  status: 'pass',
+  durationMs: 1
+}
+
 const mocks = vi.hoisted(() => ({
   diagnoseError: vi.fn(),
+  doctorState: { status: 'idle' } as DoctorState,
+  openSettingsTab: vi.fn(),
+  request: vi.fn(),
   showDoctor: vi.fn()
 }))
 
 const translations: Record<string, string> = {
   'common.copy': 'Copy',
+  'common.retry': 'Retry',
+  'error.detail': 'Error Details',
   'error.diagnosis.ai_button': 'AI diagnosis',
   'error.diagnosis.ai_done': 'AI diagnosis complete',
   'error.diagnosis.ai_loading': 'Diagnosing',
   'error.diagnosis.ai_result': 'AI diagnosis',
+  'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
+  'error.diagnostics.back_to_overview': 'Back to diagnostic overview',
+  'error.diagnostics.basic_information': 'Basic information',
   'error.message': 'Error message',
   'error.modelId': 'Model',
   'error.name': 'Error name',
   'error.provider': 'Provider',
   'error.stack': 'Stack',
   'error.statusCode': 'Status code',
-  'message.copied': 'Copied'
+  'message.copied': 'Copied',
+  'settings.doctor.actions.run_network': 'Network and services check',
+  'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
+  'settings.doctor.domains.install': 'Installation',
+  'settings.doctor.status.pass': 'Passed',
+  'settings.doctor.title': 'System diagnostics'
 }
+
+vi.mock('@data/CacheService', () => ({
+  cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
+}))
+
+vi.mock('@data/hooks/useCache', () => ({
+  useSharedCacheValue: () => mocks.doctorState
+}))
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn() }) }
 }))
 
+vi.mock('@renderer/hooks/useAppUpdateState', () => ({
+  useAppUpdateState: () => ({
+    appUpdateState: {
+      info: null,
+      checking: false,
+      downloading: false,
+      downloaded: false,
+      downloadProgress: 0,
+      available: false,
+      ignore: false,
+      manualCheck: false
+    }
+  })
+}))
+
+vi.mock('@renderer/hooks/useMcpServer', () => ({ useMcpServers: () => ({ mcpServers: [] }) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mocks.request(...args) } }))
+vi.mock('@renderer/services/LoggerService', () => ({
+  loggerService: { withContext: () => ({ error: vi.fn() }) }
+}))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
+}))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ diagnoseError: mocks.diagnoseError }))
 
 vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => translations[key] ?? key } }))
@@ -62,12 +131,65 @@ const { ErrorDetailContent, showErrorDetailPopup } = await import('../ErrorDetai
 
 Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
 
-describe('ErrorDetailContent diagnostic report', () => {
+function runningDoctorState(tier: 'quick' | 'live'): DoctorState {
+  return {
+    status: 'running',
+    runId: `running-${tier}`,
+    tier,
+    startedAt: new Date().toISOString(),
+    results: []
+  }
+}
+
+function completedDoctorState(results: readonly DoctorCheckResult[] = []): DoctorState {
+  const now = Date.now()
+  return {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      runId: 'completed-quick',
+      tier: 'quick',
+      startedAt: new Date(now - 1_000).toISOString(),
+      finishedAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false,
+        userDataPath: '/Users/local/CherryStudio'
+      },
+      results,
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
+function deferredDiagnosis() {
+  let resolve!: (result: DiagnosisResult) => void
+  return {
+    promise: new Promise<DiagnosisResult>((next) => {
+      resolve = next
+    }),
+    resolve
+  }
+}
+
+describe('ErrorDetailContent diagnostics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.doctorState = { status: 'idle' }
+    mocks.diagnoseError.mockResolvedValue(aiDiagnosis)
+    mocks.request.mockResolvedValue({ status: 'completed' })
   })
 
   afterEach(async () => {
+    cleanup()
     vi.useFakeTimers()
     await act(async () => {
       for (const entry of [...popupService.getSnapshot()]) {
@@ -78,33 +200,140 @@ describe('ErrorDetailContent diagnostic report', () => {
     vi.useRealTimers()
   })
 
-  it('shows the report action only with a configured handoff and passes the reviewed description to its owner', async () => {
+  it('shows compact basic information and copies the unchanged error text', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+
+    render(
+      <ErrorDetailContent
+        diagnosisContext={{ errorSource: 'chat', providerName: 'OpenAI', modelId: 'gpt-5' }}
+        diagnosticReport={{ location: 'Home conversation' }}
+        error={providerError}
+      />
+    )
+
+    expect(screen.getByText('Basic information')).toBeInTheDocument()
+    expect(screen.getByText('Home conversation')).toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
+    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('503')).toBeInTheDocument()
+    expect(screen.queryByText('private stack')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith(formatError(providerError))
+  })
+
+  it('keeps diagnostics mounted while showing complete error details', async () => {
+    const user = userEvent.setup()
+    const pendingDiagnosis = deferredDiagnosis()
+    mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
+    mocks.doctorState = runningDoctorState('quick')
+    const { rerender } = render(<ErrorDetailContent error={providerError} />)
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText('private stack')).toBeInTheDocument()
+
+    mocks.doctorState = completedDoctorState([passingVersionResult])
+    rerender(<ErrorDetailContent error={providerError} />)
+    await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
+    await user.click(screen.getByRole('button', { name: 'Back to diagnostic overview' }))
+
+    expect(await screen.findByText(aiDiagnosis.explanation)).toBeInTheDocument()
+    const installGroup = screen.getByRole('button', { name: /Installation/ })
+    await user.click(installGroup)
+    expect(screen.getByText('Version and release channel')).toBeVisible()
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
+  })
+
+  it('starts uncached AI and basic Doctor diagnostics together', async () => {
+    render(<ErrorDetailContent error={providerError} />)
+
+    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+  })
+
+  it('observes an active shared Doctor run without replacing it', async () => {
+    mocks.doctorState = runningDoctorState('live')
+    render(<ErrorDetailContent error={providerError} />)
+
+    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+  })
+
+  it('runs network and service checks from the diagnostics header', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = runningDoctorState('quick')
+    const { rerender } = render(<ErrorDetailContent error={providerError} />)
+
+    mocks.doctorState = completedDoctorState([passingVersionResult])
+    rerender(<ErrorDetailContent error={providerError} />)
+    const networkCheck = await screen.findByRole('button', { name: 'Network and services check' })
+    await waitFor(() => expect(networkCheck).toBeEnabled())
+    await user.click(networkCheck)
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
+  })
+
+  it('shows only problem reporting in the footer and excludes diagnostic results from its prefill', async () => {
     const user = userEvent.setup()
     const onOpenDiagnosticReport = vi.fn()
-    const { rerender } = render(
-      <ErrorDetailContent error={{ name: 'ProviderError', message: 'failed', stack: null }} />
+    mocks.doctorState = completedDoctorState([
+      {
+        id: 'logs-recent-findings',
+        status: 'warn',
+        durationMs: 1,
+        attribution: 'app-bug',
+        detail: { variant: 'findings' },
+        evidence: [{ key: 'request-body', value: 'private Doctor evidence', dataClass: 'consent_required' }],
+        actions: [{ kind: 'report' }]
+      }
+    ])
+    mocks.diagnoseError.mockResolvedValueOnce({
+      ...aiDiagnosis,
+      explanation: 'private AI diagnosis'
+    })
+
+    render(
+      <ErrorDetailContent
+        diagnosticReport={{ location: 'Agent conversation' }}
+        error={providerError}
+        onOpenDiagnosticReport={onOpenDiagnosticReport}
+      />
     )
+
+    expect(await screen.findByText('private AI diagnosis')).toBeInTheDocument()
+    const footer = screen.getByRole('group', { name: 'Error Details' })
+    expect(
+      within(footer)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    ).toEqual(['Report a problem'])
+    await user.click(within(footer).getByRole('button', { name: 'Report a problem' }))
+
+    const description = onOpenDiagnosticReport.mock.calls[0][0]
+    expect(description).toContain('Error message: failed')
+    expect(description).not.toContain('private AI diagnosis')
+    expect(description).not.toContain('private Doctor evidence')
+    expect(description).not.toContain('private stack')
+  })
+
+  it('shows the report action only with a configured handoff', () => {
+    const onOpenDiagnosticReport = vi.fn()
+    mocks.doctorState = runningDoctorState('live')
+    const { rerender } = render(<ErrorDetailContent cachedDiagnosis={aiDiagnosis} error={providerError} />)
 
     expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
 
     rerender(
       <ErrorDetailContent
+        cachedDiagnosis={aiDiagnosis}
         diagnosticReport={{ location: 'Home conversation' }}
-        error={{ name: 'ProviderError', message: 'failed', stack: null }}
+        error={providerError}
         onOpenDiagnosticReport={onOpenDiagnosticReport}
       />
     )
 
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
-      'Copy',
-      'Report a problem',
-      'AI diagnosis'
-    ])
-    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
-    const description = onOpenDiagnosticReport.mock.calls[0][0]
-    expect(description).toContain('Location: Home conversation')
-    expect(description).toContain('Error name: ProviderError')
-    expect(description).toContain('Error message: failed')
+    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeInTheDocument()
   })
 
   it('waits for error details to finish closing before opening report review', async () => {
@@ -114,7 +343,7 @@ describe('ErrorDetailContent diagnostic report', () => {
     act(() => {
       showErrorDetailPopup({
         diagnosticReport: { location: 'Home conversation' },
-        error: { name: 'ProviderError', message: 'failed', stack: null }
+        error: providerError
       })
     })
     fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
@@ -136,33 +365,5 @@ describe('ErrorDetailContent diagnostic report', () => {
       initialDescription: expect.stringContaining('Location: Home conversation')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('keeps AI diagnosis visible in error details but out of the diagnostic-report prefill', async () => {
-    const user = userEvent.setup()
-    const onOpenDiagnosticReport = vi.fn()
-    mocks.diagnoseError.mockResolvedValueOnce({
-      category: 'runtime',
-      explanation: 'Leaked prompt: private diagnosis payload.',
-      steps: [],
-      summary: 'Provider failed'
-    })
-
-    render(
-      <ErrorDetailContent
-        blockId="message-1-part-0"
-        diagnosticReport={{ location: 'Agent conversation' }}
-        error={{ name: 'ProviderError', message: 'failed', stack: null }}
-        onDiagnosisComplete={vi.fn()}
-        onOpenDiagnosticReport={onOpenDiagnosticReport}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
-    expect(await screen.findByText('Leaked prompt: private diagnosis payload.')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
-    const description = onOpenDiagnosticReport.mock.calls[0][0]
-    expect(description).toContain('Error message: failed')
-    expect(description).not.toContain('private diagnosis payload')
   })
 })
