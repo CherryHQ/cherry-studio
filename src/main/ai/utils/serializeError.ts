@@ -36,7 +36,15 @@ function serializeNestedError(value: unknown): Serializable {
       isRetryable: value.isRetryable
     }
   }
-  return value instanceof Error ? serializeError(value) : toSerializable(value)
+  if (value instanceof Error) {
+    return {
+      name: value.name ?? null,
+      message: getSafeProviderErrorMessage({ message: value.message }),
+      stack: null,
+      cause: null
+    }
+  }
+  return toSerializable(value)
 }
 
 /** Serialize any Error to a plain object safe for IPC / JSON.

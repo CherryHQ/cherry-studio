@@ -349,21 +349,25 @@ describe('error', () => {
     })
 
     it('preserves a plain terminal error when serializing a retry error', () => {
+      const terminalError = new Error('upstream socket closed; Authorization: Bearer message-secret', {
+        cause: new Error('Authorization: Bearer cause-secret')
+      })
       const retryError = new RetryError({
         message: 'Failed after retries',
         reason: 'maxRetriesExceeded',
-        errors: [new Error('upstream socket closed')]
+        errors: [terminalError]
       })
 
       const serialized = serializeError(retryError)
 
       expect(serialized.lastError).toMatchObject({
         name: 'Error',
-        message: 'upstream socket closed',
-        stack: expect.any(String),
+        message: 'upstream socket closed; Authorization: "<redacted>"',
+        stack: null,
         cause: null
       })
-      expect(providerErrorText(serialized)).toBe('upstream socket closed')
+      expect(providerErrorText(serialized)).toBe('upstream socket closed; Authorization: "<redacted>"')
+      expect(JSON.stringify(serialized)).not.toMatch(/message-secret|cause-secret/)
     })
 
     it('uses the newest retry attempt when lastError is absent', () => {

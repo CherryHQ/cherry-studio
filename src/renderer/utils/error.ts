@@ -150,7 +150,7 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
   } satisfies SerializedAiSdkNoSuchToolError
 }
 
-const serializeNestedError = (error: unknown) => {
+const serializeNestedError = (error: unknown): SerializedError | string | null => {
   if (APICallError.isInstance(error)) {
     return {
       name: error.name,
@@ -161,7 +161,15 @@ const serializeNestedError = (error: unknown) => {
       isRetryable: error.isRetryable
     } satisfies SerializedError
   }
-  return error instanceof Error ? getBaseError(error) : safeSerialize(error)
+  if (error instanceof Error) {
+    return {
+      name: error.name ?? null,
+      message: getSafeProviderErrorMessage({ message: error.message }),
+      stack: null,
+      cause: null
+    } satisfies SerializedError
+  }
+  return safeSerialize(error)
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {

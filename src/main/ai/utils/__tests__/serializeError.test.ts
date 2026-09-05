@@ -116,6 +116,28 @@ describe('serializeError', () => {
       )
     })
 
+    it('redacts a plain nested retry error without serializing its cause or stack', () => {
+      const terminalError = new Error('upstream socket closed; Authorization: Bearer message-secret', {
+        cause: new Error('Authorization: Bearer cause-secret')
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toEqual({
+        name: 'Error',
+        message: 'upstream socket closed; Authorization: "<redacted>"',
+        stack: null,
+        cause: null
+      })
+      expect(result.errors).toEqual([result.lastError])
+      expect(JSON.stringify(result)).not.toMatch(/message-secret|cause-secret/)
+    })
+
     it('serializes a NoSuchToolError with its discriminant fields', () => {
       const noSuchTool = new NoSuchToolError({
         toolName: 'missing_tool',
