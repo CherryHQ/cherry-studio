@@ -1,4 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
 
 export interface ErrorClassification {
   category:
@@ -75,6 +76,23 @@ export function isProxyErrorMessage(message: string): boolean {
   )
 }
 
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -93,19 +111,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const retryErrors =
-    error.name === 'AI_RetryError'
-      ? [errorBag.lastError, ...(Array.isArray(errorBag.errors) ? errorBag.errors : [])]
-      : []
-  const hasNestedUnauthorizedStatus = retryErrors.some((nestedError) => {
-    if (typeof nestedError !== 'object' || nestedError === null || Array.isArray(nestedError)) {
-      return false
-    }
-
-    const nestedErrorBag = nestedError as Record<string, unknown>
-    const nestedStatus = nestedErrorBag.statusCode ?? nestedErrorBag.status
-    return nestedStatus === 401 || nestedStatus === '401'
-  })
   const providerSuffix = providerId ? `?id=${providerId}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
@@ -140,7 +145,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     numStatus === 401 ||
-    hasNestedUnauthorizedStatus ||
     msg.includes('invalid_api_key') ||
     msg.includes('invalid api key') ||
     msg.includes('api key is invalid') ||
@@ -307,6 +311,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
+  }
+
+  // A wrapper carries no status of its own — diagnose the first attempt that says something.
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown') {
+      return nestedClassification
+    }
   }
 
   return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }

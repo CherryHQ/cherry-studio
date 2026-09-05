@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -185,8 +184,7 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
-  it('offers provider settings recovery when a normal-chat retry wraps a 401 error', async () => {
-    const user = userEvent.setup()
+  it('offers provider settings recovery when a retry error wraps a 401', () => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }
 
@@ -197,26 +195,27 @@ describe('ErrorBlock', () => {
           name: 'AI_RetryError',
           message: 'Failed after 2 attempts. Last error:',
           stack: null,
+          cause: null,
           reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 401,
+            responseBody: '{"error":{"message":"Invalid Authentication"}}'
+          },
           errors: [
             {
               name: 'AI_APICallError',
               statusCode: 401,
               responseBody: '{"error":{"message":"Invalid Authentication"}}'
             }
-          ],
-          lastError: {
-            name: 'AI_APICallError',
-            statusCode: 401,
-            responseBody: '{"error":{"message":"Invalid Authentication"}}'
-          }
+          ]
         }}
         message={message}
       />
     )
 
     expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'error.diagnosis.go_to_settings' }))
+    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 

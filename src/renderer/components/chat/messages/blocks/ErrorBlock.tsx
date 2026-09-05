@@ -87,64 +87,13 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
-  const errorName = error?.name ?? null
-  const errorStatus =
-    (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
-  const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
-  const errorData = (error as Record<string, unknown> | undefined)?.data
-  const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
-  const retryLastError = errorName === 'AI_RetryError' ? error?.lastError : undefined
-  const retryErrors = errorName === 'AI_RetryError' ? error?.errors : undefined
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
-  const classificationStatus =
-    typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
-  const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
-  let classificationData: string | undefined
-  if (typeof errorData === 'string') {
-    classificationData = errorData
-  } else if (errorData !== undefined && errorData !== null) {
-    try {
-      classificationData = JSON.stringify(errorData)
-    } catch {
-      // Ignore non-serializable provider data.
-    }
-  }
-  const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
-  const classification = useMemo(() => {
-    const classificationError: SerializedError = {
-      name: errorName,
-      message: errorMessage ?? null,
-      stack: null,
-      ...(classificationStatus !== undefined
-        ? {
-            status: classificationStatus,
-            statusCode: classificationStatus
-          }
-        : {}),
-      ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
-      ...(classificationData !== undefined ? { data: classificationData } : {}),
-      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {}),
-      ...(retryLastError !== undefined ? { lastError: retryLastError } : {}),
-      ...(retryErrors !== undefined ? { errors: retryErrors } : {})
-    }
-
-    return classifyError(classificationError, providerId)
-  }, [
-    classificationData,
-    classificationFinishReason,
-    classificationResponseBody,
-    classificationStatus,
-    errorMessage,
-    errorName,
-    providerId,
-    retryErrors,
-    retryLastError
-  ])
+  const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
 
   useEffect(() => {
     if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
