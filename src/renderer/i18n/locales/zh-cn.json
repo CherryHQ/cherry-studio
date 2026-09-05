@@ -1461,7 +1461,7 @@
   "gpustack.keep_alive_time.description": "模型在内存中保持的时间（默认：5 分钟）",
   "gpustack.keep_alive_time.placeholder": "分钟",
   "gpustack.keep_alive_time.title": "保持活跃时间",
-  "help.feedback": "问题反馈",
+  "help.feedback": "意见反馈",
   "help.guide": "使用指南",
   "help.star": "GitHub 点赞",
   "help.title": "帮助",
