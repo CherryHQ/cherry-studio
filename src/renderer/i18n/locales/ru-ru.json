@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Модель живописи",
   "settings.models.painting_model_description": "Модель, используемая для генерации изображений",
   "settings.models.provider_id": "ID провайдера",
+  "settings.models.provider_import_auto_sync": "После подтверждения модели будут синхронизированы автоматически, а новый провайдер будет включён, если доступна хотя бы одна модель.",
   "settings.models.provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Не удалось добавить API-ключ провайдера: неверный формат данных",
   "settings.models.provider_key_added": "API ключ для {{provider}} успешно добавлен",

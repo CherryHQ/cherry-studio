@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Mô hình vẽ tranh",
   "settings.models.painting_model_description": "Mô hình được sử dụng để tạo hình ảnh",
   "settings.models.provider_id": "ID Nhà cung cấp",
+  "settings.models.provider_import_auto_sync": "Sau khi xác nhận, các mô hình sẽ được tự động đồng bộ và nhà cung cấp mới sẽ được bật nếu có ít nhất một mô hình.",
   "settings.models.provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Không thể thêm khóa API của nhà cung cấp, lỗi định dạng dữ liệu",
   "settings.models.provider_key_added": "Đã thêm khóa API cho {{provider}} thành công",

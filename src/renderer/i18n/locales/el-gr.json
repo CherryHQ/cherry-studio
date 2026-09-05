@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Μοντέλο Ζωγραφικής",
   "settings.models.painting_model_description": "Μοντέλο που χρησιμοποιείται για τη δημιουργία εικόνων",
   "settings.models.provider_id": "Αναγνωριστικό Παρόχου",
+  "settings.models.provider_import_auto_sync": "Μετά την επιβεβαίωση, τα μοντέλα θα συγχρονιστούν αυτόματα και ο νέος πάροχος θα ενεργοποιηθεί εάν υπάρχει τουλάχιστον ένα μοντέλο.",
   "settings.models.provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
   "settings.models.provider_key_add_failed_by_invalid_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, λάθος μορφή δεδομένων",
   "settings.models.provider_key_added": "Επιτυχής προσθήκη κλειδιού API για τον {{provider}}",

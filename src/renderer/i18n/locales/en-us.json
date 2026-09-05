@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Painting Model",
   "settings.models.painting_model_description": "Model used for image generation",
   "settings.models.provider_id": "Provider ID",
+  "settings.models.provider_import_auto_sync": "After confirmation, models will be synced automatically and this new provider will be enabled if at least one model is available.",
   "settings.models.provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
   "settings.models.provider_key_added": "Successfully added API key for {{provider}}",

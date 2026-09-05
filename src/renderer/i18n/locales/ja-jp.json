@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "ペインティングモデル",
   "settings.models.painting_model_description": "画像生成に使用されたモデル",
   "settings.models.provider_id": "プロバイダー ID",
+  "settings.models.provider_import_auto_sync": "確認後、モデルが自動的に同期され、1つ以上のモデルが見つかった場合は新しいプロバイダーが有効になります。",
   "settings.models.provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
   "settings.models.provider_key_add_failed_by_invalid_data": "プロバイダーの API キーを追加できませんでした。データ形式が正しくありません。",
   "settings.models.provider_key_added": "{{provider}} の API キーを追加しました",

@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Malermodell",
   "settings.models.painting_model_description": "Modell für die Bildgenerierung",
   "settings.models.provider_id": "Anbieter-ID",
+  "settings.models.provider_import_auto_sync": "Nach der Bestätigung werden Modelle automatisch synchronisiert. Der neue Anbieter wird aktiviert, wenn mindestens ein Modell verfügbar ist.",
   "settings.models.provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Der API-Schlüssel für den Anbieter konnte aufgrund eines ungültigen Datenformats nicht hinzugefügt werden",
   "settings.models.provider_key_added": "API-Schlüssel für {{provider}} erfolgreich hinzugefügt",

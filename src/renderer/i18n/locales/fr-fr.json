@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Modèle de peinture",
   "settings.models.painting_model_description": "Modèle utilisé pour la génération d'images",
   "settings.models.provider_id": "Identifiant du fournisseur",
+  "settings.models.provider_import_auto_sync": "Après confirmation, les modèles seront synchronisés automatiquement et ce nouveau fournisseur sera activé si au moins un modèle est disponible.",
   "settings.models.provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Échec de l'ajout de la clé API du fournisseur, format des données incorrect",
   "settings.models.provider_key_added": "Clé API ajoutée avec succès pour {{provider}}",

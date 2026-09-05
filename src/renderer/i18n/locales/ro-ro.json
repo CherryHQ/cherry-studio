@@ -4350,6 +4350,7 @@
   "settings.models.painting_model": "Model de pictură",
   "settings.models.painting_model_description": "Model utilizat pentru generarea de imagini",
   "settings.models.provider_id": "ID furnizor",
+  "settings.models.provider_import_auto_sync": "După confirmare, modelele vor fi sincronizate automat, iar noul furnizor va fi activat dacă este disponibil cel puțin un model.",
   "settings.models.provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Adăugarea cheii API a furnizorului a eșuat, eroare format date",
   "settings.models.provider_key_added": "S-a adăugat cu succes cheia API pentru {{provider}}",
