@@ -441,6 +441,58 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(events.filter((event) => event.type === 'tool-call')).toHaveLength(1)
   })
 
+  it('preserves reasoning provider metadata, including metadata-only deltas', async () => {
+    const metadata = { anthropic: { signature: 'sig_1' } }
+    const source = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue({ type: 'stream-start', warnings: [] })
+        controller.enqueue({ type: 'reasoning-start', id: 'reasoning-1' })
+        controller.enqueue({
+          type: 'reasoning-delta',
+          id: 'reasoning-1',
+          delta: 'thinking',
+          providerMetadata: metadata
+        })
+        controller.enqueue({ type: 'reasoning-delta', id: 'reasoning-1', delta: '', providerMetadata: metadata })
+        controller.enqueue({ type: 'reasoning-end', id: 'reasoning-1' })
+        controller.enqueue({
+          type: 'finish',
+          finishReason: { unified: 'stop', raw: 'stop' },
+          usage: {} as any
+        })
+        controller.close()
+      }
+    })
+
+    const events = await runSourceStream(source)
+    expect(events).toContainEqual({
+      type: 'reasoning-delta',
+      id: 'reasoning-1',
+      delta: 'thinking',
+      providerMetadata: metadata
+    })
+    expect(events).toContainEqual({ type: 'reasoning-delta', id: 'reasoning-1', delta: '', providerMetadata: metadata })
+  })
+
+  it('does not parse mixed single- and double-bar delimiters as a tool call', async () => {
+    const deltas = [
+      '<｜｜DSML｜｜tool_calls>',
+      '<｜DSML｜invoke name="read_file">',
+      '<｜DSML｜parameter name="path" string="true">/tmp/a.md</｜DSML｜parameter>',
+      '</｜DSML｜invoke>',
+      '</｜｜DSML｜｜tool_calls>'
+    ]
+    const events = await runStream(deltas, 'stop')
+
+    expect(events.filter((event) => event.type === 'tool-call')).toHaveLength(0)
+    expect(
+      events
+        .filter((event) => event.type === 'text-delta')
+        .map((event) => event.delta)
+        .join('')
+    ).toContain('<｜｜DSML｜｜tool_calls>')
+  })
+
   it('keeps interleaved text and reasoning parser state isolated by content block', async () => {
     const parts: LanguageModelV3StreamPart[] = [
       { type: 'stream-start', warnings: [] },
