@@ -1295,7 +1295,8 @@ describe('KnowledgePage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
-    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
+    // The chunk panel mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('chunk-detail-panel')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
