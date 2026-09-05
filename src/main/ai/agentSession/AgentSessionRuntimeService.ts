@@ -270,8 +270,6 @@ type AgentSessionRuntimeEntry = {
   modelId: UniqueModelId
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
-  /** Retained across failed or paused turns until one successful persistence attempts naming. */
-  autoNamePending: boolean
   runtimeState: RuntimeState
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
@@ -516,7 +514,6 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentType = input.agentType
       existing.modelId = input.modelId
       existing.messageSnapshot = messageSnapshot
-      existing.autoNamePending ||= turn.shouldAutoName === true
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
@@ -541,7 +538,6 @@ export class AgentSessionRuntimeService extends BaseService {
       agentType: input.agentType,
       modelId: input.modelId,
       messageSnapshot,
-      autoNamePending: turn.shouldAutoName === true,
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
@@ -659,7 +655,6 @@ export class AgentSessionRuntimeService extends BaseService {
         agentId: session.agentId,
         agentType: agent.type,
         modelId: agent.model,
-        autoNamePending: false,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -877,6 +872,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry)?.redirect?.({
         message,
         systemReminder: true,
+        ...(opts.shouldAutoName ? { shouldAutoName: true } : {}),
         ...(headless ? { headless } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
       })
@@ -1736,6 +1732,7 @@ export class AgentSessionRuntimeService extends BaseService {
               knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
               fastMode: this.currentTurn(entry)?.fastMode ?? false,
               steer: true,
+              ...(input.shouldAutoName ? { shouldAutoName: true } : {}),
               ...(input.headless ? { headless: true } : {}),
               ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
             }
@@ -2669,9 +2666,9 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless,
+      shouldAutoName: pendingTurn.shouldAutoName === true,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
-    entry.autoNamePending ||= pendingTurn.shouldAutoName === true
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
@@ -2953,6 +2950,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless,
+      shouldAutoName: transition.inputs.some((input) => input.shouldAutoName === true),
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
@@ -3092,9 +3090,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
-    const afterPersist = entry.autoNamePending
+    const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
-          entry.autoNamePending = false
+          currentTurn.shouldAutoName = false
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
       : undefined
