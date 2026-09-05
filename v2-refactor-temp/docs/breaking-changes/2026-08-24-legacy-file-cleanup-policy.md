@@ -8,9 +8,10 @@ date: 2026-08-24
 
 ## What changed
 
-Files and references that both existed when a database completed its one-shot v2 migration, and whose reference is
-from a migrated Agent Session attachment, chat message, painting, provider logo, or mini-app logo, now use
-`delete_when_unreferenced` instead of the conservative `manual` fallback.
+Files that existed when a database completed its one-shot v2 migration and are referenced by a migrated Agent
+Session attachment, chat message, painting, provider logo, or mini-app logo now use `delete_when_unreferenced`
+instead of the conservative `manual` fallback. Agent Session attachment references are synthesized by the
+post-migration seeder after that completion boundary; they are not part of the one-shot migration snapshot.
 
 ## Why this matters to the user
 
