@@ -46,6 +46,7 @@ import {
   NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
+import { fileTypeFromBuffer } from 'file-type'
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from './agentSession/topic'
@@ -879,7 +880,16 @@ export class AiService extends BaseService {
       } else if (!image.base64 || !GENERATED_IMAGE_BASE64_SCHEMA.safeParse(image.base64).success) {
         rejected.push({ index, reason: 'invalid_image_data' })
       } else {
-        dataUrls.push(`data:${mediaType};base64,${image.base64}`)
+        try {
+          const detectedType = await fileTypeFromBuffer(Buffer.from(image.base64, 'base64'))
+          if (!detectedType?.mime.startsWith('image/')) {
+            rejected.push({ index, reason: 'invalid_image_data' })
+          } else {
+            dataUrls.push(`data:${detectedType.mime};base64,${image.base64}`)
+          }
+        } catch {
+          rejected.push({ index, reason: 'invalid_image_data' })
+        }
       }
     }
 

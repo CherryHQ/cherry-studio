@@ -2,6 +2,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { NoImageGeneratedError } from 'ai'
+import type * as FileTypeModule from 'file-type'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
@@ -47,6 +48,8 @@ const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
+const mockFileTypeFromBuffer = vi.fn()
+const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 
 vi.mock('@application', () => ({
   application: {
@@ -131,6 +134,14 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
 
+vi.mock('file-type', async (importOriginal) => {
+  const actual = await importOriginal<typeof FileTypeModule>()
+  return {
+    ...actual,
+    fileTypeFromBuffer: (...args: Parameters<typeof actual.fileTypeFromBuffer>) => mockFileTypeFromBuffer(...args)
+  }
+})
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     getById: mockMessageGetById,
@@ -209,6 +220,7 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
+const { fileTypeFromBuffer: fileTypeFromBufferActual } = await vi.importActual<typeof FileTypeModule>('file-type')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -225,6 +237,7 @@ describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateAgent.mockReset()
+    mockFileTypeFromBuffer.mockImplementation(fileTypeFromBufferActual)
     mockAssistantGetById.mockReturnValue(undefined)
     mockReadRetryPolicy.mockReturnValue({
       enabled: true,
@@ -444,7 +457,7 @@ describe('AiService', () => {
     } as never)
 
     mockGenerateImage.mockResolvedValue({
-      images: [{ base64: 'YWJjMTIz', mediaType: 'image/png' }, { nonsense: true }],
+      images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }, { nonsense: true }],
       providerMetadata: {
         testProvider: {
           images: [{ url: 'https://example.com/image.png' }]
@@ -527,7 +540,7 @@ describe('AiService', () => {
 
     expect(createInternalEntry).toHaveBeenCalledWith({
       source: 'base64',
-      data: 'data:image/png;base64,YWJjMTIz',
+      data: `data:image/png;base64,${TINY_PNG_BASE64}`,
       cleanupPolicy: 'delete_when_unreferenced'
     })
     expect(result).toEqual({
@@ -664,6 +677,71 @@ describe('AiService', () => {
       expect(createInternalEntry).not.toHaveBeenCalled()
     })
 
+    it('rejects valid base64 when the decoded bytes are not an image', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'YWJjMTIz', mediaType: 'image/png' }] })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 1,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('isolates image type detection failures to the invalid output', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockFileTypeFromBuffer.mockRejectedValueOnce(new Error('detector failed'))
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledOnce()
+    })
+
     it('reports why every provider image was rejected without issuing another request', async () => {
       const service = createService()
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -711,10 +789,10 @@ describe('AiService', () => {
       mockGenerateImage.mockResolvedValue({
         images: [
           { base64: '', mediaType: 'image/png' },
-          { base64: 'dmFsaWQtYnl0ZXM=', mediaType: 'image/webp' }
+          { base64: TINY_PNG_BASE64, mediaType: 'image/webp' }
         ]
       })
-      const file = { id: 'file-1', origin: 'internal', ext: 'webp', name: 'image', size: 1, createdAt: 0 }
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
       const createInternalEntry = vi.fn().mockResolvedValue(file)
       mockApplicationGet.mockImplementation((name: string) =>
         name === 'FileManager' ? { createInternalEntry } : undefined
@@ -736,7 +814,7 @@ describe('AiService', () => {
       })
       expect(createInternalEntry).toHaveBeenCalledWith({
         source: 'base64',
-        data: 'data:image/webp;base64,dmFsaWQtYnl0ZXM=',
+        data: `data:image/png;base64,${TINY_PNG_BASE64}`,
         cleanupPolicy: 'delete_when_unreferenced'
       })
       expect(mockGenerateImage).toHaveBeenCalledOnce()
@@ -752,7 +830,7 @@ describe('AiService', () => {
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
-      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'YWJjMTIz', mediaType: 'image/png' }] })
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }] })
       const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
       mockApplicationGet.mockImplementation((name: string) =>
         name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue(fileEntry) } : undefined
@@ -794,8 +872,8 @@ describe('AiService', () => {
       } as never)
       mockGenerateImage.mockResolvedValue({
         images: [
-          { base64: 'Zmlyc3Q=', mediaType: 'image/png' },
-          { base64: 'c2Vjb25k', mediaType: 'image/png' }
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' }
         ]
       })
       const createInternalEntry = vi.fn().mockRejectedValue(new Error('disk full'))
