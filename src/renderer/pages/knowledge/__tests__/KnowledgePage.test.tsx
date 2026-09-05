@@ -1390,7 +1390,8 @@ describe('KnowledgePage', () => {
     render(<KnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateGroupForBase Base 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Create Group' }))
+    // The create-group dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create Group' }))
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
@@ -1424,9 +1425,10 @@ describe('KnowledgePage', () => {
     // Open from a base's context menu, cancel, then create a group the plain way:
     // the cancelled pending move must not leak into the second creation.
     fireEvent.click(screen.getByRole('button', { name: 'CreateGroupForBase Base 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel Create Group' }))
+    // The create-group dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel Create Group' }))
     fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Create Group' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create Group' }))
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledTimes(1)
@@ -1584,7 +1586,8 @@ describe('KnowledgePage', () => {
     render(<KnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Same Name Base' }))
+    // The rename dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Same Name Base' }))
 
     await waitFor(() => {
       expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
@@ -1648,7 +1651,8 @@ describe('KnowledgePage', () => {
     const { rerender } = render(<KnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
-    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+    // The create dialog mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('create-dialog-groups')).toHaveTextContent('Research,Archive')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
@@ -1687,7 +1691,8 @@ describe('KnowledgePage', () => {
     const { rerender } = render(<KnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+    // The create dialog mounts through React.lazy; await its first resolution
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit Create' }))
 
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
 
@@ -1719,7 +1724,8 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
 
-    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+    // The create dialog mounts through React.lazy; await its first resolution
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
