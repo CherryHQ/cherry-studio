@@ -86,6 +86,7 @@ vi.mock('@application', () => ({
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
+const { AgentRuntimeInputDeliveryError } = await import('../../runtime/types')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
   sessionId: 'session-1',
@@ -1986,6 +1987,63 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('does not terminalize a fresh turn when its stale warm connection fails during reconcile', async () => {
+      const reconcile = createDeferred<string>()
+      const staleEvent = createDeferred<IteratorResult<any>>()
+      const staleConnection = {
+        events: {
+          [Symbol.asyncIterator]() {
+            return { next: () => staleEvent.promise }
+          }
+        },
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn(() => reconcile.promise)
+      }
+      const replacementConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValueOnce(staleConnection).mockResolvedValueOnce(replacementConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(staleConnection.reconcile).toHaveBeenCalledOnce())
+
+      staleEvent.reject(new Error('stale resumed failure'))
+      await vi.waitFor(() => expect(staleConnection.close).toHaveBeenCalledOnce())
+      reconcile.resolve('current')
+
+      await vi.waitFor(() =>
+        expect(replacementConnection.send).toHaveBeenCalledWith(
+          expect.objectContaining({ message: userMessage('user-1') })
+        )
+      )
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', admission: 'admitted' })
+
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('waits for background work to release before rebuilding for a fresh turn', async () => {
       const firstConnection = {
         events: createAsyncQueue<any>().iterable,
@@ -3491,11 +3549,13 @@ describe('AgentSessionRuntimeService', () => {
       const events = createAsyncQueue<any>()
       const getContextUsage = vi.fn()
       const refreshTraceContext = vi.fn()
+      const reserveInput = vi.fn(() => vi.fn())
       const connection = {
         events: events.iterable,
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput,
         refreshTraceContext,
         getContextUsage,
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
@@ -3549,9 +3609,229 @@ describe('AgentSessionRuntimeService', () => {
           })
         )
       )
+      expect(reserveInput).toHaveBeenCalledOnce()
+      expect(reserveInput.mock.invocationCallOrder[0]).toBeLessThan(refreshTraceContext.mock.invocationCallOrder[0])
       expect(refreshTraceContext.mock.invocationCallOrder[0]).toBeLessThan(connection.send.mock.invocationCallOrder[0])
 
       await reader.cancel().catch(() => undefined)
+    })
+
+    it('sends an admitted turn through the replacement connection after trace refresh', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const refreshed = createDeferred<void>()
+      const cancelStaleReservation = vi.fn()
+      const staleConnection = {
+        events: [],
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => cancelStaleReservation),
+        refreshTraceContext: vi.fn(() => refreshed.promise)
+      }
+      const replacementConnection = {
+        events: [],
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      entry.connection = staleConnection
+
+      const admitting = (service as any).admitTurn(entry, entry.currentTurn)
+      await vi.waitFor(() => expect(staleConnection.refreshTraceContext).toHaveBeenCalledOnce())
+      entry.connection = replacementConnection
+      refreshed.resolve()
+      await admitting
+
+      expect(cancelStaleReservation).toHaveBeenCalledOnce()
+      expect(staleConnection.send).not.toHaveBeenCalled()
+      expect(replacementConnection.reserveInput).toHaveBeenCalledOnce()
+      expect(replacementConnection.send).toHaveBeenCalledWith({
+        message: userMessage('user-1'),
+        systemReminder: false
+      })
+    })
+
+    it('retries a fresh turn when its resumed connection fails during trace refresh', async () => {
+      const staleEvent = createDeferred<IteratorResult<any>>()
+      const refreshed = createDeferred<void>()
+      const cancelStaleReservation = vi.fn()
+      const staleConnection = {
+        events: {
+          [Symbol.asyncIterator]() {
+            return { next: () => staleEvent.promise }
+          }
+        },
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => cancelStaleReservation),
+        refreshTraceContext: vi.fn(() => refreshed.promise)
+      }
+      const replacementConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValueOnce(staleConnection).mockResolvedValueOnce(replacementConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(staleConnection.refreshTraceContext).toHaveBeenCalledOnce())
+
+      staleEvent.reject(new Error('stale resumed failure'))
+      await vi.waitFor(() => expect(staleConnection.close).toHaveBeenCalledOnce())
+      refreshed.resolve()
+
+      await vi.waitFor(() =>
+        expect(replacementConnection.send).toHaveBeenCalledWith(
+          expect.objectContaining({ message: userMessage('user-1') })
+        )
+      )
+      expect(cancelStaleReservation).toHaveBeenCalledOnce()
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', admission: 'admitted' })
+
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('retries an input rejected before transport delivery without terminalizing the turn', async () => {
+      const staleEvents = createAsyncQueue<any>()
+      const replacementEvents = createAsyncQueue<any>()
+      const deliveryError = new Error('transport failed before input write')
+      const staleConnection = {
+        events: staleEvents.iterable,
+        send: vi.fn(() => {
+          const rejected = Promise.reject(new AgentRuntimeInputDeliveryError(deliveryError))
+          staleEvents.push({ type: 'error', error: deliveryError })
+          return rejected
+        }),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      const replacementConnection = {
+        events: replacementEvents.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValueOnce(staleConnection).mockResolvedValueOnce(replacementConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(replacementConnection.send).toHaveBeenCalledWith({
+          message: userMessage('user-1'),
+          systemReminder: false
+        })
+      )
+      expect(staleConnection.close).toHaveBeenCalledOnce()
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', admission: 'admitted' })
+
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('terminalizes an input after its single pre-delivery retry also fails', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const retryEvents = createAsyncQueue<any>()
+      const firstError = new Error('first transport failed before input write')
+      const retryError = new Error('retry transport failed before input write')
+      const firstConnection = {
+        events: firstEvents.iterable,
+        send: vi.fn(() => {
+          const rejected = Promise.reject(new AgentRuntimeInputDeliveryError(firstError))
+          firstEvents.push({ type: 'error', error: firstError })
+          return rejected
+        }),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      const retryConnection = {
+        events: retryEvents.iterable,
+        send: vi.fn(() => {
+          const rejected = Promise.reject(new AgentRuntimeInputDeliveryError(retryError))
+          retryEvents.push({ type: 'error', error: retryError })
+          return rejected
+        }),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(retryConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader.read()).rejects.toBe(retryError)
+      expect(connect).toHaveBeenCalledTimes(2)
+      expect(firstConnection.send).toHaveBeenCalledOnce()
+      expect(retryConnection.send).toHaveBeenCalledOnce()
+      expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
     })
 
     it('is a no-op for a session whose agent was deleted', async () => {
