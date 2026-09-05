@@ -2,7 +2,7 @@ import { Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
+import { ChevronDown, CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -78,6 +78,47 @@ const AiDiagnosisSectionWithStatus = memo(
 
     React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
 
+    if (status === 'done' && result) {
+      return (
+        <details
+          className="group rounded-xl border border-border bg-background p-4"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true">
+          <summary
+            aria-label={t('error.diagnosis.ai_result')}
+            className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
+              <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
+              <span className="font-medium text-sm">{t('error.diagnosis.ai_button')}</span>
+              <Badge variant="outline" className="font-normal text-xs">
+                {t('error.diagnosis.ai_done')}
+              </Badge>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+              {t('error.diagnosis.view_details')}
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+            </span>
+          </summary>
+          <div className="mt-3 space-y-2 border-border border-t pt-3 text-muted-foreground text-sm leading-6">
+            <p>{result.explanation || result.summary}</p>
+            {result.steps.length > 0 ? (
+              <ol className="space-y-1.5">
+                {result.steps.map((step, index) => (
+                  <li key={`${index}-${step.text}`} className="flex gap-2 rounded-md bg-secondary px-2.5 py-1.5">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+                      {index + 1}
+                    </span>
+                    <span>{step.text}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </div>
+        </details>
+      )
+    }
+
     return (
       <div
         className="rounded-xl border border-border bg-background p-4"
@@ -112,24 +153,6 @@ const AiDiagnosisSectionWithStatus = memo(
             <Button variant="outline" size="sm" onClick={() => void runDiagnosis()}>
               {t('common.retry')}
             </Button>
-          </div>
-        ) : null}
-
-        {status === 'done' && result ? (
-          <div className="mt-3 space-y-2 text-muted-foreground text-sm leading-6">
-            <p>{result.explanation || result.summary}</p>
-            {result.steps.length > 0 ? (
-              <ol className="space-y-1.5">
-                {result.steps.map((step, index) => (
-                  <li key={`${index}-${step.text}`} className="flex gap-2 rounded-md bg-secondary px-2.5 py-1.5">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
-                      {index + 1}
-                    </span>
-                    <span>{step.text}</span>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
           </div>
         ) : null}
       </div>
