@@ -40,6 +40,18 @@ describe('readHeartbeat', () => {
     expect(result).toBeUndefined()
   })
 
+  it('returns undefined when file holds only HTML comments (fresh template)', async () => {
+    mockedReadFile.mockResolvedValue('<!-- check inbox -->\n<!-- keep it small -->')
+    const result = await readHeartbeat('/workspace')
+    expect(result).toBeUndefined()
+  })
+
+  it('returns the full content when comments accompany real entries', async () => {
+    mockedReadFile.mockResolvedValue('<!-- template header -->\n- real checklist item')
+    const result = await readHeartbeat('/workspace')
+    expect(result).toBe('<!-- template header -->\n- real checklist item')
+  })
+
   it('trims whitespace from content', async () => {
     mockedReadFile.mockResolvedValue('  check my email  \n')
     const result = await readHeartbeat('/workspace')
