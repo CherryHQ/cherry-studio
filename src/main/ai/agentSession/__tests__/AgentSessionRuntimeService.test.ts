@@ -2208,6 +2208,65 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    // A SendMessage resume re-streams under the original tool-call id after the first background
+    // flow has drained — the retained anchor is what lets that second generation still land.
+    it('patches resumed subagent chunks onto the spawning message after the first flow drained', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+      const sendFlow = (text: string, textId: string) => {
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      service.markTurnTerminal('session-1', 'success')
+      sendFlow('First round findings', 'first-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'First round findings' })])
+        )
+      })
+      mocks.replaceMessageParts.mockClear()
+
+      // The resume arrives after the drain that used to delete the anchor.
+      sendFlow('Resumed findings', 'resumed-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
+        )
+      })
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
