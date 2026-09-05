@@ -38,12 +38,17 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
     const checkId = restoreActionCheckRef.current
     restoreActionCheckRef.current = null
+    if (session.revealedEvidence.includes(checkId)) return
     document
       .querySelector<HTMLButtonElement>(
         `[data-doctor-action-check="${checkId}"], [data-doctor-evidence-trigger="${checkId}"]`
       )
       ?.focus()
-  }, [interaction.kind])
+  }, [interaction.kind, session.revealedEvidence])
+
+  useEffect(() => {
+    if (interaction.kind === 'confirm-evidence') restoreActionCheckRef.current = interaction.checkId
+  }, [interaction])
 
   const copyResults = async () => {
     if (!viewModel.report) return
@@ -120,7 +125,10 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
           ) : null}
 
           {viewModel.rows.length > 0 ? (
-            <DoctorCheckResults controller={controller} />
+            <DoctorCheckResults
+              controller={controller}
+              initialExpandedCheckId={restoreActionCheckRef.current ?? undefined}
+            />
           ) : (
             <Alert
               type="info"
