@@ -32,6 +32,7 @@
   "appMenu.copy": "Copiar",
   "appMenu.cut": "Cortar",
   "appMenu.delete": "Eliminar",
+  "appMenu.doctor": "Diagnóstico del sistema",
   "appMenu.documentation": "Documentación",
   "appMenu.edit": "Editar",
   "appMenu.feedback": "Retroalimentación",
