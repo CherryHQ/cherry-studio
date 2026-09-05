@@ -8,10 +8,10 @@ date: 2026-08-24
 
 ## What changed
 
-Files that existed when a database completed its one-shot v2 migration and are referenced by a migrated Agent
-Session attachment, chat message, painting, provider logo, or mini-app logo now use `delete_when_unreferenced`
-instead of the conservative `manual` fallback. Agent Session attachment references are synthesized by the
-post-migration seeder after that completion boundary; they are not part of the one-shot migration snapshot.
+Files that predate a database's one-shot v2 migration completion and are referenced by a migrated Agent Session
+attachment, chat message, painting, provider logo, or mini-app logo now use `delete_when_unreferenced` instead of
+the conservative `manual` fallback. The post-migration seeder may synthesize missing Agent Session attachment
+references after that boundary, but only when both the source message and file also predate the boundary.
 
 ## Why this matters to the user
 
@@ -27,6 +27,7 @@ independently.
 ## Notes for release manager
 
 The run-on-change backfill reads each database's recorded migration completion boundary through the v2 migration
-domain's owner API. It is restricted to file rows and durable references that both existed when that one-shot
-migration completed. Both must belong to one of the five legacy migration cohorts, and the file must still have the
-`manual` default. User-created manual files and references added later are unchanged.
+domain's owner API. It inserts missing Agent Session attachment references only when their source message and file
+predate that boundary, then updates only `manual` file rows that predate the boundary and have a matching durable
+reference from one of the five legacy migration cohorts. User-created manual files and references added later are
+unchanged.
