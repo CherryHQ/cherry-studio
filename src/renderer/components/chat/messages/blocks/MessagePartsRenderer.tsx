@@ -15,6 +15,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
@@ -41,9 +42,11 @@ import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { fileUrlToPath } from '@shared/utils/file'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
@@ -225,24 +228,20 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 // Must agree with what the hoisting container actually renders, or a dropped entry
 // leaves no attachment at all.
 function isHoistableFilePart(part: CherryMessagePart): boolean {
-  if ((part.type as string) !== 'file') return false
-  return isImageFilePart(part) ? !!extractImageUrl(part) : !!fileHandleFromPart(part)
+  return isImageFilePart(part) && !!extractImageUrl(part)
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
-export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
+export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
   const images: string[] = []
   const files: HoistedFileAttachment[] = []
 
-  parts.forEach((part, index) => {
+  parts.forEach((part) => {
     if ((part.type as string) !== 'file') return
     if (isImageFilePart(part)) {
       const url = extractImageUrl(part)
       if (url) images.push(url)
-      return
     }
-    const attachment = toFileAttachment(part, `${message.id}-part-${index}`)
-    if (attachment) files.push(attachment)
   })
 
   return { images, files }
@@ -269,6 +268,10 @@ interface RenderGroupedEntryOptions {
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onReadOnlyFilePreviewActivate?: (
+    preview: ReadOnlyComposerFileTokenPreview,
+    token: ChatTokenView
+  ) => void | Promise<void>
   hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
@@ -401,15 +404,30 @@ function getReadOnlyFileTokenPreviews(
     const cherryMeta = getCherryMeta(part)
     const sourceId = cherryMeta?.fileTokenSourceId
     if (!sourceId) continue
+    const originalPath = cherryMeta.originalPath
+      ? AbsoluteFilePathSchema.safeParse(cherryMeta.originalPath).data
+      : undefined
 
     previews.set(sourceId, {
       url: part.url,
       mediaType: part.mediaType,
+      ...(originalPath && { originalPath }),
       ...(cherryMeta.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
     })
   }
 
   return previews
+}
+
+function getPreviewPathFromFileUrl(url: string | undefined) {
+  if (!url) return null
+
+  try {
+    const parsed = fileUrlToPath(url as FileUrlString)
+    return AbsoluteFilePathSchema.safeParse(parsed).data ?? null
+  } catch {
+    return null
+  }
 }
 
 function findUniqueVisibleFileTokenIndex(
@@ -679,6 +697,7 @@ function renderPart(
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
+          onReadOnlyFilePreviewActivate={options?.onReadOnlyFilePreviewActivate}
           hiddenComposerTokens={options?.hiddenComposerTokens}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
@@ -1443,7 +1462,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { removeMessageTranslation, notifySuccess, previewInputFile, previewInputFileInRightPane } =
+    useMessageListActions()
   const { t } = useTranslation()
   const canRemoveTranslation = !!removeMessageTranslation
   const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
@@ -1508,6 +1528,23 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
+  const previewInputFileAction = previewInputFile ?? previewInputFileInRightPane
+  const handleReadOnlyFilePreviewActivate = useCallback(
+    (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
+      if (!previewInputFileAction) return
+      const previewPath = getPreviewPathFromFileUrl(preview.url)
+      if (!previewPath) return
+
+      return previewInputFileAction({
+        displayName: token.label,
+        previewPath,
+        ...(preview.originalPath && { originalPath: preview.originalPath }),
+        ...(preview.mediaType && { mediaType: preview.mediaType }),
+        ...(preview.composerFileKind && { composerFileKind: preview.composerFileKind })
+      })
+    },
+    [previewInputFileAction]
+  )
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
@@ -1551,6 +1588,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
+      onReadOnlyFilePreviewActivate: previewInputFileAction ? handleReadOnlyFilePreviewActivate : undefined,
       hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
@@ -1563,8 +1601,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
       handleRemoveTranslation,
+      handleReadOnlyFilePreviewActivate,
       messageCitations,
       readOnlyFilePreviews,
+      previewInputFileAction,
       displayProjection.hiddenImageTokens
     ]
   )

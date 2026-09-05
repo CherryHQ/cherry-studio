@@ -21,6 +21,11 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
@@ -53,6 +58,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   withFullMarkdown: mocks.withFullMarkdown
 }))
 
@@ -98,6 +104,7 @@ describe('MarkdownFilePreview', () => {
     renderPreview()
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
+    expect(screen.getByTestId('markdown-preview').parentElement).toHaveClass('pt-4')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
     expect(mocks.withFullMarkdown).toHaveBeenCalledWith({ singleDollarMath: true })
   })
@@ -139,14 +146,14 @@ describe('MarkdownFilePreview', () => {
     renderPreview()
     await screen.findByTestId('markdown-preview')
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'file_preview.markdown.mode.source' }))
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# File preview')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'markdown', value: '# File preview', wrapped: true })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'file_preview.markdown.mode.preview' }))
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
   })
 
@@ -154,8 +161,8 @@ describe('MarkdownFilePreview', () => {
     renderPreview({ type: 'artifact' })
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads when the path or refresh key changes', async () => {

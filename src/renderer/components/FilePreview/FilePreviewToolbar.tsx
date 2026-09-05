@@ -1,3 +1,5 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import { createContext, type ReactNode, use, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -7,6 +9,15 @@ interface FilePreviewToolbarPortalContextValue {
 }
 
 const FilePreviewToolbarPortalContext = createContext<FilePreviewToolbarPortalContextValue | undefined>(undefined)
+
+interface FilePreviewModeToolbarPortalContextValue {
+  setTarget: (target: HTMLDivElement | null) => void
+  target: HTMLDivElement | null
+}
+
+const FilePreviewModeToolbarPortalContext = createContext<FilePreviewModeToolbarPortalContextValue | undefined>(
+  undefined
+)
 
 export function FilePreviewToolbarPortalProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
@@ -27,12 +38,28 @@ export function FilePreviewToolbarPortalHost() {
   )
 }
 
+export function FilePreviewModeToolbarPortalProvider({ children }: { children: ReactNode }) {
+  const [target, setTarget] = useState<HTMLDivElement | null>(null)
+  const value = useMemo(() => ({ setTarget, target }), [target])
+
+  return <FilePreviewModeToolbarPortalContext value={value}>{children}</FilePreviewModeToolbarPortalContext>
+}
+
+export function FilePreviewModeToolbarPortalHost() {
+  const context = use(FilePreviewModeToolbarPortalContext)
+
+  if (!context) return null
+
+  return <div ref={context.setTarget} data-testid="file-preview-mode-toolbar-host" className="contents" />
+}
+
 interface FilePreviewToolbarProps {
   'aria-label': string
+  align?: 'center' | 'start'
   children: ReactNode
 }
 
-export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePreviewToolbarProps) {
+export function FilePreviewToolbar({ 'aria-label': ariaLabel, align = 'center', children }: FilePreviewToolbarProps) {
   const context = use(FilePreviewToolbarPortalContext)
 
   if (context && !context.target) return null
@@ -46,9 +73,85 @@ export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePr
       role="toolbar"
       aria-label={ariaLabel}
       className="relative flex h-11 min-h-11 shrink-0 items-center overflow-x-auto px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
-      <div className="mx-auto flex min-w-max shrink-0 items-center justify-center gap-1">{children}</div>
+      <div
+        className={cn(
+          'flex min-w-max shrink-0 items-center gap-1',
+          align === 'center' ? 'mx-auto justify-center' : 'justify-start'
+        )}>
+        {children}
+      </div>
     </div>
   )
 
   return context?.target ? createPortal(toolbar, context.target) : toolbar
+}
+
+export interface FilePreviewModeTabOption<TValue extends string = string> {
+  disabled?: boolean
+  icon: ReactNode
+  label: string
+  value: TValue
+}
+
+interface FilePreviewModeTabsProps<TValue extends string = string> {
+  'aria-label': string
+  disabled?: boolean
+  onValueChange: (value: TValue) => void
+  options: readonly FilePreviewModeTabOption<TValue>[]
+  value: TValue
+}
+
+export function FilePreviewModeTabs<TValue extends string = string>({
+  'aria-label': ariaLabel,
+  disabled = false,
+  onValueChange,
+  options,
+  value
+}: FilePreviewModeTabsProps<TValue>) {
+  const context = use(FilePreviewModeToolbarPortalContext)
+  const tablist = (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      aria-disabled={disabled}
+      data-testid="file-preview-mode-tabs"
+      className={cn(
+        'inline-flex h-7.5 shrink-0 items-center rounded-md border border-border-subtle bg-muted/40 p-0.5',
+        disabled && 'opacity-50'
+      )}>
+      {options.map((option) => {
+        const selected = option.value === value
+
+        return (
+          <Tooltip key={option.value} content={option.label} delay={300}>
+            <Button
+              type="button"
+              role="tab"
+              aria-label={option.label}
+              aria-selected={selected}
+              disabled={disabled || option.disabled}
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground leading-none shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
+                selected && 'bg-background text-foreground hover:bg-background'
+              )}
+              onClick={() => {
+                if (!selected) onValueChange(option.value)
+              }}>
+              {option.icon}
+            </Button>
+          </Tooltip>
+        )
+      })}
+    </div>
+  )
+
+  if (context) return context.target ? createPortal(tablist, context.target) : null
+
+  return (
+    <FilePreviewToolbar aria-label={ariaLabel} align="start">
+      {tablist}
+    </FilePreviewToolbar>
+  )
 }

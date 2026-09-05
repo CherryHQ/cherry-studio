@@ -1,6 +1,7 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -17,7 +18,8 @@ const exportActionsMock = vi.hoisted(() => ({
 }))
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
-  copyImage: vi.fn()
+  copyImage: vi.fn(),
+  previewFile: vi.fn()
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
@@ -54,6 +56,8 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 const openRouteMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+const topicPreviewInputFileMock = vi.hoisted(() => vi.fn())
 const getMessageActivityStateMock = vi.hoisted(() =>
   vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false }))
 )
@@ -102,6 +106,18 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     modelSelectorMock.props.push(props)
     return <>{props.trigger}</>
   }
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
+}))
+
+vi.mock('../../components/TopicRightPane', () => ({
+  useOptionalTopicRightPaneActions: () => ({
+    previewInputFile: topicPreviewInputFileMock
+  })
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -324,6 +340,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       writable: true,
       value: {
         file: {
+          getPhysicalPath: vi.fn(),
           openPath: vi.fn(),
           select: vi.fn(),
           showInFolder: vi.fn()
@@ -409,6 +426,58 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
 
     expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
+  })
+
+  it('opens sent input file previews through the topic right pane action', async () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    await waitFor(() => expect(value?.actions.previewInputFile).toBeDefined())
+    await value?.actions.previewInputFile?.({
+      displayName: 'report.docx',
+      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+
+    expect(topicPreviewInputFileMock).toHaveBeenCalledWith({
+      displayName: 'report.docx',
+      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+  })
+
+  it('opens sent attachment cards through the topic right pane action', async () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    await value?.actions.previewFile?.({
+      handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath },
+      name: 'report.pdf',
+      ext: '.pdf'
+    })
+
+    expect(topicPreviewInputFileMock).toHaveBeenCalledWith({
+      displayName: 'report.pdf',
+      previewPath: '/tmp/report.pdf'
+    })
+    expect(leafCapabilitiesMock.previewFile).not.toHaveBeenCalled()
+
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(
+      '/data/Application Support/report.pdf' as AbsoluteFilePath
+    )
+    await value?.actions.previewFile?.({
+      handle: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' },
+      name: 'managed-report.pdf',
+      ext: '.pdf'
+    })
+
+    expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
+    expect(topicPreviewInputFileMock).toHaveBeenLastCalledWith({
+      displayName: 'managed-report.pdf',
+      previewPath: '/data/Application Support/report.pdf'
+    })
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {
