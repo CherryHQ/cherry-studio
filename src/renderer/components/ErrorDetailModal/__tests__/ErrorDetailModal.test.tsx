@@ -340,7 +340,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ error: providerError })
+      showErrorDetailPopup({ diagnosticReport: { location: 'Agent conversation' }, error: providerError })
     })
 
     await user.click(screen.getByRole('button', { name: /Startup configuration/ }))
@@ -349,6 +349,11 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(repair)
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument())
+    const reportProblem = screen.getByRole('button', { name: 'Report a problem' })
+    expect(reportProblem).toBeDisabled()
+    await user.click(reportProblem)
+    expect(popupService.getSnapshot()[0]?.open).toBe(true)
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
     await user.keyboard('{Escape}')
     expect(popupService.getSnapshot()[0]?.open).toBe(true)
     const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
