@@ -38,7 +38,7 @@ beforeAll(() => {
   agentData = join(testRoot, 'agent-data')
   outside = join(testRoot, 'outside')
   skillRoot = join(testRoot, 'skills', 'test-skill')
-  userData = join(testRoot, 'user-data')
+  userData = join(testRoot, 'user data')
   databaseFile = join(userData, 'Data', 'cherrystudio.sqlite')
   mkdirSync(workspace)
   mkdirSync(agentData)
@@ -226,6 +226,27 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
         block: true,
         reason: expect.stringContaining('SQLite')
       })
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+    'blocks Pi-native path spellings before permission handling in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ userResponse: 'unavailable' })
+      })
+      const unicodeSpacePath = databaseFile.replace('user data', 'user\u00a0data')
+
+      for (const toolName of ['write', 'edit']) {
+        for (const protectedPath of [`@${databaseFile}`, unicodeSpacePath]) {
+          await expect(handler(toolEvent(toolName, { path: protectedPath }), extCtx)).resolves.toEqual({
+            block: true,
+            reason: expect.stringContaining('SQLite')
+          })
+        }
+      }
       expect(emitted).toHaveLength(0)
     }
   )

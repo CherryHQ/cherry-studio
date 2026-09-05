@@ -31,7 +31,7 @@ import { loggerService } from '@logger'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -57,10 +57,6 @@ const EDIT_TOOLS = new Set<string>(
 const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
-
-/** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
- *  containment matches pi's own `resolveToCwd`). */
-const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
@@ -371,8 +367,7 @@ async function canonicalizeToolTarget(target: string, allowMissing: boolean): Pr
 /** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
  *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
 function resolveToolPath(raw: string, workspacePath: string): string | undefined {
-  let p = raw.replace(UNICODE_SPACES, ' ')
-  if (p.startsWith('@')) p = p.slice(1) // pi's stripAtPrefix
+  let p = normalizePiNativePathInput(raw)
   if (p === '~') p = os.homedir()
   else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
     p = path.join(os.homedir(), p.slice(2))

@@ -8,10 +8,12 @@ import type { AgentType } from '@shared/data/api/schemas/agents'
 const SQLITE_FILE_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?$/i
 const DATABASE_SIDECARS = ['-wal', '-shm', '-journal'] as const
 const BUNDLED_INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node|bun)(?:\.exe)?$/i
+const PI_UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 interface ToolBinding {
   readonly pathFields: Readonly<Record<string, string>>
   readonly shellFields: Readonly<Record<string, string>>
+  readonly normalizeStructuredPath?: (value: string) => string
 }
 
 const TOOL_BINDINGS = {
@@ -26,7 +28,8 @@ const TOOL_BINDINGS = {
   },
   pi: {
     pathFields: { write: 'path', edit: 'path' },
-    shellFields: { bash: 'command' }
+    shellFields: { bash: 'command' },
+    normalizeStructuredPath: normalizePiNativePathInput
   },
   dsh: {
     pathFields: { write: 'file_path', edit: 'file_path' },
@@ -66,10 +69,16 @@ interface FileIdentity {
 
 type PathClassification = 'protected' | 'safe' | 'invalid'
 
+/** Match Pi's file-tool preprocessing before policy or containment checks. */
+export function normalizePiNativePathInput(value: string): string {
+  const normalized = value.replace(PI_UNICODE_SPACES, ' ')
+  return normalized.startsWith('@') ? normalized.slice(1) : normalized
+}
+
 export async function evaluateUserDataSqliteGuard(
   input: UserDataSqliteGuardInput
 ): Promise<UserDataSqliteGuardDecision | undefined> {
-  const binding = TOOL_BINDINGS[input.runtime]
+  const binding: ToolBinding = TOOL_BINDINGS[input.runtime]
   const pathField = binding.pathFields[input.toolName]
   const shellField = binding.shellFields[input.toolName]
   if (!pathField && !shellField) return undefined
@@ -85,7 +94,8 @@ export async function evaluateUserDataSqliteGuard(
       canonicalizeExistingDirectory(path.resolve(input.cwd), input.signal)
     ])
     if (!roots || !cwd) return deny()
-    const classification = await classifyPath(rawValue, cwd, roots, input.signal)
+    const structuredPath = binding.normalizeStructuredPath?.(rawValue) ?? rawValue
+    const classification = await classifyPath(structuredPath, cwd, roots, input.signal)
     return classification === 'safe' ? undefined : deny()
   }
 
