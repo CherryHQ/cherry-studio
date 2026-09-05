@@ -21,7 +21,7 @@ import {
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
@@ -46,17 +46,13 @@ export function WebviewAnnotationControls({
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [clearConfirmTargetId, setClearConfirmTargetId] = useState<string | null>(null)
-  const keepClearConfirmOpenRef = useRef(false)
   const locale = useMemo<WebviewAnnotationLocale>(
     () => ({
       edit: t('webview.annotation.edit')
     }),
     [t]
   )
-  useEffect(() => {
-    keepClearConfirmOpenRef.current = false
-    setClearConfirmTargetId(null)
-  }, [target.id])
+  useEffect(() => setClearConfirmTargetId(null), [target.id])
   const {
     enabled,
     count,
@@ -89,21 +85,9 @@ export function WebviewAnnotationControls({
     }
   }
 
-  const handleClear = async () => {
-    if (clearConfirmTargetId !== target.id) return
-    if (!(await clear())) {
-      keepClearConfirmOpenRef.current = true
-      return
-    }
-    setClearConfirmTargetId(null)
-  }
-
-  const handleClearOpenChange = (open: boolean) => {
-    if (!open && keepClearConfirmOpenRef.current) {
-      keepClearConfirmOpenRef.current = false
-      return
-    }
-    setClearConfirmTargetId(open ? target.id : null)
+  const handleClear = () => {
+    if (clearConfirmTargetId !== target.id) return false
+    return clear()
   }
 
   const disabled = !isWebviewReady || !isHostActive || !ready
@@ -240,7 +224,7 @@ export function WebviewAnnotationControls({
 
       <ConfirmDialog
         open={clearConfirmTargetId === target.id}
-        onOpenChange={handleClearOpenChange}
+        onOpenChange={(open) => setClearConfirmTargetId(open ? target.id : null)}
         title={t('webview.annotation.clear_title')}
         description={t('webview.annotation.clear_description')}
         confirmText={t('webview.annotation.clear')}
