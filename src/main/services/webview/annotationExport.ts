@@ -27,6 +27,16 @@ import type {
 const logger = loggerService.withContext('annotationExport')
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS = 5_000
 const ACCESSIBILITY_WORLD_NAME = 'cherry-webview-annotation-accessibility'
+const ANNOTATION_EXPORT_LIMITS = {
+  accessibilityDepth: 5,
+  accessibilityNodes: 80,
+  accessibilityPath: 12,
+  accessibilityRequestNodes: 400,
+  accessibilityStates: 8,
+  accessibilityText: 240,
+  pageTitle: 240,
+  pageUrl: 2_048
+} as const
 
 class AccessibilityCaptureTimeout extends Error {}
 
@@ -57,7 +67,7 @@ const createAccessibilityContext = (
 const normalizeAccessibilityText = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
   const normalized = value.replace(/\s+/g, ' ').trim()
-  return normalized ? normalized.slice(0, WEBVIEW_ANNOTATION_LIMITS.accessibilityText) : null
+  return normalized ? normalized.slice(0, ANNOTATION_EXPORT_LIMITS.accessibilityText) : null
 }
 
 const normalizeAccessibilityState = (property: CdpAccessibilityProperty): AccessibilityState | null => {
@@ -79,7 +89,7 @@ const normalizeAccessibilityNode = (node: CdpAccessibilityNode): AccessibleNodeS
   states: (node.properties ?? [])
     .map(normalizeAccessibilityState)
     .filter((state): state is AccessibilityState => state !== null)
-    .slice(0, WEBVIEW_ANNOTATION_LIMITS.accessibilityStates)
+    .slice(0, ANNOTATION_EXPORT_LIMITS.accessibilityStates)
 })
 
 const buildElementResolverExpression = (selector: string) => {
@@ -191,11 +201,11 @@ async function captureAnnotationAccessibility(
     const orderedAncestors = ancestorNodes
       .filter((node) => node.nodeId !== selectedNode.nodeId && !node.ignored)
       .reverse()
-    let pathTruncated = orderedAncestors.length > WEBVIEW_ANNOTATION_LIMITS.accessibilityPath
+    let pathTruncated = orderedAncestors.length > ANNOTATION_EXPORT_LIMITS.accessibilityPath
     const limitedAncestors =
-      orderedAncestors.length <= WEBVIEW_ANNOTATION_LIMITS.accessibilityPath
+      orderedAncestors.length <= ANNOTATION_EXPORT_LIMITS.accessibilityPath
         ? orderedAncestors
-        : [orderedAncestors[0], ...orderedAncestors.slice(-(WEBVIEW_ANNOTATION_LIMITS.accessibilityPath - 1))]
+        : [orderedAncestors[0], ...orderedAncestors.slice(-(ANNOTATION_EXPORT_LIMITS.accessibilityPath - 1))]
     const availablePathSlots = Math.max(0, Math.min(limitedAncestors.length, budget.remaining - 1))
     if (availablePathSlots < limitedAncestors.length) pathTruncated = true
     const path = limitedAncestors.slice(0, availablePathSlots).map(normalizeAccessibilityNode)
@@ -207,7 +217,7 @@ async function captureAnnotationAccessibility(
     const selectedIsFormControl = FORM_CONTROL_TAG_NAMES.has(annotation.element.tagName.toLowerCase())
 
     const walk = async (node: CdpAccessibilityNode, depth: number, isRoot: boolean): Promise<AccessibleNode[]> => {
-      if (walkState.visited >= WEBVIEW_ANNOTATION_LIMITS.accessibilityNodes || budget.remaining <= 0) {
+      if (walkState.visited >= ANNOTATION_EXPORT_LIMITS.accessibilityNodes || budget.remaining <= 0) {
         walkState.truncated = true
         return []
       }
@@ -216,7 +226,7 @@ async function captureAnnotationAccessibility(
       budget.remaining--
       const children: AccessibleNode[] = []
       const hasChildren = (node.childIds?.length ?? 0) > 0
-      const atDepthLimit = depth >= WEBVIEW_ANNOTATION_LIMITS.accessibilityDepth
+      const atDepthLimit = depth >= ANNOTATION_EXPORT_LIMITS.accessibilityDepth
       const role = normalizeAccessibilityText(node.role?.value)?.toLowerCase()
       const mayExposeFormValue =
         (isRoot && selectedIsFormControl) ||
@@ -239,7 +249,7 @@ async function captureAnnotationAccessibility(
         for (const child of childResult.nodes ?? []) {
           if (selectedFrameId && child.frameId && child.frameId !== selectedFrameId) continue
           children.push(...(await walk(child, depth + 1, false)))
-          if (walkState.visited >= WEBVIEW_ANNOTATION_LIMITS.accessibilityNodes || budget.remaining <= 0) {
+          if (walkState.visited >= ANNOTATION_EXPORT_LIMITS.accessibilityNodes || budget.remaining <= 0) {
             if ((childResult.nodes?.at(-1)?.nodeId ?? child.nodeId) !== child.nodeId) {
               walkState.truncated = true
             }
@@ -413,15 +423,15 @@ export async function exportAnnotationDocument({
   const document: AnnotationDocument = {
     target,
     page: {
-      title: guest.getTitle().replace(/\s+/g, ' ').trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.pageTitle),
-      url: sanitizeWebviewAnnotationUrl(guest.getURL()).slice(0, WEBVIEW_ANNOTATION_LIMITS.pageUrl)
+      title: guest.getTitle().replace(/\s+/g, ' ').trim().slice(0, ANNOTATION_EXPORT_LIMITS.pageTitle),
+      url: sanitizeWebviewAnnotationUrl(guest.getURL()).slice(0, ANNOTATION_EXPORT_LIMITS.pageUrl)
     },
     annotations
   }
   const resolvedAnnotations = await captureDocumentAccessibility(
     guest,
     document,
-    { remaining: WEBVIEW_ANNOTATION_LIMITS.accessibilityRequestNodes },
+    { remaining: ANNOTATION_EXPORT_LIMITS.accessibilityRequestNodes },
     Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS
   )
   const copyDocument: ResolvedAnnotationDocument = {

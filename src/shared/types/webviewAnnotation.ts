@@ -4,19 +4,11 @@ export const WEBVIEW_ANNOTATION_BRIDGE_CHANNEL = 'cherry:webview-annotation'
 export const WEBVIEW_SHADOW_SELECTOR_SEPARATOR = ' >>> '
 
 export const WEBVIEW_ANNOTATION_LIMITS = {
-  accessibilityDepth: 5,
-  accessibilityNodes: 80,
-  accessibilityPath: 12,
-  accessibilityRequestNodes: 400,
-  accessibilityStates: 8,
-  accessibilityText: 240,
   annotations: 50,
   anchorCoord: 10_000_000,
   ariaLabel: 240,
   comment: 2_000,
   exportMarkdown: 512_000,
-  pageTitle: 240,
-  pageUrl: 2_048,
   regionElements: 12,
   regionPageCoord: Number.MAX_SAFE_INTEGER,
   regionSize: 10_000_000,
@@ -35,7 +27,7 @@ export const WebviewAnnotationTargetSchema = z
   })
   .strict()
 
-export const WebviewElementLocatorSchema = z
+const WebviewElementLocatorSchema = z
   .object({
     selector: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.selector),
     tagName: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.tagName),
@@ -45,7 +37,7 @@ export const WebviewElementLocatorSchema = z
   })
   .strict()
 
-export const WebviewRegionRectSchema = z
+const WebviewRegionRectSchema = z
   .object({
     x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionPageCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionPageCoord),
     y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionPageCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionPageCoord),
@@ -54,7 +46,7 @@ export const WebviewRegionRectSchema = z
   })
   .strict()
 
-export const WebviewAnnotationAnchorRectSchema = z
+const WebviewAnnotationAnchorRectSchema = z
   .object({
     x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.anchorCoord).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
     y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.anchorCoord).max(WEBVIEW_ANNOTATION_LIMITS.anchorCoord),
@@ -69,7 +61,7 @@ export const WebviewAnnotationAnchorRectSchema = z
  * annotation's `element` stays the deepest common ancestor so accessibility
  * resolution works unchanged.
  */
-export const WebviewAnnotationRegionSchema = z
+const WebviewAnnotationRegionSchema = z
   .object({
     rect: WebviewRegionRectSchema,
     elements: z.array(WebviewElementLocatorSchema).max(WEBVIEW_ANNOTATION_LIMITS.regionElements)
@@ -85,17 +77,13 @@ export const WebviewAnnotationSchema = z
   })
   .strict()
 
-export const WebviewAnnotationSnapshotSchema = z
-  .array(WebviewAnnotationSchema)
-  .max(WEBVIEW_ANNOTATION_LIMITS.annotations)
-
-export const WebviewAnnotationLocaleSchema = z
+const WebviewAnnotationLocaleSchema = z
   .object({
     edit: z.string().max(80)
   })
   .strict()
 
-export const WebviewAnnotationThemeSchema = z.enum(['light', 'dark'])
+const WebviewAnnotationThemeSchema = z.enum(['light', 'dark'])
 
 export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('start_session'), sessionId: z.uuid() }).strict(),
@@ -138,7 +126,7 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
       type: z.literal('snapshot_ready'),
       sessionId: z.uuid(),
       requestId: z.uuid(),
-      annotations: WebviewAnnotationSnapshotSchema
+      annotations: z.array(WebviewAnnotationSchema).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
     })
     .strict(),
   z
@@ -176,7 +164,6 @@ export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
 export type WebviewAnnotationAnchorRect = z.infer<typeof WebviewAnnotationAnchorRectSchema>
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
-export type WebviewAnnotationSnapshot = z.infer<typeof WebviewAnnotationSnapshotSchema>
 export type WebviewAnnotationLocale = z.infer<typeof WebviewAnnotationLocaleSchema>
 export type WebviewAnnotationTheme = z.infer<typeof WebviewAnnotationThemeSchema>
 export type WebviewAnnotationHostCommand = z.infer<typeof WebviewAnnotationHostCommandSchema>

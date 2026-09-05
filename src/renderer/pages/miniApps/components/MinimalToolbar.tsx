@@ -3,7 +3,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
-import { WebviewAnnotationControls } from '@renderer/components/WebviewAnnotationControls'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -18,6 +17,8 @@ import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v5 as uuidv5 } from 'uuid'
+
+import { WebviewAnnotationControls } from './WebviewAnnotationControls'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
