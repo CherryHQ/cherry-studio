@@ -301,10 +301,12 @@ function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean 
   if (!parts || parts.length === 0) return true
   // Strip transient and empty text/reasoning parts the same way PersistenceListener does,
   // then check shared renderability (hidden markers + empty structured payloads).
-  const stripped = parts.filter((part) => part.type !== 'data-retry').filter((part) => {
-    if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
-    return true
-  })
+  const stripped = parts
+    .filter((part) => part.type !== 'data-retry')
+    .filter((part) => {
+      if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
+      return true
+    })
   return !hasRenderableContent(stripped as CherryMessagePart[])
 }
 
@@ -1980,7 +1982,7 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
-    } else if (isEmptySuccessTurn(exec.finalMessage as CherryUIMessage | undefined)) {
+    } else if (isEmptySuccessTurn(exec.finalMessage)) {
       const noResponseError: SerializedError = {
         name: 'NoResponseError',
         message: 'No response',
