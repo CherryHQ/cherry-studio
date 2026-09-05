@@ -332,6 +332,9 @@ const TranslatePage: FC = () => {
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
     if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
+    // The fallback run's trace belongs to the mode being torn down — leaving it would let a
+    // remount replay it over the restored pre-PDF output.
+    setStreamText('')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
@@ -342,7 +345,7 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setStreamText, setTranslateOutput])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -370,10 +373,13 @@ const TranslatePage: FC = () => {
     (value: string) => {
       setTranslateInput(value)
       if (isEmpty(value)) {
+        // Retire the stream trace with the draft, or a remount would replay it over the
+        // cleared output.
+        setStreamText('')
         setTranslateOutput('')
       }
     },
-    [setTranslateInput, setTranslateOutput]
+    [setTranslateInput, setStreamText, setTranslateOutput]
   )
 
   const onCopyInput = useCallback(async () => {
@@ -632,6 +638,9 @@ const TranslatePage: FC = () => {
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
+    // The exchange replaces the output outside a run, so the old run's stream trace is stale —
+    // a remount would replay it over the swapped output.
+    setStreamText('')
   }, [
     isDetecting,
     safePersist,
@@ -639,6 +648,7 @@ const TranslatePage: FC = () => {
     setTargetLanguage,
     setTranslateInput,
     setTranslateOutput,
+    setStreamText,
     sourceLanguage,
     targetLanguage,
     translateInput,
