@@ -7,7 +7,8 @@ import {
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
-  injectHtmlPreviewHeadElement
+  injectHtmlPreviewHeadElement,
+  injectHtmlPreviewScrollbarGutter
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { htmlArtifactRequiresUserConsent, stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
@@ -38,6 +39,21 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
   return `(() => {
     const sendConsoleMessage = console.debug.bind(console)
     document.currentScript?.remove()
+    let scrollbarRoot = null
+    const applyScrollbarGutter = () => {
+      const nextScrollbarRoot = document.scrollingElement ?? document.documentElement
+      if (!nextScrollbarRoot?.style) return
+      if (scrollbarRoot && scrollbarRoot !== nextScrollbarRoot) scrollbarRoot.style.scrollbarGutter = ''
+      scrollbarRoot = nextScrollbarRoot
+      scrollbarRoot.style.scrollbarGutter = 'stable'
+    }
+    applyScrollbarGutter()
+    // Re-apply once body exists: quirks/doctype-less scrollingElement becomes body after head runs.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)
+    } else {
+      applyScrollbarGutter()
+    }
     const send = (type, value) => {
       sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
     }
@@ -103,7 +119,10 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
       resizeObserver.observe(document.documentElement)
       if (document.body) resizeObserver.observe(document.body)
     }
-    window.addEventListener('load', reportHeight, true)
+    window.addEventListener('load', () => {
+      applyScrollbarGutter()
+      reportHeight()
+    }, true)
     window.addEventListener('resize', reportHeight)
     window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
     if (scrollActivationDelay > 0) {
@@ -173,6 +192,7 @@ export const StaticHtmlPreview = memo(function StaticHtmlPreview({
           iframeRef={iframeRef}
           sandbox="allow-same-origin"
           csp={HTML_PREVIEW_RESTRICTED_CSP}
+          stableScrollbarGutter
           emptyText={emptyText}
         />
       </div>
@@ -202,7 +222,7 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const src = useMemo(() => {
     const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
     const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
-    const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
+    const instrumentedHtml = injectHtmlPreviewHeadElement(injectHtmlPreviewScrollbarGutter(html), bridgeScript)
     return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
   }, [forwardBoundaryWheel, html, messagePrefix])
 
