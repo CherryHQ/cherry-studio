@@ -39,13 +39,13 @@ export const SubWindowAppShell = () => {
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const [openedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const [, setMiniAppShow] = useCache('mini_app.show')
   const [, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   const takeClearingSplitId = useCallback(
     (closedIds: readonly string[]): string | undefined => {
-      if (!splitOpen || !splitMiniAppId) return undefined
+      if (!splitOpen) return undefined
       let closingMiniAppFound = false
       for (const id of closedIds) {
         const tab = tabs.find((t) => t.id === id)
@@ -57,7 +57,7 @@ export const SubWindowAppShell = () => {
       if (!closingMiniAppFound) return undefined
       const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
       if (hasSurvivingMiniAppTab) return undefined
-      const id = splitMiniAppId
+      const id = splitMiniAppId || undefined
       setSplitOpen(false)
       setSplitMiniAppId('')
       return id
@@ -90,7 +90,10 @@ export const SubWindowAppShell = () => {
       const orphanedSet = new Set(orphanedIds)
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
       for (const appId of orphanedIds) clearWebviewState(appId)
-      if (currentMiniAppId && orphanedSet.has(currentMiniAppId) && openedOneOffMiniApp?.appId !== currentMiniAppId) {
+      if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
+        if (openedOneOffMiniApp?.appId === currentMiniAppId) {
+          setOpenedOneOffMiniApp(null)
+        }
         setCurrentMiniAppId('')
         setMiniAppShow(false)
       }
@@ -103,7 +106,8 @@ export const SubWindowAppShell = () => {
       openedOneOffMiniApp,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
-      setMiniAppShow
+      setMiniAppShow,
+      setOpenedOneOffMiniApp
     ]
   )
 
