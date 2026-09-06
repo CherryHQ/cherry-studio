@@ -252,6 +252,8 @@ describe('notes delete / autosave guards', () => {
     let lastRecreated: { path: string; gen: number; content: string } | null
     let fileWrite: ReturnType<typeof vi.fn>
     let invalidate: ReturnType<typeof vi.fn>
+    let deleteExternalFile: ReturnType<typeof vi.fn>
+    let deleteExternalDir: ReturnType<typeof vi.fn>
     let lastContentRef: string
     let lastFilePathRef: string | undefined
     let activePath: string | undefined
@@ -264,6 +266,8 @@ describe('notes delete / autosave guards', () => {
       lastRecreated = null
       fileWrite = vi.fn().mockImplementation(() => Promise.resolve())
       invalidate = vi.fn()
+      deleteExternalFile = vi.fn().mockResolvedValue(undefined)
+      deleteExternalDir = vi.fn().mockResolvedValue(undefined)
       lastContentRef = ''
       lastFilePathRef = undefined
       activePath = undefined
@@ -297,20 +301,37 @@ describe('notes delete / autosave guards', () => {
       const na = normalizePathValue(targetPath)
       if (genAtStart !== genNow) {
         if (isPending(targetPath)) {
+          await deleteExternalFile(targetPath).catch(() => {})
+          await deleteExternalDir(targetPath).catch(() => {})
           return
         }
-        if (lastRecreated && na === lastRecreated.path && genNow === lastRecreated.gen) {
-          const curLast = lastFilePathRef ? normalizePathValue(lastFilePathRef) : undefined
-          const correct = curLast === na ? lastContentRef : lastRecreated.content
-          if (correct !== content) {
-            await fileWrite(targetPath, correct)
+        if (lastRecreated && genNow === lastRecreated.gen) {
+          const isExact = na === lastRecreated.path
+          const isDescendant = na.startsWith(`${lastRecreated.path}/`)
+          if (isExact || isDescendant) {
+            if (isDescendant) {
+              await deleteExternalFile(targetPath).catch(() => {})
+              await deleteExternalDir(targetPath).catch(() => {})
+              return
+            }
+            const curLast = lastFilePathRef ? normalizePathValue(lastFilePathRef) : undefined
+            const correct = curLast === na ? lastContentRef : lastRecreated.content
+            if (correct !== content) {
+              await fileWrite(targetPath, correct)
+            }
+            invalidate(targetPath)
+            return
           }
-          invalidate(targetPath)
-          return
         }
+        await deleteExternalFile(targetPath).catch(() => {})
+        await deleteExternalDir(targetPath).catch(() => {})
         return
       }
-      if (isPending(targetPath)) return
+      if (isPending(targetPath)) {
+        await deleteExternalFile(targetPath).catch(() => {})
+        await deleteExternalDir(targetPath).catch(() => {})
+        return
+      }
       invalidate(targetPath)
     }
 
@@ -483,6 +504,7 @@ describe('notes delete / autosave guards', () => {
 
       expect(fileWrite).toHaveBeenCalledTimes(1)
       expect(invalidate).not.toHaveBeenCalled()
+      expect(deleteExternalFile).toHaveBeenCalledWith('/notes/a.md')
     })
 
     it('generation is per-path: unrelated delete does not affect other file autosave', async () => {
@@ -500,6 +522,81 @@ describe('notes delete / autosave guards', () => {
       // b's write should succeed and invalidate, not be treated as stale
       expect(fileWrite).toHaveBeenCalledWith('/notes/b.md', 'content-b')
       expect(invalidate).toHaveBeenCalledWith('/notes/b.md')
+    })
+
+    it('inactive delete still fences switch-cleanup autosave (c0)', async () => {
+      // user edits /notes/a.md then switches to /notes/b.md; switch cleanup schedules save for a.md;
+      // while that save is in flight, inactive file a.md is deleted via sidebar - stale save must not resurrect
+      activePath = '/notes/b.md'
+      activeContent = 'content-b'
+
+      const savePromise = saveCurrentNoteSim('stale-a', '/notes/a.md')
+
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+
+      await savePromise
+
+      expect(fileWrite).toHaveBeenCalledTimes(1)
+      expect(deleteExternalFile).toHaveBeenCalledWith('/notes/a.md')
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it('stale descendant of recreated folder is deleted, not restored (c1 folder)', async () => {
+      activePath = '/notes/b.md'
+      activeContent = 'content-b'
+
+      // delete folder /notes/folder
+      pendingSet.add(normalizePathValue('/notes/folder'))
+      bump('/notes/folder')
+
+      const stalePromise = saveCurrentNoteSim('old content', '/notes/folder/a.md')
+
+      // recreate same folder - clears pending, bumps generation, records recreation
+      pendingSet.delete(normalizePathValue('/notes/folder'))
+      bump('/notes/folder')
+      lastRecreated = { path: normalizePathValue('/notes/folder'), gen: getGen('/notes/folder'), content: '' }
+
+      await stalePromise
+
+      // descendant file resurrected by stale autosave must be deleted, not left as overwritten folder content
+      expect(deleteExternalFile).toHaveBeenCalledWith('/notes/folder/a.md')
+      expect(fileWrite).toHaveBeenCalledTimes(1)
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it('stale write after marker expiry is still cleaned up via generation bump (c1 expiry)', async () => {
+      activePath = '/notes/a.md'
+      activeContent = ''
+
+      const savePromise = saveCurrentNoteSim('stale', '/notes/a.md')
+
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      // marker expires before write completes (generation remains bumped)
+      pendingSet.delete(normalizePathValue('/notes/a.md'))
+
+      await savePromise
+
+      expect(deleteExternalFile).toHaveBeenCalledWith('/notes/a.md')
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('inactive delete fences production flow (c0 integration)', () => {
+    it('pending fence blocks descendant autosave even when delete is not active-related', () => {
+      const pending = new Set<string>([normalizePathValue('/notes/a.md')])
+      // simulate inactive delete: pending still set, active is elsewhere
+      const active = '/notes/b.md'
+      expect(isActiveRelated(active, '/notes/a.md', 'file')).toBe(false)
+      expect(isPendingDeleteForPath(normalizePathValue('/notes/a.md'), pending)).toBe(true)
+      expect(shouldBlockAutosave('/notes/a.md', '/notes/a.md')).toBe(true)
+    })
+
+    it('folder inactive delete blocks descendant pending check', () => {
+      const pending = new Set<string>([normalizePathValue('/notes/folder')])
+      expect(isPendingDeleteForPath(normalizePathValue('/notes/folder/sub/note.md'), pending)).toBe(true)
+      expect(isPendingDeleteForPath(normalizePathValue('/notes/other.md'), pending)).toBe(false)
     })
   })
 })

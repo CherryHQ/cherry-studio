@@ -221,23 +221,39 @@ const NotesPage: FC = () => {
             } catch {}
             return
           }
-          // 若目标路径是刚被重建的同路径笔记，旧内容已覆盖新文件，需恢复正确内容
+          // 若目标路径是刚被重建的同路径笔记，旧内容已覆盖新文件，需恢复正确内容；
+          // 若是重建文件夹后的子路径被复活，则直接删除被复活的子文件
           const recreated = lastRecreatedRef.current
-          if (recreated && normalizedAfter === recreated.path && genNow === recreated.gen) {
-            const curLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
-            const correctContent = curLastPath === normalizedAfter ? lastContentRef.current : recreated.content
-            if (correctContent !== content) {
-              try {
-                await window.api.file.write(targetPath, correctContent)
-              } catch (e) {
-                logger.error('Failed to restore recreated note after stale write:', e as Error)
+          if (recreated && genNow === recreated.gen) {
+            const isExact = normalizedAfter === recreated.path
+            const isDescendant = normalizedAfter.startsWith(`${recreated.path}/`)
+            if (isExact || isDescendant) {
+              if (isDescendant) {
+                try {
+                  await window.api.file.deleteExternalFile(targetPath).catch(() => {})
+                  await window.api.file.deleteExternalDir(targetPath).catch(() => {})
+                } catch {}
                 return
               }
+              const curLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
+              const correctContent = curLastPath === normalizedAfter ? lastContentRef.current : recreated.content
+              if (correctContent !== content) {
+                try {
+                  await window.api.file.write(targetPath, correctContent)
+                } catch (e) {
+                  logger.error('Failed to restore recreated note after stale write:', e as Error)
+                  return
+                }
+              }
+              invalidateFileContent(targetPath)
+              return
             }
-            invalidateFileContent(targetPath)
-            return
           }
-          // generation 推进但既无 pending 也非重建，仍视为过期写入，避免残留复活文件
+          // generation 推进但既无 pending 也非重建，仍视为过期写入，清理被复活的文件避免残留
+          try {
+            await window.api.file.deleteExternalFile(targetPath).catch(() => {})
+            await window.api.file.deleteExternalDir(targetPath).catch(() => {})
+          } catch {}
           return
         }
         // 非过期写入，但若在此次写入等待期间该路径被标记为待删除（generation 未变但标记已设置），也需清理
@@ -551,14 +567,53 @@ const NotesPage: FC = () => {
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
-        await addDir(name, targetPath)
+        const { path: folderPath } = await addDir(name, targetPath)
         updateExpandedPaths((prev) => addUniquePath(prev, normalizePathValue(targetPath)))
+        // 同 handleCreateNote：若新文件夹路径与待删除标记相同/为其子路径，清除删除标记并推进 generation，
+        // 避免首个文件写入被误拦截或被过期 autosave 覆盖
+        {
+          const normalizedFolder = normalizePathValue(folderPath)
+          let matchedPending: string | null = null
+          for (const pending of pendingDeleteSetRef.current) {
+            if (normalizedFolder === pending || normalizedFolder.startsWith(`${pending}/`)) {
+              matchedPending = pending
+              break
+            }
+          }
+          if (matchedPending) {
+            pendingDeleteSetRef.current.delete(matchedPending)
+            pendingDeleteGenRef.current.delete(matchedPending)
+            bumpGeneration(normalizedFolder)
+            const genAfter = getEffectiveGeneration(normalizedFolder)
+            lastRecreatedRef.current = { path: normalizedFolder, gen: genAfter, content: '' }
+            const recreatedGen = genAfter
+            const recreatedPath = normalizedFolder
+            setTimeout(() => {
+              const cur = lastRecreatedRef.current
+              if (cur && cur.path === recreatedPath && cur.gen === recreatedGen) {
+                lastRecreatedRef.current = null
+              }
+            }, 3000)
+          } else if (lastRecreatedRef.current?.path === normalizedFolder) {
+            bumpGeneration(normalizedFolder)
+            const genAfter = getEffectiveGeneration(normalizedFolder)
+            lastRecreatedRef.current = { path: normalizedFolder, gen: genAfter, content: '' }
+            const recreatedGen = genAfter
+            const recreatedPath = normalizedFolder
+            setTimeout(() => {
+              const cur = lastRecreatedRef.current
+              if (cur && cur.path === recreatedPath && cur.gen === recreatedGen) {
+                lastRecreatedRef.current = null
+              }
+            }, 3000)
+          }
+        }
         await refreshTree()
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
       }
     },
-    [getTargetFolderPath, refreshTree, updateExpandedPaths]
+    [bumpGeneration, getEffectiveGeneration, getTargetFolderPath, refreshTree, updateExpandedPaths]
   )
 
   // 创建笔记
@@ -700,14 +755,13 @@ const NotesPage: FC = () => {
           normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
         const isActiveRelated = isActiveNode || isActiveDescendant
 
-        // 删除正在编辑的笔记（或其所在文件夹）时，先标记为“待删除”并取消防抖，
-        // 使已触发但尚未落盘的 autosave 在 saveCurrentNote 中被丢弃，避免文件被“复活”。
-        // 失败时需撤销标记并重建防抖，否则已取消的保存不会自动恢复，编辑内容将丢失。
         // 快照删除前的草稿，避免在删除等待期间用户切换笔记导致快照被覆盖
         const preDeleteContent = lastContentRef.current
         const preDeletePath = lastFilePathRef.current
-        if (isActiveRelated) {
-          // 若正在删除的是刚重建的同路径笔记，清除重建标记，避免旧的 autosave 误恢复已二次删除的文件
+        // 任何路径被删除时均标记为待删除并推进 generation，使删除期间及过期 autosave 写入被拦截；
+        // 仅当删除的是当前活动笔记/文件夹时才取消防抖，避免误删活动笔记的待保存。
+        // 同时清除可能与被删路径重叠的重建标记，避免已二次删除的文件被旧的 lastRecreated 恢复。
+        {
           const recreated = lastRecreatedRef.current
           if (
             recreated &&
@@ -718,15 +772,17 @@ const NotesPage: FC = () => {
           pendingDeleteSetRef.current.add(normalizedDeletePath)
           bumpGeneration(normalizedDeletePath)
           pendingDeleteGenRef.current.set(normalizedDeletePath, getEffectiveGeneration(normalizedDeletePath))
-          debouncedSaveRef.current?.cancel()
+          if (isActiveRelated) {
+            debouncedSaveRef.current?.cancel()
+          }
         }
 
         try {
           await delNode(nodeToDelete)
         } catch (error) {
+          pendingDeleteSetRef.current.delete(normalizedDeletePath)
+          pendingDeleteGenRef.current.delete(normalizedDeletePath)
           if (isActiveRelated) {
-            pendingDeleteSetRef.current.delete(normalizedDeletePath)
-            pendingDeleteGenRef.current.delete(normalizedDeletePath)
             const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
             const shouldRearmSnapshot =
               snapNorm === normalizedDeletePath ||
@@ -771,7 +827,10 @@ const NotesPage: FC = () => {
             dispatch(setActiveFilePath(undefined))
             editorRef.current?.clear()
           }
-          // 保持删除标记一小段时间，拦截删除后紧接着的 emergency save / 尾随写入；用 generation 绑定避免旧定时器误删新一轮同路径删除的标记
+        }
+        // 保持删除标记一小段时间，拦截删除后紧接着的 emergency save / 尾随写入；对非活动笔记的删除同样需要，
+        // 以覆盖文件切换清理等场景下已在途的 autosave。用 generation 绑定避免旧定时器误删新一轮同路径删除的标记
+        {
           const genAtDelete =
             pendingDeleteGenRef.current.get(normalizedDeletePath) ?? getEffectiveGeneration(normalizedDeletePath)
           setTimeout(() => {
