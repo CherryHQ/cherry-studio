@@ -4866,6 +4866,7 @@
   "settings.shortcuts.show_app": "アプリを表示/非表示",
   "settings.shortcuts.show_settings": "設定を開く",
   "settings.shortcuts.title": "ショートカット",
+  "settings.shortcuts.toggle_dev_tools": "開発者ツールを切り替え",
   "settings.shortcuts.toggle_left_sidebar": "左サイドバーを切り替え",
   "settings.shortcuts.toggle_new_context": "コンテキストをクリア",
   "settings.shortcuts.toggle_right_sidebar": "右サイドバーを切り替え",

@@ -51,6 +51,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.devtools.toggle',
+    titleKey: 'settings.shortcuts.toggle_dev_tools',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['CommandOrControl', 'Shift', 'I'], darwin: ['CommandOrControl', 'Alt', 'I'] },
+      editable: false
+    }
+  }),
+  defineCommand({
     id: 'app.settings.open',
     titleKey: 'settings.shortcuts.show_settings',
     categoryKey: 'settings.shortcuts.general',

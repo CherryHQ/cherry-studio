@@ -1,5 +1,5 @@
 import type { CommandId } from '@shared/utils/command'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,6 +101,23 @@ describe('CommandProvider', () => {
 
     expect(onExecute).toHaveBeenCalledOnce()
     expect(preventDefault).toHaveBeenCalledOnce()
+  })
+
+  it('executes a command pushed from the native application menu', () => {
+    // The macOS menu bar lives in main and claims the accelerator, so a menu item for a
+    // renderer-scoped command reaches the runtime over IPC rather than via keydown.
+    const onExecute = vi.fn()
+    const listeners = new Map<string, (payload: unknown) => void>()
+    vi.mocked(window.api.ipcApi.on).mockImplementation(((event: string, cb: (payload: unknown) => void) => {
+      listeners.set(event, cb)
+      return () => listeners.delete(event)
+    }) as never)
+
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
+
+    act(() => listeners.get('app.command.execute')?.({ command: 'topic.create' }))
+
+    expect(onExecute).toHaveBeenCalledOnce()
   })
 
   it('does not intercept command shortcuts without an active handler', () => {

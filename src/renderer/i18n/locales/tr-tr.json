@@ -4866,6 +4866,7 @@
   "settings.shortcuts.show_app": "Uygulamayı Göster/Gizle",
   "settings.shortcuts.show_settings": "Ayarları Aç",
   "settings.shortcuts.title": "Klavye Kısayolları",
+  "settings.shortcuts.toggle_dev_tools": "Geliştirici Araçlarını Aç/Kapat",
   "settings.shortcuts.toggle_left_sidebar": "Sol Kenar Çubuğunu Aç/Kapat",
   "settings.shortcuts.toggle_new_context": "Bağlamı Temizle",
   "settings.shortcuts.toggle_right_sidebar": "Sağ Kenar Çubuğunu Aç/Kapat",

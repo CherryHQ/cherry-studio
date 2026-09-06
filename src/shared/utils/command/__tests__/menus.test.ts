@@ -92,6 +92,17 @@ describe('MenuRegistry', () => {
       { type: 'separator' },
       {
         type: 'command',
+        command: 'app.devtools.toggle',
+        label: 'label:app.devtools.toggle',
+        enabled: true,
+        checked: undefined,
+        destructive: undefined,
+        iconKey: undefined,
+        shortcutLabel: '',
+        accelerator: 'accelerator:app.devtools.toggle'
+      },
+      {
+        type: 'command',
         command: 'app.zoom.reset',
         label: 'label:app.zoom.reset',
         enabled: true,

@@ -4866,6 +4866,7 @@
   "settings.shortcuts.show_app": "Показать/скрыть приложение",
   "settings.shortcuts.show_settings": "Открыть настройки",
   "settings.shortcuts.title": "Горячие клавиши",
+  "settings.shortcuts.toggle_dev_tools": "Переключить инструменты разработчика",
   "settings.shortcuts.toggle_left_sidebar": "Переключить левую боковую панель",
   "settings.shortcuts.toggle_new_context": "Очистить контекст",
   "settings.shortcuts.toggle_right_sidebar": "Переключить правую боковую панель",

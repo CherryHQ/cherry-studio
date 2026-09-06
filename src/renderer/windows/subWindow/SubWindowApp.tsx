@@ -1,5 +1,5 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { CommandContextKeyProvider, CommandProvider, WindowCommandHandlers } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -39,6 +39,7 @@ function SubWindowApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
+              <WindowCommandHandlers />
               <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                 <SubWindowAppShell />
                 <SubWindowRuntime />
