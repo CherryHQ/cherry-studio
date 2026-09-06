@@ -349,7 +349,7 @@ function createUnifiedPanelRootSearchItems(
   ancestorLauncherIds.add(launcher.id)
 
   const customPanelItems = (launcher.rootSearchItems ?? [])
-    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && !item.fixedToBottom && Boolean(item.action))
+    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && Boolean(item.action))
     .map(asUnifiedPanelRootSearchItem)
   const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
     const childAncestorLauncherIds = new Set(ancestorLauncherIds)
@@ -405,6 +405,9 @@ function openUnifiedPanelSubmenu(
     title: typeof launcher.label === 'string' ? launcher.label : undefined,
     list: childItems,
     symbol: launcher.id,
+    // A single-select submenu opens with the keyboard on the current value (active child), so
+    // the focused row and the selection check never land on two different rows.
+    defaultIndex: childItems.findIndex((child) => child.isSelected && !child.disabled),
     parentPanel: options.parentPanel,
     queryAnchor: options.queryAnchor,
     // A submenu is opened by a selection, so its query starts empty and is typed, not triggered.
@@ -538,13 +541,6 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
-  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
-  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
-  // fixedToBottom items would bypass the category filter and still render, so drop them here.
-  const isCategoryView = (options.initialSearchText ?? '').length > 0
-  const additionalItems = isCategoryView
-    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
-    : options.additionalItems
   // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
   // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
   const leadingItems = options.excludedLauncherIds
@@ -555,7 +551,7 @@ export function createUnifiedQuickPanelOpenOptions(
     ...tagUnifiedPanelSectionItems(leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
-    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]

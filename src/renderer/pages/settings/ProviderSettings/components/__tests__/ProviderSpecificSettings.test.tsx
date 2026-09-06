@@ -62,10 +62,6 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/RadeonCloudBenefits', () => ({
-  default: () => <div>radeon-cloud-benefits</div>
-}))
-
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -116,12 +112,6 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
       expectedText: 'ovms-settings'
-    },
-    {
-      providerId: 'radeon-cloud',
-      placement: 'beforeAuth' as const,
-      meta: { isCherryIN: false, isDmxapi: false },
-      expectedText: 'radeon-cloud-benefits'
     },
     {
       providerId: 'lmstudio',
@@ -179,7 +169,7 @@ describe('ProviderSpecificSettings', () => {
     }
   )
 
-  it('does not render AMD GPU Cloud OAuth while account login is disabled', () => {
+  it('does not render a provider-specific promotion for AMD GPU Cloud', () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'radeon-cloud', name: 'AMD GPU Cloud', isEnabled: true }
     })
@@ -188,6 +178,6 @@ describe('ProviderSpecificSettings', () => {
 
     const { container } = render(<ProviderSpecificSettings providerId="radeon-cloud" placement="beforeAuth" />)
 
-    expect(container.textContent).not.toContain('provider-oauth-radeon-cloud')
+    expect(container).toBeEmptyDOMElement()
   })
 })

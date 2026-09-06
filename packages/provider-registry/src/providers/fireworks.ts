@@ -107,6 +107,7 @@ const adjustableModels: Array<{ modelId: string; values: ReasoningEffort[] }> = 
 export default defineProvider({
   id: 'fireworks',
   name: 'Fireworks',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
     'anthropic-messages': {

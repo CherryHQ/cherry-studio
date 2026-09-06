@@ -32,6 +32,8 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
+const PositiveModelTokenLimitSchema = z.number().int().positive()
+
 export const CreateModelSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
@@ -54,11 +56,11 @@ export const CreateModelSchema = z.strictObject({
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
-  contextWindow: z.number().int().positive().optional(),
+  contextWindow: PositiveModelTokenLimitSchema.optional(),
   /** Maximum input tokens */
-  maxInputTokens: z.number().int().positive().optional(),
+  maxInputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Maximum output tokens */
-  maxOutputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
   /** Parameter support (DB form) */
@@ -91,6 +93,10 @@ export const UpdateModelSchema = CreateModelSchema.omit({
 })
   .partial()
   .extend({
+    /** `null` explicitly clears a stored limit; `undefined` or an absent key leaves it unchanged. */
+    contextWindow: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxInputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxOutputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
