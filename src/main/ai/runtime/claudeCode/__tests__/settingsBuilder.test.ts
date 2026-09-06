@@ -1,3 +1,4 @@
+import type * as NodeFs from 'node:fs'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import type * as NodeModule from 'node:module'
 import os from 'node:os'
@@ -10,7 +11,10 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const REAL_PLATFORM = process.platform
+const REAL_ARCH = process.arch
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
@@ -69,9 +73,19 @@ const mocks = vi.hoisted(() => ({
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
   agentsMdHook: vi.fn(async () => ({})),
+  existsSync: vi.fn(() => true),
+  toAsarUnpackedPath: vi.fn((input: string) => input),
   platform: { isMac: false },
   isWin: false
 }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFs>()
+  return {
+    ...actual,
+    existsSync: mocks.existsSync
+  }
+})
 
 vi.mock('node:module', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeModule>()
@@ -200,7 +214,7 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
 }))
 
 vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
+  toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
 vi.mock('@main/utils/file', () => ({
@@ -259,7 +273,8 @@ const {
   buildClaudeCodeSessionSettings,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
-  registerMcpSessionCatalogSync
+  registerMcpSessionCatalogSync,
+  resolveClaudeExecutablePath
 } = await import('../settingsBuilder')
 const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
@@ -277,6 +292,11 @@ function systemPromptText(systemPrompt: unknown): string {
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true })
+    Object.defineProperty(process, 'arch', { value: REAL_ARCH, configurable: true })
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
@@ -358,6 +378,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
+    mocks.existsSync.mockReturnValue(true)
+    mocks.toAsarUnpackedPath.mockImplementation((input: string) => input)
+  })
+
+  it('directs packaged installs to the official installer when the unpacked Claude executable is missing', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
+    mocks.isWin = true
+    mocks.resolveRequire.mockImplementation((specifier: string) => {
+      if (specifier === '@anthropic-ai/claude-agent-sdk') return 'C:\\app\\resources\\app.asar\\node_modules\\sdk.mjs'
+      if (specifier === '@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe') {
+        return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      }
+      throw new Error(`Unexpected specifier: ${specifier}`)
+    })
+    mocks.toAsarUnpackedPath.mockImplementation((input: string) => input.replace('app.asar', 'app.asar.unpacked'))
+    mocks.existsSync.mockReturnValue(false)
+
+    expect(() => resolveClaudeExecutablePath()).toThrow(
+      /Bundled Claude Code executable is missing.*Reinstall Cherry Studio from the official installer/
+    )
+  })
+
+  it('returns an existing unpacked Claude executable', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
+    mocks.isWin = true
+    mocks.resolveRequire.mockImplementation((specifier: string) => {
+      if (specifier === '@anthropic-ai/claude-agent-sdk') return 'C:\\app\\resources\\app.asar\\node_modules\\sdk.mjs'
+      if (specifier === '@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe') {
+        return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      }
+      throw new Error(`Unexpected specifier: ${specifier}`)
+    })
+    mocks.toAsarUnpackedPath.mockImplementation((input: string) => input.replace('app.asar', 'app.asar.unpacked'))
+
+    expect(resolveClaudeExecutablePath()).toBe(
+      'C:\\app\\resources\\app.asar.unpacked\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+    )
+  })
+
+  it('keeps the dependency repair message when the native package cannot be resolved', () => {
+    mocks.resolveRequire.mockImplementation((specifier: string) => {
+      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/app/node_modules/sdk.mjs'
+      throw new Error(`Cannot resolve ${specifier}`)
+    })
+
+    expect(() => resolveClaudeExecutablePath()).toThrow(
+      /Reinstall @anthropic-ai\/claude-agent-sdk with optional dependencies/
+    )
   })
 
   it('preserves managed CLI paths from the login-shell environment', async () => {
