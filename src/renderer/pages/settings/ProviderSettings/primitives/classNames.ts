@@ -34,7 +34,9 @@ export const providerDetailColumnClasses = {
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  // h-full (not min-h-full): the model list below sizes itself from the remaining
+  // space, which only works if this column has a definite height.
+  sectionStack: 'mx-auto flex h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */
