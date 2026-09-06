@@ -160,49 +160,6 @@ describe('useDoctorController', () => {
     await waitFor(() => expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything()))
   })
 
-  it('runs one basic check when an embedded host opens over a completed run', async () => {
-    mocks.doctorState = completedDoctorState()
-    const options = {
-      autoRunPolicy: 'when-not-running' as const,
-      initialPanel: 'checks' as const,
-      onNavigate: vi.fn()
-    }
-    const { rerender } = renderHook(() => useDoctorController(options))
-
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
-        tier: 'quick'
-      })
-    )
-    rerender()
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
-  })
-
-  it('shows a complete pending basic-check view long enough to be visible when reopening over cached results', async () => {
-    vi.useFakeTimers()
-    mocks.doctorState = completedDoctorState()
-    const { result } = renderHook(() =>
-      useDoctorController({
-        autoRunPolicy: 'when-not-running',
-        initialPanel: 'checks',
-        onNavigate: vi.fn()
-      })
-    )
-
-    await act(async () => {})
-
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
-    expect(result.current.viewModel.status).toBe('running')
-    expect(result.current.viewModel.rows).toHaveLength(18)
-    expect(result.current.viewModel.rows.every((row) => row.status === 'pending')).toBe(true)
-
-    await act(async () => vi.advanceTimersByTime(599))
-    expect(result.current.viewModel.status).toBe('running')
-
-    await act(async () => vi.advanceTimersByTime(1))
-    expect(result.current.viewModel.status).toBe('completed')
-  })
-
   it('observes an active shared run without replacing it', async () => {
     mocks.doctorState = {
       status: 'running',
@@ -212,13 +169,7 @@ describe('useDoctorController', () => {
       results: []
     }
 
-    const { rerender } = renderHook(() =>
-      useDoctorController({
-        autoRunPolicy: 'when-not-running',
-        initialPanel: 'checks',
-        onNavigate: vi.fn()
-      })
-    )
+    const { rerender } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await act(async () => {})
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
@@ -287,23 +238,16 @@ describe('useDoctorController', () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.relaunch_required')
   })
 
-  it('offers cancellation only for a network and service run', async () => {
+  it.each(['quick', 'live'] as const)('cancels an active %s run', async (tier) => {
     mocks.doctorState = {
       status: 'running',
       runId: 'run-1',
-      tier: 'quick',
+      tier,
       startedAt: '2026-09-04T08:59:00.000Z',
       results: []
     }
-    const quick = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
-
-    await act(async () => quick.result.current.cancel())
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
-    quick.unmount()
-
-    mocks.doctorState = { ...mocks.doctorState, tier: 'live' }
-    const live = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
-    await act(async () => live.result.current.cancel())
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    await act(async () => result.current.cancel())
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'run-1' })
   })

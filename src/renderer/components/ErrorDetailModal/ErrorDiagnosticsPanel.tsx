@@ -40,7 +40,6 @@ export function ErrorDiagnosticsPanel({
   const [diagnosisStatus, setDiagnosisStatus] = useState<DiagnosisStatus>(cachedDiagnosis ? 'done' : 'idle')
   const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
   const controller = useDoctorController({
-    autoRunPolicy: 'when-not-running',
     initialPanel: 'checks',
     onNavigate,
     onReportProblem
