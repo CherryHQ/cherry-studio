@@ -33,6 +33,7 @@ import p_mimo from './mimo'
 import p_minimax from './minimax'
 import p_minimax_global from './minimax-global'
 import p_mistral from './mistral'
+import p_mizumi from './mizumi'
 import p_modelscope from './modelscope'
 import p_moonshot from './moonshot'
 import p_moonshot_global from './moonshot-global'
@@ -114,6 +115,7 @@ export const PROVIDERS: Provider[] = [
   p_nvidia,
   p_grok,
   p_mistral,
+  p_mizumi,
   p_jina,
   p_perplexity,
   p_modelscope,
