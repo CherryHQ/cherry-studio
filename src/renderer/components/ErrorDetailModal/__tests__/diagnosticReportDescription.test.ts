@@ -6,7 +6,8 @@ import { diagnosticDescriptionByteLength } from '@shared/utils/diagnostics'
 import {
   buildDiagnosticReportDescription,
   DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES,
-  type DiagnosticReportDescriptionLabels
+  type DiagnosticReportDescriptionLabels,
+  diagnosticReportFields
 } from '../diagnosticReportDescription'
 
 const labels: DiagnosticReportDescriptionLabels = {
@@ -19,6 +20,31 @@ const labels: DiagnosticReportDescriptionLabels = {
 }
 
 describe('buildDiagnosticReportDescription', () => {
+  it('projects normalized fields in display order and prefers status over statusCode', () => {
+    const error = {
+      name: ' ProviderError ',
+      message: ' failed ',
+      stack: null,
+      status: 503,
+      statusCode: 429
+    } as SerializedError
+
+    expect(
+      diagnosticReportFields({
+        diagnosisContext: { modelId: ' gpt-5 ', providerName: ' OpenAI ' },
+        error,
+        location: ' Home conversation '
+      })
+    ).toEqual([
+      { id: 'location', value: 'Home conversation' },
+      { id: 'provider', value: 'OpenAI' },
+      { id: 'model', value: 'gpt-5' },
+      { id: 'errorName', value: 'ProviderError' },
+      { id: 'statusCode', value: 503 },
+      { id: 'errorMessage', value: 'failed' }
+    ])
+  })
+
   it('keeps provider-returned text already present in the message without copying payload fields', () => {
     const error = {
       name: 'AI_APICallError',
