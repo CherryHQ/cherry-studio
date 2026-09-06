@@ -360,8 +360,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
-  /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
-   *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
+  /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
+   *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
@@ -510,8 +510,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
     if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
-    // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
-    // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
+    // Stash for the steer hooks to inject as `additionalContext` at the next tool boundary
+    // (PostToolBatch after the running batch, or the next PreToolUse). If the turn ends with no
+    // tool boundary at all, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
     return true
   }

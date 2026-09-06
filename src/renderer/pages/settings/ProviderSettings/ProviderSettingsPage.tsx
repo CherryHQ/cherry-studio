@@ -1,6 +1,7 @@
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
+import type { AppRouter } from '@renderer/types/router'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
@@ -13,12 +14,6 @@ import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 
-interface ProviderSettingsSearch {
-  addProviderData?: string
-  filter?: string
-  id?: string
-}
-
 interface PendingApiSetup {
   providerId: string
   initialStep: ProviderApiSetupInitialStep
@@ -29,7 +24,7 @@ interface ProviderSettingsContentProps {
 }
 
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
-  const search = useSearch({ strict: false }) as ProviderSettingsSearch
+  const search = useSearch<AppRouter, undefined, false>({ strict: false })
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
     'settings.provider.last_selected_provider_id'

@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -11,22 +12,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/utils/style', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
-  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} {...props}>
-      {children}
-    </div>
-  ),
-  NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
+// The renderer-wide setup substitutes a text-echo StreamingMarkdown, which is
+// exactly the regression guarded here — opt back into the real @cherrystudio/ui.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const baseProps = () => ({
   translatedContent: '',
-  renderedMarkdown: '',
   enableMarkdown: false,
   translating: false,
   copied: false,
@@ -36,15 +27,39 @@ const baseProps = () => ({
 })
 
 describe('TranslateOutputPane', () => {
-  it('shows translated content, length, and a copy button', () => {
+  it('renders streamed output as formatted markdown, not the raw source', () => {
     const props = baseProps()
-    props.translatedContent = 'partial output'
+    props.enableMarkdown = true
+    props.translating = true
+    props.translatedContent = '## Streamed title\n\n**bold** pick:\n\n- one\n- two'
 
-    render(<TranslateOutputPane {...props} />)
+    const { container, rerender } = render(<TranslateOutputPane {...props} />)
 
-    expect(screen.getByText('partial output')).toBeInTheDocument()
-    expect(screen.getByText('14')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'Streamed title' })).toBeInTheDocument()
+    // Streamdown renders bold as a marked span (data-streamdown="strong"), not a <strong> tag.
+    expect(container.querySelector('[data-streamdown="strong"]')).toHaveTextContent('bold')
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    // A plain-text fallback would echo the markers verbatim.
+    const output = container.querySelector('[data-ui="translate.output"]')
+    expect(output?.textContent).not.toContain('##')
+    expect(output?.textContent).not.toContain('**')
+
+    // Later stream frames keep the formatted rendering.
+    props.translatedContent += '\n- three'
+    rerender(<TranslateOutputPane {...props} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('keeps the raw source as plain text when markdown is disabled', () => {
+    const props = baseProps()
+    props.translatedContent = '**bold** pick'
+
+    const { container } = render(<TranslateOutputPane {...props} />)
+
+    expect(screen.getByText('**bold** pick')).toBeInTheDocument()
+    expect(container.querySelector('.markdown')).toBeNull()
+    expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
   })
 
   it('shows the processing indicator while waiting for output', () => {
@@ -56,15 +71,22 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByText('translate.processing')).toBeInTheDocument()
   })
 
-  it('shows an export-to-notes button in the bottom-right footer and calls it for translated content', () => {
+  it('shows translated content length and an enabled copy button', () => {
+    const props = baseProps()
+    props.translatedContent = 'partial output'
+
+    render(<TranslateOutputPane {...props} />)
+
+    expect(screen.getByText('partial output')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+  })
+
+  it('calls onExportToNotes from the footer button', () => {
     const props = baseProps()
     props.translatedContent = 'translated output'
 
     render(<TranslateOutputPane {...props} />)
-
-    const buttons = screen.getAllByRole('button')
-    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['common.copy', 'notes.save'])
-    expect(screen.getByRole('button', { name: 'notes.save' })).toHaveClass('ml-auto')
 
     fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
 

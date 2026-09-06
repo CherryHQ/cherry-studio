@@ -15,7 +15,6 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -192,13 +191,9 @@ export default function Sidebar({
       if (!options?.inNewTab) {
         // Conversation apps: any owned tab is already "there" — its URL carries its own
         // conversation, and re-entering through the route interceptor would just rebind
-        // it. Message-only viewers are not an app entry, so they navigate like any
-        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        // it. Apps without sub-instances keep exact-URL matching.
         const isActiveTarget =
-          !!activeTab &&
-          (app.conversationRoute
-            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-            : activeTab.url === path)
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : activeTab.url === path)
         if (isActiveTarget) return
       }
 

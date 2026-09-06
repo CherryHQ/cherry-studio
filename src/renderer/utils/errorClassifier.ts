@@ -85,7 +85,7 @@ function unwrapNestedErrors(error: SerializedError): SerializedError[] {
 }
 
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
+  const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
     category,
     i18nKey: `error.diagnosis.${category}`,
@@ -118,11 +118,23 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   })
   if (category !== 'unknown') return classify(category)
 
-  // A wrapper carries no status of its own — diagnose the first attempt that says something.
+  // A wrapper carries no status of its own. Prefer any diagnosis over a generic recovery-only fallback.
+  let nestedRecovery: ErrorClassification | null = null
   for (const nested of unwrapNestedErrors(error)) {
     const nestedClassification = classifyError(nested, providerId)
     if (nestedClassification.category !== 'unknown') {
       return nestedClassification
+    }
+    if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
+  }
+  if (nestedRecovery) return nestedRecovery
+
+  // A generic 400 has no safe diagnosis, but its active provider settings remain a valid recovery path.
+  if (numStatus === 400) {
+    return {
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: `/settings/provider${providerSuffix}`
     }
   }
 
