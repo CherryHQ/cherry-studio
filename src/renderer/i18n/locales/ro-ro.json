@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "URL de bază server la distanță",
   "settings.mcp.builtinServers": "Servere integrate",
   "settings.mcp.builtinServersDescriptions.brave_search": "O implementare de server MCP care integrează API-ul Brave Search, oferind funcționalități de căutare web și locală. Necesită configurarea variabilei de mediu BRAVE_API_KEY",
-  "settings.mcp.builtinServersDescriptions.browser": "Controlează o fereastră Electron headless prin Protocolul Chrome DevTools. Instrumente: deschide URL, execută JS pe o singură linie, resetează sesiunea.",
+  "settings.mcp.builtinServersDescriptions.browser": "Navighează folosind instantanee ale paginilor, apasă și introdu text în elemente, schimbă filele și gestionează dialogurile. Rulează implicit în fundal.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Server DiDi MCP care oferă servicii de ride-hailing, inclusiv căutare pe hartă, estimare preț, gestionare comenzi și urmărire șofer. Disponibil doar în China continentală. Necesită configurarea variabilei de mediu DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Implementarea serverului MCP Dify oferă un API simplu pentru a interacționa cu Dify. Necesită configurarea cheii Dify",
   "settings.mcp.builtinServersDescriptions.fetch": "Server MCP pentru preluarea conținutului web de la URL",

@@ -34,7 +34,7 @@ export function serializeSnapshot(snapshot: BrowserSnapshot, maxChars: number): 
   const makeHeader = () =>
     `${SAFETY_NOTICE}\n${metadata} · ${[...lines.keys()].filter((id) => interactive.has(id)).length} interactive / ${lines.size} total`
   const interactive = new Set(snapshot.nodes.filter((node) => node.ref).map((node) => node.backendNodeId))
-  const footerFor = (omitted: number) => (omitted ? `… (${omitted} more nodes; use scroll, scope, or find)` : '')
+  const footerFor = (omitted: number) => (omitted ? `… (${omitted} more nodes; use scroll or scope)` : '')
   let chars = 0
   for (const node of snapshot.nodes) {
     const line = nodeLine(node)

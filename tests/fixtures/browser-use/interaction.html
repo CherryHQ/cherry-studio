@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Browser interaction fixture</title>
+  <style>
+    body { font: 16px sans-serif; padding: 24px; }
+    label, input, select, button { display: block; margin: 8px 0; }
+    #overlap { position: relative; width: 200px; height: 80px; }
+    #covered { position: absolute; inset: 0; }
+    #cover { position: absolute; inset: 0; background: grey; }
+  </style>
+</head>
+<body>
+  <h1>Interaction form</h1>
+  <form action="/done">
+    <label for="name">Name</label><input id="name" name="name" value="Alice">
+    <label for="country">Country</label>
+    <select id="country" name="country"><option value="uk">United Kingdom</option><option value="us">United States</option></select>
+    <button id="submit">Submit form</button>
+  </form>
+  <label for="email">Email</label><input id="email" type="email" value="user@example">
+  <button id="confirm">Confirm action</button>
+  <button id="fetch">Fetch result</button>
+  <button id="popup">Open child tab</button>
+  <div id="overlap"><button id="covered">Covered action</button><div id="cover"></div></div>
+  <p id="result" aria-live="polite">Ready</p>
+  <a href="/download" download="fixture.txt">Download fixture</a>
+  <script>
+    const result = document.querySelector('#result')
+    document.querySelector('#confirm').onclick = () => { result.textContent = confirm('Continue?') ? 'Confirmed' : 'Dismissed' }
+    document.querySelector('#fetch').onclick = async () => { result.textContent = await (await fetch('/slow')).text() }
+    document.querySelector('#covered').onclick = () => { result.textContent = 'Covered clicked' }
+    document.querySelector('#popup').onclick = () => window.open('/child', '_blank')
+    document.querySelector('#name').addEventListener('input', () => { result.textContent = 'Input received' })
+  </script>
+</body>
+</html>

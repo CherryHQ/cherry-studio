@@ -146,6 +146,12 @@ describe('browser snapshots', () => {
     expect(serializeSnapshot({ ...base, url: 'https://user:SECRET@example.com/' }, 40_000).text).not.toContain('SECRET')
   })
 
+  it('rejects incomplete DOM attributes instead of losing password identification', () => {
+    const raw = fixture()
+    raw.dom!.documents[0].nodes.attributes = undefined
+    expect(() => buildSnapshotTree(raw, (id) => `e${id}`)).toThrow('DOM snapshot is incomplete')
+  })
+
   it('validates refs and enforces a bounded output request', () => {
     expect(browserRefSchema.safeParse('e12').success).toBe(true)
     expect(browserRefSchema.safeParse('12').success).toBe(false)

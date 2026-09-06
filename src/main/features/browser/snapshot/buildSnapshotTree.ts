@@ -32,8 +32,10 @@ export function buildSnapshotTree(
 ) {
   const document = raw.dom?.documents.find((doc) => raw.dom!.strings[doc.frameId] === raw.frameId)
   if (raw.dom && !document) throw new Error('Main frame DOM snapshot is unavailable')
+  if (document && (!document.nodes.backendNodeId || !document.nodes.nodeName || !document.nodes.attributes))
+    throw new Error('Main frame DOM snapshot is incomplete')
   const strings = raw.dom?.strings ?? []
-  const domById = new Map(document?.nodes.backendNodeId.map((id, index) => [id, index]) ?? [])
+  const domById = new Map(document?.nodes.backendNodeId?.map((id, index) => [id, index]) ?? [])
   const layoutByIndex = new Map(document?.layout.nodeIndex.map((index, row) => [index, row]) ?? [])
   const axById = new Map(raw.ax.map((node) => [node.nodeId, node]))
   const axIds = new Set(raw.ax.map((node) => node.nodeId))
@@ -54,9 +56,9 @@ export function buildSnapshotTree(
     const index = id === undefined ? undefined : domById.get(id)
     const row = index === undefined ? undefined : layoutByIndex.get(index)
     const attributes = new Map<string, string>()
-    const attrs = index === undefined ? [] : (document!.nodes.attributes[index] ?? [])
+    const attrs = index === undefined ? [] : (document!.nodes.attributes![index] ?? [])
     for (let i = 0; i < attrs.length; i += 2) attributes.set(strings[attrs[i]], strings[attrs[i + 1]])
-    const tag = index === undefined ? '' : strings[document!.nodes.nodeName[index]]?.toLowerCase()
+    const tag = index === undefined ? '' : strings[document!.nodes.nodeName![index]]?.toLowerCase()
     const password = attributes.get('type')?.toLowerCase() === 'password'
     const role = text(node.role?.value).toLowerCase()
     const name = text(node.name?.value)

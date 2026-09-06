@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "遠端 URL 位址",
   "settings.mcp.builtinServers": "內建伺服器",
   "settings.mcp.builtinServersDescriptions.brave_search": "一個整合了 Brave 搜尋 API 的 MCP 伺服器實作，提供網頁與本機搜尋雙重功能。需要設定 BRAVE_API_KEY 環境變數",
-  "settings.mcp.builtinServersDescriptions.browser": "透過 Chrome DevTools Protocol 控制 headless Electron 視窗。工具：開啟 URL、執行單行 JS、重設工作階段。",
+  "settings.mcp.builtinServersDescriptions.browser": "透過頁面快照瀏覽網頁，點擊和輸入、切換分頁及處理對話框。預設在背景執行。",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "滴滴 MCP 伺服器，提供叫車服務，包括地圖搜尋、車資預估、訂單管理與駕駛追蹤。僅適用於中國大陸；需要設定 DIDI_API_KEY 環境變數。",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify 的 MCP 伺服器實作，提供了一個簡單的 API 來與 Dify 進行互動。需要設定 Dify Key",
   "settings.mcp.builtinServersDescriptions.fetch": "用於取得 URL 網頁內容的 MCP 伺服器",

@@ -13,10 +13,7 @@ import type {
   AccessibleNode,
   AccessibleNodeSummary,
   CdpAccessibilityNode,
-  CdpAccessibilityProperty,
-  CdpPageCreateIsolatedWorldResult,
-  CdpPageGetFrameTreeResult,
-  CdpRuntimeEvaluateResult
+  CdpAccessibilityProperty
 } from './accessibilityTypes'
 
 export const ANNOTATION_EXPORT_LIMITS = {
@@ -104,27 +101,6 @@ const buildElementResolverExpression = (selector: string) => {
   })()`
 }
 
-async function sendDebuggerCommand<T>(
-  session: GuestSession,
-  method: string,
-  params: Record<string, unknown> | undefined,
-  deadline: number,
-  signal?: AbortSignal
-): Promise<T> {
-  return session.send<T>(method, params, { deadline, signal })
-}
-
-async function sendDebuggerCleanupCommand(
-  debuggerSession: GuestSession,
-  method: string,
-  params: Record<string, unknown> | undefined,
-  deadline: number,
-  signal?: AbortSignal
-): Promise<void> {
-  if (signal?.aborted || !debuggerSession.isAvailable() || Date.now() >= deadline) return
-  await sendDebuggerCommand(debuggerSession, method, params, deadline).catch(() => undefined)
-}
-
 export async function describeElement(
   debuggerSession: GuestSession,
   annotation: WebviewAnnotation,
@@ -135,33 +111,24 @@ export async function describeElement(
   if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
   if (Date.now() >= deadline) return createAccessibilityContext('timeout')
 
-  const frameTree = await sendDebuggerCommand<CdpPageGetFrameTreeResult>(
-    debuggerSession,
-    'Page.getFrameTree',
-    undefined,
-    deadline,
-    signal
-  )
+  const frameTree = await debuggerSession.send('Page.getFrameTree', undefined, { deadline, signal })
   const frameId = frameTree.frameTree?.frame?.id
   if (!frameId) throw new Error('Webview main frame is unavailable')
-  const world = await sendDebuggerCommand<CdpPageCreateIsolatedWorldResult>(
-    debuggerSession,
+  const world = await debuggerSession.send(
     'Page.createIsolatedWorld',
     {
       frameId,
       worldName: 'cherry-webview-annotation-accessibility',
       grantUniveralAccess: false
     },
-    deadline,
-    signal
+    { deadline, signal }
   )
   const executionContextId = world.executionContextId
   if (typeof executionContextId !== 'number') throw new Error('Webview isolated world is unavailable')
 
   const objectGroup = `webview-annotation:${annotation.id}`
   try {
-    const evaluated = await sendDebuggerCommand<CdpRuntimeEvaluateResult>(
-      debuggerSession,
+    const evaluated = await debuggerSession.send(
       'Runtime.evaluate',
       {
         expression: buildElementResolverExpression(annotation.element.selector),
@@ -170,8 +137,7 @@ export async function describeElement(
         returnByValue: false,
         silent: true
       },
-      deadline,
-      signal
+      { deadline, signal }
     )
     if (evaluated.exceptionDetails) throw new Error('Element selector evaluation failed')
     const objectId = evaluated.result?.objectId
@@ -179,22 +145,14 @@ export async function describeElement(
       return createAccessibilityContext('selector_not_found')
     }
 
-    const described = await sendDebuggerCommand<{ node?: { backendNodeId?: number } }>(
-      debuggerSession,
-      'DOM.describeNode',
-      { objectId },
-      deadline,
-      signal
-    )
+    const described = await debuggerSession.send('DOM.describeNode', { objectId }, { deadline, signal })
     const backendNodeId = described.node?.backendNodeId
     if (!backendNodeId) throw new Error('Selected element has no backend DOM node')
 
-    const ancestorsResult = await sendDebuggerCommand<{ nodes?: CdpAccessibilityNode[] }>(
-      debuggerSession,
+    const ancestorsResult = await debuggerSession.send(
       'Accessibility.getAXNodeAndAncestors',
       { backendNodeId },
-      deadline,
-      signal
+      { deadline, signal }
     )
     const ancestorNodes = ancestorsResult.nodes ?? []
     const selectedNode = ancestorNodes.find((node) => node.backendDOMNodeId === backendNodeId) ?? ancestorNodes[0]
@@ -239,15 +197,13 @@ export async function describeElement(
       if ((atDepthLimit || mayExposeFormValue) && hasChildren) {
         walkState.truncated = true
       } else if (mayDescend) {
-        const childResult = await sendDebuggerCommand<{ nodes?: CdpAccessibilityNode[] }>(
-          debuggerSession,
+        const childResult = await debuggerSession.send(
           'Accessibility.getChildAXNodes',
           {
             id: node.nodeId,
             ...(node.frameId ? { frameId: node.frameId } : {})
           },
-          deadline,
-          signal
+          { deadline, signal }
         )
         for (const child of childResult.nodes ?? []) {
           if (selectedFrameId && child.frameId && child.frameId !== selectedFrameId) continue
@@ -273,6 +229,7 @@ export async function describeElement(
       truncated: pathTruncated || walkState.truncated
     })
   } finally {
-    await sendDebuggerCleanupCommand(debuggerSession, 'Runtime.releaseObjectGroup', { objectGroup }, deadline, signal)
+    if (!signal?.aborted && debuggerSession.isAvailable() && Date.now() < deadline)
+      await debuggerSession.send('Runtime.releaseObjectGroup', { objectGroup }, { deadline }).catch(() => undefined)
   }
 }
