@@ -642,6 +642,7 @@
   "chat.input.note_reference.manage": "Gérer les notes",
   "chat.input.note_reference.title": "Note de référence",
   "chat.input.paste_text_file": "Coller dans l'entrée",
+  "chat.input.paste_text_too_long": "Le texte collé dépasse {{max}} caractères et ne peut pas être inséré dans le champ de saisie. Il est conservé en pièce jointe.",
   "chat.input.pasted_text_file_name": "Texte collé.txt",
   "chat.input.pause": "Pause",
   "chat.input.placeholder": "Saisissez un message. Appuyez sur {{key}} pour l’envoyer. Saisissez / pour afficher les outils et les actions, ou @ pour référencer des conversations.",

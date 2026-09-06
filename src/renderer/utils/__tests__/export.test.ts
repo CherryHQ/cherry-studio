@@ -14,6 +14,9 @@ beforeEach(() => {
       file: {
         read: vi.fn().mockResolvedValue('[]'),
         writeWithId: vi.fn()
+      },
+      fs: {
+        readText: vi.fn().mockResolvedValue('')
       }
     },
     configurable: true
@@ -199,12 +202,12 @@ describe('export', () => {
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
-      const result = messageToPlainText(testMessage)
+      const result = await messageToPlainText(testMessage)
       expect(result).toBe('Single Message Content')
       expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
     })
 
-    it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', () => {
+    it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
       const testMessage = createExportView(
         [
           {
@@ -233,13 +236,13 @@ describe('export', () => {
       )
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
-      const result = messageToPlainText(testMessage)
+      const result = await messageToPlainText(testMessage)
 
       expect(result).toBe('/pdf/ hello')
       expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
     })
 
-    it('copies an id re-cited from an earlier turn as a plain number', () => {
+    it('copies an id re-cited from an earlier turn as a plain number', async () => {
       const testMessage: MessageExportView = {
         ...createExportView([{ type: 'text', text: 'Still true. [cite:3f2a1b9c-1]' }]),
         priorCitationParts: [
@@ -254,10 +257,10 @@ describe('export', () => {
       }
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
-      expect(messageToPlainText(testMessage)).toBe('Still true. [1]')
+      expect(await messageToPlainText(testMessage)).toBe('Still true. [1]')
     })
 
-    it('should resolve tool citation markers to plain numbers before copying', () => {
+    it('should resolve tool citation markers to plain numbers before copying', async () => {
       // Left in place, `remove-markdown` mangles a chain of markers down to a bare
       // `cite:<id>` and the internal id lands on the clipboard.
       const testMessage = createExportView([
@@ -275,15 +278,89 @@ describe('export', () => {
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
-      const result = messageToPlainText(testMessage)
+      const result = await messageToPlainText(testMessage)
 
       expect(result).toBe('Prices rose. [1][2]')
       expect(result).not.toContain('cite:')
     })
+
+    it('should copy the stored pasted text instead of the file token label', async () => {
+      // A long paste becomes a `.txt` attachment whose display name ("Pasted text.txt")
+      // is the only thing the old copy produced — the actual pasted text must win.
+      ;(window.api.fs.readText as any).mockResolvedValue('the full pasted content')
+      const testMessage = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Look at this:',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    { id: 'file:file-token-1', kind: 'file', label: 'Pasted text.txt', index: 0, textOffset: 13 }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            mediaType: 'text/plain',
+            url: 'file:///tmp/pasted_text.txt',
+            filename: 'Pasted text.txt',
+            providerMetadata: { cherry: { fileTokenSourceId: 'file-token-1', composerFileKind: 'pasted-text' } }
+          }
+        ],
+        'user'
+      )
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = await messageToPlainText(testMessage)
+
+      expect(result).toBe('Look at this:the full pasted content')
+      expect(result).not.toContain('Pasted text.txt')
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/pasted_text.txt')
+    })
+
+    it('should keep the token label when the pasted text file is unreadable', async () => {
+      ;(window.api.fs.readText as any).mockRejectedValue(new Error('ENOENT'))
+      const testMessage = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Look at this:',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    { id: 'file:file-token-2', kind: 'file', label: 'Pasted text.txt', index: 0, textOffset: 14 }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            mediaType: 'text/plain',
+            url: 'file:///tmp/missing.txt',
+            filename: 'Pasted text.txt',
+            providerMetadata: { cherry: { fileTokenSourceId: 'file-token-2', composerFileKind: 'pasted-text' } }
+          }
+        ],
+        'user'
+      )
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = await messageToPlainText(testMessage)
+
+      expect(result).toContain('Pasted text.txt')
+    })
   })
 
   describe('messagesToPlainText', () => {
-    it('labels an assistant row with the frozen snapshot author, not a generic "Assistant"', () => {
+    it('labels an assistant row with the frozen snapshot author, not a generic "Assistant"', async () => {
       const message = createExportView([{ type: 'text', text: 'hi' }])
       message.messageSnapshot = {
         id: 'a1',
@@ -291,11 +368,11 @@ describe('export', () => {
         emoji: '🤖',
         model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
       }
-      expect(messagesToPlainText([message])).toContain('My Assistant:')
+      expect(await messagesToPlainText([message])).toContain('My Assistant:')
     })
 
-    it('falls back to "Assistant:" for a snapshot-less assistant row', () => {
-      expect(messagesToPlainText([createExportView([{ type: 'text', text: 'hi' }])])).toContain('Assistant:')
+    it('falls back to "Assistant:" for a snapshot-less assistant row', async () => {
+      expect(await messagesToPlainText([createExportView([{ type: 'text', text: 'hi' }])])).toContain('Assistant:')
     })
   })
 })

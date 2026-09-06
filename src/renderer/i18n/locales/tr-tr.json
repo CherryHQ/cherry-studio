@@ -642,6 +642,7 @@
   "chat.input.note_reference.manage": "Notları Yönet",
   "chat.input.note_reference.title": "Nota Başvur",
   "chat.input.paste_text_file": "Girdiye yapıştır",
+  "chat.input.paste_text_too_long": "Yapıştırılan metin {{max}} karakterden uzun olduğu için giriş alanına eklenemiyor. Dosya eki olarak korunuyor.",
   "chat.input.pasted_text_file_name": "Yapıştırılan metin.txt",
   "chat.input.pause": "Duraklat",
   "chat.input.placeholder": "Bir mesaj yazın. Göndermek için {{key}} tuşuna basın. Araçlar ve eylemler için /, konulara başvurmak için @ yazın.",

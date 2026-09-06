@@ -642,6 +642,7 @@
   "chat.input.note_reference.manage": "Gestionar notas",
   "chat.input.note_reference.title": "Nota de Referencia",
   "chat.input.paste_text_file": "Pegar en la entrada",
+  "chat.input.paste_text_too_long": "El texto pegado supera los {{max}} caracteres y no puede insertarse en el campo de entrada. Se conserva como archivo adjunto.",
   "chat.input.pasted_text_file_name": "Texto pegado.txt",
   "chat.input.pause": "Pausar",
   "chat.input.placeholder": "Escribe un mensaje. Pulsa {{key}} para enviarlo. Escribe / para ver las herramientas y acciones, o @ para hacer referencia a temas.",

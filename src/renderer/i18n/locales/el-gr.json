@@ -642,6 +642,7 @@
   "chat.input.note_reference.manage": "Διαχείριση σημειώσεων",
   "chat.input.note_reference.title": "Σημείωση Αναφοράς",
   "chat.input.paste_text_file": "Επικόλληση στην είσοδο",
+  "chat.input.paste_text_too_long": "Το επικολλημένο κείμενο υπερβαίνει τους {{max}} χαρακτήρες και δεν μπορεί να εισαχθεί στο πεδίο εισαγωγής. Διατηρείται ως συνημμένο αρχείο.",
   "chat.input.pasted_text_file_name": "Επικολλημένο κείμενο.txt",
   "chat.input.pause": "Παύση",
   "chat.input.placeholder": "Πληκτρολογήστε ένα μήνυμα. Πατήστε {{key}} για αποστολή. Πληκτρολογήστε / για εργαλεία και ενέργειες ή @ για αναφορά σε θέματα.",
