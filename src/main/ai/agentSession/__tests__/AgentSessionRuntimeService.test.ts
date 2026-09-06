@@ -3586,8 +3586,9 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     })
 
-    it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
+    it('re-priming a live session republishes the catalog without revalidation or rebuilding', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const validateSession = vi.fn()
       const connection = {
         events: createAsyncQueue<any>().iterable,
         send: vi.fn(),
@@ -3600,7 +3601,7 @@ describe('AgentSessionRuntimeService', () => {
         type: 'test-runtime',
         capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
+        validateSession,
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
@@ -3614,15 +3615,17 @@ describe('AgentSessionRuntimeService', () => {
 
       mocks.cacheSetShared.mockClear()
       connection.getSupportedCommands.mockClear()
+      validateSession.mockRejectedValueOnce(new Error('transient validation failure'))
 
       // Second prime hits the existing-entry branch — it must re-read and republish (so a window
-      // mounting late still gets the catalog), not early-return on the live connection.
+      // mounting late still gets the catalog) without a fallible validation or reconciliation pass.
       await service.primeConnection('session-1')
       await vi.waitFor(() => {
         expect(connection.getSupportedCommands).toHaveBeenCalled()
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       })
-      // The existing connection is reused — no second connect.
+      expect(validateSession).toHaveBeenCalledTimes(1)
+      expect(connection.reconcile).not.toHaveBeenCalled()
       expect(connect).toHaveBeenCalledTimes(1)
     })
 

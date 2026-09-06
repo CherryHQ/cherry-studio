@@ -614,6 +614,15 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     try {
+      const liveEntry = this.entries.get(sessionId)
+      const liveConnection = liveEntry ? this.currentConnection(liveEntry) : undefined
+      if (liveEntry && liveConnection) {
+        // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
+        // catalog without a fallible validation/reconcile pass over an already-running connection.
+        this.refreshSupportedCommands(liveEntry, liveConnection)
+        return
+      }
+
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
@@ -624,9 +633,6 @@ export class AgentSessionRuntimeService extends BaseService {
 
       const existing = this.entries.get(sessionId)
       if (existing) {
-        // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
-        // catalog so a consumer that mounts after the initial publish still gets it — `ensureConnection`
-        // alone skips the read when the connection already exists.
         void this.ensureConnection(existing)
           .then((connected) => {
             if (connected) this.refreshSupportedCommands(existing)
