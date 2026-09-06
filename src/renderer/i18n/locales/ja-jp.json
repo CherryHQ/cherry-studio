@@ -1485,7 +1485,6 @@
   "help.star": "GitHubでスター",
   "help.title": "ヘルプ",
   "help.whats_new": "新機能",
-  "history.error.topic_not_found": "トピックが見つかりません",
   "history.records.agentTitle": "エージェント履歴",
   "history.records.bulkDelete": "バッチ削除",
   "history.records.bulkDeleteSessions.description": "選択したタスク {{count}} 件を削除しますか？",

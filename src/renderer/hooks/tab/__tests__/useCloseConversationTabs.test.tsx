@@ -20,7 +20,6 @@ describe('findClosableConversationTabIds', () => {
     const tabs: Tab[] = [
       { id: 'topic-a-tab', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Topic A' },
       { id: 'topic-b-tab', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' },
-      { id: 'message', type: 'route', url: '/app/chat?view=message&topicId=topic-a', title: 'Message' },
       { id: 'session', type: 'route', url: '/app/agents?sessionId=topic-a', title: 'Session' }
     ]
 

@@ -1485,7 +1485,6 @@
   "help.star": "Estrela no GitHub",
   "help.title": "Ajuda",
   "help.whats_new": "Novidades",
-  "history.error.topic_not_found": "Tópico inexistente",
   "history.records.agentTitle": "Histórico do Agente",
   "history.records.bulkDelete": "Eliminação em Lote",
   "history.records.bulkDeleteSessions.description": "Eliminar {{count}} tarefa(s) selecionada(s)?",

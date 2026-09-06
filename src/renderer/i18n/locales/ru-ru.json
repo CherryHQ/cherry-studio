@@ -1485,7 +1485,6 @@
   "help.star": "Звезда на GitHub",
   "help.title": "Помощь",
   "help.whats_new": "Что нового",
-  "history.error.topic_not_found": "Топик не найден",
   "history.records.agentTitle": "История агента",
   "history.records.bulkDelete": "Пакетное удаление",
   "history.records.bulkDeleteSessions.description": "Удалить выбранное задание ({{count}})?",

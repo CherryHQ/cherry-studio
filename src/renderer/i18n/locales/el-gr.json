@@ -1485,7 +1485,6 @@
   "help.star": "Αστέρι στο GitHub",
   "help.title": "Βοήθεια",
   "help.whats_new": "Τι νέο υπάρχει",
-  "history.error.topic_not_found": "Το θέμα δεν υπάρχει",
   "history.records.agentTitle": "Ιστορικό Πράκτορα",
   "history.records.bulkDelete": "Διαγραφή Παρτίδας",
   "history.records.bulkDeleteSessions.description": "Διαγραφή {{count}} επιλεγμένης(-ών) εργασίας(-ών);",

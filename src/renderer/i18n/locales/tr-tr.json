@@ -1485,7 +1485,6 @@
   "help.star": "GitHub'da yıldız ver",
   "help.title": "Yardım",
   "help.whats_new": "Yenilikler",
-  "history.error.topic_not_found": "Konuşma bulunamadı",
   "history.records.agentTitle": "Ajan Geçmişi",
   "history.records.bulkDelete": "Toplu Sil",
   "history.records.bulkDeleteSessions.description": "Seçilen {{count}} görev silinsin mi?",

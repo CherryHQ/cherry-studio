@@ -1485,7 +1485,6 @@
   "help.star": "GitHub 按讚",
   "help.title": "幫助",
   "help.whats_new": "新功能",
-  "history.error.topic_not_found": "對話不存在",
   "history.records.agentTitle": "Agent 歷史",
   "history.records.bulkDelete": "批次刪除",
   "history.records.bulkDeleteSessions.description": "要刪除選中的 {{count}} 個任務嗎？",

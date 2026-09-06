@@ -1485,7 +1485,6 @@
   "help.star": "Stea pe GitHub",
   "help.title": "Ajutor",
   "help.whats_new": "Noutăți",
-  "history.error.topic_not_found": "Subiectul nu a fost găsit",
   "history.records.agentTitle": "Istoric agent",
   "history.records.bulkDelete": "Ștergere în lot",
   "history.records.bulkDeleteSessions.description": "Ștergi cele {{count}} sarcini selectate?",

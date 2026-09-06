@@ -1485,7 +1485,6 @@
   "help.star": "Star us on GitHub",
   "help.title": "Help",
   "help.whats_new": "What's new",
-  "history.error.topic_not_found": "Conversation not found",
   "history.records.agentTitle": "Agent History",
   "history.records.bulkDelete": "Batch Delete",
   "history.records.bulkDeleteSessions.description": "Delete {{count}} selected task(s)?",

@@ -1485,7 +1485,6 @@
   "help.star": "Gắn sao trên GitHub",
   "help.title": "Trợ giúp",
   "help.whats_new": "Có gì mới",
-  "history.error.topic_not_found": "Không tìm thấy chủ đề",
   "history.records.agentTitle": "Lịch sử Agent",
   "history.records.bulkDelete": "Xóa hàng loạt",
   "history.records.bulkDeleteSessions.description": "Xóa {{count}} công việc đã chọn?",

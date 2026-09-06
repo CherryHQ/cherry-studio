@@ -1485,7 +1485,6 @@
   "help.star": "GitHub 点赞",
   "help.title": "帮助",
   "help.whats_new": "新功能",
-  "history.error.topic_not_found": "对话不存在",
   "history.records.agentTitle": "智能体历史记录",
   "history.records.bulkDelete": "批量删除",
   "history.records.bulkDeleteSessions.description": "将删除选中的 {{count}} 个任务。",

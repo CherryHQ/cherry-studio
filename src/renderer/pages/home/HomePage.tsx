@@ -2,10 +2,8 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -31,7 +29,7 @@ import { useConversationCenterSurface } from '@renderer/hooks/useConversationCen
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
-import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -92,7 +90,6 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
-  const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
@@ -107,7 +104,6 @@ const HomePage: FC = () => {
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
-    isMessageOnlyView,
     persistedPaneOpen: showSidebar,
     setPersistedPaneOpen: setShowSidebar,
     onManualPaneOpen: handleManualPaneOpen
@@ -121,13 +117,6 @@ const HomePage: FC = () => {
   // Shared full-topics list source plus exact latest/reusable lookups.
   const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
-  const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
-    isMessageOnlyView ? routeTopicId : undefined
-  )
-  const routeTopic = useMemo(
-    () => (routeApiTopic ? mapApiTopicToRendererTopic(routeApiTopic) : undefined),
-    [routeApiTopic]
-  )
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -173,7 +162,7 @@ const HomePage: FC = () => {
     [assistantIdSet, assistants, routeAssistantId, validLastUsedAssistantId]
   )
 
-  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? null)
+  const routeActiveTopicId = routeTopicId ?? null
   const [activeTopicId, setActiveTopicIdState] = useState<string | null>(() => routeActiveTopicId)
   // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
   // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
@@ -183,11 +172,11 @@ const HomePage: FC = () => {
     (id: string | null) => {
       ownerFallbackRequestIdRef.current += 1
       setActiveTopicIdState(id)
-      if (id && !isMessageOnlyView) {
+      if (id) {
         void navigate({ to: '/app/chat', search: { topicId: id }, replace: true })
       }
     },
-    [isMessageOnlyView, navigate]
+    [navigate]
   )
 
   useLayoutEffect(() => {
@@ -207,10 +196,7 @@ const HomePage: FC = () => {
     topicSource: activeTopicSource
   } = useActiveTopic({
     activeTopicId,
-    setActiveTopicId,
-    // Message-only view loads its target via useTopicById; the active hook
-    // must not emit or expose a visible activeTopic.
-    passive: isMessageOnlyView
+    setActiveTopicId
   })
   const reenterChatRoute = useCallback(() => {
     clearActiveTopic()
@@ -220,33 +206,23 @@ const HomePage: FC = () => {
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
-    if (isMessageOnlyView) return
     if (!routeTopicId || activeTopicId !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
     reenterChatRoute()
-  }, [
-    activeTopic,
-    activeTopicError,
-    activeTopicId,
-    isActiveTopicLoading,
-    isMessageOnlyView,
-    reenterChatRoute,
-    routeTopicId
-  ])
+  }, [activeTopic, activeTopicError, activeTopicId, isActiveTopicLoading, reenterChatRoute, routeTopicId])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
-  const visibleTopic = isMessageOnlyView
-    ? routeTopic
-    : (activeTopic ??
-      (isActiveTopicLoading && lastVisibleTopicRef.current?.id === activeTopicId
-        ? lastVisibleTopicRef.current
-        : undefined))
+  const visibleTopic =
+    activeTopic ??
+    (isActiveTopicLoading && lastVisibleTopicRef.current?.id === activeTopicId
+      ? lastVisibleTopicRef.current
+      : undefined)
   const requestComposerFocus = useComposerFocusRequest(visibleTopic?.id)
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
     return 'empty'
   }, [visibleTopic?.id])
-  const conversationResourcesEnabled = !isMessageOnlyView && !isWindowFrame
+  const conversationResourcesEnabled = !isWindowFrame
   const {
     activeResourceKind,
     closeSurface,
@@ -292,7 +268,7 @@ const HomePage: FC = () => {
   }, [])
 
   const revealActiveTopicInResourceList = useEffectEvent(() => {
-    if (isMessageOnlyView || !visibleTopic?.id) return
+    if (!visibleTopic?.id) return
     const requestId = topicRevealRequestIdRef.current + 1
     topicRevealRequestIdRef.current = requestId
     setTopicRevealRequest({
@@ -329,7 +305,7 @@ const HomePage: FC = () => {
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
   // a generic one.
-  const targetTopicId = isMessageOnlyView ? routeTopicId : (activeTopicId ?? undefined)
+  const targetTopicId = activeTopicId ?? undefined
   const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
@@ -342,14 +318,13 @@ const HomePage: FC = () => {
   }, [activeTopic])
 
   useEffect(() => {
-    if (isMessageOnlyView) return
     if (!activeTopic) return
     const signature = `${activeTopic.id}:${activeTopic.name}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
     lastRecordedRecentTopicRef.current = signature
     recordGlobalSearchRecentEntry(createRecentTopicEntryFromTopic(activeTopic))
-  }, [activeTopic, isMessageOnlyView])
+  }, [activeTopic])
 
   const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   useCommandHandler('app.sidebar.toggle', toggleShellPane)
@@ -588,7 +563,7 @@ const HomePage: FC = () => {
                 kind={activeResourceKind}
                 onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
                 toolbarLeading={
-                  !isMessageOnlyView && !isWindowFrame ? (
+                  !isWindowFrame ? (
                     <ConversationSidebarToggleButton
                       sidebarOpen={shellPaneOpen}
                       onSidebarToggle={toggleShellPane}
@@ -600,14 +575,7 @@ const HomePage: FC = () => {
             )
           }
         : null,
-    [
-      activeResourceKind,
-      shellPaneOpen,
-      handleOpenAssistantChatFromLibrary,
-      isMessageOnlyView,
-      isWindowFrame,
-      toggleShellPane
-    ]
+    [activeResourceKind, shellPaneOpen, handleOpenAssistantChatFromLibrary, isWindowFrame, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -615,12 +583,12 @@ const HomePage: FC = () => {
         content: (
           <HistoryRecordsView
             mode="assistant"
-            open={historyRecordsActive && !isMessageOnlyView && !isWindowFrame}
+            open={historyRecordsActive && !isWindowFrame}
             activeRecordId={activeTopicId}
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
             toolbarLeading={
-              !isMessageOnlyView && !isWindowFrame ? (
+              !isWindowFrame ? (
                 <ConversationSidebarToggleButton
                   sidebarOpen={shellPaneOpen}
                   onSidebarToggle={toggleShellPane}
@@ -650,32 +618,6 @@ const HomePage: FC = () => {
     },
     [allTopics, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
-  // Message-only (detached) view has no rail: resolve its single target topic and show its own
-  // loading / not-found status. The normal view falls through to the loading shell below (which keeps
-  // the rail visible) instead of returning a blank frame.
-  if (isMessageOnlyView && !visibleTopic && !resourceCenter) {
-    return (
-      <>
-        <HomeTabRuntime
-          title={tabTitle}
-          emoji={visibleAssistant?.emoji}
-          preserveVisuals={preserveTabVisuals}
-          activeTopicId={activeTopic?.id}
-          activeTopicSource={activeTopicSource}
-        />
-        <Container id="home-page">
-          <ContentContainer>
-            <MessageOnlyStatus
-              loading={isRouteTopicLoading}
-              loadingLabel={t('common.loading')}
-              missingTitle={t('history.error.topic_not_found')}
-            />
-          </ContentContainer>
-        </Container>
-      </>
-    )
-  }
-
   // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =
     isClassicTopicLayout && topicListPosition === 'right' ? (
@@ -711,7 +653,7 @@ const HomePage: FC = () => {
         }}
         clearActiveTopic={clearActiveTopicAndCloseResourceView}
         setActiveTopic={setActiveTopicAndCloseResourceView}
-        onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+        onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
@@ -737,7 +679,7 @@ const HomePage: FC = () => {
               assistantIdFilter={visibleAssistantId ?? null}
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
-              onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+              onNewTopic={handleCreateEmptyTopic}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
@@ -782,7 +724,7 @@ const HomePage: FC = () => {
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}
-            topicPending={isActiveTopicLoading || isRouteTopicLoading}
+            topicPending={isActiveTopicLoading}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}
@@ -790,9 +732,9 @@ const HomePage: FC = () => {
             onPaneCollapse={() => setShellPaneOpenManually(false)}
             onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}
-            onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-            onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-            showResourceListControls={!isMessageOnlyView}
+            onNewTopic={handleCreateEmptyTopic}
+            onCreateEmptyTopic={handleCreateEmptyTopic}
+            showResourceListControls
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}
@@ -803,26 +745,6 @@ const HomePage: FC = () => {
         {assistantPickerDialog}
       </Container>
     </TopicRightPane.Scope>
-  )
-}
-
-type MessageOnlyStatusProps = {
-  loading: boolean
-  loadingLabel: string
-  missingTitle: string
-}
-
-function MessageOnlyStatus({ loading, loadingLabel, missingTitle }: MessageOnlyStatusProps) {
-  return (
-    <div className="flex h-[calc(100vh_-_var(--navbar-height)_-_6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background">
-      <ChatAppShell
-        centerContent={
-          <div className="flex h-full min-h-0 flex-1 items-center justify-center px-6">
-            {loading ? <LoadingState label={loadingLabel} /> : <EmptyState compact title={missingTitle} />}
-          </div>
-        }
-      />
-    </div>
   )
 }
 

@@ -4,11 +4,10 @@ import { parseAgentRouteSearch } from '../routeSearch'
 
 describe('parseAgentRouteSearch', () => {
   it('accepts the feedback intent alongside existing search fields', () => {
-    expect(parseAgentRouteSearch({ intent: 'feedback', sessionId: 'session-1', view: 'message' })).toEqual({
+    expect(parseAgentRouteSearch({ intent: 'feedback', sessionId: 'session-1' })).toEqual({
       agentId: undefined,
       intent: 'feedback',
-      sessionId: 'session-1',
-      view: 'message'
+      sessionId: 'session-1'
     })
   })
 
@@ -16,8 +15,7 @@ describe('parseAgentRouteSearch', () => {
     expect(parseAgentRouteSearch({ agentId: 'agent-1' })).toEqual({
       agentId: 'agent-1',
       intent: undefined,
-      sessionId: undefined,
-      view: undefined
+      sessionId: undefined
     })
   })
 
@@ -25,8 +23,7 @@ describe('parseAgentRouteSearch', () => {
     expect(parseAgentRouteSearch({ agentId: 'agent-1', sessionId: 'session-1' })).toEqual({
       agentId: 'agent-1',
       intent: undefined,
-      sessionId: 'session-1',
-      view: undefined
+      sessionId: 'session-1'
     })
   })
 
@@ -34,8 +31,7 @@ describe('parseAgentRouteSearch', () => {
     expect(parseAgentRouteSearch({ agentId: 7 })).toEqual({
       agentId: undefined,
       intent: undefined,
-      sessionId: undefined,
-      view: undefined
+      sessionId: undefined
     })
   })
 
@@ -43,8 +39,7 @@ describe('parseAgentRouteSearch', () => {
     expect(parseAgentRouteSearch({ intent: 'other' })).toEqual({
       agentId: undefined,
       intent: undefined,
-      sessionId: undefined,
-      view: undefined
+      sessionId: undefined
     })
   })
 })

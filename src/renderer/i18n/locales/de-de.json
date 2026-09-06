@@ -1485,7 +1485,6 @@
   "help.star": "GitHub-Star",
   "help.title": "Hilfe",
   "help.whats_new": "Neuigkeiten",
-  "history.error.topic_not_found": "Thema existiert nicht",
   "history.records.agentTitle": "Agentenhistorie",
   "history.records.bulkDelete": "Stapel löschen",
   "history.records.bulkDeleteSessions.description": "{{count}} ausgewählte Aufgabe(n) löschen?",
