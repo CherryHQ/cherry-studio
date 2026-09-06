@@ -58,6 +58,12 @@ docs above reference them:
   port from renderer for Gemini/OpenAI File APIs.
 - [`tool-approval-defer-fix.md`](./tool-approval-defer-fix.md) — fix design
   for the defer-exposition approval-gate bypass (review #1).
+- [`browser-use-design.md`](./browser-use-design.md) — gap analysis of the
+  built-in browser MCP against real browser use (open-source field, Chromium
+  Actor/WebMCP, Codex desktop) and the P0–P3 roadmap.
+- [`browser-use-implementation.md`](./browser-use-implementation.md) — P0/P1 of
+  that roadmap as files, APIs, algorithms, the stacked PR/commit split and the
+  automated + manual test plan.
 - [`tool-approval-state-consolidation.md`](./tool-approval-state-consolidation.md) —
   diagnosis + target design + **phased refactor plan** for the approval split-brain
   (stream / DB / renderer state can't be simultaneously consistent); single-authority
