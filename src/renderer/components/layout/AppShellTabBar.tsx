@@ -147,7 +147,8 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
+  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -923,7 +924,11 @@ export const AppShellTabBar = ({
           data-testid="app-shell-tab-strip"
           style={
             isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+              ? {
+                  paddingLeft: isFocusedTab
+                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                }
               : undefined
           }
           onMouseEnter={() => {

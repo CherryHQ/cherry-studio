@@ -1,12 +1,16 @@
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInputNumber,
+  InputGroupText,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -802,16 +806,14 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxTokens"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
+                max={Number.MAX_SAFE_INTEGER}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tokens')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
                 }
               />
@@ -865,17 +867,14 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxToolCalls"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={MIN_TOOL_CALLS}
                 max={MAX_TOOL_CALLS}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tool_calls')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(
                     typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
                   )
@@ -971,21 +970,17 @@ function ContextManagementFields({
             />
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
+                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
               />
             </FormControl>
             <FormMessage />
@@ -1058,25 +1053,27 @@ function ContextManagementFields({
                     label={t('library.config.basic.context_compress_threshold')}
                     help={t('library.config.basic.field.context_compress_threshold.hint')}
                   />
-                  <FormControl>
-                    <EditableNumber
-                      block
-                      min={MIN_COMPRESS_THRESHOLD_PERCENT}
-                      max={MAX_COMPRESS_THRESHOLD_PERCENT}
-                      step={5}
-                      precision={0}
-                      suffix="%"
-                      align="start"
-                      changeOnBlur
-                      // Empty = inherit; the placeholder names the global in force.
-                      placeholder={t('library.config.basic.context_compress_threshold_follow_global', {
-                        percent: globalDefaults.compressThreshold
-                      })}
-                      className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
-                      value={field.value}
-                      onChange={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
-                    />
-                  </FormControl>
+                  <InputGroup className="h-8 rounded-lg">
+                    {/* Inside the group, not around it: `FormControl` is a `Slot` and
+                        hands the label's `htmlFor` target to its immediate child. */}
+                    <FormControl>
+                      <InputGroupInputNumber
+                        min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                        max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                        step={5}
+                        // Empty = inherit; the placeholder names the global in force.
+                        placeholder={t('library.config.basic.context_compress_threshold_follow_global', {
+                          percent: globalDefaults.compressThreshold
+                        })}
+                        className="px-2.5"
+                        value={field.value}
+                        onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
+                      />
+                    </FormControl>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
                   <FormMessage />
                 </FormItem>
               )}
@@ -1093,18 +1090,14 @@ function ContextManagementFields({
                   help={t('library.config.basic.field.context_truncate_threshold.hint')}
                 />
                 <FormControl>
-                  <EditableNumber
-                    block
+                  <InputNumber
                     // Same floor and step as the global panel — this doubles as
                     // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
                     min={MIN_TRUNCATE_THRESHOLD}
                     step={1}
-                    precision={0}
-                    align="start"
-                    changeOnBlur
-                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    className="h-8 rounded-lg px-2.5"
                     value={field.value}
-                    onChange={(value) =>
+                    onBlur={(value) =>
                       field.onChange(
                         typeof value === 'number' && Number.isFinite(value)
                           ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))
@@ -1306,14 +1299,16 @@ function CustomParameterRow({
         {param.type !== 'json' ? (
           <div className="flex-1">
             {param.type === 'number' ? (
-              <Input
-                type="number"
+              // Neither `min` nor `step`: custom parameters accept any real
+              // number, including negatives and fractions.
+              <InputNumber
                 aria-label={parameterValueLabel}
-                value={String(param.value)}
-                onChange={(event) => {
-                  const parsed = parseFloat(event.target.value)
-                  onValueChange(Number.isFinite(parsed) ? parsed : 0)
-                }}
+                value={typeof param.value === 'number' ? param.value : null}
+                onValueChange={(value) => onValueChange(value ?? 0)}
+                // Settles an abandoned `-` / `1e` back to what the edit started
+                // from; the live callback stays silent on those, so without this
+                // the field keeps whatever the clear before them wrote.
+                onBlur={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (

@@ -67,7 +67,13 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import {
+  type ClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  isClaudeCodeProcessFailure
+} from './processExitDiagnostics'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -336,6 +342,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private closePromise?: Promise<void>
   /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
+  private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private lastSdkUserMessage?: SDKUserMessage
   private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
@@ -357,8 +364,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
-  /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
-   *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
+  /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
+   *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
@@ -395,6 +402,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
+    const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
       ...(traceEnv
@@ -406,7 +414,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -426,7 +434,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
-    this.spawnOptions = options
+    this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
+    this.spawnOptions = consumedWarmQuery
+      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
+      : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
     this.createQuery = createClaudeQuery
@@ -510,8 +521,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
     if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
-    // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
-    // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
+    // Stash for the steer hooks to inject as `additionalContext` at the next tool boundary
+    // (PostToolBatch after the running batch, or the next PreToolUse). If the turn ends with no
+    // tool boundary at all, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
     return true
   }
@@ -620,6 +632,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
+   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
+   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   */
+  private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
+    const totalTokens =
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
+    if (totalTokens <= 0) return
+    const model = this.adapterModelId ?? this.input.modelId
+    const maxTokens = effectiveContextWindowTokens(model)
+    this.eventQueue.push({
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens,
+        maxTokens,
+        percentage: Math.min(100, (totalTokens / maxTokens) * 100),
+        model
+      }
+    })
+  }
+
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
@@ -685,6 +720,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.steerBoundaryPending = undefined
         }
 
+        // A top-level message_start's input usage IS the current context occupancy — forward it so
+        // the ring advances per provider call, not only on the host's post-turn pull.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_start' &&
+          message.parent_tool_use_id == null
+        ) {
+          this.emitLiveContextUsage(message.event.message?.usage)
+        }
+
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
         if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
@@ -729,20 +774,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
-      const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      const isProcessFailure = isClaudeCodeProcessFailure(error, this.processDiagnostics)
+      const surfacedError =
+        isProcessFailure && this.processDiagnostics
+          ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
+          : error
+      const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
       this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
-          error
+          error: surfacedError,
+          ...(isProcessFailure && this.processDiagnostics
+            ? { diagnosticReference: this.processDiagnostics.reference }
+            : {})
         })
       }
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
-      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
+      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfacedError })
     } finally {
       this.settlePendingInvocations()
       this.query = undefined

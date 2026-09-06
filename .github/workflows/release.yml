@@ -347,11 +347,17 @@ jobs:
 
       - name: Prepare bilingual release notes
         shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           node scripts/release/compose-release-body.js \
             electron-builder.yml \
             - \
-            "$RUNNER_TEMP/release-body.md"
+            "$RUNNER_TEMP/release-body.md" \
+            "$REPO" \
+            "$TAG" \
+            "Cherry Studio"
 
       - name: Create or update draft release
         id: draft-release
@@ -468,11 +474,16 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           # every release branch forks from main, so GitHub cannot infer the previous tag by ancestry
-          PREVIOUS_TAG="$(gh api "repos/$REPO/releases?per_page=100" | jq -r \
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          PREVIOUS_TAG="$(jq -r \
             --arg tag "$TAG" \
             --argjson includePrereleases "$PRERELEASE" \
-            '[.[] | select(.draft | not) | select(.tag_name != $tag) | select($includePrereleases or (.prerelease | not))]
-             | sort_by(.published_at) | last | .tag_name')
+            '[.[][] | select(.draft | not) | select(.tag_name != $tag) | select($includePrereleases or (.prerelease | not))]
+             | sort_by(.published_at) | (last | .tag_name) // empty' <<< "$RELEASE_PAGES")"
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No published release is available as the previous tag for $TAG" >&2
+            exit 1
+          fi
           echo "Generating changes since $PREVIOUS_TAG"
           gh api --method POST "repos/$REPO/releases/generate-notes" \
             -f tag_name="$TAG" \
@@ -481,7 +492,10 @@ jobs:
           node scripts/release/compose-release-body.js \
             electron-builder.yml \
             "$RUNNER_TEMP/generated-release-notes.md" \
-            "$RUNNER_TEMP/release-body.md"
+            "$RUNNER_TEMP/release-body.md" \
+            "$REPO" \
+            "$TAG" \
+            "Cherry Studio"
           # PATCH without tag_name resets a draft to untagged-<sha>
           jq -Rs --arg tag "$TAG" '{tag_name: $tag, body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
           RELEASE="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \

@@ -1,10 +1,11 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
-import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
+import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { usePreference } from '@data/hooks/usePreference'
 import { tags } from '@lezer/highlight'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -205,7 +206,7 @@ export function PromptEditorField({
               )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
-              <Markdown id={previewId}>{previewValue || value}</Markdown>
+              <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
             <CodeEditor

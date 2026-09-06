@@ -1,4 +1,5 @@
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { FILE_TYPE } from '@renderer/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,235 +33,93 @@ vi.mock('@renderer/utils/file/safeOpen', () => ({
   safeOpen: mockSafeOpen
 }))
 
+const mockGetPhysicalPath = vi.fn()
+
+const entryTarget = {
+  handle: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' },
+  name: 'notes.txt',
+  ext: '.txt'
+} as const
+const pathTarget = {
+  handle: { kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath },
+  name: 'a.txt',
+  ext: '.txt'
+} as const
+
 describe('useMessageLeafCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSafeOpen.mockResolvedValue(undefined)
+    vi.stubGlobal(
+      'window',
+      Object.assign(globalThis.window, { api: { file: { getPhysicalPath: mockGetPhysicalPath } } })
+    )
   })
 
-  it('opens shared attachment files through safeOpen', async () => {
+  it('hands the attachment handle to safeOpen untouched', async () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: '/tmp/file.pdf',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
+    await result.current.openFile?.(pathTarget)
 
-    await result.current.openFile?.(file)
-
-    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/file.pdf' })
+    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/a.txt' })
   })
 
-  it('previews text attachments through useAttachment preview', async () => {
+  it('previews text from the path a path handle already carries', async () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.TEXT,
-      ext: '.txt',
-      path: '/tmp/a.txt',
-      origin_name: 'a.txt',
-      name: 'stored-file.txt',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
+    await result.current.previewFile?.(pathTarget)
 
-    await result.current.previewFile?.(file)
-
-    expect(mockPreview).toHaveBeenCalledWith('/tmp/a.txt', 'a.txt', 'text', '.txt')
+    expect(mockPreview).toHaveBeenCalledWith('/tmp/a.txt', 'a.txt', FILE_TYPE.TEXT, '.txt')
     expect(mockSafeOpen).not.toHaveBeenCalled()
   })
 
-  it('previews non-text attachments through safeOpen', async () => {
+  // The renderer must never derive this path itself; Main resolves the entry.
+  it('asks Main to resolve an entry handle before previewing text', async () => {
+    mockGetPhysicalPath.mockResolvedValue('/data/Application Support/notes.txt')
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: '/tmp/file.pdf',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
+    await result.current.previewFile?.(entryTarget)
 
-    await result.current.previewFile?.(file)
+    expect(mockGetPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
+    expect(mockPreview).toHaveBeenCalledWith('/data/Application Support/notes.txt', 'notes.txt', FILE_TYPE.TEXT, '.txt')
+  })
 
-    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/file.pdf' })
+  it('falls back to opening the file when the entry has no resolvable path', async () => {
+    mockGetPhysicalPath.mockRejectedValue(new Error('gone'))
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    await result.current.previewFile?.(entryTarget)
+
     expect(mockPreview).not.toHaveBeenCalled()
+    expect(mockSafeOpen).toHaveBeenCalledWith(entryTarget.handle)
   })
 
-  it('falls back to a file entry handle when shared attachment path is missing', async () => {
+  it('opens non-text attachments instead of rendering them inline', async () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
-    const file: FileMetadata = {
-      id: '019606a0-0000-7000-8000-000000000001',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: '',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
+    await result.current.previewFile?.({ ...pathTarget, name: 'file.pdf', ext: '.pdf' })
 
-    await result.current.openFile?.(file)
-
-    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' })
-  })
-
-  it('falls back to a file entry handle when shared attachment path is not absolute', async () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    const file: FileMetadata = {
-      id: '019606a0-0000-7000-8000-000000000001',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: 'relative/legacy.pdf',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
-
-    await result.current.openFile?.(file)
-
-    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' })
-    expect(mockLoggerDebug).toHaveBeenCalledWith(
-      'fileMetadataToHandle: falling back to entry id for non-absolute path',
-      expect.objectContaining({ path: 'relative/legacy.pdf' })
-    )
-  })
-
-  it('projects file display data for shared attachment renderers', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: '/tmp/file.pdf',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
-
-    expect(result.current.getFileView?.(file)).toEqual({
-      displayName: 'file.pdf',
-      previewUrl: 'file:///tmp/file.pdf'
-    })
-    expect(
-      result.current.getFileView?.({
-        ...file,
-        ext: '.exe',
-        path: '/tmp/payload.exe'
-      })
-    ).toEqual({
-      displayName: 'file.pdf',
-      previewUrl: 'file:///tmp'
-    })
-  })
-
-  it('omits the preview url without throwing when the shared attachment path is not absolute', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: 'relative/legacy.pdf',
-      origin_name: 'file.pdf',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
-
-    expect(() => result.current.getFileView?.(file)).not.toThrow()
-    expect(result.current.getFileView?.(file)).toEqual({
-      displayName: 'file.pdf',
-      previewUrl: undefined
-    })
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      'getFileView: non-canonical/invalid attachment path',
-      expect.objectContaining({ path: 'relative/legacy.pdf' })
-    )
+    expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/a.txt' })
+    expect(mockPreview).not.toHaveBeenCalled()
   })
 
   it('keeps legacy pasted temp-file display behavior local to message attachments', () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.IMAGE,
-      ext: '.png',
-      path: '/tmp/temp_file_1_image.png',
-      origin_name: 'temp_file_1_image.png',
-      name: 'temp_file_1_image.png',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
+    expect(
+      result.current.getFileView?.({
+        origin_name: 'temp_file_1_image.png',
+        ext: '.png',
+        created_at: '2026-01-01T00:00:00.000Z'
+      })
+    ).toEqual({ displayName: '2026-01-01 message.attachments.pasted_image.png' })
 
-    expect(result.current.getFileView?.(file)).toEqual({
-      displayName: '2026-01-01 message.attachments.pasted_image.png',
-      previewUrl: 'file:///tmp/temp_file_1_image.png'
-    })
-  })
-
-  it('keeps legacy pasted text display behavior local to message attachments', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.TEXT,
-      ext: '.txt',
-      path: '/tmp/pasted_text.txt',
-      origin_name: 'pasted_text.txt',
-      name: 'pasted_text.txt',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
-
-    expect(result.current.getFileView?.(file)).toEqual({
-      displayName: '2026-01-01 message.attachments.pasted_text.txt',
-      previewUrl: 'file:///tmp/pasted_text.txt'
-    })
-  })
-
-  it('returns an empty attachment display name when origin_name is missing', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    const file: FileMetadata = {
-      id: 'file-1',
-      type: FILE_TYPE.DOCUMENT,
-      ext: '.pdf',
-      path: '/tmp/file.pdf',
-      origin_name: '',
-      name: 'stored-file.pdf',
-      size: 100,
-      created_at: '2026-01-01T00:00:00.000Z',
-      count: 1
-    }
-
-    expect(result.current.getFileView?.(file)).toEqual({
-      displayName: '',
-      previewUrl: 'file:///tmp/file.pdf'
-    })
+    expect(
+      result.current.getFileView?.({
+        origin_name: 'report.pdf',
+        ext: '.pdf',
+        created_at: '2026-01-01T00:00:00.000Z'
+      })
+    ).toEqual({ displayName: 'report.pdf' })
   })
 })

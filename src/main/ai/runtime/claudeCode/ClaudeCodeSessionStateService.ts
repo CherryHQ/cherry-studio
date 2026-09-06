@@ -21,6 +21,14 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import {
+  BASH_HISTORY_LIMIT,
+  BASH_RUN_BREAK_MARKER,
+  bashNoProgressRunLength,
+  type BashOutcome,
+  fingerprintBashOutput,
+  normalizeBashCommand
+} from './bashNoProgress'
 import { buildMcpToolMetadata } from './mcpCatalog'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -43,6 +51,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly steerHolders = new Map<string, SteerHolder>()
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
+  private readonly bashOutcomes = new Map<string, BashOutcome[]>()
+  private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -111,8 +121,77 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return this.toolPolicySnapshots.get(sessionId)
   }
 
+  /**
+   * Bash outcome history is scoped per agent within the session: subagent (Task) hook events carry
+   * `agent_id`, and a child's repeated calls must not poison the parent's run detection.
+   */
+  private bashScopeKey(sessionId: string, agentId?: string): string {
+    return agentId ? `${sessionId} ${agentId}` : sessionId
+  }
+
+  recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean, agentId?: string): void {
+    const normalized = normalizeBashCommand(command)
+    if (!normalized) return
+    const key = this.bashScopeKey(sessionId, agentId)
+    const history = this.bashOutcomes.get(key) ?? []
+    history.push({ command: normalized, fingerprint: fingerprintBashOutput(output, failed) })
+    if (history.length > BASH_HISTORY_LIMIT) history.shift()
+    this.bashOutcomes.set(key, history)
+  }
+
+  getBashNoProgressRun(sessionId: string, command: string, agentId?: string): number | undefined {
+    const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
+    return history ? bashNoProgressRunLength(history, command) : undefined
+  }
+
+  /**
+   * Ends any trailing no-progress run without recording output: a mutating tool changed the
+   * workspace, so an unchanged verifier output afterwards is fresh evidence, not a stuck loop.
+   * No-op when the scope has no Bash history — there is no run to break, and scopes that
+   * never touch Bash should not grow this map.
+   */
+  recordBashRunBreak(sessionId: string, agentId?: string): void {
+    const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
+    if (!history?.length) return
+    history.push({ command: BASH_RUN_BREAK_MARKER, fingerprint: '' })
+    if (history.length > BASH_HISTORY_LIMIT) history.shift()
+  }
+
+  /** Drops a subagent's Bash history when the subagent stops; the parent scope is untouched. */
+  disposeBashScope(sessionId: string, agentId: string): void {
+    this.bashOutcomes.delete(this.bashScopeKey(sessionId, agentId))
+  }
+
+  /**
+   * An rtk-rewritten Bash call reaches PostToolUse carrying the rewritten command while the guard
+   * evaluated the original. Keyed by tool_use_id so the recorder files the outcome under the
+   * command the guard will see on the next retry.
+   */
+  recordBashRewriteOrigin(sessionId: string, toolUseId: string, originalCommand: string): void {
+    let origins = this.bashRewriteOrigins.get(sessionId)
+    if (!origins) {
+      origins = new Map()
+      this.bashRewriteOrigins.set(sessionId, origins)
+    }
+    origins.set(toolUseId, originalCommand)
+  }
+
+  takeBashRewriteOrigin(sessionId: string, toolUseId: string): string | undefined {
+    const origins = this.bashRewriteOrigins.get(sessionId)
+    if (!origins) return undefined
+    const original = origins.get(toolUseId)
+    origins.delete(toolUseId)
+    if (origins.size === 0) this.bashRewriteOrigins.delete(sessionId)
+    return original
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
+    // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
+    for (const key of [...this.bashOutcomes.keys()]) {
+      if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
+    }
+    this.bashRewriteOrigins.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -188,6 +267,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
     for (const holder of [...this.steerHolders.values()]) holder.dispose()
     this.steerHolders.clear()
     this.toolPolicySnapshots.clear()
+    this.bashOutcomes.clear()
+    this.bashRewriteOrigins.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }

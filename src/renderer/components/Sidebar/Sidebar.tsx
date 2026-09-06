@@ -24,6 +24,7 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -45,6 +46,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  isFullscreen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -72,7 +74,7 @@ export function Sidebar({
     <div
       className={cn(
         'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-7.5 rounded-lg' : 'size-6 rounded-lg'
+        size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
       )}>
       {logoNode}
     </div>
@@ -199,7 +201,12 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className={cn('flex h-11 shrink-0 items-center px-2', windowDragClassName)}>
+          <div
+            className={cn(
+              'flex shrink-0 px-2',
+              isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+              windowDragClassName
+            )}>
             {renderHeaderIdentity('default', true)}
           </div>
 
@@ -272,9 +279,10 @@ export function Sidebar({
       {/* Header */}
       <div
         className={cn(
-          'flex shrink-0 items-center',
+          'flex shrink-0',
+          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
           windowDragClassName,
-          layout === 'full' ? 'h-11 px-2' : 'h-11 justify-center'
+          layout === 'full' ? 'px-2' : 'justify-center'
         )}>
         {renderHeaderIdentity(layout === 'icon' ? 'sm' : 'default', layout === 'full')}
       </div>
