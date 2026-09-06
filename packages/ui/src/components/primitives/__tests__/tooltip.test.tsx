@@ -345,4 +345,104 @@ describe('Tooltip', () => {
       }
     })
   })
+
+  // 受控状态必须权威：isOpen/open 由调用方决定，hover/pointer 交互只报告不给内部状态
+  describe('controlled authority', () => {
+    it('never opens when controlled isOpen is false, but still reports hover', () => {
+      vi.useFakeTimers()
+      try {
+        const handleOpenChange = vi.fn()
+        render(
+          <Tooltip content="ctl" isOpen={false} onOpenChange={handleOpenChange} delay={1}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        const trigger = screen.getByText('Trigger')
+        fireEvent.pointerMove(trigger)
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+        expect(handleOpenChange).toHaveBeenCalledWith(true)
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('stays open when controlled isOpen is true despite pointer down', () => {
+      vi.useFakeTimers()
+      try {
+        const handleOpenChange = vi.fn()
+        render(
+          <Tooltip content="ctl" isOpen={true} onOpenChange={handleOpenChange}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+        fireEvent.pointerDown(screen.getByText('Trigger'))
+        act(() => {
+          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + TOOLTIP_EXIT_ANIMATION_MS + 100)
+        })
+        expect(handleOpenChange).toHaveBeenCalledWith(false)
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps TooltipRoot controlled open authoritative too', () => {
+      vi.useFakeTimers()
+      try {
+        const handleOpenChange = vi.fn()
+        render(
+          <TooltipRoot open={false} onOpenChange={handleOpenChange}>
+            <TooltipTrigger asChild>
+              <button type="button">Root trigger</button>
+            </TooltipTrigger>
+            <TooltipContent>root tip</TooltipContent>
+          </TooltipRoot>
+        )
+        fireEvent.pointerMove(screen.getByText('Root trigger'))
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+        expect(handleOpenChange).toHaveBeenCalledWith(true)
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps orphaned closed content after the unmount window', () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(ghost)
+
+        const view = render(
+          <Tooltip content="sweeper" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+        view.rerender(
+          <Tooltip content="sweeper" isOpen={false}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        // 先走完卸载窗口（flush 让清扫 timer 被 schedule），再走完清扫延迟
+        act(() => {
+          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+        })
+        act(() => {
+          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 100)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
 })

@@ -50,6 +50,44 @@ function useTooltipUnmountDelay(open: boolean): boolean {
   return visible
 }
 
+/** 清扫延迟 = 退出动画窗口 + 余量：先让其他实例的退出动画走完，再移除 closed 残骸。 */
+const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
+
+/**
+ * 受控 + 挂载生命周期：受控（controlledOpen 非空）时外部权威、内部状态不参与；
+ * 非受控时内部状态跟随 Radix 开关。`Tooltip` 与 `TooltipRoot` 共用，避免两路漂移。
+ */
+function useTooltipController(
+  controlledOpen: boolean | undefined,
+  onOpenChange?: (open: boolean) => void,
+  defaultOpen = false,
+  sweepContainer?: Element | DocumentFragment | null
+) {
+  const [innerOpen, setInnerOpen] = React.useState(controlledOpen ?? defaultOpen)
+  const defaultPortalContainer = usePortalContainer()
+  const effectiveOpen = controlledOpen != null ? controlledOpen : innerOpen
+  const contentVisible = useTooltipUnmountDelay(effectiveOpen)
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (controlledOpen == null) setInnerOpen(next)
+      onOpenChange?.(next)
+    },
+    [controlledOpen, onOpenChange]
+  )
+  const sweepTarget = sweepContainer ?? defaultPortalContainer ?? document.body
+  React.useEffect(() => {
+    if (contentVisible) return
+    const timer = window.setTimeout(() => {
+      // 清扫失去 React owner 的 closed 残骸；延迟到自身退出窗口之外，避免误删仍在淡出的 peer
+      sweepTarget
+        .querySelectorAll?.('[data-slot="tooltip-content"][data-state="closed"]')
+        .forEach((node) => node.remove())
+    }, TOOLTIP_SWEEP_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [contentVisible, sweepTarget])
+  return { contentVisible, effectiveOpen, handleOpenChange }
+}
+
 /** 由 TooltipRoot 提供，让低层 TooltipContent 走同一套挂载接管；无 Provider 时保持原行为。 */
 const TooltipOverlayContext = React.createContext<boolean | null>(null)
 
@@ -66,25 +104,14 @@ function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) 
 }
 
 function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
-  const [innerOpen, setInnerOpen] = React.useState(openProp ?? defaultOpen ?? false)
-  React.useEffect(() => {
-    if (openProp != null) setInnerOpen(openProp)
-  }, [openProp])
-  const contentVisible = useTooltipUnmountDelay(innerOpen)
-  const handleOpenChange = React.useCallback(
-    (next: boolean) => {
-      setInnerOpen(next)
-      onOpenChange?.(next)
-    },
-    [onOpenChange]
-  )
+  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(openProp, onOpenChange, defaultOpen)
   return (
     <TooltipOverlayContext value={contentVisible}>
       <TooltipProvider delayDuration={delayDuration}>
         <RadixRoot
           data-slot="tooltip"
           delayDuration={delayDuration}
-          open={innerOpen}
+          open={effectiveOpen}
           onOpenChange={handleOpenChange}
           {...props}
         />
@@ -127,13 +154,6 @@ function TooltipContent({
 }: TooltipContentProps) {
   const defaultPortalContainer = usePortalContainer()
   const contentVisible = React.use(TooltipOverlayContext)
-  React.useEffect(() => {
-    if (contentVisible === false) {
-      // 重挂风暴中 Radix portal 可能留下失去 React owner 的 closed 残骸，卸载窗口结束后清扫
-      const scope = portalContainer ?? defaultPortalContainer ?? document.body
-      scope.querySelectorAll?.('[data-slot="tooltip-content"][data-state="closed"]').forEach((node) => node.remove())
-    }
-  }, [contentVisible, portalContainer, defaultPortalContainer])
   if (contentVisible === false) return null
   const container = portalContainer ?? defaultPortalContainer ?? undefined
   const arrow = showArrow ? <RadixArrow width={12} height={6} className={arrowStyles} /> : null
@@ -211,23 +231,11 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
-  const [innerOpen, setInnerOpen] = React.useState(isOpen ?? false)
-  React.useEffect(() => {
-    if (isOpen != null) setInnerOpen(isOpen)
-  }, [isOpen])
-  const contentVisible = useTooltipUnmountDelay(innerOpen)
-  React.useEffect(() => {
-    if (contentVisible) return
-    // 重挂风暴中 Radix portal 可能留下失去 React owner 的 closed 残骸，在卸载窗口结束后清扫
-    const container = portalContainer ?? defaultPortalContainer ?? document.body
-    container.querySelectorAll?.('[data-slot="tooltip-content"][data-state="closed"]').forEach((node) => node.remove())
-  }, [contentVisible, portalContainer, defaultPortalContainer])
-  const handleOpenChange = React.useCallback(
-    (next: boolean) => {
-      setInnerOpen(next)
-      onOpenChange?.(next)
-    },
-    [onOpenChange]
+  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(
+    isOpen,
+    onOpenChange,
+    false,
+    portalContainer
   )
   const triggerWrapperClassName = cn(
     'relative z-10',
@@ -249,7 +257,7 @@ export const Tooltip = ({
 
   return (
     <TooltipProvider delayDuration={delay}>
-      <RadixRoot delayDuration={delay} open={innerOpen} onOpenChange={handleOpenChange}>
+      <RadixRoot delayDuration={delay} open={effectiveOpen} onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild>
           {asChild ? (
             children
