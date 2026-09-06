@@ -4,6 +4,8 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { DirectionalIcon } from './directional-icon'
+
 function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
   return (
     <nav
@@ -58,9 +60,11 @@ function PaginationPrevious({
     <PaginationLink
       aria-label="Go to previous page"
       size="default"
-      className={cn('gap-1 px-2.5 sm:pl-2.5', className)}
+      className={cn('gap-1 px-2.5 sm:ps-2.5', className)}
       {...props}>
-      <ChevronLeftIcon />
+      <DirectionalIcon>
+        <ChevronLeftIcon />
+      </DirectionalIcon>
       <span className="hidden sm:block">{children}</span>
     </PaginationLink>
   )
@@ -71,10 +75,12 @@ function PaginationNext({ className, children = 'Next', ...props }: React.Compon
     <PaginationLink
       aria-label="Go to next page"
       size="default"
-      className={cn('gap-1 px-2.5 sm:pr-2.5', className)}
+      className={cn('gap-1 px-2.5 sm:pe-2.5', className)}
       {...props}>
       <span className="hidden sm:block">{children}</span>
-      <ChevronRightIcon />
+      <DirectionalIcon>
+        <ChevronRightIcon />
+      </DirectionalIcon>
     </PaginationLink>
   )
 }

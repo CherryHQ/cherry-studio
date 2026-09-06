@@ -11,11 +11,13 @@ import * as React from 'react'
 
 import { usePortalContainer } from './portal-container'
 
-type Side = 'top' | 'bottom' | 'left' | 'right'
+type TooltipSide = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
+type TooltipPlacement = TooltipSide | `${TooltipSide}-${Exclude<Align, 'center'>}` | 'bottomRight'
 
-function parsePlacement(placement?: string): { side: Side; align: Align } {
-  const mapping: Record<string, { side: Side; align: Align }> = {
+/** Tooltip sides are physical; optional `start` and `end` suffixes retain Radix's logical alignment semantics. */
+function parsePlacement(placement?: TooltipPlacement): { side: TooltipSide; align: Align } {
+  const mapping: Record<TooltipPlacement, { side: TooltipSide; align: Align }> = {
     top: { side: 'top', align: 'center' },
     'top-start': { side: 'top', align: 'start' },
     'top-end': { side: 'top', align: 'end' },
@@ -30,15 +32,17 @@ function parsePlacement(placement?: string): { side: Side; align: Align } {
     'right-start': { side: 'right', align: 'start' },
     'right-end': { side: 'right', align: 'end' }
   }
+
   return mapping[placement ?? 'top'] ?? { side: 'top', align: 'center' }
 }
 
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>
 export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
-export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
+export type TooltipContentProps = Omit<React.ComponentProps<typeof RadixContent>, 'side'> & {
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
   showArrow?: boolean
+  side?: TooltipSide
 }
 
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
@@ -83,6 +87,7 @@ function TooltipContent({
   children,
   portalContainer,
   showArrow = true,
+  side,
   ...props
 }: TooltipContentProps) {
   const defaultPortalContainer = usePortalContainer()
@@ -90,6 +95,7 @@ function TooltipContent({
     <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <RadixContent
         data-slot="tooltip-content"
+        side={side}
         sideOffset={sideOffset}
         className={cn(contentStyles, className)}
         {...props}>
@@ -104,7 +110,7 @@ export interface TooltipProps {
   children?: React.ReactNode
   content?: React.ReactNode
   title?: React.ReactNode
-  placement?: string
+  placement?: TooltipPlacement
   delay?: number
   sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
@@ -199,7 +205,7 @@ export const Tooltip = ({
 
 interface NormalTooltipProps extends TooltipRootProps {
   content: React.ReactNode
-  side?: TooltipContentProps['side']
+  side?: TooltipSide
   align?: TooltipContentProps['align']
   sideOffset?: TooltipContentProps['sideOffset']
   className?: string
@@ -234,3 +240,4 @@ const NormalTooltip = ({
 }
 
 export { NormalTooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger }
+export type { NormalTooltipProps, TooltipPlacement, TooltipSide }
