@@ -22,7 +22,7 @@ Runs health checks in main and publishes progress + the final report on the shar
    'network-proxy-applied': {
      domain: 'network',            // must equal the id prefix
      tier: 'live',                 // quick ≤ 1 s local | live = network | deep = opt-in
-     fixes: [],                    // or [{ id: 'restart', risk: 'low', reversible: true, relaunch: false }]
+     fixes: [],                    // or [{ id: 'restart', reversible: true, relaunch: false }]
      details: ['custom_without_url'],
      requires: []                  // other check ids; on their fail/error this check is skipped
    }
