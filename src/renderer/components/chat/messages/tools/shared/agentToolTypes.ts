@@ -304,35 +304,70 @@ export function getResumedAgentId(output: unknown): string | undefined {
  * streaming under its launch tool-call id, so entries must point at that launch. Returns the
  * launch's toolCallId and description (which doubles as the agent's identity).
  */
-/** A candidate Agent/Task output is the launch receipt for `resumedAgentId` when its serialized
- *  form mentions the id: the id is session-scoped and generated at launch time, so the earliest
- *  matching part is always the launch itself, and any textual trailer check would break whenever
- *  the CLI rewords its receipt between versions. */
-function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
-  // Only output that carries the launch receipt's `agentId:` trailer (or an equivalent structured
-  // field) may resolve as the launch: a serialized mention inside another part's reply would
-  // otherwise redirect the entry to an unrelated flow.
+/** The launched agent id a launch receipt reports — the text trailer or a structured field. */
+function extractLaunchReceiptId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     // The trailer marker alone is spoofable by prose; require the launch receipt's structural
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
-    // send-back instruction that follows the id on every real receipt. Equate on the extracted
-    // trailer id (not a substring) so one id that prefixes another cannot match.
-    const trailerId = /\bagent_?[Ii]d\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
-    return (
-      /Async agent launched successfully|\(internal|Use SendMessage with to/.test(output) &&
-      trailerId === resumedAgentId
-    )
+    // send-back instruction that follows the id on every real receipt.
+    if (!/Async agent launched successfully|\(internal|Use SendMessage with to/.test(output)) return undefined
+    return /\bagent_?[Ii]d\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
   }
   if (isRecord(output)) {
     // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools).
     const agentId = output.agentId ?? output.agent_id ?? output.taskId
-    return typeof agentId === 'string' && agentId === resumedAgentId
+    return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined
   }
-  return false
+  return undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getLaunchDescription(input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined
+  // A blank description must fall through to the prompt, or the continuation identity and
+  // the flow title render empty.
+  const description = typeof input.description === 'string' ? input.description.trim() || undefined : undefined
+  if (description) return description
+  if (typeof input.prompt !== 'string') return undefined
+  return input.prompt
+    .split(/\r?\n/)
+    .find((line) => line.trim())
+    ?.trim()
+}
+
+/**
+ * Launch-identity index over a parts map, built once per map version by the list-level provider.
+ * Consumers look up in O(1) instead of re-scanning the transcript during streaming.
+ */
+export interface AgentLaunchIndex {
+  /** Agent/Task tool-call ids present in the map — stamped navigation must stay within them. */
+  toolCallIds: ReadonlySet<string>
+  /** Earliest launch identity per agent id, mirroring `resolveResumedAgent`'s first-wins walk. */
+  launchesByAgentId: ReadonlyMap<string, { toolCallId: string; description?: string }>
+}
+
+export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMessagePart[]> | null): AgentLaunchIndex {
+  const toolCallIds = new Set<string>()
+  const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()
+  if (!partsByMessageId) return { toolCallIds, launchesByAgentId }
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      if (record.toolName !== AgentToolsType.Agent && record.toolName !== AgentToolsType.Task) continue
+      if (typeof record.toolCallId !== 'string') continue
+      toolCallIds.add(record.toolCallId)
+      // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
+      // part that can reference this id, and later mentions (a quote inside another part's output)
+      // must not redirect the entry.
+      const agentId = extractLaunchReceiptId(record.output)
+      if (!agentId || launchesByAgentId.has(agentId)) continue
+      launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description: getLaunchDescription(record.input) })
+    }
+  }
+  return { toolCallIds, launchesByAgentId }
 }
 
 export function resolveResumedAgent(
@@ -341,39 +376,7 @@ export function resolveResumedAgent(
 ): { toolCallId: string; description?: string } | undefined {
   const resumedAgentId = getResumedAgentId(output)
   if (!resumedAgentId || !fullPartsMap) return undefined
-  // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
-  // part that can reference this id, and later mentions (a quote inside another part's output)
-  // must not redirect the entry.
-  for (const parts of Object.values(fullPartsMap)) {
-    for (const part of parts) {
-      const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
-      if (
-        (record.toolName === AgentToolsType.Agent || record.toolName === AgentToolsType.Task) &&
-        typeof record.toolCallId === 'string' &&
-        isLaunchReceiptFor(record.output, resumedAgentId)
-      ) {
-        const input = record.input
-        // A blank description must fall through to the prompt, or the continuation identity and
-        // the flow title render empty.
-        const description =
-          input && typeof input === 'object' && typeof (input as { description?: unknown }).description === 'string'
-            ? (input as { description: string }).description.trim() || undefined
-            : undefined
-        return {
-          toolCallId: record.toolCallId,
-          description:
-            description ??
-            (input && typeof input === 'object' && typeof (input as { prompt?: unknown }).prompt === 'string'
-              ? (input as { prompt: string }).prompt
-                  .split(/\r?\n/)
-                  .find((line) => line.trim())
-                  ?.trim()
-              : undefined)
-        }
-      }
-    }
-  }
-  return undefined
+  return buildAgentLaunchIndex(fullPartsMap).launchesByAgentId.get(resumedAgentId)
 }
 export type TeamCreateToolInput = Record<string, unknown>
 export type TeamCreateToolOutput = string
