@@ -280,7 +280,7 @@ describe('RightPaneHost', () => {
   it('uses the configured right pane default and minimum widths', () => {
     expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(280)
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
