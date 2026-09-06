@@ -64,8 +64,8 @@ function stripLeadingConflictingIdentityText(text: string): string | undefined {
       kept.push(section)
       continue
     }
-    if (index < leadingEnd) {
-      if (!isConflictingSdkIdentity(section)) kept.push(section)
+    if (index < leadingEnd && !isConflictingSdkIdentity(section)) {
+      kept.push(section)
       continue
     }
     const stripped = stripConflictingLeadingLines(section).trim()

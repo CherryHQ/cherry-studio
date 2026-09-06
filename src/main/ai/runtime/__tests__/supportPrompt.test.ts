@@ -25,6 +25,19 @@ describe('normalizeAnthropicSupportSystemPrompt', () => {
     )
   })
 
+  it('preserves text after an earlier SDK identity when another SDK identity follows', () => {
+    const params = createParams(
+      [
+        'You are Claude Code, Anthropic official CLI for Claude.\nKeep this workspace instruction.',
+        "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+      ].join('\n\n')
+    )
+
+    expect(normalizeAnthropicSupportSystemPrompt(params).system).toBe(
+      [MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS, 'Keep this workspace instruction.'].join('\n\n')
+    )
+  })
+
   it('removes a later exact SDK identity from blocks without a bundled Support marker', () => {
     const params = createParams([
       { type: 'text', text: 'Runtime context' },

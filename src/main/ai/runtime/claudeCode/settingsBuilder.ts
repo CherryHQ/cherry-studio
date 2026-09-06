@@ -30,7 +30,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, buildAgentWorkspaceContext } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
   assertAgentSessionWorkspaceDirectory,
@@ -597,11 +597,7 @@ export async function buildSystemPrompt(
       (canReadAllKnowledgeBases || knowledgeBaseIds.length > 0) &&
       (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
   })
-  const customBaseContext = [
-    '## Current Workspace',
-    `Current working directory: ${JSON.stringify(cwd)}`,
-    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
-  ].join('\n')
+  const customBaseContext = buildAgentWorkspaceContext(cwd)
   const prompt = await buildAgentRuntimePrompt({
     workspacePath: cwd,
     agentDataPath,

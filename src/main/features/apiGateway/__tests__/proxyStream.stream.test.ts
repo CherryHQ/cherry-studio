@@ -673,6 +673,38 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     ).toBe(false)
   })
 
+  it('keeps later Support system updates when routing through OpenAI Responses', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const standingSystem = 'You are Cherry Studio official built-in product support.'
+    const converted = [
+      { id: 'standing', role: 'system', parts: [{ type: 'text', text: standingSystem }] },
+      { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
+      { id: 'inline', role: 'system', parts: [{ type: 'text', text: 'MCP servers are still connecting.' }] },
+      { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'Second turn' }] }
+    ] as CherryUIMessage[]
+    mockToUIMessages.mockReturnValueOnce(converted)
+
+    await processAndCaptureStreamMessages(
+      createAnthropicParams('gpt-5', [{ role: 'user', content: 'First turn' }], true, 'openai')
+    )
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: undefined,
+        callOverrides: expect.objectContaining({
+          providerOptions: { openai: { instructions: standingSystem } }
+        }),
+        messages: [
+          expect.objectContaining({ id: 'user-1', role: 'user' }),
+          expect.objectContaining({ id: 'inline', role: 'system' }),
+          expect.objectContaining({ id: 'user-2', role: 'user' })
+        ]
+      })
+    )
+  })
+
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
     mockIsInternalAgentRequest.mockReturnValue(true)

@@ -50,6 +50,14 @@ export interface BuildAgentRuntimePromptOptions {
 
 const promptBuilder = new PromptBuilder()
 
+export function buildAgentWorkspaceContext(workspacePath: string): string {
+  return [
+    '## Current Workspace',
+    `Current working directory: ${JSON.stringify(workspacePath)}`,
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+  ].join('\n')
+}
+
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
   workspacePath,

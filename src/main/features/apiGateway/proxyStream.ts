@@ -19,12 +19,13 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { normalizeAnthropicSupportSystemPrompt } from '@main/ai/runtime/supportPrompt'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -226,10 +227,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { conversation, system } = isInternalSupportRequest
     ? extractSystemPrompt(convertedMessages)
     : { conversation: convertedMessages, system: undefined }
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   // Later inline system updates stay in conversation so verified turn order is preserved.
   const positionedMessages = positionInlineSystemMessages(
     conversation,
-    resolveEffectiveEndpoint(provider, model).endpointType,
+    resolvedEndpoint.endpointType,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest
@@ -251,9 +253,23 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
-  const providerOptions = agentSessionId
+  let providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
     : fastModeProviderOptions
+  let forwardedSystem = system
+  if (
+    isInternalSupportRequest &&
+    system &&
+    resolvedEndpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    positionedMessages.some((message) => message.role === 'system')
+  ) {
+    const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
+    const namespace = providerOptions[providerOptionsKey]
+    if (namespace?.instructions == null) {
+      providerOptions = { ...providerOptions, [providerOptionsKey]: { ...namespace, instructions: system } }
+      forwardedSystem = undefined
+    }
+  }
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -404,7 +420,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             streamId,
             uniqueModelId,
             messages,
-            system,
+            system: forwardedSystem,
             listener,
             callOverrides,
             contextOwner: 'caller',
@@ -489,7 +505,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       streamId,
       uniqueModelId,
       messages,
-      system,
+      system: forwardedSystem,
       listener,
       callOverrides,
       contextOwner: 'caller',

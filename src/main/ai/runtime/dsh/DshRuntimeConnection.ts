@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, buildAgentWorkspaceContext } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -293,11 +293,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       agent,
       citationsGuidance,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
-      customBaseContext: [
-        '## Current Workspace',
-        `Current working directory: ${JSON.stringify(workspacePath)}`,
-        'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
-      ].join('\n')
+      customBaseContext: buildAgentWorkspaceContext(workspacePath)
     })
     const persona = [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append || undefined]
       .filter(Boolean)
