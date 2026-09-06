@@ -6,9 +6,9 @@
  * detection whose promise lives in that renderer is lost with it, and so is the orchestration
  * around it — see `docs/superpowers/specs/2026-09-06-translate-flow-in-main-design.md`.
  *
- * Errors carry a bare `translate.error.*` key as their message. Main has no locale for these, and
- * whether they reach the screen is the renderer's decision — `localizeTranslateError` picks the
- * key out and translates it there.
+ * Both entry points degrade to UNKNOWN rather than fail, so nothing here reaches a user: the
+ * messages below are log identifiers, not i18n keys anyone resolves. A detection that cannot
+ * answer is not a translation that cannot run.
  */
 
 import { application } from '@application'
@@ -83,37 +83,38 @@ async function detectLanguageByLLM(
   return trimmed
 }
 
+/** franc's iso3 output, for the languages we can name. */
+const ISO3_TO_LANG_CODE: Record<string, TranslateLangCode> = {
+  cmn: BUILTIN_LANGUAGE.zhCN.langCode,
+  jpn: BUILTIN_LANGUAGE.jaJP.langCode,
+  kor: BUILTIN_LANGUAGE.koKR.langCode,
+  rus: BUILTIN_LANGUAGE.ruRU.langCode,
+  ara: BUILTIN_LANGUAGE.arSA.langCode,
+  spa: BUILTIN_LANGUAGE.esES.langCode,
+  fra: BUILTIN_LANGUAGE.frFR.langCode,
+  deu: BUILTIN_LANGUAGE.deDE.langCode,
+  ita: BUILTIN_LANGUAGE.itIT.langCode,
+  por: BUILTIN_LANGUAGE.ptPT.langCode,
+  eng: BUILTIN_LANGUAGE.enUS.langCode,
+  pol: BUILTIN_LANGUAGE.plPL.langCode,
+  tur: BUILTIN_LANGUAGE.trTR.langCode,
+  tha: BUILTIN_LANGUAGE.thTH.langCode,
+  vie: BUILTIN_LANGUAGE.viVN.langCode,
+  ind: BUILTIN_LANGUAGE.idID.langCode,
+  urd: BUILTIN_LANGUAGE.urPK.langCode,
+  zsm: BUILTIN_LANGUAGE.msMY.langCode
+}
+
 /** Detect language using the franc library (offline, fast). */
 function detectLanguageByFranc(inputText: string): TranslateLangCode {
   logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
-  const isoMap: Record<string, TranslateLangCode> = {
-    cmn: BUILTIN_LANGUAGE.zhCN.langCode,
-    jpn: BUILTIN_LANGUAGE.jaJP.langCode,
-    kor: BUILTIN_LANGUAGE.koKR.langCode,
-    rus: BUILTIN_LANGUAGE.ruRU.langCode,
-    ara: BUILTIN_LANGUAGE.arSA.langCode,
-    spa: BUILTIN_LANGUAGE.esES.langCode,
-    fra: BUILTIN_LANGUAGE.frFR.langCode,
-    deu: BUILTIN_LANGUAGE.deDE.langCode,
-    ita: BUILTIN_LANGUAGE.itIT.langCode,
-    por: BUILTIN_LANGUAGE.ptPT.langCode,
-    eng: BUILTIN_LANGUAGE.enUS.langCode,
-    pol: BUILTIN_LANGUAGE.plPL.langCode,
-    tur: BUILTIN_LANGUAGE.trTR.langCode,
-    tha: BUILTIN_LANGUAGE.thTH.langCode,
-    vie: BUILTIN_LANGUAGE.viVN.langCode,
-    ind: BUILTIN_LANGUAGE.idID.langCode,
-    urd: BUILTIN_LANGUAGE.urPK.langCode,
-    zsm: BUILTIN_LANGUAGE.msMY.langCode
-  }
-
-  const mapped = isoMap[iso3]
+  const mapped = ISO3_TO_LANG_CODE[iso3]
   if (mapped === undefined) {
     // franc recognized a language but we have no mapping for it yet. Log so
     // we can discover cold languages that real users speak.
-    logger.debug('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3 })
+    logger.debug('franc iso3 has no lang code mapping, falling back to UNKNOWN', { iso3 })
     return UNKNOWN_LANG_CODE
   }
   return mapped
@@ -173,7 +174,7 @@ function resolveDetectionModel(): Model | undefined {
  *   unreachable model, an unusable reply, or a language list that arrived empty. Callers that
  *   would rather degrade than fail want {@link detectLanguageOrUnknown}.
  */
-export async function detectLanguage(inputText: string, signal?: AbortSignal): Promise<TranslateLangCode> {
+async function detectLanguage(inputText: string, signal?: AbortSignal): Promise<TranslateLangCode> {
   const text = inputText.trim()
   if (!text) return UNKNOWN_LANG_CODE
 

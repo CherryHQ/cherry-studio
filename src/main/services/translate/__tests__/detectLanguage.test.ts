@@ -1,5 +1,6 @@
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const generateTextMock =
@@ -36,7 +37,17 @@ vi.mock('tokenx', () => ({
 }))
 
 const { makeModel } = await import('../../../ai/__tests__/fixtures')
-const { detectLanguage, detectLanguageOrUnknown } = await import('../detectLanguage')
+const { detectLanguageOrUnknown } = await import('../detectLanguage')
+
+/**
+ * Why detection gave up. Nothing surfaces these to a user — every entry point degrades — so the
+ * log is where a cause is observable, and asserting it is what keeps the causes distinguishable.
+ */
+const lastFailure = (): Error => {
+  const call = mockMainLoggerService.warn.mock.calls.at(-1)
+  if (!call) throw new Error('no detection failure was logged')
+  return (call[1] as { error: Error }).error
+}
 
 const language = (langCode: string): TranslateLanguage =>
   ({ langCode, value: langCode, emoji: '🏳️' }) as unknown as TranslateLanguage
@@ -52,14 +63,15 @@ beforeEach(() => {
   francMock.mockReset()
   estimateTokenCountMock.mockReset().mockReturnValue(10)
   generateTextMock.mockReset().mockResolvedValue({ text: 'en-us' })
+  mockMainLoggerService.warn.mockClear()
 })
 
-describe('detectLanguage', () => {
+describe('detectLanguageOrUnknown', () => {
   describe('llm method', () => {
     it('returns the trimmed lang code the model replied with', async () => {
       generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
-      await expect(detectLanguage('Hello')).resolves.toBe('en-us')
+      await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('en-us')
     })
 
     it("hands the caller's abort signal to the model request", async () => {
@@ -67,7 +79,7 @@ describe('detectLanguage', () => {
       // dropping it here leaves the request running with nobody left to read its answer.
       const controller = new AbortController()
 
-      await detectLanguage('Hello', controller.signal)
+      await detectLanguageOrUnknown('Hello', controller.signal)
 
       expect(generateTextMock.mock.calls[0][0].requestOptions?.signal).toBe(controller.signal)
     })
@@ -75,49 +87,53 @@ describe('detectLanguage', () => {
     it('offers the model the languages the database holds, not a built-in list', async () => {
       listMock.mockReturnValue([language('zh-cn')])
 
-      await detectLanguage('Hello')
+      await detectLanguageOrUnknown('Hello')
 
       expect(generateTextMock.mock.calls[0][0].system).toContain(JSON.stringify(['zh-cn']))
     })
 
     it('disables reasoning, which detection has no use for', async () => {
-      await detectLanguage('Hello')
+      await detectLanguageOrUnknown('Hello')
 
       expect(generateTextMock).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'none' }))
     })
 
-    it('throws when no usable model is configured', async () => {
+    it('gives up when no usable model is configured', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', undefined as never)
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', undefined as never)
 
-      await expect(detectLanguage('Hello')).rejects.toThrow('error.model.not_exists')
+      await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('unknown')
+      expect(lastFailure().message).toBe('error.model.not_exists')
     })
 
     it('falls back to the default model when no quick-assistant model is set', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', undefined as never)
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'anthropic::claude')
 
-      await detectLanguage('Hello')
+      await detectLanguageOrUnknown('Hello')
 
       expect(getByKeyMock).toHaveBeenCalledWith('anthropic', 'claude')
     })
 
-    it('throws when the model replies with nothing', async () => {
+    it('gives up when the model replies with nothing', async () => {
       generateTextMock.mockResolvedValueOnce({ text: '   ' })
 
-      await expect(detectLanguage('Hello')).rejects.toThrow('translate.error.detect.empty')
+      await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('unknown')
+      expect(lastFailure().message).toBe('translate.error.detect.empty')
     })
 
-    it('throws when the model replies with something that is not a lang code', async () => {
+    it('gives up when the model replies with something that is not a lang code', async () => {
       generateTextMock.mockResolvedValueOnce({ text: 'NOT_A_CODE' })
 
-      await expect(detectLanguage('Hello')).rejects.toThrow('translate.error.detect.invalid')
+      await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('unknown')
+      expect(lastFailure().message).toBe('translate.error.detect.invalid')
     })
 
-    it('propagates a generation failure instead of reporting it as an empty reply', async () => {
+    it('records a generation failure as itself, not as an empty reply', async () => {
       generateTextMock.mockRejectedValueOnce(new Error('rate limited'))
 
-      await expect(detectLanguage('Hello')).rejects.toThrow('rate limited')
+      await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('unknown')
+      expect(lastFailure().message).toBe('rate limited')
     })
   })
 
@@ -129,14 +145,14 @@ describe('detectLanguage', () => {
     it('maps a recognized iso3 to its lang code without reaching the model', async () => {
       francMock.mockReturnValueOnce('cmn')
 
-      await expect(detectLanguage('你好世界')).resolves.toBe('zh-cn')
+      await expect(detectLanguageOrUnknown('你好世界')).resolves.toBe('zh-cn')
       expect(generateTextMock).not.toHaveBeenCalled()
     })
 
     it('answers unknown for an iso3 the map has no entry for', async () => {
       francMock.mockReturnValueOnce('xxx')
 
-      await expect(detectLanguage('???')).resolves.toBe('unknown')
+      await expect(detectLanguageOrUnknown('???')).resolves.toBe('unknown')
     })
   })
 
@@ -148,7 +164,7 @@ describe('detectLanguage', () => {
     it('spends a model call on short text, where franc is unreliable', async () => {
       estimateTokenCountMock.mockReturnValue(10)
 
-      await expect(detectLanguage('Hi')).resolves.toBe('en-us')
+      await expect(detectLanguageOrUnknown('Hi')).resolves.toBe('en-us')
       expect(generateTextMock).toHaveBeenCalledTimes(1)
       expect(francMock).not.toHaveBeenCalled()
     })
@@ -157,7 +173,7 @@ describe('detectLanguage', () => {
       estimateTokenCountMock.mockReturnValue(500)
       francMock.mockReturnValueOnce('jpn')
 
-      await expect(detectLanguage('日本語の長い文章…')).resolves.toBe('ja-jp')
+      await expect(detectLanguageOrUnknown('日本語の長い文章…')).resolves.toBe('ja-jp')
       expect(generateTextMock).not.toHaveBeenCalled()
     })
 
@@ -165,37 +181,26 @@ describe('detectLanguage', () => {
       estimateTokenCountMock.mockReturnValue(500)
       francMock.mockReturnValueOnce('und')
 
-      await expect(detectLanguage('gibberish text')).resolves.toBe('en-us')
+      await expect(detectLanguageOrUnknown('gibberish text')).resolves.toBe('en-us')
       expect(generateTextMock).toHaveBeenCalledTimes(1)
     })
   })
 
   it('returns unknown for blank input without reaching any detector', async () => {
-    await expect(detectLanguage('   ')).resolves.toBe('unknown')
+    await expect(detectLanguageOrUnknown('   ')).resolves.toBe('unknown')
 
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(francMock).not.toHaveBeenCalled()
     expect(listMock).not.toHaveBeenCalled()
   })
 
-  it('refuses to detect against an empty language list rather than answering unknown', async () => {
+  it('does not ask a model to choose from an empty language list', async () => {
     // A list that loaded and came back empty is a broken install, not a language nobody speaks —
-    // answering UNKNOWN would make the two indistinguishable to the caller.
+    // the log is what tells the two apart, since the answer is UNKNOWN either way.
     listMock.mockReturnValue([])
 
-    await expect(detectLanguage('Hello')).rejects.toThrow('translate.error.detect.no_languages')
-    expect(generateTextMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('detectLanguageOrUnknown', () => {
-  it('returns the detected language when detection succeeds', async () => {
-    await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('en-us')
-  })
-
-  it('degrades to unknown when detection fails', async () => {
-    generateTextMock.mockRejectedValue(new Error('detect failed'))
-
     await expect(detectLanguageOrUnknown('Hello')).resolves.toBe('unknown')
+    expect(lastFailure().message).toBe('translate.error.detect.no_languages')
+    expect(generateTextMock).not.toHaveBeenCalled()
   })
 })
