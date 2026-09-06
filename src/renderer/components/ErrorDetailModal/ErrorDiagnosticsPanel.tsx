@@ -1,11 +1,10 @@
-import { Accordion, Alert, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import { Accordion, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
-import { DoctorCheckList, DoctorConfirmationView } from '@renderer/components/doctor'
+import { DoctorCheckList, DoctorCheckNotices, DoctorConfirmationView } from '@renderer/components/doctor'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckId, DoctorNavigateTarget } from '@shared/types/doctor'
-import { RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -130,44 +129,7 @@ export function ErrorDiagnosticsPanel({
           </Accordion>
         ) : null}
 
-        {controller.viewModel.isStale ? (
-          <Alert
-            type="warning"
-            showIcon
-            description={t('settings.doctor.stale.description')}
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={controller.isInteracting}
-                onClick={() => void controller.run('quick')}>
-                <RotateCcw className="size-4" aria-hidden />
-                {t('settings.doctor.actions.run_basic')}
-              </Button>
-            }
-          />
-        ) : null}
-
-        {controller.session.relaunchRequired ? (
-          <Alert type="info" showIcon description={t('settings.doctor.messages.relaunch_required')} />
-        ) : null}
-
-        {controller.viewModel.rows.length === 0 ? (
-          <Alert
-            type="info"
-            showIcon
-            message={t(
-              controller.viewModel.status === 'canceled'
-                ? 'settings.doctor.empty.canceled_title'
-                : 'settings.doctor.empty.title'
-            )}
-            description={t(
-              controller.viewModel.status === 'canceled'
-                ? 'settings.doctor.empty.canceled_description'
-                : 'settings.doctor.empty.description'
-            )}
-          />
-        ) : null}
+        <DoctorCheckNotices controller={controller} />
       </DiagnosticsPanel>
 
       <Dialog open={isConfirming} onOpenChange={(open) => !open && cancelConfirmation()}>

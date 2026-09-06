@@ -3,7 +3,6 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  Alert,
   Badge,
   Button,
   DialogFooter,
@@ -20,11 +19,13 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import type { DoctorCheckId } from '@shared/types/doctor'
-import { ChevronDown, Copy, Download, RotateCcw } from 'lucide-react'
+import { ChevronDown, Copy, Download } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DoctorCheckNotices } from './DoctorCheckNotices'
 import { DoctorCheckResults, DoctorConfirmationView } from './DoctorCheckResults'
+
 const logger = loggerService.withContext('DoctorChecksPanel')
 
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
@@ -107,59 +108,14 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
         <div className="space-y-4 pb-2">
           <DoctorSummary controller={controller} />
 
-          {viewModel.isStale ? (
-            <Alert
-              type="warning"
-              showIcon
-              description={t('settings.doctor.stale.description')}
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={controller.isInteracting}
-                  onClick={() => void controller.run('quick')}>
-                  <RotateCcw className="size-4" aria-hidden />
-                  {t('settings.doctor.actions.run_basic')}
-                </Button>
-              }
-            />
-          ) : null}
-
-          {session.relaunchRequired ? (
-            <Alert type="info" showIcon description={t('settings.doctor.messages.relaunch_required')} />
-          ) : null}
+          <DoctorCheckNotices controller={controller} />
 
           {viewModel.rows.length > 0 ? (
             <DoctorCheckResults
               controller={controller}
               initialExpandedCheckId={restoreExpandedCheckRef.current ?? restoreActionCheckRef.current ?? undefined}
             />
-          ) : (
-            <Alert
-              type="info"
-              showIcon
-              message={t(
-                viewModel.status === 'canceled' ? 'settings.doctor.empty.canceled_title' : 'settings.doctor.empty.title'
-              )}
-              description={t(
-                viewModel.status === 'canceled'
-                  ? 'settings.doctor.empty.canceled_description'
-                  : 'settings.doctor.empty.description'
-              )}
-              action={
-                viewModel.status === 'canceled' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={controller.isInteracting}
-                    onClick={() => void controller.run('quick')}>
-                    <RotateCcw className="size-4" aria-hidden />
-                    {t('settings.doctor.actions.rerun')}
-                  </Button>
-                ) : undefined
-              }
-            />
-          )}
+          ) : null}
 
           <Accordion type="single" collapsible className="rounded-xl border border-border px-4">
             <AccordionItem value="advanced-tools" className="border-0 first:border-t-0">
