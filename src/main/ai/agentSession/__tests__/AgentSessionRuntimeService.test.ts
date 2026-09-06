@@ -2540,6 +2540,66 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('orphans recovery-buffered chunks at teardown and delivers them on a later reopen', async () => {
+      // Teardown's final lookup misses — the chunks are orphaned to the cache instead of lost;
+      // a reopened session that finds the row replays them ahead of its own buffered chunks.
+      const orphanChunk = { type: 'text-start', id: 'orphaned-text' }
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        // The first run buffers the chunk; teardown's final lookup misses.
+        if (lookupCalls === 1) throw new Error('db busy')
+        return null
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: orphanChunk
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await service.closeSession('session-1')
+      const orphanCall = mocks.cacheSetShared.mock.calls.find(
+        ([key]) => typeof key === 'string' && key.includes('flow_recovery_orphan')
+      )
+      expect(orphanCall).toBeDefined()
+
+      // A reopened session recovers the row and replays the orphan first.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      mocks.cacheGetShared.mockImplementation((key) =>
+        typeof key === 'string' && key.includes('flow_recovery_orphan') ? [orphanChunk] : undefined
+      )
+      mocks.replaceMessageParts.mockClear()
+      service.beginTurn(baseTurnInput)
+      const reopenedEntry = getEntry(service)
+      reopenedEntry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(reopenedEntry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(reopenedEntry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'orphaned-text', delta: 'Orphaned findings' }
+      })
+      ;(service as any).handleRuntimeEvent(reopenedEntry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'Orphaned findings')).toBe(true)
+      })
+    })
+
     it('gives recovery-buffered chunks a last host-row lookup at teardown', async () => {
       let lookupCalls = 0
       mocks.findFlowHostMessageId.mockImplementation(() => {
@@ -2819,13 +2879,12 @@ describe('AgentSessionRuntimeService', () => {
       sendChunk('Second findings', 'second-text')
 
       expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
-      await vi.waitFor(() =>
-        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
-          'session-1',
-          'assistant-1',
-          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Second findings' })])
-        )
-      )
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        // Chunks arriving inside the re-check window were buffered, not discarded.
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
     })
 
     it('keeps recovery-buffered chunks across a successful miss for the re-check window', async () => {
@@ -2866,9 +2925,10 @@ describe('AgentSessionRuntimeService', () => {
       }
       sendChunk('First findings', 'first-text')
 
-      // The next round's first lookup succeeds as a miss — the buffered chunks must survive it.
+      // The next round's first lookup succeeds as a miss — the buffered chunks must survive it,
+      // and the chunks arriving inside the re-check window must buffer too, not be discarded.
       sendChunk('Second findings', 'second-text')
-      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(3)
+      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(6)
 
       // Simulate the re-check window elapsing with the row now committed.
       getEntry(service).checkedFlowHostMisses?.set('task-root', Date.now() - 6_000)
