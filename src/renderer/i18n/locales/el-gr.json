@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "Σύνδεσμος Απομακρυσμένης διεύθυνσης URL",
   "settings.mcp.builtinServers": "Ενσωματωμένοι Διακομιστές",
   "settings.mcp.builtinServersDescriptions.brave_search": "μια εφαρμογή διακομιστή MCP που ενσωματώνει το Brave Search API, παρέχοντας δυνατότητες αναζήτησης στον ιστό και τοπικής αναζήτησης. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος BRAVE_API_KEY",
-  "settings.mcp.builtinServersDescriptions.browser": "Ελέγχει ένα headless παράθυρο Electron μέσω του Chrome DevTools Protocol. Εργαλεία: άνοιγμα URL, εκτέλεση JS μίας γραμμής, επαναφορά συνεδρίας.",
+  "settings.mcp.builtinServersDescriptions.browser": "Περιηγηθείτε με στιγμιότυπα σελίδων, κάντε κλικ και εισαγάγετε κείμενο, αλλάξτε καρτέλες και χειριστείτε διαλόγους. Εκτελείται στο παρασκήνιο από προεπιλογή.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Διακομιστής DiDi MCP που παρέχει υπηρεσίες μεταφοράς συμπεριλαμβανομένης της αναζήτησης χαρτών, εκτίμησης τιμών, διαχείρισης παραγγελιών και παρακολούθησης οδηγών. Διαθέσιμο μόνο στην ηπειρωτική Κίνα. Απαιτεί διαμόρφωση της μεταβλητής περιβάλλοντος DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Η υλοποίηση του Dify για τον διακομιστή MCP, παρέχει μια απλή API για να αλληλεπιδρά με το Dify. Απαιτείται η ρύθμιση του κλειδιού Dify",
   "settings.mcp.builtinServersDescriptions.fetch": "Εξυπηρετητής MCP για λήψη περιεχομένου ιστοσελίδας URL",

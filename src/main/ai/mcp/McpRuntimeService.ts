@@ -174,7 +174,7 @@ function withCache<T extends unknown[], R>(
 
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'McpPackageService'])
+@DependsOn(['WindowManager', 'McpPackageService', 'BrowserSessionService'])
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()

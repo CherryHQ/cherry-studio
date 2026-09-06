@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "URL cơ sở máy chủ từ xa",
   "settings.mcp.builtinServers": "Máy chủ tích hợp",
   "settings.mcp.builtinServersDescriptions.brave_search": "Một máy chủ MCP triển khai tích hợp API Tìm kiếm Brave, cung cấp cả chức năng tìm kiếm web và địa phương. Yêu cầu cấu hình biến môi trường BRAVE_API_KEY",
-  "settings.mcp.builtinServersDescriptions.browser": "Điều khiển cửa sổ Electron không giao diện qua Chrome DevTools Protocol. Công cụ: mở URL, thực thi JS một dòng, đặt lại phiên.",
+  "settings.mcp.builtinServersDescriptions.browser": "Duyệt trang qua ảnh chụp cấu trúc, nhấp và nhập vào các phần tử, chuyển tab và xử lý hộp thoại. Mặc định chạy trong nền.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Máy chủ MCP DiDi cung cấp dịch vụ đặt xe bao gồm tìm kiếm bản đồ, ước tính giá, quản lý đơn hàng và theo dõi tài xế. Chỉ khả dụng tại Trung Quốc Đại lục. Yêu cầu cấu hình biến môi trường DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Triển khai máy chủ MCP của Dify cung cấp một API đơn giản để tương tác với Dify. Yêu cầu cấu hình Khóa Dify",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP server để lấy nội dung web từ URL",

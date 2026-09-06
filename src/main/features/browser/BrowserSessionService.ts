@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
-import { BaseService, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import type { SessionOwnership } from './browserUse'
+import type { BrowserServer } from './mcp/server'
 import { BrowserSessionError } from './session/BrowserSessionError'
 import { GuestSession } from './session/GuestSession'
 
@@ -20,11 +21,26 @@ interface SessionEntry {
 
 @Injectable('BrowserSessionService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowManager'])
 export class BrowserSessionService extends BaseService {
+  private readonly servers = new Set<BrowserServer>()
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
     this.registerInterval(() => this.sweep(), 60_000)
+  }
+
+  async createMcpServer() {
+    const { BrowserServer } = await import('./mcp/server')
+    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
+      throw new BrowserSessionError('debugger_unavailable')
+    const server = new BrowserServer(this, () => this.servers.delete(server))
+    this.servers.add(server)
+    return server.server
+  }
+
+  closeGuest(guest: Electron.WebContents): void {
+    this.remove(guest.id, true)
   }
 
   acquire(guest: Electron.WebContents, owner: string, ownership: SessionOwnership): GuestSession {
@@ -116,7 +132,14 @@ export class BrowserSessionService extends BaseService {
     }
   }
 
-  protected onStop(): void {
+  protected async onStop(): Promise<void> {
+    const results = await Promise.allSettled([...this.servers].map((server) => server.close()))
+    this.servers.clear()
     for (const id of this.sessions.keys()) this.remove(id, true)
+    const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+    if (errors.length) {
+      logger.warn('Browser server shutdown failed', { errors })
+      throw new AggregateError(errors, 'Failed to stop browser sessions')
+    }
   }
 }

@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "Адрес удаленного URL",
   "settings.mcp.builtinServers": "Встроенные серверы",
   "settings.mcp.builtinServersDescriptions.brave_search": "реализация сервера MCP с интеграцией API поиска Brave, обеспечивающая функции веб-поиска и локального поиска. Требуется настройка переменной среды BRAVE_API_KEY",
-  "settings.mcp.builtinServersDescriptions.browser": "Управление headless-окном Electron через Chrome DevTools Protocol. Инструменты: открытие URL, выполнение однострочного JS, сброс сессии.",
+  "settings.mcp.builtinServersDescriptions.browser": "Просматривайте снимки страниц, нажимайте элементы и вводите текст, переключайте вкладки и управляйте диалогами. По умолчанию работает в фоновом режиме.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Сервер DiDi MCP, предоставляющий услуги такси, включая поиск на карте, оценку стоимости, управление заказами и отслеживание водителей. Доступен только в материковом Китае. Требует настройки переменной окружения DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Реализация сервера MCP Dify, предоставляющая простой API для взаимодействия с Dify. Требуется настройка ключа Dify",
   "settings.mcp.builtinServersDescriptions.fetch": "MCP-сервер для получения содержимого веб-страниц по URL",
