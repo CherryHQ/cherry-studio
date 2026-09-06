@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Các mô hình được thử theo thứ tự khi mô hình chính thất bại",
   "settings.models.retry.label": "Thử lại lệnh gọi mô hình",
   "settings.models.retry.max_attempts": "Số lần thử lại tối đa",
-  "settings.models.retry.tooltip": "Các lần thử lại và cơ chế dự phòng chỉ được áp dụng trước khi mô hình bắt đầu truyền nội dung theo luồng",
+  "settings.models.retry.tooltip": "Với lỗi có thể thử lại, mô hình hiện tại sẽ được thử lại đến giới hạn đã cấu hình. Nếu vẫn thất bại hoặc lỗi không thể thử lại, các mô hình dự phòng sẽ được thử một lần theo thứ tự. Khi cùng một mô hình có nhiều khóa API, lỗi 401/429 sẽ chuyển sang khóa tiếp theo trước. Việc thử lại và dự phòng chỉ áp dụng trước khi bắt đầu truyền nội dung.",
   "settings.models.toolbar.pull_short": "Đồng bộ mô hình",
   "settings.models.topic_naming.auto": "Tự động đặt tên chủ đề",
   "settings.models.topic_naming.label": "Đặt tên chủ đề",

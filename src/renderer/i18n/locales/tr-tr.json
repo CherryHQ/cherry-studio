@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Birincil model başarısız olduğunda sırayla denenen modeller",
   "settings.models.retry.label": "Model Çağrısını Yeniden Deneme",
   "settings.models.retry.max_attempts": "En fazla yeniden deneme sayısı",
-  "settings.models.retry.tooltip": "Yeniden denemeler ve yedek modeller yalnızca model içerik akışına başlamadan önce uygulanır",
+  "settings.models.retry.tooltip": "Yeniden denenebilir hatalarda mevcut model, yapılandırılan sınıra kadar tekrar denenir. Hata devam ederse veya yeniden denenebilir değilse yedek modeller sırayla birer kez denenir. Aynı model için birden fazla API anahtarı varsa 401/429 hatalarında önce sonraki anahtara geçilir. Yeniden denemeler ve yedek modeller yalnızca içerik akışı başlamadan önce uygulanır.",
   "settings.models.toolbar.pull_short": "Modelleri eşitle",
   "settings.models.topic_naming.auto": "Konuşmaları Otomatik Adlandırma",
   "settings.models.topic_naming.label": "Konuşma adlandırma",

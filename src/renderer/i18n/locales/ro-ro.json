@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
   "settings.models.retry.label": "Reîncercarea apelurilor către model",
   "settings.models.retry.max_attempts": "Număr maxim de reîncercări",
-  "settings.models.retry.tooltip": "Reîncercările și mecanismele de rezervă se aplică numai înainte ca modelul să înceapă să transmită conținut în flux",
+  "settings.models.retry.tooltip": "Erorile care permit reîncercarea determină reîncercarea modelului curent până la limita configurată. Dacă eșuează în continuare sau eroarea nu permite reîncercarea, modelele de rezervă sunt încercate o dată fiecare, în ordine. Dacă același model are mai multe chei API, erorile 401/429 trec mai întâi la cheia următoare. Reîncercările și modelele de rezervă se aplică numai înainte de începerea transmiterii conținutului.",
   "settings.models.toolbar.pull_short": "Sincronizează modelele",
   "settings.models.topic_naming.auto": "Numire automată subiect",
   "settings.models.topic_naming.label": "Numire subiect",

@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Modelos probados en orden cuando el modelo principal falla",
   "settings.models.retry.label": "Reintento de llamada al modelo",
   "settings.models.retry.max_attempts": "Número máximo de reintentos",
-  "settings.models.retry.tooltip": "Los reintentos y los mecanismos de respaldo solo se aplican antes de que el modelo comience a transmitir contenido",
+  "settings.models.retry.tooltip": "Los errores reintentables vuelven a probar el modelo actual hasta el límite configurado. Si sigue fallando o el error no es reintentable, los modelos de respaldo se prueban una vez cada uno y en orden. Si el mismo modelo tiene varias claves API, los errores 401/429 cambian primero a la clave siguiente. Los reintentos y respaldos solo se aplican antes de que empiece la transmisión de contenido.",
   "settings.models.toolbar.pull_short": "Sincronizar modelos",
   "settings.models.topic_naming.auto": "Renombrar temas automáticamente",
   "settings.models.topic_naming.label": "Nombramiento del tema",

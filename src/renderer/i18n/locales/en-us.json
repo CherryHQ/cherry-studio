@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Models tried in order when the primary model fails",
   "settings.models.retry.label": "Model Call Retry",
   "settings.models.retry.max_attempts": "Max retry attempts",
-  "settings.models.retry.tooltip": "Retries and fallbacks only apply before the model starts streaming content",
+  "settings.models.retry.tooltip": "Retryable errors retry the current model up to the configured limit. If it still fails, or the error is not retryable, fallback models are tried once each in order. With multiple API keys for the same model, 401/429 errors switch to the next key first. Retries and fallbacks only apply before content starts streaming.",
   "settings.models.toolbar.pull_short": "Sync models",
   "settings.models.topic_naming.auto": "Conversation Auto Naming",
   "settings.models.topic_naming.label": "Conversation naming",

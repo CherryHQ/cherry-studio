@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Modelle, die der Reihe nach ausprobiert werden, wenn das primäre Modell fehlschlägt",
   "settings.models.retry.label": "Modellaufruf-Wiederholung",
   "settings.models.retry.max_attempts": "Maximale Wiederholungsversuche",
-  "settings.models.retry.tooltip": "Wiederholungsversuche und Fallbacks gelten nur, bevor das Modell mit dem Streaming von Inhalten beginnt",
+  "settings.models.retry.tooltip": "Bei wiederholbaren Fehlern wird das aktuelle Modell bis zum konfigurierten Limit erneut versucht. Schlägt es weiterhin fehl oder ist der Fehler nicht wiederholbar, werden die Ersatzmodelle der Reihe nach jeweils einmal versucht. Bei mehreren API-Schlüsseln für dasselbe Modell wird bei 401/429 zuerst zum nächsten Schlüssel gewechselt. Wiederholungen und Ersatzmodelle gelten nur, bevor die Inhaltsausgabe beginnt.",
   "settings.models.toolbar.pull_short": "Modelle synchronisieren",
   "settings.models.topic_naming.auto": "Thema automatisch umbenennen",
   "settings.models.topic_naming.label": "Thema-Benennung",

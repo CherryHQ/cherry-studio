@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "當主要模型失敗時依序嘗試的模型",
   "settings.models.retry.label": "模型呼叫重試",
   "settings.models.retry.max_attempts": "最大重試次數",
-  "settings.models.retry.tooltip": "重試和回退機制僅在模型開始串流內容之前適用",
+  "settings.models.retry.tooltip": "遇到可重試錯誤時，會先依設定次數重試目前模型；仍然失敗或錯誤無法重試時，再依序各嘗試一次回退模型。同一模型設定了多個 API Key 時，401/429 會優先切換至下一個 Key。重試與回退僅在模型開始輸出內容前生效。",
   "settings.models.toolbar.pull_short": "同步模型",
   "settings.models.topic_naming.auto": "對話自動重新命名",
   "settings.models.topic_naming.label": "對話命名",

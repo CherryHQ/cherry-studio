@@ -1,8 +1,7 @@
-import { Button, InfoTooltip, InputNumber, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
-import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -24,17 +23,7 @@ import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import {
-  ArrowRight,
-  ChevronDown,
-  Languages,
-  MessageSquareMore,
-  Palette,
-  RefreshCcw,
-  Rocket,
-  RotateCcw,
-  Settings2
-} from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -155,10 +144,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
-  const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
-  const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
-  const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
-  const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -352,88 +337,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   compact={compact}
                   onSelect={onSelectPainting}
                   placeholder={t('settings.models.empty')}
-                />
-              </ModelSettingRow>
-            </>
-          )}
-          <SettingDivider />
-          <ModelSettingRow
-            compact={compact}
-            inlineWhenCompact
-            id={compact ? undefined : 'setting-model-retry-enabled'}
-            icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={
-              <>
-                {t('settings.models.retry.label')}
-                <InfoTooltip content={t('settings.models.retry.tooltip')} />
-              </>
-            }
-            description={showDescription ? t('settings.models.retry.description') : undefined}>
-            <Switch
-              checked={retryEnabled}
-              onCheckedChange={(checked) => void setRetryEnabled(checked)}
-              aria-label={t('settings.models.retry.label')}
-            />
-          </ModelSettingRow>
-          {retryEnabled && (
-            <>
-              <SettingDivider />
-              <ModelSettingRow
-                compact={compact}
-                inlineWhenCompact
-                icon={null}
-                title={t('settings.models.retry.max_attempts')}>
-                <InputNumber
-                  min={1}
-                  max={10}
-                  step={1}
-                  className={compact ? 'h-7 w-16 px-2' : 'w-24'}
-                  aria-label={t('settings.models.retry.max_attempts')}
-                  value={retryMaxAttempts}
-                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
-                />
-              </ModelSettingRow>
-              <SettingDivider />
-              <ModelSettingRow
-                compact={compact}
-                inlineWhenCompact
-                icon={null}
-                title={t('settings.models.retry.backoff')}>
-                <Switch
-                  checked={retryBackoffEnabled}
-                  onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
-                  aria-label={t('settings.models.retry.backoff')}
-                />
-              </ModelSettingRow>
-              <SettingDivider />
-              <ModelSettingRow
-                compact={compact}
-                icon={null}
-                title={t('settings.models.retry.fallback_models')}
-                description={showDescription ? t('settings.models.retry.fallback_models_description') : undefined}>
-                <ModelSelector
-                  multiple={true}
-                  selectionType="id"
-                  value={retryFallbackModelIds}
-                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
-                  filter={chatModelFilter}
-                  trigger={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size={compact ? 'lg' : 'default'}
-                      className={cn(
-                        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
-                        compact ? 'h-9' : 'h-7.5'
-                      )}>
-                      <span className="min-w-0 flex-1 truncate">
-                        {retryFallbackModelIds.length > 0
-                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
-                          : t('settings.models.empty')}
-                      </span>
-                      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-                    </Button>
-                  }
                 />
               </ModelSettingRow>
             </>

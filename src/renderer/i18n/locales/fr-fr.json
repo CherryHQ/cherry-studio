@@ -4354,7 +4354,7 @@
   "settings.models.retry.fallback_models_description": "Modèles essayés dans l'ordre lorsque le modèle principal échoue",
   "settings.models.retry.label": "Relance d'appel de modèle",
   "settings.models.retry.max_attempts": "Nombre maximum de tentatives",
-  "settings.models.retry.tooltip": "Les nouvelles tentatives et les modèles de secours ne s'appliquent qu'avant que le modèle ne commence à diffuser du contenu",
+  "settings.models.retry.tooltip": "Les erreurs réessayables relancent le modèle actuel jusqu'à la limite configurée. S'il échoue encore, ou si l'erreur n'est pas réessayable, les modèles de secours sont essayés une fois chacun dans l'ordre. Si plusieurs clés API existent pour le même modèle, les erreurs 401/429 passent d'abord à la clé suivante. Les nouvelles tentatives et les secours ne s'appliquent qu'avant le début de la diffusion du contenu.",
   "settings.models.toolbar.pull_short": "Synchroniser les modèles",
   "settings.models.topic_naming.auto": "Renommage automatique des sujets",
   "settings.models.topic_naming.label": "Nom de sujet",
