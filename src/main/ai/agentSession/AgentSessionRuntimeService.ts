@@ -233,6 +233,8 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  /** The reader drained the stream; the trailing snapshot is final and successors are safe. */
+  settled: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
@@ -288,6 +290,8 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Flow roots whose host row was already looked up and not found — do not re-query the DB. */
   checkedFlowHostMisses?: Set<string>
+  /** Detached chunks buffered while their host-row recovery is retried (root tool-call id keyed). */
+  pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2058,14 +2062,29 @@ export class AgentSessionRuntimeService extends BaseService {
           ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
           ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
           messageId = hostMessageId
+          // Chunks buffered across the transient recovery errors flow into the anchor now, ahead
+          // of the chunk that triggered the successful lookup.
+          const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+          if (buffered?.length) {
+            entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
+            for (const bufferedChunk of buffered) this.enqueueBackgroundFlowChunk(entry, messageId, bufferedChunk)
+          }
         } else {
           // Only a successful miss is cached — a transient query error must stay retryable.
           ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
         }
       } catch (error) {
+        // Keep the chunk that triggered the failed lookup: dropping a text-start would abort the
+        // whole ai stream pipe for this message.
+        const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
+        entry.pendingRecoveryFlowChunks = buffered
+        const chunks = buffered.get(rootToolCallId) ?? []
+        chunks.push(chunk)
+        buffered.set(rootToolCallId, chunks)
         logger.warn('Failed to recover flow host row for detached subagent chunk', {
           sessionId: entry.sessionId,
           rootToolCallId,
+          chunkType: chunk.type,
           error
         })
       }
@@ -2107,6 +2126,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
     const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    if (accumulator === 'hold') {
+      // The predecessor is draining: a successor seeded now would miss its trailing chunks and the
+      // later flush would overwrite the full row. Buffer until the predecessor settles.
+      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
+      entry.pendingBackgroundFlowChunks = pending
+      const chunks = pending.get(messageId) ?? []
+      chunks.push(chunk)
+      pending.set(messageId, chunks)
+      return
+    }
     if (!accumulator) return
     try {
       accumulator.controller.enqueue(chunk)
@@ -2123,15 +2152,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
     messageId: string
-  ): BackgroundFlowAccumulator | null {
+  ): BackgroundFlowAccumulator | 'hold' | null {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
     const existing = accumulators.get(messageId)
     // A closed accumulator is mid-drain: reusing it would enqueue into a closed controller and
-    // drop the chunk. Its replacement must be seeded from the predecessor's in-memory overlay —
-    // the persisted row still lags behind it until the pending flush writes, so seeding from the
-    // DB here would drop everything the predecessor drained.
+    // drop the chunk. Its replacement must be seeded from the predecessor's final overlay — the
+    // persisted row still lags behind it until the pending flush writes, so seeding from the DB
+    // here would drop everything the predecessor drained.
     if (existing && !existing.closed) return existing
+    if (existing && !existing.settled) return 'hold'
     const inheritedParts = existing?.latest?.parts as CherryMessagePart[] | undefined
 
     let persistedParts: CherryMessagePart[] | undefined
@@ -2165,7 +2195,8 @@ export class AgentSessionRuntimeService extends BaseService {
       messageId,
       controller,
       done: Promise.resolve(),
-      closed: false
+      closed: false,
+      settled: false
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
@@ -2200,6 +2231,9 @@ export class AgentSessionRuntimeService extends BaseService {
         error
       })
     } finally {
+      // Mark the drain settled before any flush reads the snapshot: a successor created from now
+      // on seeds from the final overlay and can no longer miss trailing chunks.
+      accumulator.settled = true
       // The reader is done — flush the trailing snapshot now so `finishBackgroundFlows` (which
       // awaits `accumulator.done`) always sees the final overlay in the cache before its TTL write.
       if (accumulator.publishTimer) {
@@ -2207,6 +2241,14 @@ export class AgentSessionRuntimeService extends BaseService {
         accumulator.publishTimer = undefined
       }
       this.publishBackgroundFlowParts(entry, accumulator)
+      // Chunks held while this accumulator was draining can now flow into a properly seeded
+      // successor; flush them so they do not sit in the buffer until some unrelated turn boundary.
+      const pending = entry.pendingBackgroundFlowChunks?.get(accumulator.messageId)
+      if (pending?.length) {
+        entry.pendingBackgroundFlowChunks?.delete(accumulator.messageId)
+        for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, accumulator.messageId, chunk)
+        void this.finishBackgroundFlows(entry)
+      }
     }
   }
 
@@ -2472,6 +2514,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // change at a connection boundary. Clearing only the persisted gate would buffer resumed
     // chunks for an existing row into pendingBackgroundFlowChunks forever.
     entry.pendingBackgroundFlowChunks?.clear()
+    entry.pendingRecoveryFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })

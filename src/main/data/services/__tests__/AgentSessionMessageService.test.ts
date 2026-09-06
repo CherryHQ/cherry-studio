@@ -588,6 +588,35 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-other')).toBeNull()
     })
 
+    it('finds the launch tool-use id in a later row when the earliest row has none', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const EARLY = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d037'
+      const LATER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d038'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: EARLY,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [{ type: 'data-agent-task-event' as const, data: { taskId: 'task-1', event: 'progress' as const } }]
+          }
+        }
+      })
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: LATER,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [taskEventPart('task-1', 'launch-use')] }
+        }
+      })
+
+      expect(agentSessionMessageService.findLaunchToolCallId(SESSION_ID, 'task-1')).toBe('launch-use')
+    })
+
     it('skips task events that carry no tool-use id', async () => {
       const ROOT2 = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d036'
       agentSessionMessageService.saveMessage({
