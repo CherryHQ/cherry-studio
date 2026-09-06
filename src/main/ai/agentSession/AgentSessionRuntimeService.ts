@@ -614,16 +614,12 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     try {
-      const existing = this.entries.get(sessionId)
-      if (existing) {
+      const liveEntry = this.entries.get(sessionId)
+      const liveConnection = liveEntry ? this.currentConnection(liveEntry) : undefined
+      if (liveEntry && liveConnection) {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
-        // catalog so a consumer that mounts after the initial publish still gets it — `ensureConnection`
-        // alone skips the read when the connection already exists.
-        void this.ensureConnection(existing)
-          .then((connected) => {
-            if (connected) this.refreshSupportedCommands(existing)
-          })
-          .catch((error) => logger.warn('Failed to re-prime agent session connection', { sessionId, error }))
+        // catalog without a fallible validation/reconcile pass over an already-running connection.
+        this.refreshSupportedCommands(liveEntry, liveConnection)
         return
       }
 
@@ -631,7 +627,19 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
+      const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+      if (!driver) return
+      await driver.validateSession(session)
+
+      const existing = this.entries.get(sessionId)
+      if (existing) {
+        void this.ensureConnection(existing)
+          .then((connected) => {
+            if (connected) this.refreshSupportedCommands(existing)
+          })
+          .catch((error) => logger.warn('Failed to re-prime agent session connection', { sessionId, error }))
+        return
+      }
 
       // Resolve the session's container trace id up front so the primed connection carries the same
       // trace context the first turn will. The connection is reused across turns, so without this its

@@ -15,7 +15,7 @@ import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
 import { getFileExtension } from '@renderer/utils/file'
-import { joinPath } from '@renderer/utils/path'
+import { isFilesystemRoot, joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
@@ -170,8 +170,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     () => (previewSelectionWorkspacePath ? AbsoluteFilePathSchema.safeParse(previewSelectionWorkspacePath) : null),
     [previewSelectionWorkspacePath]
   )
-  const hasInvalidPreviewSelection = Boolean(previewFileSelection && !parsedPreviewWorkspacePath?.success)
-  const validPreviewFileSelection = parsedPreviewWorkspacePath?.success ? previewFileSelection : null
+  const isPreviewWorkspaceRoot =
+    parsedPreviewWorkspacePath?.success && isFilesystemRoot(parsedPreviewWorkspacePath.data)
+  const hasInvalidPreviewSelection = Boolean(
+    previewFileSelection && (!parsedPreviewWorkspacePath?.success || isPreviewWorkspaceRoot)
+  )
+  const validPreviewFileSelection =
+    parsedPreviewWorkspacePath?.success && !isPreviewWorkspaceRoot ? previewFileSelection : null
   const effectiveTreeErrorKind: ArtifactFileTreeErrorKind | undefined = hasInvalidPreviewSelection
     ? 'invalid_path'
     : model.errorKind

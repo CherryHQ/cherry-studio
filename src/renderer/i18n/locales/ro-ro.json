@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Selectează directorul de lucru",
   "agent.session.workspace_selector.search_placeholder": "Caută în directoarele de lucru",
   "agent.session.workspace_selector.select_failed": "Nu s-a reușit selectarea directorului.",
+  "agent.session.workspace_status.filesystem_root": "Rădăcinile sistemului de fișiere nu pot fi folosite ca spații de lucru. Alege un subfolder: {{path}}",
   "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
   "agent.session_delivery.from": "De la {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Acceptat",

@@ -4,6 +4,7 @@
   "agent.session.new": "Νέα εργασία",
   "agent.session.run_status.busy": "Η συνεδρία Agent είναι απασχολημένη. Δοκιμάστε ξανά σε λίγο.",
   "agent.session.run_status.unavailable": "Η συνεδρία Agent δεν είναι πλέον διαθέσιμη.",
+  "agent.session.workspace_status.filesystem_root": "Οι ρίζες του συστήματος αρχείων δεν μπορούν να χρησιμοποιηθούν ως χώροι εργασίας. Επιλέξτε έναν υποφάκελο: {{path}}",
   "agent.session.workspace_status.inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
   "agent.session.workspace_status.missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
   "agent.session.workspace_status.not_directory": "Η διαδρομή του χώρου εργασίας δεν είναι κατάλογος: {{path}}",

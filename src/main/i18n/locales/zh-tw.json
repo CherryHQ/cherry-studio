@@ -4,6 +4,7 @@
   "agent.session.new": "新任務",
   "agent.session.run_status.busy": "Agent 工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "Agent 工作階段已無法使用。",
+  "agent.session.workspace_status.filesystem_root": "檔案系統根目錄不能用作工作區，請選擇一個子資料夾：{{path}}",
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",
   "agent.session.workspace_status.not_directory": "工作區路徑不是資料夾：{{path}}",

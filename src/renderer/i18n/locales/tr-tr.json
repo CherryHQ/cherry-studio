@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Çalışma dizini seç",
   "agent.session.workspace_selector.search_placeholder": "Çalışma dizinlerinde ara",
   "agent.session.workspace_selector.select_failed": "Klasör seçilemedi.",
+  "agent.session.workspace_status.filesystem_root": "Dosya sistemi kökleri çalışma alanı olarak kullanılamaz. Bir alt klasör seçin: {{path}}",
   "agent.session.workspace_status.inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
   "agent.session_delivery.from": "Gönderen: {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Kabul edildi",

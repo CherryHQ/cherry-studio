@@ -3486,6 +3486,31 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
+    it('does not open a connection when session validation fails', async () => {
+      const session = {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { id: 'workspace-1', path: '/', type: 'user' }
+      }
+      const validateSession = vi.fn().mockRejectedValue(new Error('filesystem root is not allowed'))
+      const connect = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession,
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue(session)
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+
+      expect(validateSession).toHaveBeenCalledWith(session)
+      expect(connect).not.toHaveBeenCalled()
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()
@@ -3561,8 +3586,9 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     })
 
-    it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
+    it('re-priming a live session republishes the catalog without revalidation or rebuilding', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const validateSession = vi.fn()
       const connection = {
         events: createAsyncQueue<any>().iterable,
         send: vi.fn(),
@@ -3575,7 +3601,7 @@ describe('AgentSessionRuntimeService', () => {
         type: 'test-runtime',
         capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
+        validateSession,
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
@@ -3589,15 +3615,17 @@ describe('AgentSessionRuntimeService', () => {
 
       mocks.cacheSetShared.mockClear()
       connection.getSupportedCommands.mockClear()
+      validateSession.mockRejectedValueOnce(new Error('transient validation failure'))
 
       // Second prime hits the existing-entry branch — it must re-read and republish (so a window
-      // mounting late still gets the catalog), not early-return on the live connection.
+      // mounting late still gets the catalog) without a fallible validation or reconciliation pass.
       await service.primeConnection('session-1')
       await vi.waitFor(() => {
         expect(connection.getSupportedCommands).toHaveBeenCalled()
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       })
-      // The existing connection is reused — no second connect.
+      expect(validateSession).toHaveBeenCalledTimes(1)
+      expect(connection.reconcile).not.toHaveBeenCalled()
       expect(connect).toHaveBeenCalledTimes(1)
     })
 

@@ -4,6 +4,7 @@
   "agent.session.new": "Nhiệm vụ mới",
   "agent.session.run_status.busy": "Phiên Agent đang bận. Vui lòng thử lại sau ít phút.",
   "agent.session.run_status.unavailable": "Phiên Agent không còn khả dụng.",
+  "agent.session.workspace_status.filesystem_root": "Không thể dùng thư mục gốc của hệ thống tệp làm không gian làm việc. Hãy chọn một thư mục con: {{path}}",
   "agent.session.workspace_status.inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
   "agent.session.workspace_status.missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
   "agent.session.workspace_status.not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}",

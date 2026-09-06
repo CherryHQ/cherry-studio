@@ -822,6 +822,31 @@ describe('ArtifactPane', () => {
     expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })
 
+  it.each(['/', '/tmp/..'])(
+    'blocks a filesystem root before requesting its directory tree: %s',
+    async (workspacePath) => {
+      render(<ArtifactPane workspacePath={workspacePath} />)
+
+      await waitFor(() =>
+        expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+      )
+      expect(mocks.treeCreate).not.toHaveBeenCalled()
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+    }
+  )
+
+  it('blocks a persisted relative artifact selection from a filesystem-root workspace', async () => {
+    render(<ArtifactPane workspacePath="/" previewFileSelection={{ workspacePath: '/', filePath: 'dist/report.md' }} />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+    )
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+  })
+
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
 
