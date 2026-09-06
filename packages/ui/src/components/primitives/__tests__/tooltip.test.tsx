@@ -561,6 +561,101 @@ describe('Tooltip', () => {
       }
     })
 
+    it('sweeps a ghost inside a shadow host nested in an inserted wrapper', async () => {
+      vi.useFakeTimers()
+      try {
+        const host = document.createElement('div')
+        const shadow = host.attachShadow({ mode: 'open' })
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        shadow.appendChild(ghost)
+        const wrapper = document.createElement('div')
+        wrapper.appendChild(host)
+        document.body.appendChild(wrapper) // host 不是 added node，作为嵌套宿主必须被找到
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(shadow.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps children of a DocumentFragment appended in one mutation', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        const fragment = document.createDocumentFragment()
+        fragment.appendChild(ghost)
+        document.body.appendChild(fragment)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps entrance animation classes active for instant/delayed open states', () => {
+      render(
+        <Tooltip content="animated tip" isOpen={true}>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+      const content = getTooltipContentElement('animated tip')
+      expect(content.className).toContain('data-[state*=open]:animate-in')
+      expect(content.className).not.toContain('data-[state=open]:animate-in')
+    })
+
+    it('does not reopen from retained internal state after disable/enable', () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <Tooltip content="toggle tip" delay={1}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        const trigger = screen.getByText('Trigger')
+        fireEvent.pointerMove(trigger)
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+        view.rerender(
+          <Tooltip content="toggle tip" delay={1} isDisabled>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+        view.rerender(
+          <Tooltip content="toggle tip" delay={1}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+        // 恢复后 trigger DOM 是重建的，需重新获取
+        fireEvent.pointerMove(screen.getByText('Trigger'))
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('sweeps ghosts rendered into a custom portal container', async () => {
       vi.useFakeTimers()
       try {

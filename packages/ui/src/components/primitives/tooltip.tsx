@@ -60,11 +60,16 @@ const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
 function useTooltipController(
   controlledOpen: boolean | undefined,
   onOpenChange?: (open: boolean) => void,
-  defaultOpen = false
+  defaultOpen = false,
+  disabled = false
 ) {
   const [innerOpen, setInnerOpen] = React.useState(controlledOpen ?? defaultOpen)
-  const effectiveOpen = controlledOpen != null ? controlledOpen : innerOpen
+  const effectiveOpen = controlledOpen != null ? controlledOpen : disabled ? false : innerOpen
   const contentVisible = useTooltipUnmountDelay(effectiveOpen)
+  // disabled 早退后组件仍挂载，内部打开态必须复位，否则重新启用时会不经 hover 直接打开
+  React.useEffect(() => {
+    if (disabled) setInnerOpen(false)
+  }, [disabled])
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
       if (controlledOpen == null) setInnerOpen(next)
@@ -110,19 +115,30 @@ function setupTooltipOrphanSweeper(): void {
       }
       for (const node of mutation.addedNodes) {
         const element = node as Element
-        if (element.nodeType !== 1) continue
+        const isElement = element.nodeType === 1
+        if (!isElement && element.nodeType !== 11) continue // 元素或 DocumentFragment（其子树整体追加）
         // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
-        if (element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
-        if (element.getAttribute('data-slot') === 'tooltip-content') {
-          maybeSweep(element)
-          continue
+        if (isElement && element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
+        if (isElement) {
+          if (element.getAttribute('data-slot') === 'tooltip-content') {
+            maybeSweep(element)
+            continue
+          }
+          // body 观察无法穿透 shadow boundary：宿主若已挂 shadow root，连其内容一并纳入清扫
+          if (element.shadowRoot) {
+            ensureObserved(element.shadowRoot)
+            element.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+          }
         }
-        // body 观察无法穿透 shadow boundary：宿主若已挂 shadow root，连其内容一并纳入清扫
-        if (element.shadowRoot) {
-          ensureObserved(element.shadowRoot)
-          element.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+        // 后代中的 content 与已挂 shadow root 的嵌套宿主（wrapper 一次性插入时宿主不是 added node）
+        for (const descendant of element.querySelectorAll('*')) {
+          if (descendant.getAttribute('data-slot') === 'tooltip-content') {
+            maybeSweep(descendant)
+          } else if (descendant.shadowRoot) {
+            ensureObserved(descendant.shadowRoot)
+            descendant.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+          }
         }
-        element.querySelectorAll?.('[data-slot="tooltip-content"]').forEach(maybeSweep)
       }
     }
   })
@@ -187,8 +203,9 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
 
 // no-drag punches the popup's area out of any titlebar drag region it overlaps,
 // so hover/click reach the items instead of the window-drag hit test (Electron).
+// Radix Tooltip 的打开态 data-state 是 instant-open/delayed-open（非 open），选择器必须用子串匹配
 const contentStyles =
-  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
+  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state*=open]:animate-in data-[state*=open]:fade-in-0 data-[state*=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
 
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
@@ -280,14 +297,20 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
-  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(isOpen, onOpenChange, false)
+  const disabled = !tooltipContent || isDisabled
+  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(
+    isOpen,
+    onOpenChange,
+    false,
+    disabled
+  )
   const triggerWrapperClassName = cn(
     'relative z-10',
     fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
     classNames?.placeholder
   )
 
-  if (!tooltipContent || isDisabled) {
+  if (disabled) {
     if (asChild) return children
 
     return (
