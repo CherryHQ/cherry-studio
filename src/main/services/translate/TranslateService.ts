@@ -34,7 +34,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
 import { v4 as uuid } from 'uuid'
 
-import { WebContentsListener } from '../../ai/streamManager'
+import { type StreamListener, WebContentsListener } from '../../ai/streamManager'
 import { TranslateTask, type TranslateTaskRequest, type TranslateTaskState } from './TranslateTask'
 
 const logger = loggerService.withContext('TranslateService')
@@ -141,11 +141,40 @@ export class TranslateService extends BaseService {
   }
 
   /**
-   * IPC entry-point (called from `AiService.onInit`). Resolves the model +
-   * prompt, then dispatches the stream through `AiStreamManager.streamPrompt`.
-   * Returns the `streamId` synchronously so the renderer can subscribe to
-   * `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` before chunks
-   * start flowing.
+   * Put a translate stream on the wire: resolve the model and prompt, gate the parameters, hand
+   * the lot to `AiStreamManager`.
+   *
+   * The listener is the caller's, which is the whole reason this is separate from {@link open} —
+   * a window receives directly, while a {@link TranslateTask} listens itself so it can accumulate
+   * the text and re-forward it to whichever window is attached.
+   */
+  startStream(streamId: string, text: string, targetLangCode: TranslateLangCode, listener: StreamListener): void {
+    const targetLanguage = translateLanguageService.getByLangCode(targetLangCode)
+    const { uniqueModelId, content, model } = this.resolveTranslatePayload(text, targetLanguage)
+    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
+
+    application.get('AiStreamManager').streamPrompt({
+      streamId,
+      uniqueModelId,
+      prompt: content,
+      listener,
+      reasoningEffort,
+      callOverrides
+    })
+
+    // `info`, and with the overrides: this is the only record of what translate
+    // actually put on the request, and `resolveReasoningInvocation` logs the
+    // reasoning it ends up sending separately.
+    logger.info('translate stream opened', { streamId, uniqueModelId, reasoningEffort, callOverrides })
+  }
+
+  /**
+   * IPC entry-point for callers that already know their target language. Returns the `streamId`
+   * synchronously so the renderer can subscribe to `ai.stream.chunk` / `ai.stream.done` /
+   * `ai.stream.error` before chunks start flowing.
+   *
+   * The two checks are this boundary's, not {@link startStream}'s: a task mints its own prefixed
+   * id and takes its target from `determineTargetLanguage`, so neither can be wrong there.
    */
   open(sender: Electron.WebContents, req: TranslateOpenRequest): TranslateOpenResult {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {
@@ -154,31 +183,8 @@ export class TranslateService extends BaseService {
     if (!isTranslateLangCode(req.targetLangCode) || req.targetLangCode === 'unknown') {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
-    const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
-    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
-    const wcListener = new WebContentsListener(sender, req.streamId)
-
-    const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({
-      streamId: req.streamId,
-      uniqueModelId,
-      prompt: content,
-      listener: wcListener,
-      reasoningEffort,
-      callOverrides
-    })
-
-    // `info`, and with the overrides: this is the only record of what translate
-    // actually put on the request, and `resolveReasoningInvocation` logs the
-    // reasoning it ends up sending separately.
-    logger.info('translate stream opened', {
-      streamId: req.streamId,
-      uniqueModelId,
-      reasoningEffort,
-      callOverrides
-    })
+    this.startStream(req.streamId, req.text, req.targetLangCode, new WebContentsListener(sender, req.streamId))
     return { streamId: req.streamId }
   }
 

@@ -1,28 +1,22 @@
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const streamPromptMock = vi.fn()
+const startStreamMock = vi.fn()
 const abortMock = vi.fn()
 const ipcSendMock = vi.fn()
-const resolvePayloadMock = vi.fn(() => ({ uniqueModelId: 'openai::gpt', content: 'prompt', model: {} }))
-const resolveParamsMock = vi.fn(() => ({ reasoningEffort: 'none', callOverrides: {} }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { streamPrompt: streamPromptMock, abort: abortMock },
+    AiStreamManager: { abort: abortMock },
     IpcApiService: { send: ipcSendMock },
-    TranslateService: { resolveTranslatePayload: resolvePayloadMock, resolveRequestParameters: resolveParamsMock }
+    TranslateService: { startStream: startStreamMock }
   } as never)
 })
 
 const detectMock = vi.fn<(text: string, signal?: AbortSignal) => Promise<TranslateLangCode>>()
 vi.mock('../detectLanguage', () => ({
   detectLanguageOrUnknown: (text: string, signal?: AbortSignal) => detectMock(text, signal)
-}))
-
-vi.mock('@main/data/services/TranslateLanguageService', () => ({
-  translateLanguageService: { getByLangCode: (code: string) => ({ langCode: code, value: code }) }
 }))
 
 vi.mock('../../../ai/streamManager', () => ({
@@ -86,11 +80,12 @@ describe('TranslateTask', () => {
     )
 
     const run = task.run()
-    expect(streamPromptMock).not.toHaveBeenCalled()
+    expect(startStreamMock).not.toHaveBeenCalled()
 
     releaseDetection()
     await run
-    expect(streamPromptMock).toHaveBeenCalledWith(expect.objectContaining({ streamId: 'translate:task-1' }))
+    // The task itself is the listener — the half that lets a re-attaching window be served.
+    expect(startStreamMock).toHaveBeenCalledWith('translate:task-1', 'hello', 'zh-cn', task)
   })
 
   it('cancelling during detection never opens a stream', async () => {
@@ -109,7 +104,7 @@ describe('TranslateTask', () => {
     releaseDetection()
     await run
 
-    expect(streamPromptMock).not.toHaveBeenCalled()
+    expect(startStreamMock).not.toHaveBeenCalled()
     expect(eventsOf('translate.task.aborted')).toHaveLength(1)
   })
 
@@ -139,7 +134,7 @@ describe('TranslateTask', () => {
     // A destroyed window runs no renderer effects, so nothing on that side is left to notice.
     const { task, sender } = makeTask()
     await task.run()
-    expect(streamPromptMock).toHaveBeenCalled()
+    expect(startStreamMock).toHaveBeenCalled()
 
     sender.destroy()
 
@@ -177,7 +172,7 @@ describe('TranslateTask', () => {
 
     await task.run()
 
-    expect(streamPromptMock).toHaveBeenCalled()
+    expect(startStreamMock).toHaveBeenCalled()
     expect(eventsOf('translate.task.failed')).toHaveLength(0)
   })
 
@@ -187,7 +182,7 @@ describe('TranslateTask', () => {
 
     await task.run()
 
-    expect(streamPromptMock).not.toHaveBeenCalled()
+    expect(startStreamMock).not.toHaveBeenCalled()
     expect(eventsOf('translate.task.failed')[0][2]).toMatchObject({ messageKey: 'translate.language.same' })
   })
 

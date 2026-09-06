@@ -13,7 +13,6 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
@@ -211,24 +210,10 @@ export class TranslateTask implements StreamListener {
   }
 
   private openStream(targetLangCode: TranslateLangCode): void {
-    const targetLanguage = translateLanguageService.getByLangCode(targetLangCode)
-    const translateService = application.get('TranslateService')
-    const { uniqueModelId, content, model } = translateService.resolveTranslatePayload(
-      this.request.text,
-      targetLanguage
-    )
-    const { reasoningEffort, callOverrides } = translateService.resolveRequestParameters(model)
-
     this.streamOpened = true
-    application.get('AiStreamManager').streamPrompt({
-      streamId: this.streamId,
-      uniqueModelId,
-      prompt: content,
-      listener: this,
-      reasoningEffort,
-      callOverrides
-    })
-    logger.info('translate task stream opened', { taskId: this.taskId, streamId: this.streamId, uniqueModelId })
+    // `this` as the listener: the task accumulates the text and re-forwards it, which is what
+    // makes re-attaching after a detach a matter of swapping the forwarder.
+    application.get('TranslateService').startStream(this.streamId, this.request.text, targetLangCode, this)
   }
 
   private fail(messageKey: string): void {
