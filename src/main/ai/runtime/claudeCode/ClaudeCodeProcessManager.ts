@@ -7,7 +7,6 @@ import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { redactSecretText } from '@shared/utils/redaction'
 
 import {
   type ClaudeCodeProcessDiagnostics,
@@ -149,15 +148,14 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     this.events.emit('exit', exit.code, exit.signal)
   }
 
-  /**
-   * The renderer only receives the exit status and the reference; this is the one place the
-   * cause is written down, so a user-quoted reference resolves to something.
-   */
+  /** Correlate the renderer reference with structured diagnostics without persisting untrusted stderr. */
   private logTerminalReason(): void {
     logger.warn('Claude Code process failed', {
       reference: this.diagnostics.reference,
       category: this.diagnostics.category,
-      reason: redactSecretText(this.diagnostics.terminalReason ?? '')
+      exitCode: this.diagnostics.exitCode,
+      exitSignal: this.diagnostics.exitSignal,
+      spawnFailed: this.diagnostics.spawnFailed
     })
   }
 }

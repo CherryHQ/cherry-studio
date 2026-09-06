@@ -34,9 +34,10 @@ export function recordClaudeCodeProcessExit(
   signal: NodeJS.Signals | null,
   stderrTail: string
 ): void {
+  const stderr = stderrTail.trim()
   const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
-  diagnostics.terminalReason = `Claude Code process ${status}${stderrTail.trim() ? `. stderr: ${stderrTail.trim()}` : ''}`
-  diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
+  diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
+  diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
   if (signal !== null) diagnostics.exitSignal = signal
 }

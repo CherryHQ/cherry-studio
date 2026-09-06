@@ -4,6 +4,7 @@ import { serializeError } from '../../../utils/serializeError'
 import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
+  recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
 
@@ -51,6 +52,15 @@ describe('Claude Code process exit diagnostics', () => {
     expect(rendererPayload).not.toContain('sk-ant-private')
     expect(rendererPayload).not.toContain('/Users/alice/private')
     expect(diagnostics.terminalReason).toBe(raw)
+  })
+
+  it('does not classify a process exit code as an HTTP status', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('exit-code-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 429, null, 'unexpected CLI termination')
+
+    expect(diagnostics.category).toBe('unknown')
+    expect(diagnostics.terminalReason).toContain('exited with code 429')
   })
 
   it('clears a prior process result before a resume recovery spawns again', () => {

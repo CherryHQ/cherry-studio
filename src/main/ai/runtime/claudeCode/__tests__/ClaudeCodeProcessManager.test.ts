@@ -192,23 +192,24 @@ describe('ClaudeCodeProcessManager', () => {
     expect(diagnostics.terminalReason).not.toContain('discarded-')
   })
 
-  it('writes the cause down under the reference the renderer shows, with secrets redacted', async () => {
+  it('logs only structured diagnostics without stderr content', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))
     const managed = manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('diagnostic-ref'))
     const onExit = vi.fn()
     managed.once('exit', onExit)
 
-    child.stderr.end('HTTP 403 unsupported_country; api_key=sk-ant-private')
+    child.stderr.end('HTTP 403 unsupported_country; sk-ant-standalone-secret at /Users/alice/private')
     child.emitExit(1)
     await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
 
     const logged = mockMainLoggerService.warn.mock.calls.findLast(
       ([message]) => message === 'Claude Code process failed'
-    )?.[1] as { reference: string; category: string; reason: string }
-    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region' })
-    expect(logged.reason).toContain('unsupported_country')
-    expect(logged.reason).not.toContain('sk-ant-private')
+    )?.[1]
+    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region', exitCode: 1 })
+    expect(logged).not.toHaveProperty('reason')
+    expect(JSON.stringify(logged)).not.toContain('sk-ant-standalone-secret')
+    expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
   })
 
   it('leaves a clean exit unlogged', async () => {
