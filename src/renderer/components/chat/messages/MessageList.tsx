@@ -2,7 +2,6 @@ import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPop
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
-import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -14,7 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { AgentLaunchIndexProvider, PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
+import { AgentLaunchIndexProvider, PartsProvider, useAgentLaunchIndex, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -223,9 +222,9 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
   const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
-  // Derived once per parts-map version; lives here (above early returns) because it must be
-  // provided to every memoized group layer.
-  const launchIndex = useMemo(() => buildAgentLaunchIndex(partsByMessageId ?? null), [partsByMessageId])
+  // Provided by MessageListProvider, which derives it once per parts-map version — reading it
+  // here (above early returns) also keeps the index available below the memoized group layers.
+  const launchIndex = useAgentLaunchIndex()
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
   )
