@@ -462,7 +462,10 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
   return (
     <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
       {maximizeButton}
-      <Tooltip content={closeLabel} delay={800}>
+      {/* Closing hides the pane subtree via Activity (display:none), which zeroes the
+          trigger's rect; Radix then parks the still-exiting tooltip at the viewport
+          origin. Unmounting the tooltip as the panel closes removes that window. */}
+      <Tooltip content={closeLabel} delay={800} isDisabled={!state.presentationOpen}>
         <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
           <RightSidebarCollapseIcon />
         </NavbarIcon>
