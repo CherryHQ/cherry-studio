@@ -2705,6 +2705,20 @@ describe('useChatVirtualizerRuntime', () => {
     expect(scrollBy).toHaveBeenCalledWith({ top: boundedDeltaY })
   })
 
+  it('honors an explicit forwarded-wheel bound for page-mode input', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    const scroller = runtime!.scrollerRef.current!
+    const scrollBy = vi.fn()
+    scroller.scrollBy = scrollBy
+
+    act(() => {
+      runtime!.scrollByWheel(480, 480)
+    })
+
+    expect(scrollBy).toHaveBeenCalledWith({ top: 480 })
+  })
+
   it('keeps following the real bottom when the viewport becomes shorter', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

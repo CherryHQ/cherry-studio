@@ -812,9 +812,9 @@ describe('MessageGroup', () => {
   })
 
   it.each([
-    { name: 'line', deltaMode: WheelEvent.DOM_DELTA_LINE, deltaY: 3, expectedDeltaY: 48 },
-    { name: 'page', deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaY: 1, expectedDeltaY: 300 }
-  ])('normalizes $name-mode vertical wheel input before forwarding it', ({ deltaMode, deltaY, expectedDeltaY }) => {
+    { name: 'line', deltaMode: WheelEvent.DOM_DELTA_LINE, deltaY: 3, expectedArgs: [48] },
+    { name: 'page', deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaY: 1, expectedArgs: [300, 300] }
+  ])('normalizes $name-mode vertical wheel input before forwarding it', ({ deltaMode, deltaY, expectedArgs }) => {
     mocks.scrollByWheel.mockReturnValue(true)
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
 
@@ -831,39 +831,51 @@ describe('MessageGroup', () => {
 
     fireEvent(horizontalGroup, createEvent.wheel(horizontalGroup, { deltaMode, deltaX: 0.1, deltaY }))
 
-    expect(mocks.scrollByWheel).toHaveBeenCalledWith(expectedDeltaY)
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(...expectedArgs)
   })
 
   it.each([
-    { name: 'dominant horizontal input', deltaX: 160, deltaY: 4, shiftKey: false },
-    { name: 'shifted vertical input', deltaX: 0, deltaY: 160, shiftKey: true }
-  ])('supports $name on non-content areas in horizontal layout', ({ deltaX, deltaY, shiftKey }) => {
-    const parentWheel = vi.fn()
-    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+    { name: 'dominant horizontal input', deltaX: 160, deltaY: 4, shiftKey: false, expectedScrollLeft: 160 },
+    { name: 'shifted vertical input', deltaX: 0, deltaY: 160, shiftKey: true, expectedScrollLeft: 160 },
+    {
+      name: 'shifted page-mode vertical input',
+      deltaMode: WheelEvent.DOM_DELTA_PAGE,
+      deltaX: 0,
+      deltaY: 1,
+      shiftKey: true,
+      expectedScrollLeft: 500
+    }
+  ])(
+    'supports $name on non-content areas in horizontal layout',
+    ({ deltaMode = WheelEvent.DOM_DELTA_PIXEL, deltaX, deltaY, shiftKey, expectedScrollLeft }) => {
+      const parentWheel = vi.fn()
+      const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
 
-    const { container } = render(
-      <div onWheel={parentWheel}>
-        <MessageGroup messages={messages} />
-      </div>
-    )
+      const { container } = render(
+        <div onWheel={parentWheel}>
+          <MessageGroup messages={messages} />
+        </div>
+      )
 
-    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    expect(horizontalGroup).not.toBeNull()
+      const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+      const horizontalGroup = outerWrapper.parentElement as HTMLElement
+      expect(horizontalGroup).not.toBeNull()
 
-    setElementSize(horizontalGroup, {
-      clientWidth: 500,
-      scrollLeft: 0,
-      scrollWidth: 1000
-    })
+      setElementSize(horizontalGroup, {
+        clientHeight: 300,
+        clientWidth: 500,
+        scrollLeft: 0,
+        scrollWidth: 1000
+      })
 
-    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaX, deltaY, shiftKey })
-    fireEvent(horizontalGroup, wheelEvent)
+      const wheelEvent = createEvent.wheel(horizontalGroup, { deltaMode, deltaX, deltaY, shiftKey })
+      fireEvent(horizontalGroup, wheelEvent)
 
-    expect(wheelEvent.defaultPrevented).toBe(true)
-    expect(parentWheel).not.toHaveBeenCalled()
-    expect(horizontalGroup.scrollLeft).toBe(160)
-  })
+      expect(wheelEvent.defaultPrevented).toBe(true)
+      expect(parentWheel).not.toHaveBeenCalled()
+      expect(horizontalGroup.scrollLeft).toBe(expectedScrollLeft)
+    }
+  )
 
   it.each([
     { name: 'line', deltaMode: WheelEvent.DOM_DELTA_LINE, deltaX: 3, expectedScrollLeft: 48 },

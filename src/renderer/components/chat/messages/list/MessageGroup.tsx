@@ -266,15 +266,21 @@ const MessageGroup = ({
       const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
       const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
       const horizontalDelta = event.shiftKey
-        ? horizontalWheelDelta || verticalWheelDelta
+        ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
         : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
           ? horizontalWheelDelta
           : 0
 
       if (horizontalDelta === 0) {
-        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
-          event.preventDefault()
-          event.stopPropagation()
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0) {
+          const didScroll =
+            event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+              ? scrollByWheel(verticalWheelDelta, Math.abs(verticalWheelDelta))
+              : scrollByWheel(verticalWheelDelta)
+          if (didScroll) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
         }
         return
       }
