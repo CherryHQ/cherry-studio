@@ -10,6 +10,20 @@ midscene, agent-browser, mcp-chrome, Chromium `chrome/browser/actor`, ChatGPT.ap
 Implementation detail (files, APIs, commit split, test plan) for P0/P1 is in
 [`browser-use-implementation.md`](./browser-use-implementation.md).
 
+## Delivery status
+
+PR1 (PR A), [#20128](https://github.com/CherryHQ/cherry-studio/pull/20128), implements the
+shared CDP engine and annotation export migration on `browser-use-engine`; it is open, not merged.
+The engine now provides document-bound refs, bounded AX/DOM snapshots and diffs, dialog interruption,
+and managed/borrowed ownership with resource budgets. The existing MCP controller still uses its old
+implementation, so the tool table below remains the current user-facing surface.
+
+The next stack layer is PR2 (PR B), `browser-use-mcp`, based on `browser-use-engine`: move the MCP
+adapter into the browser feature, route its tabs through the service, and expose snapshot/action tools.
+`upload_file` is deferred until MCP calls carry a trusted session working directory. Turn-scoped
+retention likewise requires upstream session identity and a turn-ended signal; neither is available
+from the current server-wide MCP client. See the implementation plan for delivery boundaries.
+
 ## Current state — `src/main/ai/mcp/servers/browser/`
 
 | Dimension | Today |
@@ -89,21 +103,19 @@ the same three seams; browser use adds the *act* half.
 
 | Seam | Annotations today | What browser use reuses |
 |---|---|---|
-| Guest preload (`src/preload/webview.ts`, `WebviewAnnotationController.ts`) | Selection overlay (hover / click / marquee), pins, `selection_pending` → host editor, key replay to the host, session-scoped bridge protocol | Same injection point and bridge for highlight-on-action, "which element did the agent touch" pins, and the WebMCP `document.modelContext` polyfill |
+| Guest preload (`src/preload/webview.ts`, `WebviewAnnotationController.ts`) | Selection overlay (hover / click / marquee), pins, `selection_pending` → host editor, key replay to the host, session-scoped bridge protocol | Same injection point and bridge for highlight-on-action, "which element did the agent touch" pins, and future human handoff UI; WebMCP injection uses CDP in PR C |
 | Element locator (`WebviewElementLocator`) | `selector` (unique CSS through open shadow roots), `tagName`, `text`, `ariaLabel`, `role`, `styles`, optional `region { rect, elements[] }` | Becomes the human-authored **target**: an annotation is a `PageTarget` the agent can act on without re-discovering it. `styles` (position / z-index / offsets) is exactly the context an agent needs for layout fixes |
-| Main-side AX capture (`services/webview/annotationExport.ts`) | Per export: attach debugger → `Runtime.evaluate` (resolve selector) → `DOM.describeNode` → `Accessibility.getAXNodeAndAncestors` / `getChildAXNodes` → detach | The same `Accessibility.*` walk, generalised from "one selected element" to "the whole page", is the browser-use snapshot |
+| Main-side AX capture (`services/webview/annotationExport.ts`) | Acquires a borrowed `GuestSession` and calls `describeElement(annotation, budget, options)`; release detaches only after the last owner leaves | Shares debugger ownership and command cancellation with whole-page AX/DOM snapshots; annotation path/subtree formatting stays intact |
 | Host surface (`WebviewBrowser`, `AgentBrowserRightPanel`) | Composer-kernel editor popover, `onAnnotationSaved` → `webviewAnnotation` composer token (`formatAgentWebviewAnnotationPrompt`) | The pane the agent drives is the pane the user annotates; the token is the human → agent hand-off, browser use is the agent → page hand-off |
 | Export / read tool (`webview.export_annotations`, `read_webview_annotations`) | Markdown with the untrusted-data notice, AX path/subtree, region element list | Same formatter vocabulary and the same trust boundary for snapshot output |
 
 **One hard constraint: a single debugger session per guest**
 
-`annotationExport.ts:310` returns `debugger_unavailable` when `guest.debugger.isAttached()` is
-already true (DevTools or anyone else), because Electron allows exactly one attach per
-`webContents`. A browser-use engine needs a *persistent* attach for `Input.*`, `Target.setAutoAttach`,
-dialog and download events. If the two stay separate, annotation export breaks the moment the agent
-is active on the same tab. Therefore the session registry (see above) must own the one debugger
-session per guest and expose it to both consumers: annotation AX capture becomes a call into the
-browser-use snapshot engine rather than its own attach/detach cycle.
+PR1 moves annotation capture into `features/browser/snapshot/describeElement.ts` and makes
+`GuestSession` own the attach/detach lifecycle for both capture paths. Multiple consumers of the
+same borrowed guest share one debugger; releasing an annotation export cannot detach another
+consumer's session. DevTools or an externally attached debugger still produces `debugger_unavailable`.
+The legacy MCP controller is migrated in PR2 before it starts using the shared snapshots and actions.
 
 **Two addressing schemes to reconcile**
 
@@ -112,7 +124,8 @@ in the guest); browser use addresses by `backendNodeId` (stable within a documen
 input and AX APIs take). Keep both, map between them at the boundary: a locator gains an optional
 `backendNodeId` (valid for the current document identifier, cf. Chromium Actor's
 `DomNode{node_id, document_identifier}`), and the snapshot engine resolves a selector → node id
-on demand via `DOM.querySelector` / `describeNode`. Region annotations map to
+on demand. These locator additions belong to P3; PR1 preserves the saved annotation schema and resolves
+selectors through the existing isolated-world capture. Region annotations would map to
 `{ ancestor backendNodeId, contained backendNodeIds[] }` the same way.
 
 **What each side gains**
@@ -123,13 +136,13 @@ on demand via `DOM.querySelector` / `describeNode`. Region annotations map to
 - Browser use → annotations: the agent can *act* and then *verify* on the same pane (re-snapshot, diff,
   screenshot); pins double as the "what the agent touched" trail; the handoff protocol (pause → user
   annotates or acts → resume) is the human-in-the-loop UI annotations already half-built.
-- Both: one preload, one bridge, one AX serialiser, one trust notice, one session registry.
+- Both: one session registry, shared CDP command handling and the same untrusted-data boundary;
+  full-page snapshots and annotation path/subtree exports keep their respective formatters.
 
 **Ordering consequence for the roadmap**
 
-P0's snapshot engine should be built as the shared main-side AX walker first, and
-`annotationExport.ts` migrated onto it before the persistent debugger attach lands in P1 —
-otherwise P1 silently disables annotation export on agent-controlled tabs.
+PR1 has completed the shared engine and annotation migration. PR2 can now replace the MCP
+controller's direct debugger ownership with `GuestSession` without creating a second attach path.
 
 ## Browser session management (performance)
 
@@ -159,11 +172,18 @@ as heavy infrastructure. Idle tabs are the smaller cost; snapshot capture is the
   playwright-mcp appends `### Open tabs` to every response so the model sees what it holds.
 - In-repo precedent: the mini-app webview pool (per-app partition + LRU eviction).
 
-**Minimal design**
+**Target design and current boundary**
+
+PR1 implements a registry keyed by `webContents.id`, ownership/refcounts, a 60-second sweep,
+4 managed guests per creator and 8 globally, and a 5-minute temporary idle timeout. Busy guests
+and deliverables are protected; borrowed pages are never closed, frozen or budget-counted. These
+budgets begin governing MCP tabs only after PR2 migrates the controller. The table below describes
+the longer-term design: true turn boundaries, retained-tab freezing and memory-based policy are
+not delivered by PR1.
 
 | Layer | Rule | Source |
 |---|---|---|
-| Ownership | One main-process `BrowserSessionRegistry` (lifecycle service) keyed by agent session / topic; MCP connections only route to it. `AnnotationSession` (already one-per-guest) folds into the same registry | Codex registry; per-connection controllers are the leak |
+| Ownership | One main-process `BrowserSessionService` keyed by `webContents.id`, with managed/borrowed ownership and owner refcounts; route MCP connections through it in PR2 and add trusted agent-session identity upstream | Codex registry; per-connection controllers are the leak |
 | Retention | Tab tri-state: `temporary` (closed at turn end) / `deliverable` (kept, user-visible) / `handoff` (kept for the next turn); claimed user tabs return to the user; reuse an existing tab before opening a new one | Codex `markDeliverable` / `markHandoff` |
 | Budget | ≤3–4 live guests per session, ≤8–10 globally; LRU-evict **temporary** tabs first; a real timer, not lazy sweeping; consult `app.getAppMetrics()` process memory before evicting | current `maxWindows` counts windows, not guests |
 | Degrade before destroy | Idle-but-retained tabs: `webContents.setBackgroundThrottling(true)` + CDP `Page.setWebLifecycleState('frozen')` + `debugger.detach()` (an attached debugger keeps Accessibility/Network event traffic alive); re-attach on next use | Electron 41 / Chromium 146 |
@@ -179,10 +199,12 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   cursor/onclick/tabindex heuristics from agent-browser and browser-use; ids anchored to
   `backendNodeId`; viewport ±1000 px filter, 40 k-char cap, `*` for new elements, **diff output by default**.
 - Tools: `click(ref)`, `type(ref, text, clear)`, `press_key`, `select_option`, `hover`,
-  `scroll(ref?, pages)`, `upload_file`, `go_back` / `go_forward`, `wait_for`, `handle_dialog`.
+  `scroll(ref?, pages)`, `go_back` / `go_forward`, `wait_for`, `handle_dialog`.
+  `upload_file` waits for trusted runtime working-directory context; model-provided roots are not authority.
 - Dialog watchdog (`Page.javascriptDialogOpening`) so `execute` can never hang; downloads via
   `will-download` reported in the response.
-- Add a `document.modelContext` (WebMCP) polyfill to the guest preload.
+- WebMCP is scheduled for PR C: inject `navigator.modelContext` via
+  `Page.addScriptToEvaluateOnNewDocument`, covering hidden tabs with no preload as well as guests.
 
 **P1 — real input and stability**
 - `Input.*` execution: centre point from `getContentQuads`, occlusion hit-test, JS fallback;
@@ -214,14 +236,16 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   is an instruction; the existing annotation "untrusted data" notice applies to browser-use output.
 - The main process owns every CDP command; the model never reaches `webContents.debugger` directly.
 - `execute` (arbitrary JS) remains the escape hatch, never the primary path.
-- Element ids never leak across a main-frame navigation (loader change ⇒ new id space).
+- Ref mappings are invalidated on navigation or debugger detach; the counter never resets during
+  a `GuestSession`, so an old ref cannot resolve to a later document in that session.
 
 ## Follow-ups / open questions
 
-- The AX-text serialiser is shared with `AnnotationSession` by construction (see "Relationship to the
-  existing annotation feature"); the open question is only migration order, resolved as: shared walker
-  first, persistent attach second.
-- Electron 43 upgrade unlocks the native CDP `WebMCP` domain; the preload polyfill can then be
+- PR1 completed shared session ownership and annotation capture. P3 still needs a concrete
+  annotation-target handoff contract before adding document/node identifiers to saved locators.
+- Upload authorization and per-turn retention require trusted context from the MCP runtime first;
+  a connection-scoped owner is not an agent session, working directory or turn.
+- Electron 43 upgrade unlocks the native CDP `WebMCP` domain; the planned CDP-injected polyfill can then be
   demoted to a fallback.
 - Full working notes (project-by-project source refs) live in
   `.context/research/browser-use-gap-analysis.md` on the `webview-agent-pane-browser` workspace.
