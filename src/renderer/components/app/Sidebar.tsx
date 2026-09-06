@@ -42,8 +42,7 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
  * Pinning is the user saying "leave this tab alone"; a running task states the same thing as a
  * fact — replacing the tab would destroy work the user can neither watch finish nor get back to.
  */
-function shouldKeepActiveTab(activeTab: Tab | undefined): boolean {
-  if (!activeTab) return false
+function shouldKeepActiveTab(activeTab: Tab): boolean {
   if (activeTab.isPinned) return true
   return tabSessionRegistry.isBusy(tabSessionIdFromUrl(activeTab.url))
 }
@@ -167,7 +166,7 @@ export default function Sidebar({
 
       if (activeTab?.url === path) return
 
-      if (shouldKeepActiveTab(activeTab)) {
+      if (activeTab && shouldKeepActiveTab(activeTab)) {
         openTab(path, { forceNew: true, title, icon: options?.icon })
         return
       }
