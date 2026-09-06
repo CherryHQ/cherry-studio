@@ -35,7 +35,9 @@ vi.mock('electron', () => {
     setUserAgent: vi.fn(),
     getURL: vi.fn(() => 'https://example.com/'),
     getTitle: vi.fn(() => 'Example Title'),
-    loadURL: vi.fn(async () => {}),
+    loadURL: vi.fn(async function (this: { audioMuted: boolean; audioMutedAtLoad?: boolean }) {
+      this.audioMutedAtLoad = this.audioMuted
+    }),
     once: vi.fn(),
     removeListener: vi.fn(),
     on: vi.fn(),
@@ -46,7 +48,15 @@ vi.mock('electron', () => {
     goForward: vi.fn(),
     reload: vi.fn(),
     executeJavaScript: vi.fn(async () => null),
-    setWindowOpenHandler: vi.fn()
+    setWindowOpenHandler: vi.fn(),
+    setAudioMuted: vi.fn(function (this: { audioMuted: boolean }, muted: boolean) {
+      this.audioMuted = muted
+    }),
+    isAudioMuted: vi.fn(function (this: { audioMuted: boolean }) {
+      return this.audioMuted
+    }),
+    audioMuted: false,
+    audioMutedAtLoad: undefined as boolean | undefined
   })
 
   const windows: any[] = []
@@ -54,8 +64,10 @@ vi.mock('electron', () => {
 
   class MockBrowserWindow {
     private destroyed = false
+    private visible = false
     public webContents = createWebContents()
     public isDestroyed = vi.fn(() => this.destroyed)
+    public isVisible = vi.fn(() => this.visible)
     public close = vi.fn(() => {
       this.destroyed = true
     })
@@ -67,7 +79,9 @@ vi.mock('electron', () => {
     public addBrowserView = vi.fn()
     public removeBrowserView = vi.fn()
     public getContentSize = vi.fn(() => [1200, 800])
-    public show = vi.fn()
+    public show = vi.fn(() => {
+      this.visible = true
+    })
 
     constructor() {
       windows.push(this)
@@ -79,8 +93,10 @@ vi.mock('electron', () => {
     public setBounds = vi.fn()
     public setAutoResize = vi.fn()
     public destroy = vi.fn()
+    public options: unknown
 
-    constructor() {
+    constructor(options?: unknown) {
+      this.options = options
       views.push(this)
     }
   }
@@ -380,6 +396,29 @@ describe('CdpBrowserController', () => {
   })
 
   describe('showWindow parameter', () => {
+    it('requires a user gesture before content tabs can autoplay media', async () => {
+      const controller = new CdpBrowserController()
+      const { view } = await controller.createTab()
+      const options = (view as unknown as { options: { webPreferences: { autoplayPolicy?: string } } }).options
+
+      expect(options.webPreferences.autoplayPolicy).toBe('user-gesture-required')
+    })
+
+    it('mutes hidden opens and restores audio for explicitly visible opens', async () => {
+      const controller = new CdpBrowserController()
+      const { view } = await controller.createTab()
+
+      await controller.open('https://example.com/', 5000, false, false, false)
+      expect((view.webContents as typeof view.webContents & { audioMutedAtLoad?: boolean }).audioMutedAtLoad).toBe(true)
+      expect(view.webContents.isAudioMuted()).toBe(true)
+
+      await controller.open('https://example.com/', 5000, false, false, true)
+      expect(view.webContents.isAudioMuted()).toBe(false)
+
+      await controller.open('https://example.com/', 5000, false, false, false)
+      expect(view.webContents.isAudioMuted()).toBe(false)
+    })
+
     it('passes showWindow parameter through open', async () => {
       const controller = new CdpBrowserController()
       const result = await controller.open('https://example.com/', 5000, false, false, true)
