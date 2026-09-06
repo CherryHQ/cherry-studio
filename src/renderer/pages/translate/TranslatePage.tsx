@@ -287,7 +287,7 @@ const TranslatePage: FC = () => {
   } = useTranslate({
     loggerContext: 'TranslatePage',
     onResponse: handleStreamText,
-    session
+    owner: session
   })
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)

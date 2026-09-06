@@ -90,7 +90,7 @@ describe('useTranslate with a tab session', () => {
     // #18885: switching tabs unmounts the page under `Activity`; the run must not be cancelled.
     const { getSignal } = pendingTranslateText()
     const session = newSession()
-    const { result, unmount } = renderHook(() => useTranslate({ session }))
+    const { result, unmount } = renderHook(() => useTranslate({ owner: session }))
 
     act(() => {
       void result.current.translate('source', TARGET)
@@ -106,14 +106,14 @@ describe('useTranslate with a tab session', () => {
   it('still reports isTranslating to a page that remounted mid-run', async () => {
     pendingTranslateText()
     const session = newSession()
-    const first = renderHook(() => useTranslate({ session }))
+    const first = renderHook(() => useTranslate({ owner: session }))
 
     act(() => {
       void first.result.current.translate('source', TARGET)
     })
     first.unmount()
 
-    const second = renderHook(() => useTranslate({ session }))
+    const second = renderHook(() => useTranslate({ owner: session }))
 
     expect(second.result.current.isTranslating).toBe(true)
   })
@@ -123,14 +123,14 @@ describe('useTranslate with a tab session', () => {
     // the session is the only handle on the run.
     const { getStreamId } = pendingTranslateText()
     const session = newSession()
-    const first = renderHook(() => useTranslate({ session }))
+    const first = renderHook(() => useTranslate({ owner: session }))
 
     act(() => {
       void first.result.current.translate('source', TARGET)
     })
     first.unmount()
 
-    const second = renderHook(() => useTranslate({ session }))
+    const second = renderHook(() => useTranslate({ owner: session }))
     act(() => {
       second.result.current.cancel()
     })
@@ -142,7 +142,7 @@ describe('useTranslate with a tab session', () => {
   it('aborts the run when the session is released', async () => {
     const { getStreamId } = pendingTranslateText()
     const session = newSession()
-    const { result } = renderHook(() => useTranslate({ session }))
+    const { result } = renderHook(() => useTranslate({ owner: session }))
 
     act(() => {
       void result.current.translate('source', TARGET)
@@ -160,8 +160,8 @@ describe('useTranslate with a tab session', () => {
     const runB = pendingTranslateText()
     const sessionA = newSession()
     const sessionB = newSession()
-    const a = renderHook(() => useTranslate({ session: sessionA }))
-    const b = renderHook(() => useTranslate({ session: sessionB }))
+    const a = renderHook(() => useTranslate({ owner: sessionA }))
+    const b = renderHook(() => useTranslate({ owner: sessionB }))
 
     act(() => {
       void a.result.current.translate('a', TARGET)
