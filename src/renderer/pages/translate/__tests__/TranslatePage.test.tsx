@@ -114,12 +114,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({
-    shikiMarkdownIt: vi.fn().mockResolvedValue('')
-  })
-}))
-
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
   detectLanguageOrUnknown: async (
@@ -166,17 +160,18 @@ vi.mock('@renderer/hooks/useJob', () => ({
   useJob: useJobMock
 }))
 
+const mockModel = {
+  id: 'openai::gpt-4.1',
+  providerId: 'openai',
+  name: 'GPT-4.1',
+  capabilities: [],
+  isHidden: false
+}
+
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({
-    models: [
-      {
-        id: 'openai::gpt-4.1',
-        providerId: 'openai',
-        name: 'GPT-4.1',
-        capabilities: [],
-        isHidden: false
-      }
-    ]
+  useModels: () => ({ models: [mockModel] }),
+  useModelById: (uniqueModelId: string | null | undefined) => ({
+    model: uniqueModelId === mockModel.id ? mockModel : undefined
   })
 }))
 
@@ -189,9 +184,9 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => ({
-    reset: (text = '') => onUpdate(text),
-    update: (text: string) => onUpdate(text)
+  useSmoothStream: (options: { onUpdate: (text: string) => void }) => ({
+    reset: (text = '') => options.onUpdate(text),
+    update: (text: string) => options.onUpdate(text)
   })
 }))
 

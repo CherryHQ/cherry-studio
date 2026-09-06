@@ -1,8 +1,13 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
-import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import {
+  useMessageRenderConfig,
+  useOptionalMessageListActions
+} from '@renderer/components/chat/messages/MessageListProvider'
+import { remarkLatexMath } from '@renderer/components/markdown'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +18,6 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
-import { remarkLatexMath } from './plugins/remarkLatexMath'
 import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
@@ -43,6 +47,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
 }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
+  const actions = useOptionalMessageListActions()
   const isStreaming = block.status === 'streaming'
   const hasStreamedRef = useRef(isStreaming)
   if (isStreaming) hasStreamedRef.current = true
@@ -75,7 +80,22 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
   )
   const footnoteLabel = t('common.footnotes')
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : REMARK_PLUGINS
-
+  // Relative markdown links are workspace files only when the host has the
+  // workspace-aware artifact opener. Other chat surfaces retain link hardening.
+  const canOpenWorkspaceFiles = Boolean(actions?.openArtifactFile)
+  const openFilePath = useMemo(
+    () =>
+      actions?.openArtifactFile
+        ? (path: string) =>
+            openFileTarget(path, {
+              openArtifactFile: actions.openArtifactFile,
+              openPath: actions.openPath,
+              isDirectory: actions.isDirectory,
+              onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
+            })
+        : undefined,
+    [actions, t]
+  )
   const renderer = hasStreamedRef.current ? (
     <StreamingMarkdown
       id={block.id}
@@ -84,7 +104,8 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       components={mergedComponents}
       footnoteLabel={footnoteLabel}
       animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
-      parseIncompleteMarkdown={isStreaming}>
+      parseIncompleteMarkdown={isStreaming}
+      preserveFileLinkHrefs={canOpenWorkspaceFiles}>
       {content}
     </StreamingMarkdown>
   ) : (
@@ -94,7 +115,8 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       remarkPlugins={remarkPlugins}
       components={mergedComponents}
       className={className}
-      footnoteLabel={footnoteLabel}>
+      footnoteLabel={footnoteLabel}
+      preserveFileLinkHrefs={canOpenWorkspaceFiles}>
       {content}
     </Markdown>
   )
@@ -104,7 +126,8 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       blockId={block.id}
       citationRegistry={citationRegistry}
       inlineHtmlPreviewMode={inlineHtmlPreviewMode}
-      isStreaming={isStreaming}>
+      isStreaming={isStreaming}
+      openFilePath={openFilePath}>
       {renderer}
     </ChatMarkdownRenderProvider>
   )

@@ -1,6 +1,6 @@
 import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -18,7 +18,6 @@ interface CliConfigEditorProps {
 export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChange }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
-  const { activeCmTheme } = useCodeStyle()
   const [requestedTarget, setRequestedTarget] = useState<string>(files[0]?.target ?? '')
   const activeTarget = files.some((file) => file.target === requestedTarget)
     ? requestedTarget
@@ -28,6 +27,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     () => files.find((file) => file.target === activeTarget) ?? files[0],
     [activeTarget, files]
   )
+  const activeCmTheme = useCmTheme(!!activeFile)
 
   if (!files.length) return null
 

@@ -7,13 +7,14 @@ const { isSupportedSystemMock, isLocalModelReadyMock } = vi.hoisted(() => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-
-  return mockApplicationFactory()
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    return originalGet(name)
+  })
+  return result
 })
-
-vi.mock('@main/ai/localModel', () => ({
-  localModelService: { isReady: isLocalModelReadyMock }
-}))
 
 vi.mock('../../processors/registry', () => ({
   processorRegistry: {

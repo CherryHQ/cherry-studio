@@ -6,11 +6,13 @@ import { searchSkills } from '@renderer/utils/skillSearch'
 import type {
   InstalledSkill,
   LocalSkill,
+  SkillCatalogEntry,
   SkillResult,
   SkillSearchResult,
   SystemSkillCandidate
 } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { useSWRConfig } from 'swr'
 
 const logger = loggerService.withContext('useSkills')
 
@@ -41,9 +43,35 @@ function logAndRethrowSkillMutationError(action: string, error: unknown): never 
   throw error instanceof Error ? error : new Error(message)
 }
 
-async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
+const SKILL_CATALOG_KEY = 'skill.list_catalog'
+
+/** Refresh both SQLite consumers and the filesystem-enriched catalog after skill mutations. */
+export function useInvalidateSkills() {
+  const invalidate = useInvalidateCache()
+  const { mutate } = useSWRConfig()
+  return useCallback(async () => {
+    await Promise.all([invalidate('/skills'), mutate((key) => Array.isArray(key) && key[0] === SKILL_CATALOG_KEY)])
+  }, [invalidate, mutate])
+}
+
+export function useSkillCatalog(search?: string, enabled = true) {
+  const query = search?.trim() ? { search: search.trim() } : {}
+  const { data, error, isLoading, isValidating, mutate } = useSWR<SkillCatalogEntry[], Error>(
+    enabled ? [SKILL_CATALOG_KEY, query] : null,
+    () => ipcApi.request('skill.list_catalog', query),
+    { revalidateOnFocus: false, shouldRetryOnError: false, keepPreviousData: true }
+  )
+  useDataChange(enabled ? '/skills' : [], () => void mutate())
+  useReconcileSkillsOnOpen(enabled)
+  const refetch = useCallback(() => {
+    void mutate()
+  }, [mutate])
+  return { data: data ?? [], error, isLoading, isRefreshing: isValidating, refetch }
+}
+
+async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateSkills>): Promise<void> {
   try {
-    await invalidate('/skills')
+    await invalidate()
   } catch (error) {
     logger.warn('Failed to refresh skills cache after IPC mutation', { error })
   }
@@ -51,14 +79,14 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 
 /**
  * Reconcile the on-disk skill library into the catalog once each time a skill view opens, then
- * refresh `/skills`. This is how skills an agent authored via native file tools (which never hit an
+ * refresh skill lists. This is how skills an agent authored via native file tools (which never hit an
  * install route) surface without an app restart. Shared by every skill-list entry point — the
  * resource library and the agent edit dialog's Skills tab — so a skill becomes visible immediately
  * from wherever the user looks. Best-effort: a failure logs and resets so the next open retries,
  * and never blanks the list; the main process single-flights the actual reconcile.
  */
 export function useReconcileSkillsOnOpen(enabled: boolean): void {
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const reconciled = useRef(false)
   useEffect(() => {
     if (!enabled) {
@@ -231,7 +259,7 @@ export function useSystemSkills(enabled = true) {
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState<Set<string>>(() => new Set())
   const importingRef = useRef<Set<string>>(new Set())
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const requestIdRef = useRef(0)
 
   const discover = useCallback(async () => {
@@ -348,7 +376,7 @@ export function useSkillSearch() {
  */
 export function useSkillInstall() {
   const [installingCounts, setInstallingCounts] = useState<Map<string, number>>(() => new Map())
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const installingKey = useMemo(() => installingCounts.keys().next().value ?? null, [installingCounts])
 
   const beginInstalling = useCallback((key: string) => {

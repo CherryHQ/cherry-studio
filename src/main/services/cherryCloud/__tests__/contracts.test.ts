@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -60,6 +60,7 @@ describe('Cherry Cloud response contracts', () => {
             endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
             context_window: 200_000,
             max_output_tokens: 8_192,
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
             model_metadata: { tier: 'work' }
           }
         ],
@@ -90,12 +91,36 @@ describe('Cherry Cloud response contracts', () => {
     ).toBe(false)
   })
 
+  it('preserves missing capabilities for client fallback and ignores unknown capability values', () => {
+    const model = {
+      id: 'claude-test',
+      display_name: 'Claude Test',
+      endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      context_window: 200_000,
+      max_output_tokens: 8_192
+    }
+
+    expect(cloudModelListSchema.parse({ data: [model] }).data[0].capabilities).toBeUndefined()
+    expect(
+      cloudModelListSchema.parse({
+        data: [{ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, 'future-capability'] }]
+      }).data[0].capabilities
+    ).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(cloudModelListSchema.safeParse({ data: [{ ...model, capabilities: null }] }).success).toBe(false)
+    expect(
+      cloudModelListSchema.safeParse({
+        data: [{ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, 1] }]
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects model IDs that cannot be encoded as a UniqueModelId', () => {
     const model = {
       display_name: 'Claude Test',
       endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       context_window: 200_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude?test' }] }).success).toBe(false)
