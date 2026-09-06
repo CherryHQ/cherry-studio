@@ -153,7 +153,7 @@ function resolveTextRetryPolicy(
   if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
     return configured
   }
-  return { ...configured, enabled: true, maxAttempts: requestMaxRetries, fallbackModelIds: [] }
+  return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
 }
 
 function createCaptureContext(input: {

@@ -87,7 +87,11 @@ createRetryableModel({
     // remaining retryable errors (such as 503/529). maxAttempts =
     // max_attempts + 1 (ai-retry counts the original call, so the pref reads as
     // the number of RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
-    error.isRetryable(true).retry({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
+    and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
+      maxAttempts: max_attempts + 1,
+      delay: 1_000,
+      /* backoffFactor: 2 */
+    }),
     // fallbacks are lazy, error-only Retryable fns. Successful resolution is
     // memoized; a null result is retried on a later failure.
     ...fallbackResolvers.map((resolve) => errorOnlyLazyRetryable(resolve))
@@ -156,7 +160,8 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
   so ai-retry alone owns retries and attempts cannot multiply. With the global
   feature disabled, an explicit non-zero per-request value uses the SDK's native
   retry behavior unless API-key failover activates the wrapper; in that case the
-  wrapper applies the same retry count without enabling configured model fallbacks.
+  wrapper normalizes a positive fractional value down to at least one retry and
+  applies that count without enabling configured model fallbacks.
 - **Per-request opt-out:** an explicit `requestOptions.maxRetries === 0` on a
   chat request disables the entire ai-retry wrapper for that request (no API-key
   failover, same-model retry, or cross-model fallback), so the per-request

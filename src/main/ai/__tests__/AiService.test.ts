@@ -1370,9 +1370,15 @@ describe('AiService tool approval', () => {
     )
   })
 
-  it('honors explicit retries with API key failover when model retry is disabled', async () => {
+  it('normalizes explicit fractional retries with API key failover when model retry is disabled', async () => {
     const service = createService()
     const keyFallback = vi.fn()
+    mockAgentGenerate.mockResolvedValue({
+      text: 'ok',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      steps: []
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
     mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
     mockReadRetryPolicy.mockReturnValue({
@@ -1389,7 +1395,7 @@ describe('AiService tool approval', () => {
       tools: undefined,
       plugins: [],
       system: undefined,
-      options: { maxRetries: 2 },
+      options: { maxRetries: 0.5 },
       hookParts: [],
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
@@ -1400,12 +1406,12 @@ describe('AiService tool approval', () => {
       chatId: 'topic-1',
       trigger: 'submit-message',
       messages: [],
-      requestOptions: { maxRetries: 2, signal: new AbortController().signal }
+      requestOptions: { maxRetries: 0.5, signal: new AbortController().signal }
     } as never)
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'hello',
-      requestOptions: { maxRetries: 2 }
+      requestOptions: { maxRetries: 0.5 }
     } as never)
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(2)
@@ -1415,7 +1421,7 @@ describe('AiService tool approval', () => {
           apiKeyFallbacks: [keyFallback],
           retryPolicy: {
             enabled: true,
-            maxAttempts: 2,
+            maxAttempts: 1,
             backoffEnabled: true,
             fallbackModelIds: []
           }
@@ -1426,7 +1432,7 @@ describe('AiService tool approval', () => {
     for (const [fallbackOptions] of mockBuildFallbackModels.mock.calls) {
       expect(fallbackOptions).toEqual(
         expect.objectContaining({
-          retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 2, fallbackModelIds: [] })
+          retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 1, fallbackModelIds: [] })
         })
       )
     }
