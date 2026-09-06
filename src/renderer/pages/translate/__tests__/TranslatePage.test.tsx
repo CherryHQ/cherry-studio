@@ -870,7 +870,8 @@ describe('TranslatePage', () => {
         'PDF extracted text',
         'zh-cn',
         expect.any(Function),
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
+        expect.any(String)
       )
     )
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
@@ -1272,7 +1273,8 @@ describe('TranslatePage', () => {
         'hello',
         'zh-cn',
         expect.any(Function),
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
+        expect.any(String)
       )
     )
     expect(toast.warning).not.toHaveBeenCalledWith('translate.language.same')
@@ -1396,7 +1398,8 @@ describe('TranslatePage', () => {
         'hello',
         'en-us',
         expect.any(Function),
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
+        expect.any(String)
       )
     )
     expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
@@ -1429,7 +1432,8 @@ describe('TranslatePage', () => {
         '你好',
         'en-us',
         expect.any(Function),
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
+        expect.any(String)
       )
     )
     expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('你好')
@@ -1557,10 +1561,10 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    let signal: AbortSignal | undefined
+    let streamId: string | undefined
     translateCoreMock.translateText.mockImplementationOnce(
-      (_text: string, _targetLanguage: string, _onResponse?: unknown, abortSignal?: AbortSignal) => {
-        signal = abortSignal
+      (_text: string, _targetLanguage: string, _onResponse?: unknown, _signal?: AbortSignal, id?: string) => {
+        streamId = id
         return new Promise<string>(() => {})
       }
     )
@@ -1569,13 +1573,14 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-    await waitFor(() => expect(signal).toBeDefined())
+    await waitFor(() => expect(streamId).toBeDefined())
     unmount()
 
-    // The tab closed or navigated away: its session id is no longer reachable.
+    // The tab closed or navigated away: its session id is no longer reachable. Nothing holds the
+    // run's AbortController any more, so the session cancels main's stream by id.
     tabSessionRegistry.sweep(new Set())
 
-    expect(signal?.aborted).toBe(true)
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.stream.abort', { topicId: streamId })
   })
 
   it('cancels in-flight translation when stop is clicked', async () => {

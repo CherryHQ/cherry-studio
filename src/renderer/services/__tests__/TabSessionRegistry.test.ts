@@ -1,5 +1,8 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const abortRequest = vi.fn().mockResolvedValue(undefined)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => abortRequest(...args) } }))
 
 import {
   collectLiveSessionIds,
@@ -47,66 +50,93 @@ describe('withoutTabSession', () => {
 })
 
 describe('tabSessionRegistry', () => {
-  it('keeps a session whose tab is still open, and releases one whose tab is gone', () => {
-    const kept = vi.fn()
-    const dropped = vi.fn()
-    tabSessionRegistry.getOrCreate('keep-me', () => {
-      kept()
-      return true
-    })
-    tabSessionRegistry.getOrCreate('drop-me', () => {
-      dropped()
-      return true
-    })
-
-    tabSessionRegistry.sweep(new Set(['keep-me']))
-
-    expect(kept).not.toHaveBeenCalled()
-    expect(dropped).toHaveBeenCalledOnce()
-    expect(tabSessionRegistry.get('keep-me')).toBeDefined()
-    expect(tabSessionRegistry.get('drop-me')).toBeUndefined()
+  beforeEach(() => {
+    abortRequest.mockClear()
   })
 
-  it('aborts a task still in flight when its session is released', () => {
-    const handle = tabSessionRegistry.getOrCreate('abort-me', () => true)
-    const controller = new AbortController()
-    handle.addTask(controller)
+  it('aborts the run of a session whose tab is gone, and leaves an open tab alone', () => {
+    tabSessionRegistry.getOrCreate('gone', () => true).addStream('translate:gone')
+    tabSessionRegistry.getOrCreate('open', () => true).addStream('translate:open')
+
+    tabSessionRegistry.sweep(new Set(['open']))
+
+    expect(abortRequest).toHaveBeenCalledExactlyOnceWith('ai.stream.abort', { topicId: 'translate:gone' })
+  })
+
+  it('does not release a session in the same pass that finds it unreachable', () => {
+    // A tab's url stops naming its session before the page rendering it unmounts, so releasing
+    // here would drop cache keys a mounted `useCache` still holds (#20074).
+    const release = vi.fn(() => true)
+    tabSessionRegistry.getOrCreate('deferred', release)
 
     tabSessionRegistry.sweep(new Set())
+    expect(release).not.toHaveBeenCalled()
+    expect(tabSessionRegistry.get('deferred')).toBeDefined()
 
-    expect(controller.signal.aborted).toBe(true)
+    tabSessionRegistry.releaseUnreachable()
+    expect(release).toHaveBeenCalledOnce()
+    expect(tabSessionRegistry.get('deferred')).toBeUndefined()
   })
 
-  it('leaves an in-flight task running while its tab is open', () => {
-    // The regression behind #18885: switching tabs unmounts the page but must not cancel the run.
-    const handle = tabSessionRegistry.getOrCreate('still-running', () => true)
-    const controller = new AbortController()
-    handle.addTask(controller)
+  it('never releases a session whose tab is still open', () => {
+    const release = vi.fn(() => true)
+    tabSessionRegistry.getOrCreate('kept', release)
 
-    tabSessionRegistry.sweep(new Set(['still-running']))
+    tabSessionRegistry.sweep(new Set(['kept']))
+    tabSessionRegistry.releaseUnreachable()
 
-    expect(controller.signal.aborted).toBe(false)
+    expect(release).not.toHaveBeenCalled()
+    expect(tabSessionRegistry.get('kept')).toBeDefined()
   })
 
-  it('reports busy only while a task is unfinished', () => {
+  it('keeps a session whose release was refused, and tries again on the next pass', () => {
+    // The cache refuses to drop a key its hook still reads — dropping the session here would
+    // leak the entry for good.
+    let releasable = false
+    const release = vi.fn(() => releasable)
+    tabSessionRegistry.getOrCreate('retry-me', release)
+
+    tabSessionRegistry.sweep(new Set())
+    tabSessionRegistry.releaseUnreachable()
+    expect(tabSessionRegistry.get('retry-me')).toBeDefined()
+
+    releasable = true
+    tabSessionRegistry.releaseUnreachable()
+    expect(tabSessionRegistry.get('retry-me')).toBeUndefined()
+    expect(release).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops a session whose release threw, rather than retrying it forever', () => {
+    const release = vi.fn(() => {
+      throw new Error('boom')
+    })
+    tabSessionRegistry.getOrCreate('throwing', release)
+
+    tabSessionRegistry.sweep(new Set())
+    tabSessionRegistry.releaseUnreachable()
+    tabSessionRegistry.releaseUnreachable()
+
+    expect(release).toHaveBeenCalledOnce()
+    expect(tabSessionRegistry.get('throwing')).toBeUndefined()
+  })
+
+  it('reports busy only while a stream is unfinished', () => {
     const handle = tabSessionRegistry.getOrCreate('busy-check', () => true)
     expect(handle.isBusy()).toBe(false)
 
-    const finish = handle.addTask(new AbortController())
+    const finish = handle.addStream('translate:busy-check')
     expect(tabSessionRegistry.isBusy('busy-check')).toBe(true)
 
     finish()
     expect(tabSessionRegistry.isBusy('busy-check')).toBe(false)
   })
 
-  it('does not abort a finished task when the session is later released', () => {
-    const handle = tabSessionRegistry.getOrCreate('finished', () => true)
-    const controller = new AbortController()
-    handle.addTask(controller)()
+  it('does not abort a finished stream when the session is later released', () => {
+    tabSessionRegistry.getOrCreate('finished', () => true).addStream('translate:finished')()
 
     tabSessionRegistry.sweep(new Set())
 
-    expect(controller.signal.aborted).toBe(false)
+    expect(abortRequest).not.toHaveBeenCalled()
   })
 
   it('returns the same handle for an id already registered', () => {
@@ -117,44 +147,19 @@ describe('tabSessionRegistry', () => {
     expect(second).toBe(first)
 
     tabSessionRegistry.sweep(new Set())
+    tabSessionRegistry.releaseUnreachable()
     expect(secondRelease).not.toHaveBeenCalled()
   })
 
-  it('keeps a session whose release could not finish, and retries it on the next sweep', () => {
-    // A page unmounts asynchronously after its tab navigates away, and the cache refuses to drop
-    // a key its hook still reads — dropping the session here would leak the entry for good.
-    let releasable = false
-    const release = vi.fn(() => releasable)
-    tabSessionRegistry.getOrCreate('retry-me', release)
-
-    expect(tabSessionRegistry.sweep(new Set())).toBe(1)
-    expect(tabSessionRegistry.get('retry-me')).toBeDefined()
-
-    releasable = true
-    expect(tabSessionRegistry.sweep(new Set())).toBe(0)
-    expect(tabSessionRegistry.get('retry-me')).toBeUndefined()
-    expect(release).toHaveBeenCalledTimes(2)
-  })
-
-  it("aborts an unreachable session's tasks even when its release is deferred", () => {
-    const controller = new AbortController()
-    const handle = tabSessionRegistry.getOrCreate('deferred-abort', () => false)
-    handle.addTask(controller)
-
-    tabSessionRegistry.sweep(new Set())
-
-    expect(controller.signal.aborted).toBe(true)
-  })
-
-  it('abortTasks cancels a run started before the page remounted', () => {
-    // The Stop button after a tab switch: this mount never held the controller.
+  it('aborts a run started before the page remounted', () => {
+    // The Stop button after a tab switch: this mount never started the run, so the id in the
+    // session is the only handle on it.
     const handle = tabSessionRegistry.getOrCreate('cancel-me', () => true)
-    const controller = new AbortController()
-    handle.addTask(controller)
+    handle.addStream('translate:cancel-me')
 
-    handle.abortTasks()
+    handle.abortStreams()
 
-    expect(controller.signal.aborted).toBe(true)
+    expect(abortRequest).toHaveBeenCalledExactlyOnceWith('ai.stream.abort', { topicId: 'translate:cancel-me' })
     expect(handle.isBusy()).toBe(false)
   })
 

@@ -8,15 +8,23 @@ import { v4 as uuid } from 'uuid'
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
 /**
+ * Mint the id main will key the stream by. Exported so a caller that has to outlive this call —
+ * a tab session holding the run for its Stop button — can hold the id it will abort by.
+ */
+export const createTranslateStreamId = (): string => `${TRANSLATE_STREAM_PREFIX}${uuid()}`
+
+/**
  * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
  * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
  * display (see `useSmoothStream`). `signal` aborts via the `ai.stream.abort` route.
+ * Pass `streamId` (from `createTranslateStreamId`) to abort the run by id from elsewhere.
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  streamId: string = createTranslateStreamId()
 ): Promise<string> => {
   if (signal?.aborted) {
     throw new DOMException('Translation aborted before start', 'AbortError')
@@ -26,8 +34,6 @@ export const translateText = async (
   if (!isTranslateLangCode(targetLangCode) || targetLangCode === 'unknown') {
     throw new Error(`Invalid target language: ${targetLangCode}`)
   }
-
-  const streamId = `${TRANSLATE_STREAM_PREFIX}${uuid()}`
 
   let accumulated = ''
   let cleaned = false

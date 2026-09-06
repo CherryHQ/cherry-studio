@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('TabSessionRegistry')
@@ -15,23 +16,30 @@ const TAB_URL_BASE = 'https://www.cherry-ai.com'
 export interface TabSessionHandle {
   readonly id: string
   /**
-   * Hand an in-flight task to the session. The returned callback marks it finished. A task still
-   * registered when the session is released is aborted — that is the only place a tab-scoped task
-   * gets cancelled, so unmounting the component that started it no longer kills it.
+   * Hand a running main-process stream to the session, by id. The returned callback marks it
+   * finished. A stream still registered when the session is released is aborted — that is the only
+   * place a tab-scoped run gets cancelled, so unmounting the component that started it no longer
+   * kills it.
+   *
+   * The id, not an `AbortController`: the run lives in main and is cancelled by
+   * `ai.stream.abort`, so a plain string is the whole handle. Detaching a tab destroys and
+   * rebuilds it in another window, which an `AbortController` could never survive.
    */
-  addTask: (controller: AbortController) => () => void
-  /** True while the session owns at least one unfinished task. */
+  addStream: (streamId: string) => () => void
+  /** True while the session owns at least one unfinished stream. */
   isBusy: () => boolean
-  /** Abort every unfinished task — an explicit user cancel, reachable after a remount. */
-  abortTasks: () => void
+  /** Abort every unfinished stream — an explicit user cancel, reachable after a remount. */
+  abortStreams: () => void
   /** Notified whenever `isBusy` may have changed, so a page can render the run's state. */
   subscribe: (listener: () => void) => () => void
 }
 
 interface SessionEntry {
-  tasks: Set<AbortController>
+  streams: Set<string>
   release: () => boolean
   handle: TabSessionHandle
+  /** Set by `sweep`, consumed by `releaseUnreachable`. A tab session id is never reused. */
+  unreachable: boolean
 }
 
 /**
@@ -51,17 +59,16 @@ class TabSessionRegistry {
   private sessions = new Map<string, SessionEntry>()
 
   /**
-   * @param release - runs when the session becomes unreachable, after its tasks are aborted.
+   * @param release - runs on `releaseUnreachable`, after the session's streams are aborted.
    *   Returns false when it could not finish — the cache refuses to drop a key a mounted hook
-   *   still reads, and a page unmounts asynchronously after its tab navigates away — so the
-   *   session is kept and retried on the next sweep. Only the first call for a given id
-   *   registers one; later calls return the existing handle.
+   *   still reads — so the session is kept and tried again on the next sweep. Only the first call
+   *   for a given id registers one; later calls return the existing handle.
    */
   getOrCreate(id: string, release: () => boolean): TabSessionHandle {
     const existing = this.sessions.get(id)
     if (existing) return existing.handle
 
-    const tasks = new Set<AbortController>()
+    const streams = new Set<string>()
     const listeners = new Set<() => void>()
     const notify = () => {
       for (const listener of listeners) {
@@ -70,20 +77,23 @@ class TabSessionRegistry {
     }
     const handle: TabSessionHandle = {
       id,
-      addTask: (controller) => {
-        tasks.add(controller)
+      addStream: (streamId) => {
+        streams.add(streamId)
         notify()
         return () => {
-          if (tasks.delete(controller)) notify()
+          if (streams.delete(streamId)) notify()
         }
       },
-      isBusy: () => tasks.size > 0,
-      abortTasks: () => {
-        if (tasks.size === 0) return
-        for (const controller of tasks) {
-          controller.abort()
+      isBusy: () => streams.size > 0,
+      abortStreams: () => {
+        if (streams.size === 0) return
+        for (const streamId of streams) {
+          void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch((error: unknown) => {
+            // Already finished or gone — main drives the final reject via the stream error event.
+            logger.debug('Stream abort request failed', { streamId, error })
+          })
         }
-        tasks.clear()
+        streams.clear()
         notify()
       },
       subscribe: (listener) => {
@@ -91,7 +101,7 @@ class TabSessionRegistry {
         return () => listeners.delete(listener)
       }
     }
-    this.sessions.set(id, { tasks, release, handle })
+    this.sessions.set(id, { streams, release, handle, unreachable: false })
     return handle
   }
 
@@ -100,22 +110,35 @@ class TabSessionRegistry {
   }
 
   isBusy(id: string | undefined): boolean {
-    return !!id && !!this.sessions.get(id)?.tasks.size
+    return !!id && !!this.sessions.get(id)?.streams.size
   }
 
   /**
-   * Release every session no longer referenced by an open tab. Idempotent.
+   * Mark every session no longer referenced by an open tab, aborting its streams. Idempotent.
    *
-   * @returns how many releases were deferred and need another sweep.
+   * Aborting is urgent — an unreachable session's work has no audience — but releasing is not, and
+   * cannot happen here: the page whose tab just went away is still mounted at this point. See
+   * `releaseUnreachable`.
    */
-  sweep(liveIds: ReadonlySet<string>): number {
-    let deferred = 0
+  sweep(liveIds: ReadonlySet<string>): void {
     for (const [id, entry] of this.sessions) {
       if (liveIds.has(id)) continue
+      entry.unreachable = true
+      entry.handle.abortStreams()
+    }
+  }
 
-      // Abort first and unconditionally: an unreachable session's work has no audience, and
-      // aborting twice is harmless if the release below has to be retried.
-      entry.handle.abortTasks()
+  /**
+   * Run the release of every session `sweep` marked unreachable. Idempotent.
+   *
+   * Kept apart from `sweep` and called on a delay: a tab's url stops referencing its session
+   * before the page rendering it unmounts, and the cache refuses to drop a key a mounted
+   * `useCache` still reads (#20074). A refused session keeps its mark and is tried again after
+   * the next sweep.
+   */
+  releaseUnreachable(): void {
+    for (const [id, entry] of this.sessions) {
+      if (!entry.unreachable) continue
 
       let released = false
       try {
@@ -124,15 +147,11 @@ class TabSessionRegistry {
         logger.error('Session release failed', error as Error)
         released = true // a throwing release will not start working on a retry
       }
-      if (!released) {
-        deferred += 1
-        continue
-      }
+      if (!released) continue
 
       this.sessions.delete(id)
       logger.info('Tab session released', { sessionId: id })
     }
-    return deferred
   }
 }
 

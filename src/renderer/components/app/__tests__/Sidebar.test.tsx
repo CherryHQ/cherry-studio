@@ -909,7 +909,7 @@ describe('app Sidebar', () => {
       title: 'Translate'
     }
     const session = tabSessionRegistry.getOrCreate('running', () => true)
-    session.addTask(new AbortController())
+    session.addStream('translate:running')
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
@@ -927,7 +927,7 @@ describe('app Sidebar', () => {
       title: 'Translate'
     }
     const session = tabSessionRegistry.getOrCreate('idle-session', () => true)
-    session.addTask(new AbortController())()
+    session.addStream('translate:idle')()
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-assistants'))

@@ -37,6 +37,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/utils/translate', () => ({
+  createTranslateStreamId: () => 'translate:test',
   translateText: (...args: Parameters<typeof state.translateText>) => state.translateText(...args)
 }))
 

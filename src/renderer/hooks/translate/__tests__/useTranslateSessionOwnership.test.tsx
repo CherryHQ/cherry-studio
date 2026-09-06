@@ -13,12 +13,22 @@ const translateTextMock =
       text: string,
       lang: unknown,
       onResponse?: (text: string, done: boolean) => void,
-      signal?: AbortSignal
+      signal?: AbortSignal,
+      streamId?: string
     ) => Promise<string>
   >()
-vi.mock('@renderer/utils/translate/translateText', () => ({
+vi.mock('@renderer/utils/translate', () => ({
+  createTranslateStreamId: () => `translate:${(streamSeq += 1)}`,
   translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
 }))
+
+let streamSeq = 0
+
+const abortRequest = vi.fn().mockResolvedValue(undefined)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => abortRequest(...args) } }))
+
+/** What the session would abort by — the id `useTranslate` handed to `translateText`. */
+const abortedStreams = () => abortRequest.mock.calls.map(([, payload]) => (payload as { topicId: string }).topicId)
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (err: unknown, prefix: string) => `${prefix}: ${String(err)}`,
@@ -40,10 +50,12 @@ const TARGET = {
 /** A translateText that never settles on its own, so a run can be observed mid-flight. */
 function pendingTranslateText() {
   let signal: AbortSignal | undefined
+  let streamId: string | undefined
   translateTextMock.mockImplementationOnce(
-    (_text, _lang, _onResponse, abortSignal) =>
+    (_text, _lang, _onResponse, abortSignal, id) =>
       new Promise<string>((_resolve, reject) => {
         signal = abortSignal
+        streamId = id
         abortSignal?.addEventListener('abort', () => {
           const error = new Error('aborted')
           error.name = 'AbortError'
@@ -51,7 +63,7 @@ function pendingTranslateText() {
         })
       })
   )
-  return { getSignal: () => signal }
+  return { getSignal: () => signal, getStreamId: () => streamId }
 }
 
 let sessionSeq = 0
@@ -60,6 +72,7 @@ const newSessionId = () => `session-${(sessionSeq += 1)}`
 beforeEach(() => {
   vi.clearAllMocks()
   translateTextMock.mockReset()
+  abortRequest.mockClear()
 })
 
 describe('useTranslate with a tab session', () => {
@@ -96,8 +109,9 @@ describe('useTranslate with a tab session', () => {
   })
 
   it('lets a remounted page cancel a run it never started', async () => {
-    // The Stop button after a tab switch — this mount holds no controller of its own.
-    const { getSignal } = pendingTranslateText()
+    // The Stop button after a tab switch — this mount started nothing, so the stream id held by
+    // the session is the only handle on the run.
+    const { getStreamId } = pendingTranslateText()
     const session = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
     const first = renderHook(() => useTranslate({ session }))
 
@@ -111,12 +125,12 @@ describe('useTranslate with a tab session', () => {
       second.result.current.cancel()
     })
 
-    expect(getSignal()?.aborted).toBe(true)
+    expect(abortedStreams()).toContain(getStreamId())
     expect(second.result.current.isTranslating).toBe(false)
   })
 
   it('aborts the run when the session is released', async () => {
-    const { getSignal } = pendingTranslateText()
+    const { getStreamId } = pendingTranslateText()
     const id = newSessionId()
     const session = tabSessionRegistry.getOrCreate(id, () => true)
     const { result } = renderHook(() => useTranslate({ session }))
@@ -129,7 +143,7 @@ describe('useTranslate with a tab session', () => {
       tabSessionRegistry.sweep(new Set())
     })
 
-    expect(getSignal()?.aborted).toBe(true)
+    expect(abortedStreams()).toContain(getStreamId())
   })
 
   it('keeps two sessions independent', async () => {
@@ -153,8 +167,8 @@ describe('useTranslate with a tab session', () => {
       a.result.current.cancel()
     })
 
-    expect(runA.getSignal()?.aborted).toBe(true)
-    expect(runB.getSignal()?.aborted).toBe(false)
+    expect(abortedStreams()).toContain(runA.getStreamId())
+    expect(abortedStreams()).not.toContain(runB.getStreamId())
     expect(b.result.current.isTranslating).toBe(true)
   })
 

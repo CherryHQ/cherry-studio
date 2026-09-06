@@ -24,7 +24,7 @@ import { loggerService } from '@logger'
 import type { TabSessionHandle } from '@renderer/services/TabSessionRegistry'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import { translateText } from '@renderer/utils/translate'
+import { createTranslateStreamId, translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -61,9 +61,9 @@ export interface UseTranslateOptions {
   /** Logger context name. Default: 'useTranslate'. */
   loggerContext?: string
   /**
-   * Bind the run to a tab session instead of to this component. The session owns the abort
-   * controller and carries `isTranslating` in cache, so hibernating the tab or switching away
-   * from it no longer cancels the run and a remounted page picks it back up (#18885).
+   * Bind the run to a tab session instead of to this component. The session owns the run's
+   * stream id and its `isTranslating`, so hibernating the tab or switching away from it no longer
+   * cancels the run and a remounted page picks it back up (#18885).
    *
    * Omit it wherever the component genuinely is the run's owner — a popup or an overlay that the
    * user dismissed has no reason to keep translating.
@@ -122,13 +122,9 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
   const cancel = useCallback(() => {
     // With a session the run may have been started by an earlier mount, so this component's refs
-    // can be empty while a translation is still going — go through the session, which holds it.
-    if (session) {
-      session.abortTasks()
-      activeAbortKeyRef.current = null
-      activeControllerRef.current = null
-      return
-    }
+    // can be empty while a translation is still going — the session holds the stream id and
+    // cancels main's run by id, which is the only handle that survives a remount.
+    session?.abortStreams()
 
     if (!activeAbortKeyRef.current) return
     // Clear the ref first so the in-flight translate's continuation sees
@@ -137,7 +133,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     activeAbortKeyRef.current = null
     activeControllerRef.current?.abort()
     activeControllerRef.current = null
-    setTranslating(false)
+    if (!session) setTranslating(false)
   }, [session, setTranslating])
 
   const translate = useCallback<UseTranslateResult['translate']>(
@@ -150,7 +146,10 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       activeControllerRef.current = controller
       activeAbortKeyRef.current = uuid()
       const abortKey = activeAbortKeyRef.current
-      const finishTask = session?.addTask(controller)
+      // Minted here rather than inside `translateText`: the session aborts by id, and the id is
+      // the only part of the run that could survive the tab being detached into another window.
+      const streamId = createTranslateStreamId()
+      const finishStream = session?.addStream(streamId)
 
       if (!session) setTranslating(true)
 
@@ -166,7 +165,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
       const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
       const finishIfActive = () => {
-        finishTask?.()
+        finishStream?.()
         if (activeAbortKeyRef.current === abortKey) {
           activeAbortKeyRef.current = null
           activeControllerRef.current = null
@@ -175,7 +174,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal, streamId)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
