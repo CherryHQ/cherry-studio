@@ -126,8 +126,7 @@ function setupTooltipOrphanSweeper(): void {
           }
           // body 观察无法穿透 shadow boundary：宿主若已挂 shadow root，连其内容一并纳入清扫
           if (element.shadowRoot) {
-            ensureObserved(element.shadowRoot)
-            element.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+            scanShadowTree(element.shadowRoot)
           }
         }
         // 后代中的 content 与已挂 shadow root 的嵌套宿主（wrapper 一次性插入时宿主不是 added node）
@@ -135,13 +134,24 @@ function setupTooltipOrphanSweeper(): void {
           if (descendant.getAttribute('data-slot') === 'tooltip-content') {
             maybeSweep(descendant)
           } else if (descendant.shadowRoot) {
-            ensureObserved(descendant.shadowRoot)
-            descendant.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+            scanShadowTree(descendant.shadowRoot)
           }
         }
       }
     }
   })
+  // 递归下钻 shadow 树：shadowA 内再嵌宿主 hostB(shadowB) 时，观察与 querySelectorAll 都不穿透
+  // 边界，需逐层扫描并观察。DOM 树无环，递归深度 = shadow 嵌套深度，实际极浅。
+  function scanShadowTree(root: ShadowRoot): void {
+    ensureObserved(root)
+    for (const el of root.querySelectorAll('*')) {
+      if (el.getAttribute('data-slot') === 'tooltip-content') {
+        maybeSweep(el)
+      } else if (el.shadowRoot) {
+        scanShadowTree(el.shadowRoot)
+      }
+    }
+  }
   function ensureObserved(root: Document | ShadowRoot): void {
     if (observedRoots.has(root)) return
     observedRoots.add(root)

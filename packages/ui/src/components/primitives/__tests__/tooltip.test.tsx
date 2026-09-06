@@ -583,6 +583,41 @@ describe('Tooltip', () => {
       }
     })
 
+    it('sweeps a ghost inside a shadow host nested in another shadow host', async () => {
+      vi.useFakeTimers()
+      try {
+        const hostA = document.createElement('div')
+        const shadowA = hostA.attachShadow({ mode: 'open' })
+        const hostB = document.createElement('div')
+        const shadowB = hostB.attachShadow({ mode: 'open' })
+        const ghostB = document.createElement('div')
+        ghostB.setAttribute('data-slot', 'tooltip-content')
+        ghostB.setAttribute('data-state', 'closed')
+        shadowB.appendChild(ghostB)
+        shadowA.appendChild(hostB)
+        const wrapper = document.createElement('div')
+        wrapper.appendChild(hostA)
+        document.body.appendChild(wrapper) // 插入时 hostB(shadowB) 已随 shadowA 预填 closed ghost
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(shadowB.contains(ghostB)).toBe(false)
+        // shadowA 也被观察：插入后追加的 ghost 走同一 observer 的 childList 扫描
+        const ghostA = document.createElement('div')
+        ghostA.setAttribute('data-slot', 'tooltip-content')
+        ghostA.setAttribute('data-state', 'closed')
+        shadowA.appendChild(ghostA)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(shadowA.contains(ghostA)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('sweeps children of a DocumentFragment appended in one mutation', async () => {
       vi.useFakeTimers()
       try {
