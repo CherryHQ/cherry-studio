@@ -73,12 +73,7 @@ const AiDiagnosisSectionWithStatus = memo(
             : null
 
     return (
-      <AccordionItem
-        value="ai-diagnosis"
-        className="px-2"
-        role={status === 'error' ? 'alert' : 'status'}
-        aria-live="polite"
-        aria-atomic="true">
+      <AccordionItem value="ai-diagnosis" className="px-2">
         <AccordionTrigger className="py-3 font-normal">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
             {status === 'loading' ? (
@@ -94,7 +89,11 @@ const AiDiagnosisSectionWithStatus = memo(
             )}
             <span className="font-medium text-sm">{t('error.diagnosis.ai_result')}</span>
             {statusLabel ? (
-              <Badge variant="outline" className="font-normal text-xs">
+              <Badge
+                variant="outline"
+                className="font-normal text-xs"
+                role={status === 'error' ? 'alert' : 'status'}
+                aria-atomic="true">
                 {statusLabel}
               </Badge>
             ) : null}

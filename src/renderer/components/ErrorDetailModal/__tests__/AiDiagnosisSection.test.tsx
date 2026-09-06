@@ -1,8 +1,9 @@
 import { Accordion } from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   diagnoseError: vi.fn()
@@ -48,6 +49,15 @@ function renderControlledAiDiagnosis(
 }
 
 describe('AiDiagnosisSection', () => {
+  let previousLanguage: string
+
+  beforeAll(async () => {
+    previousLanguage = i18n.language
+    await i18n.changeLanguage('zh-CN')
+  })
+
+  afterAll(() => i18n.changeLanguage(previousLanguage))
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.diagnoseError.mockResolvedValue({
@@ -65,8 +75,30 @@ describe('AiDiagnosisSection', () => {
       onStatusChange: vi.fn()
     })
 
-    expect(screen.queryByText('检查中')).not.toBeInTheDocument()
+    expect(screen.queryByText('正在诊断')).not.toBeInTheDocument()
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
+  })
+
+  it('announces only the changing diagnosis status', () => {
+    const props = {
+      error: { name: 'ProviderError', message: 'failed', stack: null },
+      onStatusChange: vi.fn()
+    }
+    const { rerender } = renderAiDiagnosis({ ...props, status: 'loading' })
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('正在诊断')
+    expect(status.textContent).toBe('正在诊断')
+
+    rerender(
+      <Accordion type="single" collapsible defaultValue="ai-diagnosis">
+        <AiDiagnosisSection {...props} status="error" />
+      </Accordion>
+    )
+
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toBe('无法检查')
+    expect(alert).not.toHaveAttribute('aria-live', 'polite')
   })
 
   it('delegates diagnosis persistence to the injected capability', async () => {

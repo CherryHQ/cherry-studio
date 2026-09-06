@@ -81,6 +81,7 @@ const translations: Record<string, string> = {
   'error.stack': 'Stack',
   'error.statusCode': 'Status code',
   'message.copied': 'Copied',
+  'settings.doctor.actions.cancel_run': 'Cancel checks',
   'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
   'settings.doctor.actions.rerun': 'Run checks again',
@@ -177,7 +178,9 @@ function renderErrorDetailContent(props: ErrorDetailContentProps) {
   )
 }
 
-function getStartAiDiagnosisButton() {
+async function getStartAiDiagnosisButton(user: ReturnType<typeof userEvent.setup>) {
+  const trigger = screen.getByRole('button', { name: /AI diagnosis result/ })
+  if (trigger.getAttribute('aria-expanded') === 'false') await user.click(trigger)
   const action = screen
     .getAllByRole('button', { name: 'AI diagnosis' })
     .find((button) => !button.hasAttribute('aria-expanded'))
@@ -305,7 +308,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     const outerDialog = screen.getByText('Basic information').closest('[role="dialog"]')
     const viewDetails = screen.getByRole('button', { name: 'View Details' })
-    await user.click(getStartAiDiagnosisButton())
+    await user.click(await getStartAiDiagnosisButton(user))
     await user.click(viewDetails)
 
     expect(screen.getAllByRole('dialog', { hidden: true })).toHaveLength(2)
@@ -393,7 +396,7 @@ describe('ErrorDetailContent diagnostics', () => {
     )
   })
 
-  it('shows a completed AI diagnosis as the initially expanded list item', () => {
+  it('keeps a completed AI diagnosis collapsed until the user opens it', () => {
     mocks.cacheReady = false
     mocks.doctorState = completedDoctorState([passingVersionResult])
 
@@ -401,8 +404,8 @@ describe('ErrorDetailContent diagnostics', () => {
 
     const diagnostics = screen.getByRole('region', { name: 'System diagnostics' })
     expect(within(diagnostics).getByText('1 of 1 completed · 0 items need attention')).toBeVisible()
-    expect(within(diagnostics).getByRole('button', { name: /AI diagnosis/ })).toHaveAttribute('aria-expanded', 'true')
-    expect(within(diagnostics).getByText(aiDiagnosis.explanation)).toBeVisible()
+    expect(within(diagnostics).getByRole('button', { name: /AI diagnosis/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(diagnostics).queryByText(aiDiagnosis.explanation)).not.toBeInTheDocument()
   })
 
   it('switches from AI diagnosis to an expanded Doctor item in the same accordion', async () => {
@@ -413,9 +416,13 @@ describe('ErrorDetailContent diagnostics', () => {
 
     const aiTrigger = screen.getByRole('button', { name: /AI diagnosis/ })
     const doctorTrigger = screen.getByRole('button', { name: /Available disk space/ })
-    expect(aiTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(aiTrigger).toHaveAttribute('aria-expanded', 'false')
     expect(doctorTrigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Available disk space is low.')).not.toBeInTheDocument()
+
+    await user.click(aiTrigger)
+    expect(aiTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText(aiDiagnosis.explanation)).toBeVisible()
 
     await user.click(doctorTrigger)
 
@@ -466,7 +473,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
 
-    await user.click(getStartAiDiagnosisButton())
+    await user.click(await getStartAiDiagnosisButton(user))
 
     await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
   })
@@ -489,6 +496,16 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(networkCheck)
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
+  })
+
+  it.each(['quick', 'live'] as const)('cancels an active %s run from the diagnostics header', async (tier) => {
+    const user = userEvent.setup()
+    mocks.doctorState = runningDoctorState(tier)
+    renderErrorDetailContent({ error: providerError })
+
+    await user.click(screen.getByRole('button', { name: 'Cancel checks' }))
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
   })
 
   it('shows only problem reporting in the footer and excludes diagnostic results from its prefill', async () => {
@@ -516,15 +533,11 @@ describe('ErrorDetailContent diagnostics', () => {
       onOpenDiagnosticReport
     })
 
-    await user.click(getStartAiDiagnosisButton())
+    await user.click(await getStartAiDiagnosisButton(user))
     expect(await screen.findByText('private AI diagnosis')).toBeInTheDocument()
-    const footer = screen.getByRole('group', { name: 'Error Details' })
-    expect(
-      within(footer)
-        .getAllByRole('button')
-        .map((button) => button.textContent)
-    ).toEqual(['Report a problem'])
-    await user.click(within(footer).getByRole('button', { name: 'Report a problem' }))
+    const reportProblem = screen.getByRole('button', { name: 'Report a problem' })
+    expect(screen.queryByRole('group', { name: 'Error Details' })).not.toBeInTheDocument()
+    await user.click(reportProblem)
 
     const description = onOpenDiagnosticReport.mock.calls[0][0]
     expect(description).toContain('Error message: failed')
