@@ -122,21 +122,19 @@ function MessageGroupLayer({
 }: MessageGroupLayerProps) {
   void isLive
   return (
-    <FullPartsMapProvider value={partsByMessageId ?? null}>
-      <PartsProvider value={partsByMessageId ?? null}>
-        <NarrowLayout
-          narrowMode={narrowMode}
-          withSidePadding
-          // The gutter is mirrored on the left so the column stays
-          // centred and both margins match while the rail fades in.
-          style={{
-            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
-          }}>
-          <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
-        </NarrowLayout>
-      </PartsProvider>
-    </FullPartsMapProvider>
+    <PartsProvider value={partsByMessageId ?? null}>
+      <NarrowLayout
+        narrowMode={narrowMode}
+        withSidePadding
+        // The gutter is mirrored on the left so the column stays
+        // centred and both margins match while the rail fades in.
+        style={{
+          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+        }}>
+        <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
+      </NarrowLayout>
+    </PartsProvider>
   )
 }
 
@@ -918,7 +916,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     </MessagesContainer>
   )
 
-  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
+  // The full parts map must live above the memoized group layers: a historical receipt group
+  // would otherwise freeze an old map and miss launch parts that arrive in later messages.
+  return (
+    <FullPartsMapProvider value={partsByMessageId ?? null}>
+      <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
+    </FullPartsMapProvider>
+  )
 }
 
 export default MessageList

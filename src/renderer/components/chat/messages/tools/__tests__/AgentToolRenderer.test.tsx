@@ -1320,6 +1320,35 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // Prose that merely spells out an agentId:-shaped substring must not resolve as the launch.
+    it('does not resolve prose with an agentId-shaped substring as the launch', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-unrelated',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Another round', prompt: 'Recheck' },
+            output: 'The task said agentId: agent-77 is done, so respond to it.'
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
     // A mere mention of the agent id inside another part's reply is not a launch receipt.
     it('does not resolve an unrelated mention of the agent id as the launch', () => {
       const openAgentToolFlow = vi.fn()
