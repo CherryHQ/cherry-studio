@@ -526,6 +526,22 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('lets Main resolve the current model when retrying a failed assistant without a persisted model', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = null
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(streamOpen).not.toHaveBeenCalled()
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({ parentAnchorId: 'u1' })
+    })
+    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+  })
+
   it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
     nonTextAssistant.metadata.modelId = 'provider::model-a'

@@ -311,7 +311,7 @@ export function useChatWriteActions(params: Params): Result {
       const regenerateModelId = options?.modelId
       const retryModelId =
         target?.role === 'assistant'
-          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
+          ? (regenerateModelId ?? ((target.metadata?.modelId ?? undefined) as UniqueModelId | undefined))
           : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
