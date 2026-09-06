@@ -34,6 +34,7 @@ const agentPageMocks = vi.hoisted(() => ({
   persistedSession: {
     id: 'session-created',
     agentId: 'agent-a',
+    modelId: 'provider-a::model-a',
     name: 'hello',
     description: '',
     workspaceId: 'workspace-a',
@@ -846,9 +847,9 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
   })
 
-  it('starts the model read from the visible list agent hint', async () => {
+  it('starts the model read from the session model instead of the visible agent hint', async () => {
     agentPageMocks.isActiveTab = true
-    agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-a::model-a', name: 'Agent A' }]
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'provider-hint::model-hint', name: 'Agent A' }]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 

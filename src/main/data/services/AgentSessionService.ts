@@ -12,9 +12,11 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -32,6 +34,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -65,6 +68,12 @@ export type AddressableAgentSession = {
   sessionName: string
 }
 
+export interface AgentSessionUpdatedEvent {
+  sessionId: string
+  updates: UpdateAgentSessionDto
+  session: AgentSessionEntity
+}
+
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
   // Resolve lazily because AgentTaskService reads the Session-owned relation.
@@ -92,6 +101,8 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    // modelId is legitimately nullable when no model is selected or its model row was deleted.
+    modelId: row.session.modelId as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -131,6 +142,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly _onSessionUpdated = new Emitter<AgentSessionUpdatedEvent>()
+  readonly onSessionUpdated: Event<AgentSessionUpdatedEvent> = this._onSessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length > 0) notifyDataApiDataChange(effects)
@@ -245,7 +259,7 @@ export class AgentSessionService {
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
-    this.assertAgentExistsTx(tx, dto.agentId)
+    const agent = this.assertAgentExistsTx(tx, dto.agentId)
     const createdAt = Date.now()
 
     let workspaceId: string
@@ -277,6 +291,7 @@ export class AgentSessionService {
     this.insertTx(tx, {
       id,
       agentId: dto.agentId,
+      modelId: agent.model as UniqueModelId | null,
       name: dto.name,
       description: dto.description,
       workspaceId,
@@ -304,14 +319,15 @@ export class AgentSessionService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
-  private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
+  private assertAgentExistsTx(tx: DbOrTx, agentId: string): { id: string; model: string | null } {
     const [agent] = tx
-      .select({ id: agentsTable.id })
+      .select({ id: agentsTable.id, model: agentsTable.model })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    return agent
   }
 
   getById(id: string): AgentSessionEntity {
@@ -728,16 +744,40 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.modelId !== undefined) patch.modelId = dto.modelId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
+            throw DataApiErrorFactory.validation(
+              { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
+              `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
+            )
+          }
+          if (dto.agentId !== undefined) {
+            const agent = this.assertAgentExistsTx(tx, dto.agentId)
+            const [current] = tx
+              .select({ agentId: sessionsTable.agentId })
+              .from(sessionsTable)
+              .where(eq(sessionsTable.id, id))
+              .limit(1)
+              .all()
+            if (current && current.agentId !== dto.agentId && dto.modelId === undefined) {
+              patch.modelId = agent.model as UniqueModelId | null
+            }
+          }
+          return this.updateTx(tx, id, patch)
+        }),
       defaultHandlersFor('Session', id)
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
-    return this.getById(id)
+    const session = this.getById(id)
+    this._onSessionUpdated.fire({ sessionId: id, updates: patch, session })
+    return session
   }
 
   updateTx(
@@ -834,6 +874,7 @@ export class AgentSessionService {
     values: {
       id: string
       agentId: string
+      modelId: UniqueModelId | null
       name: string
       description?: string
       workspaceId: string

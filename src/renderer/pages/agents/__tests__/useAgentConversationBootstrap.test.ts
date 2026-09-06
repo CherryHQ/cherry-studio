@@ -28,7 +28,11 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 import { useAgentConversationBootstrap } from '../useAgentConversationBootstrap'
 
-const session = { id: 'session-1', agentId: 'agent-1' } as AgentSessionEntity
+const session = {
+  id: 'session-1',
+  agentId: 'agent-1',
+  modelId: 'provider-session::model-session'
+} as unknown as AgentSessionEntity
 
 describe('useAgentConversationBootstrap', () => {
   beforeEach(() => {
@@ -38,7 +42,7 @@ describe('useAgentConversationBootstrap', () => {
     mocks.modelLookupId = undefined
   })
 
-  it('uses the list agent as a key hint while the canonical agent is loading', () => {
+  it('uses the session model while the canonical agent is loading', () => {
     mocks.agentLoading = true
 
     const { result } = renderHook(() =>
@@ -51,11 +55,11 @@ describe('useAgentConversationBootstrap', () => {
     )
 
     expect(mocks.agentLookupId).toBe('agent-1')
-    expect(mocks.modelLookupId).toBe('provider-hint::model-hint')
-    expect(result.current.resources.model?.id).toBe('provider-hint::model-hint')
+    expect(mocks.modelLookupId).toBe('provider-session::model-session')
+    expect(result.current.resources.model?.id).toBe('provider-session::model-session')
   })
 
-  it('switches the model key to the canonical agent result', () => {
+  it('keeps the session model when the canonical agent result changes', () => {
     const { rerender, result } = renderHook(() =>
       useAgentConversationBootstrap({
         session,
@@ -65,24 +69,24 @@ describe('useAgentConversationBootstrap', () => {
       })
     )
 
-    expect(mocks.modelLookupId).toBe('provider-hint::model-hint')
+    expect(mocks.modelLookupId).toBe('provider-session::model-session')
     mocks.agent = { id: 'agent-1', model: 'provider-canonical::model-canonical' }
     rerender()
 
-    expect(mocks.modelLookupId).toBe('provider-canonical::model-canonical')
+    expect(mocks.modelLookupId).toBe('provider-session::model-session')
     expect(result.current.resources.agent).toBe(mocks.agent)
   })
 
-  it('does not use a hint from a different agent', () => {
+  it('does not fall back to an agent hint when the session has no model', () => {
     renderHook(() =>
       useAgentConversationBootstrap({
-        session,
+        session: { ...session, modelId: null },
         sessionLoading: false,
         sessionSource: 'query',
-        agentHint: { id: 'agent-2', model: 'provider-stale::model-stale' }
+        agentHint: { id: 'agent-1', model: 'provider-stale::model-stale' }
       })
     )
 
-    expect(mocks.modelLookupId).toBeUndefined()
+    expect(mocks.modelLookupId).toBeNull()
   })
 })

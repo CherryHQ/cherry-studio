@@ -380,11 +380,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
-      this.resumeToken,
+      this.resumeToken ?? null,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.agentId
     ).catch((error) => {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
@@ -518,6 +519,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async reconcile(input: {
+    agentId?: string
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
@@ -535,18 +537,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async reconcileOnce(input: {
+    agentId?: string
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
+    const agentId = input.agentId ?? this.input.agentId
+    if (agentId !== this.input.agentId) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      agentId
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig

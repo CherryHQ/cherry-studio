@@ -6,10 +6,12 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { claudeProjectDirectoryName, legacyAgentWorkspacePath } from '../agentsFilesystemMigration'
@@ -17,6 +19,7 @@ import { AgentsMigrator } from '../AgentsMigrator'
 
 const LEGACY_AGENT_ID = 'agent_1234567890_cachee2e1'
 const LEGACY_SESSION_ID = 'session_cache_e2e'
+const MODEL_ID = 'anthropic::claude-sonnet-4-5'
 const CLAUDE_SESSION_IDS = ['95b9a03b-6704-4a4b-bcf1-f65dabb67bf6', '3f5221a6-b39d-4cab-a82d-7a7ed7ccf5db'] as const
 
 function seedLegacyAgentsDb(databasePath: string): void {
@@ -28,6 +31,7 @@ function seedLegacyAgentsDb(databasePath: string): void {
         type TEXT NOT NULL,
         name TEXT NOT NULL,
         instructions TEXT NOT NULL,
+        model TEXT,
         accessible_paths TEXT,
         mcps TEXT NOT NULL,
         sort_order INTEGER NOT NULL,
@@ -76,14 +80,15 @@ function seedLegacyAgentsDb(databasePath: string): void {
     database
       .prepare(
         `INSERT INTO agents
-          (id, type, name, instructions, accessible_paths, mcps, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, type, name, instructions, model, accessible_paths, mcps, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         LEGACY_AGENT_ID,
         'claude_code',
         'Cache migration agent',
         'Preserve every Claude session',
+        'anthropic:claude-sonnet-4-5',
         null,
         '[]',
         0,
@@ -199,6 +204,23 @@ describe('AgentsMigrator Claude session cache integration', () => {
   const dbh = setupTestDatabase()
   const tempRoots: string[] = []
 
+  beforeEach(async () => {
+    // ProviderModelMigrator runs before AgentsMigrator in production. Seed its populated target
+    // so the legacy agent model can resolve and flow into every imported session.
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'anthropic',
+      name: 'Anthropic',
+      orderKey: 'p0'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: MODEL_ID,
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      orderKey: 'm0'
+    })
+  })
+
   afterEach(async () => {
     vi.useRealTimers()
     dbh.sqlite.pragma('foreign_keys = ON')
@@ -254,8 +276,10 @@ describe('AgentsMigrator Claude session cache integration', () => {
       .where(eq(agentSessionMessageTable.sessionId, session.id))
 
     expect(agent.id).not.toBe(LEGACY_AGENT_ID)
+    expect(agent.model).toBe(MODEL_ID)
     expect(session.id).not.toBe(LEGACY_SESSION_ID)
     expect(session.agentId).toBe(agent.id)
+    expect(session.modelId).toBe(MODEL_ID)
     expect(workspace.type).toBe('system')
     expect(workspace.path).toBe(path.join(agentSystemWorkspacesDir, '2026-07-22', session.id))
     expect(messages.map((message) => message.runtimeResumeToken).sort()).toEqual(

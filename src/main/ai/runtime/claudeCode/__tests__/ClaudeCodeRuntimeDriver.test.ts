@@ -615,7 +615,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'claude-code::sonnet',
       'default',
       false,
-      undefined
+      undefined,
+      'agent-1'
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -3896,7 +3897,24 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith(
+        'session-1',
+        'claude-code::sonnet',
+        'default',
+        false,
+        ['kb-1'],
+        'agent-1'
+      )
+    })
+
+    it('requires a rebuild when the connection target is rebound to another agent', async () => {
+      const { connection } = await connectWithSnapshot()
+      mocks.deriveConfig.mockClear()
+
+      await expect(connection.reconcile({ agentId: 'agent-2', modelId: 'claude-code::sonnet' as any })).resolves.toBe(
+        'rebuild'
+      )
+      expect(mocks.deriveConfig).not.toHaveBeenCalled()
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {

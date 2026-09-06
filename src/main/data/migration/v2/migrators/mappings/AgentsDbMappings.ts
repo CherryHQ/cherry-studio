@@ -149,6 +149,13 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     columns: [
       'id',
       'agent_id',
+      {
+        // Agent rows are imported first with their legacy model reference resolved to user_model.id.
+        // Seed each historical session from that resolved default, matching fresh-session creation.
+        name: 'model_id',
+        expr: '(SELECT model FROM agent WHERE agent.id = sessions.agent_id)',
+        sourceColumn: 'agent_id'
+      },
       'name',
       notNullCol('description', "''"),
       {

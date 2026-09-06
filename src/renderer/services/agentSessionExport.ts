@@ -4,7 +4,7 @@ import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/servi
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId, getAgentSessionModelFallbackSnapshot } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
@@ -20,7 +20,8 @@ import i18next from 'i18next'
 
 const logger = loggerService.withContext('agentSessionExport')
 
-export type AgentSessionExportTarget = Pick<AgentSessionEntity, 'agentId' | 'id' | 'name'>
+export type AgentSessionExportTarget = Pick<AgentSessionEntity, 'agentId' | 'id' | 'name'> &
+  Partial<Pick<AgentSessionEntity, 'modelId'>>
 
 export interface AgentSessionExportOptions {
   modelFallback?: ModelSnapshot
@@ -31,6 +32,8 @@ export interface AgentSessionExportOptions {
 export function getAgentSessionExportTitle(session: Pick<AgentSessionExportTarget, 'id' | 'name'>): string {
   return session.name.trim() || i18next.t('agent.session.new') || session.id
 }
+
+export { getAgentSessionModelFallbackSnapshot }
 
 function modelSnapshotToModel(snapshot: ModelSnapshot | null | undefined): Model | undefined {
   if (!snapshot) return undefined
@@ -49,7 +52,7 @@ function agentSessionMessageToExportView(
   modelFallback?: ModelSnapshot
 ): MessageExportView {
   // Model priority: the frozen author snapshot → the row's own frozen `modelId` → (assistant only) the
-  // live agent model. The stored id wins over the fallback so a row keeps the model that produced it.
+  // session-owned fallback. The stored id wins so a row keeps the model that produced it.
   let modelSnapshot = row.messageSnapshot?.model
   if (!modelSnapshot && row.modelId && isUniqueModelId(row.modelId)) {
     const { providerId, modelId } = parseUniqueModelId(row.modelId)
@@ -78,6 +81,7 @@ export async function getAgentSessionMessagesForExport(
   options: AgentSessionExportOptions = {}
 ): Promise<MessageExportView[]> {
   const pages: MessageExportView[][] = []
+  const modelFallback = getAgentSessionModelFallbackSnapshot(session) ?? options.modelFallback
   let cursor: string | undefined
   let collected = 0
 
@@ -89,9 +93,7 @@ export async function getAgentSessionMessagesForExport(
       query
     })) as CursorPaginationResponse<AgentSessionMessageEntity>
 
-    pages.push(
-      response.items.map((row) => agentSessionMessageToExportView(row, session.agentId, options.modelFallback))
-    )
+    pages.push(response.items.map((row) => agentSessionMessageToExportView(row, session.agentId, modelFallback)))
     collected += response.items.length
     cursor = response.nextCursor
   } while (cursor && (!options.maxMessages || collected < options.maxMessages))

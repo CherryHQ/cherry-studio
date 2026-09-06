@@ -535,6 +535,11 @@ vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
+  getAgentSessionModelFallbackSnapshot: (session: AgentSessionEntity) => {
+    if (!session.modelId) return undefined
+    const [provider, id] = session.modelId.split('::')
+    return { id, name: id, provider }
+  },
   getChannelTypeIcon: vi.fn(() => undefined)
 }))
 
@@ -742,6 +747,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   return {
     id: 'session-a',
     agentId: 'agent-a',
+    modelId: 'provider-a::session-model' as any,
     name: 'Alpha session',
     description: '',
     workspaceId: 'ws-a',
@@ -2102,8 +2108,8 @@ describe('Sessions', () => {
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
         modelFallback: {
-          id: 'model-a',
-          name: 'Model A',
+          id: 'session-model',
+          name: 'session-model',
           provider: 'provider-a'
         },
         session: expect.objectContaining({ id: 'session-b' })
@@ -2131,8 +2137,8 @@ describe('Sessions', () => {
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
         modelFallback: {
-          id: 'model-a',
-          name: 'Model A',
+          id: 'session-model',
+          name: 'session-model',
           provider: 'provider-a'
         },
         session: expect.objectContaining({ id: 'session-a' })

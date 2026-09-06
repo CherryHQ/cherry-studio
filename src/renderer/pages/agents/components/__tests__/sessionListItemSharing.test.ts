@@ -7,6 +7,7 @@ function createSession(id: string, overrides: Partial<AgentSessionEntity> = {}):
   return {
     id,
     agentId: 'agent-a',
+    modelId: null,
     name: `Session ${id}`,
     isNameManuallyEdited: false,
     description: '',
