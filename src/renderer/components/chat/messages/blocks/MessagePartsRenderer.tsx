@@ -17,8 +17,6 @@
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Citation } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
@@ -36,7 +34,6 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { classifyTurn } from '@shared/ai/transport'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -51,6 +48,7 @@ import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdo
 import {
   useMessageListActions,
   useMessageListActiveTurnStatus,
+  useMessageListItemActivityState,
   useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
@@ -1623,14 +1621,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
   const messageParts = useMessageParts(message.id)
+  const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
-  const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
-  const topicTurnState = classifyTurn(topicStreamStatus)
-  const isProcessing = useIsActiveTurnTarget(message)
-  const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
-  const isStreamLive =
-    isActiveTurnProcessing &&
-    (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (

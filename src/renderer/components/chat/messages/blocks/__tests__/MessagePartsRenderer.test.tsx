@@ -4,13 +4,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
-const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
-const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -27,19 +26,6 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
-vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
-  useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
-}))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockTopicStreamState.status,
-    activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
-    isFulfilled: false,
-    markSeen: vi.fn()
-  })
-}))
 vi.mock('@renderer/types/file', () => ({
   COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -384,6 +370,8 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
     ...overrides
   }) as MessageListItem
 
+let activityStore: KeyedMessageActivityStore
+
 const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
@@ -406,11 +394,8 @@ const renderPartsTree = (
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
       renderConfig,
-      getMessageActivityState: () => ({
-        isProcessing: false,
-        isStreamTarget: false,
-        isApprovalAnchor: false
-      })
+      messageActivityStore: activityStore,
+      getMessageActivityState: activityStore.getSnapshot
     },
     actions,
     meta: { selectionLayer: false }
@@ -434,9 +419,16 @@ const renderParts = (
   hoistAttachments = false
 ) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistAttachments))
 
-function activateTurn(status?: string): void {
-  mockIsActiveTurnTarget.mockReturnValue(true)
-  mockTopicStreamState.status = status
+function activateTurn(status?: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update(['msg-1'], status === 'awaiting-approval' ? ['msg-1'] : [], status)
+  })
+}
+
+function finishTurn(status: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update([], [], status)
+  })
 }
 
 function expandCollapsedLiveToolGroups(): void {
@@ -493,8 +485,7 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
-    mockIsActiveTurnTarget.mockReturnValue(false)
-    mockTopicStreamState.status = undefined
+    activityStore = new KeyedMessageActivityStore()
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -519,6 +510,57 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
+    it('does not rerender unrelated message content when another message becomes active', () => {
+      const firstMessage = msg({ id: 'msg-1' })
+      const secondMessage = msg({ id: 'msg-2' })
+      const messages = [firstMessage, secondMessage]
+      const partsByMessageId = {
+        'msg-1': [{ type: 'text', text: 'First' }] as CherryMessagePart[],
+        'msg-2': [{ type: 'text', text: 'Second' }] as CherryMessagePart[]
+      }
+      const store = new KeyedMessageActivityStore()
+      const updateCommits = new Map<string, number>()
+      const value: MessageListProviderValue = {
+        state: {
+          topic: { id: 't', name: 'Topic' } as MessageListProviderValue['state']['topic'],
+          messages,
+          partsByMessageId,
+          messageNavigation: 'none',
+          estimateSize: 400,
+          overscan: 0,
+          loadOlderDelayMs: 0,
+          loadingResetDelayMs: 0,
+          renderConfig: defaultMessageRenderConfig,
+          messageActivityStore: store,
+          getMessageActivityState: store.getSnapshot
+        },
+        actions: {},
+        meta: { selectionLayer: false }
+      }
+
+      render(
+        <MessageListProvider value={value}>
+          {messages.map((message) => (
+            <React.Profiler
+              key={message.id}
+              id={message.id}
+              onRender={(id, phase) => {
+                if (phase === 'update') updateCommits.set(id, (updateCommits.get(id) ?? 0) + 1)
+              }}>
+              <MessagePartsRenderer message={message} />
+            </React.Profiler>
+          ))}
+        </MessageListProvider>
+      )
+
+      act(() => {
+        store.update(['msg-1'], [], 'streaming')
+      })
+
+      expect(updateCommits.get('msg-1') ?? 0).toBeGreaterThan(0)
+      expect(updateCommits.get('msg-2') ?? 0).toBe(0)
+    })
+
     it('renders paused feedback for an interrupted empty message', () => {
       renderParts([], msg({ status: 'paused' }))
 
@@ -552,7 +594,8 @@ describe('MessagePartsRenderer', () => {
               loadingResetDelayMs: 0,
               renderConfig: defaultMessageRenderConfig,
               activeTurnStatus,
-              getMessageActivityState: () => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })
+              messageActivityStore: activityStore,
+              getMessageActivityState: activityStore.getSnapshot
             },
             actions: {},
             meta: { selectionLayer: false }
@@ -564,6 +607,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       // Not processing → renderer is not invoked at all.
+      finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1472,8 +1516,7 @@ describe('MessagePartsRenderer', () => {
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
@@ -1503,8 +1546,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
       expect(screen.queryByText('report.md')).toBeNull()
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1882,8 +1924,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -1930,8 +1971,7 @@ describe('MessagePartsRenderer', () => {
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
       const activeAnswerNode = screen.getByText('stable answer node')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
@@ -1948,8 +1988,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'error'
+      finishTurn('error')
       rerender(renderPartsTree(parts, msg({ status: 'error' })))
 
       expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)
