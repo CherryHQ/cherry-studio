@@ -2690,6 +2690,119 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
     })
 
+    it('re-queries host rows after a connection reset so a late flush is not lost', async () => {
+      // A host row missed at connection time can land via flush at any moment; the miss cache is
+      // connection-scoped, so the reset must re-open the lookup for the same root.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+
+      sendChunk('First findings', 'first-text')
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      entry.connection = connection
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      sendChunk('Second findings', 'second-text')
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() =>
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Second findings' })])
+        )
+      )
+    })
+
+    it('keeps buffered chunks across a connection reset for replay', async () => {
+      // Chunks held after a seed failure are the only copy of the subagent's output — a reset must
+      // not clear them; the next seed retry replays them in order.
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        // Every chunk of the first round hits the failing seed so all three land in the buffer.
+        if (seedCalls <= 3) throw new Error('db busy')
+        return { id: 'assistant-1', role: 'assistant', data: { parts: [] } }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+
+      sendFlow('First findings', 'first-text')
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      entry.connection = connection
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      // The reset must not throw the buffered chunks away.
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      sendFlow('Second findings', 'second-text')
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
