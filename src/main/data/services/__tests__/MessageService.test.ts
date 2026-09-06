@@ -2454,7 +2454,7 @@ describe('MessageService', () => {
       expect(topic.activeNodeId).toBe(olderReply.id)
     })
 
-    it('distinguishes raw snapshot model IDs that contain the provider separator', async () => {
+    it('treats migrated snapshot model IDs as the same model after the foreign key is cleared', async () => {
       const topicId = 'topic-snapshot-model-separator-delete'
       const rootId = await seedTopicWithRoot(topicId)
       const prompt = messageService.create(topicId, {
@@ -2463,7 +2463,7 @@ describe('MessageService', () => {
         data: mainText('question'),
         status: 'success'
       })
-      const survivingReply = messageService.create(topicId, {
+      messageService.create(topicId, {
         parentId: prompt.id,
         role: 'assistant',
         data: mainText('separator model answer'),
@@ -2491,9 +2491,9 @@ describe('MessageService', () => {
 
       const result = messageService.delete(selectedReply.id, false)
 
-      expect(result.newActiveNodeId).toBe(survivingReply.id)
+      expect(result.newActiveNodeId).toBe(prompt.id)
       const [topic] = dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).all()
-      expect(topic.activeNodeId).toBe(survivingReply.id)
+      expect(topic.activeNodeId).toBe(prompt.id)
     })
 
     it('falls back to the parent when deleting the latest same-model regeneration', async () => {

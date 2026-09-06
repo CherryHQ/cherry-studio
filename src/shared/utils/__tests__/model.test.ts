@@ -35,15 +35,15 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 
 describe('shared model capability helpers', () => {
   describe('resolveUniqueModelId', () => {
-    it('treats snapshot IDs as raw when they contain the unique-ID separator', () => {
+    it('preserves migrated snapshot IDs that are already unique', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-a::model-a' })).toBe(
-        'provider-a::provider-a::model-a'
+        'provider-a::model-a'
       )
     })
 
-    it('keeps the snapshot provider when a raw model ID contains the unique-ID separator', () => {
+    it('uses the provider encoded in a migrated snapshot ID', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-b', id: 'provider-a::model-a' })).toBe(
-        'provider-b::provider-a::model-a'
+        'provider-a::model-a'
       )
     })
 
@@ -51,16 +51,16 @@ describe('shared model capability helpers', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'model?legacy-route' })).toBeUndefined()
     })
 
-    it('distinguishes raw snapshot IDs that collide after unique-ID parsing', () => {
+    it('recognizes raw and migrated snapshots for the same model', () => {
       expect(
         areDifferentModelIdentities(
           { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'model-a' } },
           { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' } }
         )
-      ).toBe(true)
+      ).toBe(false)
     })
 
-    it('keeps separator-containing raw snapshots distinct from authoritative IDs', () => {
+    it('matches migrated snapshots to authoritative IDs', () => {
       const references = [
         {
           modelId: 'provider-a::model-a',
@@ -72,8 +72,8 @@ describe('shared model capability helpers', () => {
         }
       ] as const
 
-      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::provider-a::model-a'])
-      expect(areDifferentModelIdentities(references[0], references[1])).toBe(true)
+      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::model-a'])
+      expect(areDifferentModelIdentities(references[0], references[1])).toBe(false)
     })
 
     it('preserves authoritative IDs for raw model IDs containing the separator', () => {
