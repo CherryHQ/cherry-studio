@@ -280,6 +280,33 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // The CLI also spells the trailer 'agent_id:'; that spelling must establish the identity too.
+  it('splits rounds for an agent_id-spelled textual launch receipt', () => {
+    const launchOutput = 'Async agent launched successfully.\nagent_id: agent-77 (internal metadata - do not mention.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-77', message: 'Continue' },
+        { success: true, resumedAgentId: 'agent-77' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+  })
+
   // Production ordering: the host row (holding both rounds) predates the receipt row, so position
   // alone puts the resume prompt AFTER all content. Runtime-tagged parts must win.
   it('splits rounds by runtime markers even when the receipt row comes last', () => {
