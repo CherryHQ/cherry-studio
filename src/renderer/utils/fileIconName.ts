@@ -4,7 +4,7 @@
  */
 
 /** Exact filename → icon name */
-const filenameMap: Record<string, string> = {
+export const filenameMap: Record<string, string> = {
   dockerfile: 'docker',
   'docker-compose.yml': 'docker',
   'docker-compose.yaml': 'docker',
@@ -72,7 +72,7 @@ const filenameMap: Record<string, string> = {
 }
 
 /** File extension → icon name */
-const extensionMap: Record<string, string> = {
+export const extensionMap: Record<string, string> = {
   // JavaScript / TypeScript
   ts: 'typescript',
   tsx: 'react-ts',
@@ -233,7 +233,7 @@ const extensionMap: Record<string, string> = {
   ipynb: 'jupyter'
 }
 
-const DEFAULT_ICON = 'document'
+export const DEFAULT_ICON = 'document'
 
 export function getFileIconName(filePath: string): string {
   if (!filePath) return DEFAULT_ICON

@@ -1,3 +1,3 @@
-export { FileTree } from './FileTree'
-export { FileTreeRow } from './FileTreeRow'
-export type { FileTreeNode, FileTreeNodeKind, FileTreeProps, FileTreeRenameSlot } from './types'
+export { FileTree, type FileTreeProps } from './FileTree'
+export { createFileTreeModel, type CreateFileTreeModelOptions, FileTreeModel } from './fileTreeModel'
+export { FILE_TREE_ITEM_HEIGHT } from './treeTheme'

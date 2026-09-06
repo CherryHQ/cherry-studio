@@ -40,6 +40,8 @@
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/src/**/*",
     "src/shared/**/*",
+    // Leaf data module (no imports) read by scripts/generate-file-tree-icon-sprite.ts.
+    "src/renderer/utils/fileIconName.ts",
     "tests/__mocks__/**/*",
     "tests/helpers/**/*"
   ],

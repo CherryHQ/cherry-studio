@@ -192,6 +192,16 @@ jobs:
             exit 1
           fi
 
+      - name: File Tree Icon Sprite Check
+        run: |
+          # The sprite is generated from fileIconName.ts + material-icon-theme — fail on drift.
+          pnpm gen:file-tree-icons
+          if [ -n "$(git status --porcelain src/renderer/components/FileTree/iconSprite.generated.ts)" ]; then
+            echo "::error::iconSprite.generated.ts is out of date. Run \`pnpm gen:file-tree-icons\` and commit the result."
+            git --no-pager diff -- src/renderer/components/FileTree/iconSprite.generated.ts
+            exit 1
+          fi
+
   main-test-shard:
     name: main-test (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
