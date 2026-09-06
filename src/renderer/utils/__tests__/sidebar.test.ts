@@ -5,10 +5,12 @@ import {
   getOrderedLaunchpadApps,
   getOrderedVisibleSidebarFavoriteItems,
   getOrderedVisibleSidebarFavorites,
+  getSidebarApp,
   getSidebarDefaultLandingUrl,
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
+  isSamePage,
   removeSidebarEntityFavorite,
   removeSidebarMiniApp,
   reorderLaunchpadApps,
@@ -16,6 +18,7 @@ import {
   resolveSidebarActiveItem,
   setSidebarAppPinned,
   SIDEBAR_FAVORITE_ORDER,
+  tabBelongsToApp,
   toggleSidebarEntityFavorite,
   toggleSidebarMiniApp
 } from '../sidebar'
@@ -165,6 +168,51 @@ describe('sidebar config helpers', () => {
   it('does not mark the launchpad sidebar item active for concrete mini app routes', () => {
     expect(resolveSidebarActiveItem('/app/mini-app')).toBe('mini_app')
     expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
+    // A webview tab's site path must not be read as an app route.
+    expect(resolveSidebarActiveItem('https://example.com/app/chat')).toBe('')
+  })
+})
+
+describe('tabBelongsToApp', () => {
+  const assistants = getSidebarApp('assistants')!
+
+  it('claims the route itself and anything nested under it, whatever the search carries', () => {
+    expect(tabBelongsToApp(assistants, '/app/chat')).toBe(true)
+    expect(tabBelongsToApp(assistants, '/app/chat?topicId=t1')).toBe(true)
+    expect(tabBelongsToApp(assistants, '/app/chat/settings')).toBe(true)
+  })
+
+  it('does not claim a sibling route that merely starts with the same characters', () => {
+    // Pages nest by segment: `/app/chatroom` is a different app entirely.
+    expect(tabBelongsToApp(assistants, '/app/chatroom')).toBe(false)
+  })
+
+  it('does not claim a webview tab whose site path mimics the route', () => {
+    expect(tabBelongsToApp(assistants, 'https://example.com/app/chat')).toBe(false)
+  })
+})
+
+describe('isSamePage', () => {
+  it('ignores search params, whichever kind they carry', () => {
+    // A translate tab names its own state with `?tabSession=`, a conversation names its content
+    // with `?topicId=`. Neither changes which page the tab is on, so clicking the sidebar entry
+    // you are already on must stay a no-op instead of rewriting the url and dropping that state.
+    expect(isSamePage('/app/translate?tabSession=abc', '/app/translate')).toBe(true)
+    expect(isSamePage('/app/chat?topicId=t1&view=message', '/app/chat')).toBe(true)
+    expect(isSamePage('/app/notes#heading', '/app/notes')).toBe(true)
+  })
+
+  it('separates pages that differ only in a path segment', () => {
+    expect(isSamePage('/app/paintings/openai', '/app/paintings/aihubmix')).toBe(false)
+    expect(isSamePage('/app/chat', '/app/agents')).toBe(false)
+  })
+
+  it('never matches a webview tab whose site path mimics an app route', () => {
+    expect(isSamePage('https://example.com/app/chat', '/app/chat')).toBe(false)
+  })
+
+  it('reports a malformed url as a different page', () => {
+    expect(isSamePage('::::', '/app/chat')).toBe(false)
   })
 })
 

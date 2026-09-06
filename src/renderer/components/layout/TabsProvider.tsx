@@ -7,7 +7,8 @@ import {
   type OpenTabOptions,
   TabsContext,
   type TabsContextValue,
-  useConversationNavigationOwner
+  useConversationNavigationOwner,
+  useTabSessionSweep
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
@@ -643,6 +644,7 @@ export function TabsProvider({
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
   useConversationNavigationOwner({ tabs, openTab, setActiveTab })
+  useTabSessionSweep(tabs)
 
   /**
    * Get the currently active tab

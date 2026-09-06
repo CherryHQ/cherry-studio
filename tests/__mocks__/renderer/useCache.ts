@@ -9,6 +9,7 @@ import type {
   UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
+import { useCallback, useSyncExternalStore } from 'react'
 import { vi } from 'vitest'
 
 /**
@@ -142,20 +143,27 @@ const getDefaultValue = <K extends UseCacheKey>(key: K): InferUseCacheValue<K> |
 
 /**
  * Mock useCache hook (memory cache)
+ *
+ * Subscribed like production's, so a write re-renders every reader of the key. Reading the store
+ * at render time alone would only be right when something else happens to re-render afterwards.
  */
 export const mockUseCache = vi.fn(
   <K extends UseCacheKey>(
     key: K,
     initValue?: InferUseCacheValue<K>
   ): [InferUseCacheValue<K>, (value: SetAction<InferUseCacheValue<K>>) => void] => {
-    // Get current value
-    let currentValue = mockMemoryCache.get(key)
-    if (currentValue === undefined) {
-      currentValue = initValue ?? getDefaultValue(key)
-      if (currentValue !== undefined) {
-        mockMemoryCache.set(key, currentValue)
+    // Seed before the first read so the snapshot below is a stable reference.
+    if (mockMemoryCache.get(key) === undefined) {
+      const seed = initValue ?? getDefaultValue(key)
+      if (seed !== undefined) {
+        mockMemoryCache.set(key, seed)
       }
     }
+
+    const currentValue = useSyncExternalStore(
+      useCallback((onStoreChange: () => void) => MockUseCacheUtils.addMemorySubscriber(key, onStoreChange), [key]),
+      () => mockMemoryCache.get(key)
+    )
 
     // Mock setValue function (mirrors production: resolves functional updaters
     // against the latest stored value with the same default fallback)

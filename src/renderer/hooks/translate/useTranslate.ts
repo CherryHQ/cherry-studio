@@ -14,7 +14,8 @@
  *   - Non-abort errors are always logged via `loggerService`; the toast and
  *     the rethrow are opt-out via `options`.
  *   - Unmounting the host component aborts any in-flight translation so
- *     stale completions don't run state setters on a dead tree.
+ *     stale completions don't run state setters on a dead tree — unless an
+ *     `owner` was given, which is the one thing that changes that rule.
  *
  * Callers that need rich rendering can use `onResponse` to mirror the streamed
  * accumulated text into their own view state.
@@ -23,10 +24,10 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import { translateText } from '@renderer/utils/translate'
+import { createTranslateStreamId, translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
@@ -45,6 +46,29 @@ function localizeTranslateError(error: unknown, t: (key: string) => string): unk
   return localizedError
 }
 
+/**
+ * Something that owns a translate run beyond the lifetime of the component that started it.
+ *
+ * Declared here rather than imported so this hook stays unaware of what such an owner is: a tab
+ * session satisfies it, and so could anything else. The four members are exactly what changes when
+ * the run stops ending with the component — where running-ness is read from, how it is pushed, how
+ * a run is handed over, and who can end a run this mount never started.
+ */
+export interface TranslateRunOwner {
+  /** True while the owner holds an unfinished run. */
+  isBusy: () => boolean
+  /** Notified whenever `isBusy` may have changed. */
+  subscribe: (listener: () => void) => () => void
+  /** Adopt a run by its stream id; the returned callback marks it finished. */
+  addStream: (streamId: string) => () => void
+  /** Record the run's accumulated text, so it survives this component. */
+  recordProgress: (accumulated: string) => void
+  /** Discard the previous run's accumulated text. */
+  clearProgress: () => void
+  /** End every run the owner holds. */
+  cancel: () => void
+}
+
 export interface UseTranslateOptions {
   /** Default: true. Set false to suppress the default error toast. */
   showErrorToast?: boolean
@@ -59,6 +83,18 @@ export interface UseTranslateOptions {
   onResponse?: (text: string, isComplete: boolean) => void
   /** Logger context name. Default: 'useTranslate'. */
   loggerContext?: string
+  /**
+   * Hand the run's lifetime to something that outlives this component.
+   *
+   * Without one, this hook's contract is that a run ends with the component: unmounting aborts it.
+   * An owner replaces exactly that — it decides when the run ends, and because this component may
+   * then miss part of the run, both `isTranslating` and the run's accumulated text are read from
+   * the owner rather than folded from the events this mount happened to see (#18885).
+   *
+   * Omit it wherever the component genuinely is the run's owner — a popup or an overlay that the
+   * user dismissed has no reason to keep translating.
+   */
+  owner?: TranslateRunOwner
 }
 
 export interface UseTranslateResult {
@@ -73,9 +109,24 @@ export interface UseTranslateResult {
   cancel: () => void
 }
 
+const NEVER_BUSY = () => false
+const NO_SUBSCRIPTION = () => () => {}
+
 export function useTranslate(options?: UseTranslateOptions): UseTranslateResult {
   const { t } = useTranslation()
-  const [isTranslating, setIsTranslating] = useState(false)
+  const owner = options?.owner
+
+  const [localIsTranslating, setLocalIsTranslating] = useState(false)
+  // An owned run outlives this component, so this mount can miss part of it — a local flag folded
+  // from the events it saw would come back false after a remount while the run is still going.
+  const ownerIsTranslating = useSyncExternalStore(owner?.subscribe ?? NO_SUBSCRIPTION, owner?.isBusy ?? NEVER_BUSY)
+  const isTranslating = owner ? ownerIsTranslating : localIsTranslating
+
+  // Called from continuations that may outlive this mount; with an owner the running state lives
+  // there, so there is nothing to write here.
+  const setTranslating = useCallback((running: boolean) => {
+    setLocalIsTranslating(running)
+  }, [])
 
   const optionsRef = useRef(options)
   useEffect(() => {
@@ -92,6 +143,11 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   const activeControllerRef = useRef<AbortController | null>(null)
 
   const cancel = useCallback(() => {
+    // With an owner the run may have been started by an earlier mount, so this component's refs
+    // can be empty while a translation is still going — the owner holds the stream id and cancels
+    // main's run by id, which is the only handle that survives a remount.
+    owner?.cancel()
+
     if (!activeAbortKeyRef.current) return
     // Clear the ref first so the in-flight translate's continuation sees
     // "you've been cancelled" and discards its result even if the abort
@@ -99,8 +155,8 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     activeAbortKeyRef.current = null
     activeControllerRef.current?.abort()
     activeControllerRef.current = null
-    setIsTranslating(false)
-  }, [])
+    if (!owner) setTranslating(false)
+  }, [owner, setTranslating])
 
   const translate = useCallback<UseTranslateResult['translate']>(
     async (text, targetLanguage) => {
@@ -108,34 +164,46 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       // (one translation per hook instance) and matches the existing stop-button
       // behaviour in TranslatePage.
       activeControllerRef.current?.abort()
+      // Before the owner reports busy, so a page that starts following the run on that transition
+      // cannot pick up the previous run's text.
+      owner?.clearProgress()
       const controller = new AbortController()
       activeControllerRef.current = controller
       activeAbortKeyRef.current = uuid()
       const abortKey = activeAbortKeyRef.current
+      // Minted here rather than inside `translateText`: an owner cancels by id, and the id is the
+      // only part of the run that could survive the tab being detached into another window.
+      const streamId = createTranslateStreamId()
+      const finishStream = owner?.addStream(streamId)
 
-      setIsTranslating(true)
+      if (!owner) setTranslating(true)
 
-      // Gate the progressive callback so a late `onResponse` from a
-      // cancelled / superseded run doesn't write into consumer state.
+      // Gate progress reporting so a late chunk from a cancelled / superseded run doesn't write
+      // into consumer state. The owner is told first and unconditionally after that gate: it is
+      // the only recipient that outlives this component, so a run that continues past an unmount
+      // still leaves a trace the next mount can read.
       const onResponse = optionsRef.current?.onResponse
-      const guardedOnResponse = onResponse
-        ? (chunkText: string, isComplete: boolean) => {
-            if (activeAbortKeyRef.current !== abortKey) return
-            onResponse(chunkText, isComplete)
-          }
-        : undefined
+      const reportProgress =
+        owner || onResponse
+          ? (chunkText: string, isComplete: boolean) => {
+              if (activeAbortKeyRef.current !== abortKey) return
+              owner?.recordProgress(chunkText)
+              onResponse?.(chunkText, isComplete)
+            }
+          : undefined
 
       const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
       const finishIfActive = () => {
+        finishStream?.()
         if (activeAbortKeyRef.current === abortKey) {
           activeAbortKeyRef.current = null
           activeControllerRef.current = null
-          setIsTranslating(false)
+          setTranslating(false)
         }
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+        const result = await translateText(text, targetLanguage, reportProgress, controller.signal, streamId)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
@@ -160,18 +228,20 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         finishIfActive()
       }
     },
-    [t]
+    [owner, setTranslating, t]
   )
 
   // On unmount: abort the active controller (propagates to main via streamAbort
   // inside translateText) and clear the marker so any late settle is discarded.
+  // An owned run is exempt — the owner, not this component, decides when it ends.
   useEffect(() => {
+    if (owner) return
     return () => {
       activeAbortKeyRef.current = null
       activeControllerRef.current?.abort()
       activeControllerRef.current = null
     }
-  }, [])
+  }, [owner])
 
   return { translate, isTranslating, cancel }
 }
