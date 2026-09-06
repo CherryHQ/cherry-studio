@@ -300,6 +300,19 @@ function getComposerLineRanges(text: string): ComposerLineRange[] {
 }
 
 /**
+ * Removes blank lines only at the boundaries of a plain text run, keeping whitespace inside the
+ * first and last meaningful lines — a code block's indentation and a Markdown hard break's trailing
+ * spaces both survive, unlike `String.trim`.
+ */
+export function trimTextBoundaryBlankLines(text: string): string {
+  const lines = getComposerLineRanges(text)
+  const meaningfulLines = lines.filter((line) => text.slice(line.start, line.contentEnd).trim().length > 0)
+  const first = meaningfulLines[0]
+  const last = meaningfulLines.at(-1)
+  return first && last ? text.slice(first.start, last.contentEnd) : ''
+}
+
+/**
  * Removes token-free blank lines only at the document boundaries. Whitespace
  * inside the first and last meaningful lines, plus all internal blank lines,
  * remains untouched.

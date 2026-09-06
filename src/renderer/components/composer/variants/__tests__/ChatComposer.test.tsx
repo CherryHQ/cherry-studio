@@ -4533,7 +4533,7 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
-  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
+  it('saves an assistant reply split by a tool call without moving the tool', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
@@ -4558,12 +4558,29 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
-    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
 
-    expect(editMessage).not.toHaveBeenCalled()
+    // The prefill anchors the tool between the two texts; the editor hands that anchor back on save.
+    const restoredDraft = mocks.replaceDraft.mock.lastCall?.[0]
+    expect(restoredDraft.tokens).toEqual([
+      expect.objectContaining({
+        kind: 'messagePart',
+        id: `message-part:${message.id}:1`,
+        textOffset: 'before tool\n'.length
+      })
+    ])
+
+    await mocks.surfaceProps?.onSendDraft({
+      text: 'edited before\n\nedited after',
+      tokens: [{ ...restoredDraft.tokens[0], textOffset: 'edited before\n'.length }]
+    })
+
+    expect(editMessage).toHaveBeenCalledWith(message.id, [
+      { type: 'text', text: 'edited before' },
+      originalParts[1],
+      { type: 'text', text: 'edited after' }
+    ])
     expect(forkAndResend).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
-    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
   it('saves an assistant reply whose text has provider metadata', async () => {
