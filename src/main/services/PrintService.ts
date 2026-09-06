@@ -306,7 +306,6 @@ export class PrintService {
 
     try {
       const pdfData = await window.webContents.printToPDF({
-        margins: { marginType: 'default' },
         pageSize: 'A4',
         preferCSSPageSize: true,
         printBackground: true

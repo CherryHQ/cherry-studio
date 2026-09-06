@@ -121,7 +121,6 @@ describe('PrintService', () => {
     expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript.mock.invocationCallOrder[0]).toBeLessThan(printToPDF.mock.invocationCallOrder[0])
     expect(printToPDF).toHaveBeenCalledWith({
-      margins: { marginType: 'default' },
       pageSize: 'A4',
       preferCSSPageSize: true,
       printBackground: true

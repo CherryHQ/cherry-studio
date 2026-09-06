@@ -26,7 +26,7 @@ overrides:
   prosemirror-view: 1.41.9
   prosemirror-transform: 1.12.0
   esbuild: ^0.25.0
-  node-abi: 4.28.0
+  node-abi: 4.33.0
   openai: npm:@cherrystudio/openai@6.15.0
   tar-fs: ^2.1.4
   tar@>=7.0.0 <7.5.19: 7.5.19
@@ -382,13 +382,13 @@ importers:
         version: 3.1.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@41.8.0)
+        version: 3.0.2(electron@43.4.1)
       '@electron-toolkit/tsconfig':
         specifier: ^1.0.1
         version: 1.0.1(@types/node@24.10.4)
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@41.8.0)
+        version: 3.0.0(electron@43.4.1)
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0
@@ -819,8 +819,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 41.8.0
-        version: 41.8.0
+        specifier: 43.4.1
+        version: 43.4.1
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)
@@ -10649,8 +10649,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@41.8.0:
-    resolution: {integrity: sha512-mQRqdFxB6/EAyA9pPn00EC1KFytTijOQO52zBvl9HypWBvvibC3P4iSrT4CSVVksolOPKZZm8U4Cfjb5IHxZVA==}
+  electron@43.4.1:
+    resolution: {integrity: sha512-5b+EuiwkgG5iRcsEL34rimgRpkYp15SsfZOa0pC5kXs0Tb82TH4n95rpQzTZa7yRCbA7tm0WoEbuBL6NaAhAcA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -13049,8 +13049,8 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
-  node-abi@4.28.0:
-    resolution: {integrity: sha512-Qfp5XZL1cJDOabOT8H5gnqMTmM4NjvYzHp4I/Kt/Sl76OVkOBBHRFlPspGV0hYvMoqQsypFjT/Yp7Km0beXW9g==}
+  node-abi@4.33.0:
+    resolution: {integrity: sha512-vLBWCKb+7LWsX+TbfzWOkw0W81m377tyx3hOweBTjO43CXZnRGS1/JPWs20fr0PgZyDXk6ROYrylsEycK8raDA==}
     engines: {node: '>=22.12.0'}
 
   node-addon-api@3.2.1:
@@ -18655,17 +18655,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@41.8.0)':
+  '@electron-toolkit/preload@3.0.2(electron@43.4.1)':
     dependencies:
-      electron: 41.8.0
+      electron: 43.4.1
 
   '@electron-toolkit/tsconfig@1.0.1(@types/node@24.10.4)':
     dependencies:
       '@types/node': 24.10.4
 
-  '@electron-toolkit/utils@3.0.0(electron@41.8.0)':
+  '@electron-toolkit/utils@3.0.0(electron@43.4.1)':
     dependencies:
-      electron: 41.8.0
+      electron: 43.4.1
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -18729,7 +18729,7 @@ snapshots:
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
       debug: 4.4.3
-      node-abi: 4.28.0
+      node-abi: 4.33.0
       node-api-version: 0.2.1
       node-gyp: 12.4.0
       read-binary-file-arch: 1.0.6
@@ -18740,7 +18740,7 @@ snapshots:
     dependencies:
       '@malept/cross-spawn-promise': 2.0.0
       debug: 4.4.3
-      node-abi: 4.28.0
+      node-abi: 4.33.0
       node-api-version: 0.2.1
       node-gyp: 12.4.0
       read-binary-file-arch: 1.0.6
@@ -25691,7 +25691,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@41.8.0:
+  electron@43.4.1:
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0
@@ -28724,7 +28724,7 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.8.1
 
-  node-abi@4.28.0:
+  node-abi@4.33.0:
     dependencies:
       semver: 7.7.1
 
@@ -29313,7 +29313,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 1.0.2
-      node-abi: 4.28.0
+      node-abi: 4.33.0
       noop-logger: 0.1.1
       npmlog: 4.1.2
       pump: 3.0.3
@@ -29331,7 +29331,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 2.0.0
-      node-abi: 4.28.0
+      node-abi: 4.33.0
       pump: 3.0.3
       rc: 1.2.8
       simple-get: 4.0.1
