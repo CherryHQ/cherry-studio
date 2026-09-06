@@ -302,7 +302,7 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => agentPageMocks.navigate,
-  useSearch: () => agentPageMocks.routeSearch
+  getRouteApi: () => ({ useSearch: () => agentPageMocks.routeSearch })
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({

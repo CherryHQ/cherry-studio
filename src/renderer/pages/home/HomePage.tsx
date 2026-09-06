@@ -35,13 +35,14 @@ import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutat
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -53,12 +54,12 @@ import {
 } from './components/AssistantConversationPickerDialog'
 import { HomeTabRuntime } from './components/HomeTabRuntime'
 import { TopicRightPane } from './components/TopicRightPane'
-import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
+const chatRouteApi = getRouteApi('/app/chat')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 type AssistantConversationResourceKind = 'assistant'
 const ASSISTANT_CONVERSATION_RESOURCE_KINDS = [
@@ -88,7 +89,7 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
-  const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const routeSearch = chatRouteApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId

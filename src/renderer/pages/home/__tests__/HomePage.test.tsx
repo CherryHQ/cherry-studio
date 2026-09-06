@@ -326,7 +326,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => homeMocks.navigate,
-  useSearch: () => homeMocks.routeSearch
+  getRouteApi: () => ({ useSearch: () => homeMocks.routeSearch })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({

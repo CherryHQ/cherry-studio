@@ -32,6 +32,7 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -40,7 +41,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,11 +58,11 @@ import {
   type FeedbackComposerLaunch,
   getFeedbackIntentGuardCacheKey
 } from './feedbackComposerLaunch'
-import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const logger = loggerService.withContext('AgentPage')
+const agentsRouteApi = getRouteApi('/app/agents')
 type AgentConversationResourceKind = 'agent'
 const AGENT_CONVERSATION_RESOURCE_KINDS = ['agent'] as const satisfies readonly AgentConversationResourceKind[]
 
@@ -92,7 +93,7 @@ const AgentPage = () => {
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
-  const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const routeSearch = agentsRouteApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
