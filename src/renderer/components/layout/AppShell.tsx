@@ -65,8 +65,14 @@ export const AppShell = () => {
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const { currentMiniAppId, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow } =
-    useMiniApps()
+  const {
+    currentMiniAppId,
+    openedOneOffMiniApp,
+    setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow,
+    setOpenedOneOffMiniApp
+  } = useMiniApps()
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.
@@ -74,7 +80,7 @@ export const AppShell = () => {
   // single close, bulk close, and detach so policy cannot drift.
   const takeClearingSplitId = useCallback(
     (closedIds: readonly string[]): string | undefined => {
-      if (!splitOpen || !splitMiniAppId) return undefined
+      if (!splitOpen) return undefined
       let closingMiniAppFound = false
       for (const id of closedIds) {
         const tab = tabs.find((t) => t.id === id)
@@ -86,7 +92,7 @@ export const AppShell = () => {
       if (!closingMiniAppFound) return undefined
       const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
       if (hasSurvivingMiniAppTab) return undefined
-      const id = splitMiniAppId
+      const id = splitMiniAppId || undefined
       setSplitOpen(false)
       setSplitMiniAppId('')
       return id
@@ -122,8 +128,10 @@ export const AppShell = () => {
       const orphanedSet = new Set(orphanedIds)
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
       for (const appId of orphanedIds) clearWebviewState(appId)
-      // If the current mini app was among the orphaned, clear its global show state
-      if (currentMiniAppId && orphanedSet.has(currentMiniAppId) && openedOneOffMiniApp?.appId !== currentMiniAppId) {
+      if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
+        if (openedOneOffMiniApp?.appId === currentMiniAppId) {
+          setOpenedOneOffMiniApp(null)
+        }
         setCurrentMiniAppId('')
         setMiniAppShow(false)
       }
@@ -136,7 +144,8 @@ export const AppShell = () => {
       openedOneOffMiniApp,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
-      setMiniAppShow
+      setMiniAppShow,
+      setOpenedOneOffMiniApp
     ]
   )
 
