@@ -3,6 +3,7 @@ import {
   DOCTOR_CHECK_CATALOG,
   type DoctorBasics,
   type DoctorCheckId,
+  type DoctorCheckResult,
   type DoctorDataClass,
   type DoctorDetailVariant,
   type DoctorFixId,
@@ -53,7 +54,22 @@ export const DOCTOR_VIEW_DATA_CLASSES: Readonly<Record<DoctorReportView, readonl
   upload: ['public']
 }
 
-/** Pure projection of a report onto a view: drops basics and evidence outside the allowed classes. */
+export const DOCTOR_REDACTED = '[redacted]'
+
+/**
+ * `devMessage` and an errored check's raw `message` are developer text built from hosts, paths
+ * and thrown error bodies, so they carry `local_only` and never survive a public-only view.
+ */
+function projectResult(result: DoctorCheckResult, keepDeveloperText: boolean): DoctorCheckResult {
+  if (keepDeveloperText) return result
+  const { devMessage: _devMessage, ...rest } = result
+  return (rest.status === 'error' ? { ...rest, message: DOCTOR_REDACTED } : rest) as DoctorCheckResult
+}
+
+/**
+ * Pure projection of a report onto a view: every field outside the view's data classes is
+ * dropped — basics, evidence, and the developer text on each result.
+ */
 export function projectDoctorReport(
   report: DoctorReport,
   view: DoctorReportView,
@@ -64,9 +80,11 @@ export function projectDoctorReport(
   const basics = Object.fromEntries(
     Object.entries(report.basics).filter(([key]) => allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics]))
   ) as DoctorBasics
+  const keepDeveloperText = allowed.has('local_only')
   const results = report.results.map((result) => {
-    if (!result.evidence) return result
-    return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
+    const projected = projectResult(result, keepDeveloperText)
+    if (!projected.evidence) return projected
+    return { ...projected, evidence: projected.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   return { ...report, basics, results }
 }
