@@ -687,7 +687,7 @@ describe('useChatWriteActions — fork and resend', () => {
     )
   })
 
-  it('inherits separator-containing raw snapshots as distinct models', async () => {
+  it('deduplicates migrated snapshot IDs when inheriting models', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
@@ -705,9 +705,7 @@ describe('useChatWriteActions — fork and resend', () => {
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
 
-    expect(streamOpen).toHaveBeenCalledWith(
-      expect.objectContaining({ mentionedModelIds: ['provider::model-a', 'provider::provider::model-a'] })
-    )
+    expect(streamOpen).toHaveBeenCalledWith(expect.objectContaining({ mentionedModelIds: ['provider::model-a'] }))
   })
 
   it('rejects edit-and-resend when stream open is blocked', async () => {

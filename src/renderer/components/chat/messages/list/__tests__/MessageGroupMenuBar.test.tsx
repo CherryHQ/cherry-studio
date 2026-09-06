@@ -235,8 +235,8 @@ describe('MessageGroupMenuBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
 
-    expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['gpt-legacy'], ['claude-new']])
+    expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
     expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
-    expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 2 })
+    expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 3 })
   })
 })
