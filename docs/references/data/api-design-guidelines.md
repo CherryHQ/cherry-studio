@@ -196,7 +196,7 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
-Provider enablement is a narrow exception: `PATCH /providers/:providerId` atomically moves that provider to the first position only when `isEnabled` transitions from `false` to `true`. This provider-specific invariant does not establish a general permission for resource updates to mutate ordering. Redundant provider `true` updates preserve the user's existing order, and explicit reorder requests still use the canonical order routes.
+Provider enablement does not mutate ordering: `PATCH /providers/:providerId` preserves the current order when enabling or disabling an existing provider. Only `POST /providers` inserts at the first position. Resource updates still must not mutate ordering; explicit reorder requests use the canonical order routes.
 
 
 ```typescript
