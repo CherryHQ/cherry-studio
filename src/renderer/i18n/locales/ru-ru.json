@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "Установлено {{count}} навыков",
   "settings.skills.batchInstallPartialFailed": "Установлено {{success}}/{{total}} навыков, {{failed}} не удалось",
   "settings.skills.batchInstallQueued": "В очереди",
+  "settings.skills.enabledOnly": "Только включённые навыки",
   "settings.skills.globalToggle": "Включить навык {{name}} глобально",
   "settings.skills.install": "Установить",
   "settings.skills.installFailed": "Не удалось установить навык: {{name}}",

@@ -575,6 +575,13 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
     expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
   })
+
+  it('uses the no-match copy when an external filter hides installed resources', () => {
+    renderResourceGrid({ hasHiddenResources: true })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
 })
 
 describe('ResourceGrid assistant add actions', () => {

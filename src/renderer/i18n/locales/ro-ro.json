@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "Instalate {{count}} abilități",
   "settings.skills.batchInstallPartialFailed": "S-au instalat {{success}}/{{total}} abilități; {{failed}} au eșuat",
   "settings.skills.batchInstallQueued": "În așteptare",
+  "settings.skills.enabledOnly": "Doar abilitățile activate",
   "settings.skills.globalToggle": "Activează global abilitatea {{name}}",
   "settings.skills.install": "Instalare",
   "settings.skills.installFailed": "Nu s-a putut instala abilitatea: {{name}}",

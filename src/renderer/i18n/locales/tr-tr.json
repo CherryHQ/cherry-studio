@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "{{count}} beceri yüklendi",
   "settings.skills.batchInstallPartialFailed": "{{success}}/{{total}} beceri yüklendi, {{failed}} başarısız oldu",
   "settings.skills.batchInstallQueued": "Kuyruğa alındı",
+  "settings.skills.enabledOnly": "Yalnızca Etkin Beceriler",
   "settings.skills.globalToggle": "{{name}} becerisini genel olarak etkinleştir",
   "settings.skills.install": "Yükle",
   "settings.skills.installFailed": "Beceri yüklenemedi: {{name}}",

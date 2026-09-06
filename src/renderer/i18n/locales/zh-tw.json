@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "已安裝 {{count}} 個技能",
   "settings.skills.batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
   "settings.skills.batchInstallQueued": "等待安裝",
+  "settings.skills.enabledOnly": "僅顯示已啟用技能",
   "settings.skills.globalToggle": "全域啟用技能 {{name}}",
   "settings.skills.install": "安裝",
   "settings.skills.installFailed": "技能安裝失敗：{{name}}",

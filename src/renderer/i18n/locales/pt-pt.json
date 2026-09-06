@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "Instaladas {{count}} competências",
   "settings.skills.batchInstallPartialFailed": "Instaladas {{success}}/{{total}} competências, {{failed}} falharam",
   "settings.skills.batchInstallQueued": "Na fila",
+  "settings.skills.enabledOnly": "Apenas competências ativadas",
   "settings.skills.globalToggle": "Ativar globalmente a competência {{name}}",
   "settings.skills.install": "Instalar",
   "settings.skills.installFailed": "Falha ao instalar a competência: {{name}}",

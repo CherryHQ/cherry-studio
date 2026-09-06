@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "Installed {{count}} skills",
   "settings.skills.batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
   "settings.skills.batchInstallQueued": "Queued",
+  "settings.skills.enabledOnly": "Enabled Skills Only",
   "settings.skills.globalToggle": "Globally enable skill {{name}}",
   "settings.skills.install": "Install",
   "settings.skills.installFailed": "Failed to install skill: {{name}}",

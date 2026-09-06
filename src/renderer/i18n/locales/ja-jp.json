@@ -4875,6 +4875,7 @@
   "settings.skills.batchInstallComplete": "{{count}}個のスキルをインストールしました",
   "settings.skills.batchInstallPartialFailed": "{{success}}/{{total}} 個のスキルをインストールしました、{{failed}} 個に失敗",
   "settings.skills.batchInstallQueued": "キューに追加されました",
+  "settings.skills.enabledOnly": "有効なスキルのみ",
   "settings.skills.globalToggle": "スキル {{name}} をグローバルに有効化",
   "settings.skills.install": "インストール",
   "settings.skills.installFailed": "スキルのインストールに失敗しました: {{name}}",
