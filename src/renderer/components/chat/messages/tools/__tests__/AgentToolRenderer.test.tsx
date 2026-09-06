@@ -1280,6 +1280,46 @@ describe('AgentToolRenderer', () => {
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
+    // The adapter-stamped id navigates without scanning; the label/flow title must still carry
+    // the launch identity (best-effort scan) instead of the resume request's summary.
+    it('uses the launch identity for label and title on a stamped receipt', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' },
+        resultProviderMetadata: { cherry: { launchToolCallId: 'call-launch' } }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+      // The launch description, not the resume request's summary.
+      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+      expect(screen.queryByText('Continue the review')).toBeNull()
+
+      fireEvent.click(screen.getByText('Continue handling').closest('[role="button"]')!)
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-launch',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
     // A mere mention of the agent id inside another part's reply is not a launch receipt.
     it('does not resolve an unrelated mention of the agent id as the launch', () => {
       const openAgentToolFlow = vi.fn()
