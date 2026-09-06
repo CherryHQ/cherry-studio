@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
@@ -81,6 +81,7 @@ function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: bo
 }
 
 @Injectable('WebviewService')
+@DependsOn(['BrowserSessionService'])
 @ServicePhase(Phase.WhenReady)
 export class WebviewService extends BaseService {
   private readonly preloadBindings = new Map<Electron.WebContents, () => void>()
