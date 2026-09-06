@@ -1938,6 +1938,27 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Mizumi - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.mizumi.co/v1"
+        }
+      },
+      "id": "mizumi",
+      "metadata": {
+        "website": {
+          "apiKey": "https://mizumi.co",
+          "docs": "https://mizumi.co/docs",
+          "models": "https://mizumi.co/docs",
+          "official": "https://mizumi.co"
+        }
+      },
+      "name": "Mizumi"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Jina - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
