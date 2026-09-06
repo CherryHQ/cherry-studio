@@ -3,7 +3,7 @@
   "documents": [
     {
       "path": "docs/contrib/app-upgrade.md",
-      "sources": ["dev-app-update.yml","electron-builder.yml","resources/cherry-studio/release-history.json","src/main/services/AppUpdaterService.ts"]
+      "sources": ["dev-app-update.yml","electron-builder.cn.config.cjs","electron-builder.yml","package.json","resources/cherry-studio/release-history.json","src/main/services/AppUpdaterService.ts"]
     },
     {
       "path": "docs/contrib/feishu-notify.md",
@@ -12,6 +12,10 @@
     {
       "path": "docs/contrib/linux-packaging.md",
       "sources": ["scripts/linux-native"]
+    },
+    {
+      "path": "docs/contrib/release-workflow.md",
+      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/publish-release.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs"]
     },
     {
       "path": "docs/references/ai/adapter-family.md",
@@ -31,7 +35,7 @@
     },
     {
       "path": "docs/references/ai/agent-session-runtime.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts"]
+      "sources": ["packages/dsh-bridge/src/plugin.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/agentPrompt.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/dsh","src/main/ai/runtime/pi","src/main/ai/runtime/types.ts","src/main/ai/toolApproval/userDataSqliteGuard.ts"]
     },
     {
       "path": "docs/references/ai/ai-usage-records.md",
@@ -58,6 +62,10 @@
       "sources": ["src/renderer/services/aiTransport/IpcChatTransport.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
     },
     {
+      "path": "docs/references/ai/local-models.md",
+      "sources": ["src/main/ai/localModel","src/renderer/hooks/useLocalModel.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/presets/localModel.ts","src/shared/ipc/schemas/localModel.ts"]
+    },
+    {
       "path": "docs/references/ai/model-retry.md",
       "sources": ["src/main/ai/runtime/aiSdk/retry","src/renderer/pages/settings/ModelSettings/ModelSettings.tsx"]
     },
@@ -74,6 +82,10 @@
       "sources": ["packages/aiCore/src/core/providers/core/initialization.ts","src/main/ai/provider/config.ts","src/main/ai/provider/endpoint.ts"]
     },
     {
+      "path": "docs/references/ai/provider-state-ownership.md",
+      "sources": ["packages/provider-registry/src/schemas/provider.ts","src/main/ai/runtime/aiSdk/params","src/main/data/services/ProviderRegistryService.ts","src/main/data/services/ProviderService.ts","src/shared/data/types/provider.ts"]
+    },
+    {
       "path": "docs/references/ai/README.md",
       "sources": ["src/main/ai","src/renderer/services/aiTransport"]
     },
@@ -88,6 +100,10 @@
     {
       "path": "docs/references/ai/tool-registry.md",
       "sources": ["src/main/ai/tools/adapters/aiSdk","src/main/ai/tools/adapters/claudeCode/agentTools.ts"]
+    },
+    {
+      "path": "docs/references/ai/translation.md",
+      "sources": ["src/main/ipc/handlers/translate.ts","src/main/services/translate/translateService.ts","src/renderer/pages/home/messages/homeMessageListAdapter.tsx","src/renderer/pages/translate/TranslateSettings.tsx","src/renderer/pages/translate/useTranslateReasoningEffort.ts","src/renderer/utils/translate/translateText.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/ipc/schemas/translate.ts"]
     },
     {
       "path": "docs/references/api-gateway/README.md",
@@ -115,7 +131,7 @@
     },
     {
       "path": "docs/references/binary-manager/README.md",
-      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/BinaryManager.ts","src/shared/data/presets/binaryTools.ts"]
+      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/pythonRuntime.ts","src/shared/data/presets/binaryTools.ts"]
     },
     {
       "path": "docs/references/chat/composer-rich-clipboard.md",
@@ -376,6 +392,50 @@
     {
       "path": "docs/references/logging/README.md",
       "sources": ["src/main/core/logger/LoggerService.ts","src/renderer/services/LoggerService.ts"]
+    },
+    {
+      "path": "docs/references/memory/overview.md",
+      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/agents/tools/memoryTools.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge"]
+    },
+    {
+      "path": "docs/references/memory/README.md",
+      "sources": ["src/main/ai/agents/prompt.ts","src/main/ai/agents/tools/memoryTools.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge"]
+    },
+    {
+      "path": "docs/references/mini-app/activity-log.md",
+      "sources": ["src/main/features/miniApp/activityLog.ts","src/main/features/miniApp/runtime/MiniAppRuntimeService.ts","src/shared/types/miniAppActivity.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/capabilities.md",
+      "sources": ["src/main/features/miniApp/capabilities","src/main/features/miniApp/capabilities/quota.ts","src/main/features/miniApp/runtime/bridge.ts","src/preload/miniAppBridge.ts","src/shared/ipc/schemas/miniAppBridge.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/lifecycle.md",
+      "sources": ["src/main/features/miniApp/runtime/MiniAppRuntimeService.ts","src/main/features/miniApp/runtime/events.ts","src/shared/ipc/schemas/miniAppBridge.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/manifest.md",
+      "sources": ["src/shared/types/miniAppManifest.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/packaging.md",
+      "sources": ["src/main/features/miniApp/grants.ts","src/main/features/miniApp/install/archive.ts","src/main/features/miniApp/install/installFlow.ts","src/main/features/miniApp/install/installer.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/probes.md",
+      "sources": ["src/main/features/miniApp/capabilities/network.ts","src/main/features/miniApp/runtime/network.ts","src/main/features/miniApp/runtime/protocol.ts","src/main/features/miniApp/runtime/webviewHost.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/README.md",
+      "sources": ["src/main/features/miniApp","src/preload/miniAppBridge.ts","src/shared/types/miniAppManifest.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/sandbox.md",
+      "sources": ["src/main/features/miniApp/runtime/navigation.ts","src/main/features/miniApp/runtime/network.ts","src/main/features/miniApp/runtime/protocol.ts","src/main/features/miniApp/runtime/webviewHost.ts"]
+    },
+    {
+      "path": "docs/references/mini-app/theming.md",
+      "sources": ["packages/ui/scripts/build-theme-css.ts","packages/ui/scripts/theme-contract.ts","src/main/features/miniApp/runtime/protocol.ts"]
     },
     {
       "path": "docs/references/provider-model/provider-registry.md",

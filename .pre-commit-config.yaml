@@ -28,7 +28,7 @@ repos:
         name: Bilingual pairing (staged content)
         language: system
         entry: pnpm docs:check-pairing --cached
-        files: '^(\.agents/notes/|CONTRIBUTING(?:\.zh)?\.md$|docs/i18n/)'
+        files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/i18n/)'
         pass_filenames: true
 
       - id: post-checkout-install

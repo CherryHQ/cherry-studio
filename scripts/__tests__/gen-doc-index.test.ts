@@ -3,7 +3,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { generateIndex, generateSourcesIndex } from '../gen-doc-index'
+import { generateIndex, generateSourcesIndex, writeGeneratedIndexes } from '../gen-doc-index'
 
 const tempDirs: string[] = []
 const makeRepo = (files: Record<string, string>): string => {
@@ -64,5 +64,20 @@ describe('generateIndex', () => {
       'docs/references/data/README.md': '---\ndescription: Data\n---\n\n# Data\n'
     }
     expect(generateIndex(makeRepo(files))).toBe(generateIndex(makeRepo(files)))
+  })
+
+  it('restores the human index when the machine index cannot be replaced', () => {
+    const root = makeRepo({
+      'docs/README.md': 'original index\n',
+      'docs/contrib/dev.md': '---\ndescription: Setup\n---\n\n# Setup\n',
+      'docs/i18n/README.md': '---\ndescription: Translation\n---\n\n# Translation\n',
+      'docs/references/data/README.md': '---\ndescription: Data\n---\n\n# Data\n'
+    })
+    fs.mkdirSync(path.join(root, 'docs/sources-index.json'))
+
+    expect(writeGeneratedIndexes).toBeTypeOf('function')
+    expect(() => writeGeneratedIndexes(root)).toThrow()
+    expect(fs.readFileSync(path.join(root, 'docs/README.md'), 'utf8')).toBe('original index\n')
+    expect(fs.statSync(path.join(root, 'docs/sources-index.json')).isDirectory()).toBe(true)
   })
 })

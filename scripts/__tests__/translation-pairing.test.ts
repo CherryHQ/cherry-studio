@@ -63,6 +63,32 @@ describe('translation pairing helpers', () => {
     ])
   })
 
+  it('requires fenced code blocks to be byte-identical', () => {
+    const paths = pairPaths('docs/i18n/README.md')
+    const sourceBody = ['```ts', '// Keep this comment.', 'run()', '```'].join('\n')
+    const zhBody = ['~~~ts', '// Keep this comment.', 'run()', '~~~'].join('\n')
+    const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', sourceBody)
+    const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', zhBody)
+
+    expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toContainEqual(
+      expect.stringContaining('code block')
+    )
+  })
+
+  it('rejects matching non-switcher links to Chinese documents', () => {
+    const paths = pairPaths('docs/i18n/README.md')
+    const body = '[Guide](../guide.zh.md)'
+    const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', body)
+    const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', body)
+
+    expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('docs/i18n/README.md: non-switcher link'),
+        expect.stringContaining('docs/i18n/README.zh.md: non-switcher link')
+      ])
+    )
+  })
+
   it('validates root-only rollout manifests', () => {
     expect(parseManifest('{"roots":[".agents/notes","CONTRIBUTING.md"],"excluded":[]}')).toEqual({
       roots: ['.agents/notes', 'CONTRIBUTING.md'],

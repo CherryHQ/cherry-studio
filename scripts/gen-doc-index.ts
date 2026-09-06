@@ -128,13 +128,48 @@ export const generateSourcesIndex = (repoRoot: string): string => {
   ].join('\n')
 }
 
+export const writeGeneratedIndexes = (repoRoot: string): void => {
+  const docsDir = path.join(repoRoot, 'docs')
+  const outputs = [
+    { path: path.join(docsDir, 'README.md'), content: generateIndex(repoRoot) },
+    { path: path.join(docsDir, 'sources-index.json'), content: generateSourcesIndex(repoRoot) }
+  ]
+  const transactionDir = fs.mkdtempSync(path.join(docsDir, '.doc-index-'))
+  const prepared: { path: string; staged: string; backup?: string }[] = []
+  let committed = 0
+
+  try {
+    for (const [index, output] of outputs.entries()) {
+      const staged = path.join(transactionDir, `${index}.new`)
+      const backup = path.join(transactionDir, `${index}.old`)
+      fs.writeFileSync(staged, output.content)
+      const hasFile = fs.existsSync(output.path) && fs.statSync(output.path).isFile()
+      if (hasFile) fs.copyFileSync(output.path, backup)
+      prepared.push({ path: output.path, staged, backup: hasFile ? backup : undefined })
+    }
+
+    for (const output of prepared) {
+      fs.renameSync(output.staged, output.path)
+      committed += 1
+    }
+  } catch (error) {
+    for (const output of prepared.slice(0, committed).reverse()) {
+      if (output.backup) fs.copyFileSync(output.backup, output.path)
+      else fs.rmSync(output.path, { force: true })
+    }
+    throw error
+  } finally {
+    fs.rmSync(transactionDir, { recursive: true, force: true })
+  }
+}
+
 const main = () => {
   const indexPath = path.join(ROOT, 'docs/README.md')
   const sourcesPath = path.join(ROOT, 'docs/sources-index.json')
-  const generatedIndex = generateIndex(ROOT)
-  const generatedSources = generateSourcesIndex(ROOT)
 
   if (process.argv.includes('--check')) {
+    const generatedIndex = generateIndex(ROOT)
+    const generatedSources = generateSourcesIndex(ROOT)
     const current = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : ''
     const currentSources = fs.existsSync(sourcesPath) ? fs.readFileSync(sourcesPath, 'utf8') : ''
     if (current !== generatedIndex || currentSources !== generatedSources) {
@@ -145,8 +180,7 @@ const main = () => {
     return
   }
 
-  fs.writeFileSync(indexPath, generatedIndex)
-  fs.writeFileSync(sourcesPath, generatedSources)
+  writeGeneratedIndexes(ROOT)
   console.log('Wrote docs/README.md and docs/sources-index.json.')
 }
 

@@ -34,7 +34,7 @@
 
 ## 开始贡献
 
-为了帮助你熟悉代码库，建议优先处理带有以下一个或多个标签的 Issue：[good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue)、[help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted)或 [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug)。欢迎任何形式的帮助。
+为了帮助你熟悉代码库，建议优先处理带有以下一个或多个标签的 Issue：[good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue)、[help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted)或 [bug](https://github.com/CherryHQ/cherry-studio/labels/bug)。欢迎任何形式的帮助。
 
 ### 测试
 

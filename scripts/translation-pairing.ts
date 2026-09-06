@@ -150,8 +150,15 @@ const parseMarkdown = (content: string): Root => unified().use(remarkParse).use(
 const structureSignature = (content: string, ignoredLink: string): StructureSignature => {
   const tree = parseMarkdown(content)
   const signature: StructureSignature = { headings: [], code: [], tables: [], lists: [], links: [] }
+  let ignoredSwitcher = false
   visit(tree, 'heading', (node) => signature.headings.push(node.depth))
-  visit(tree, 'code', (node) => signature.code.push(`${node.lang ?? ''}|${node.meta ?? ''}|${node.value}`))
+  visit(tree, 'code', (node) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start === undefined || end === undefined) return
+    const raw = content.slice(start, end)
+    if (/^ {0,3}(?:`{3,}|~{3,})/u.test(raw)) signature.code.push(raw)
+  })
   visit(tree, 'table', (node) =>
     signature.tables.push(`${node.children.length}x${node.children[0]?.children.length ?? 0}`)
   )
@@ -161,10 +168,16 @@ const structureSignature = (content: string, ignoredLink: string): StructureSign
     )
   )
   visit(tree, 'link', (node) => {
-    if (node.url !== ignoredLink) signature.links.push(node.url)
+    if (!ignoredSwitcher && node.url === ignoredLink) {
+      ignoredSwitcher = true
+      return
+    }
+    signature.links.push(node.url)
   })
   return signature
 }
+
+const isChineseMarkdownTarget = (target: string): boolean => target.split(/[?#]/u, 1)[0].endsWith('.zh.md')
 
 const firstDifference = (label: string, left: readonly unknown[], right: readonly unknown[]): string | undefined => {
   const length = Math.max(left.length, right.length)
@@ -221,6 +234,14 @@ export const validatePairContent = (paths: PairPaths, source: Buffer, zh: Buffer
 
   const sourceStructure = structureSignature(matter(sourceText).content, basename(paths.zh))
   const zhStructure = structureSignature(matter(zhText).content, basename(paths.source))
+  for (const [file, links] of [
+    [paths.source, sourceStructure.links],
+    [paths.zh, zhStructure.links]
+  ] as const) {
+    for (const target of links.filter(isChineseMarkdownTarget)) {
+      errors.push(`${file}: non-switcher link must target the English .md path, not ${JSON.stringify(target)}`)
+    }
+  }
   for (const [label, left, right] of [
     ['heading depth', sourceStructure.headings, zhStructure.headings],
     ['code block', sourceStructure.code, zhStructure.code],
