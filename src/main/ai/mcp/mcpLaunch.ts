@@ -2,6 +2,8 @@ import type { LoggerService } from '@logger'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 
+import { containsUnresolvedConfigPlaceholder } from './mcpPlaceholder'
+
 type Runner = {
   /** Bundled binary to fall back on when the command is missing from PATH; defaults to the command. */
   bundled?: string
@@ -45,6 +47,20 @@ export type LaunchCommand = {
   env: Record<string, string>
 }
 
+export function validateLaunchCommand(command: string): string {
+  const normalizedCommand = command.trim()
+  if (!normalizedCommand) {
+    throw new Error('MCP stdio command cannot be empty')
+  }
+  if (containsUnresolvedConfigPlaceholder(normalizedCommand)) {
+    throw Object.assign(new Error(`MCP stdio command contains an unresolved placeholder: '${normalizedCommand}'`), {
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: normalizedCommand
+    })
+  }
+  return normalizedCommand
+}
+
 /**
  * Resolves what a stdio server is actually started with: the user's own `npx` / `uvx` / `uv`
  * when it is in PATH, otherwise the bundled binary. Any other command is best-effort resolved
@@ -63,10 +79,7 @@ export async function resolveLaunchCommand({
   loginShellEnv: Record<string, string>
   logger: LoggerService
 }): Promise<LaunchCommand> {
-  const normalizedCommand = command.trim()
-  if (!normalizedCommand) {
-    throw new Error('MCP stdio command cannot be empty')
-  }
+  const normalizedCommand = validateLaunchCommand(command)
 
   const runner = RUNNERS[normalizedCommand]
   const env = runner?.registryEnv && registryUrl ? runner.registryEnv(registryUrl) : {}

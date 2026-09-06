@@ -27,6 +27,12 @@ const mocks = vi.hoisted(() => ({
 
 let currentServer: McpServer
 let currentSearch: { autoEnable?: 'true' }
+let currentRuntimeStatus: {
+  state: 'disabled' | 'connecting' | 'connected' | 'error'
+  lastError?: string
+  errorCode?: string
+  errorPath?: string
+}
 
 // Keep the real useMcpServerMutations so the delete tests exercise the actual
 // remove flow (IPC channel + cache invalidation), not a stand-in.
@@ -67,7 +73,7 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatus: () => ({ state: 'disabled', lastError: undefined })
+  useMcpRuntimeStatus: () => currentRuntimeStatus
 }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
@@ -87,7 +93,24 @@ vi.mock('../McpServerFields', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
-    McpEndpointField: () => null,
+    McpEndpointField: ({
+      form,
+      serverType
+    }: {
+      form: { register: (name: 'baseUrl' | 'command') => Record<string, unknown> }
+      serverType: McpServer['type']
+    }) =>
+      serverType === 'stdio' ? (
+        <label>
+          Command
+          <input {...form.register('command')} />
+        </label>
+      ) : serverType === 'inMemory' ? null : (
+        <label>
+          URL
+          <input {...form.register('baseUrl')} />
+        </label>
+      ),
     McpIdentityFields: ({ form }: { form: { register: (name: 'name') => Record<string, unknown> } }) => (
       <label>
         Server name
@@ -95,7 +118,21 @@ vi.mock('../McpServerFields', async (importOriginal) => {
       </label>
     ),
     McpRuntimeFields: () => null,
-    McpTransportFields: () => null
+    McpTransportFields: ({
+      form,
+      serverType,
+      builtinRequiresEnv
+    }: {
+      form: { register: (name: 'env') => Record<string, unknown> }
+      serverType: McpServer['type']
+      builtinRequiresEnv?: boolean
+    }) =>
+      serverType === 'stdio' || serverType === 'inMemory' || builtinRequiresEnv ? (
+        <label>
+          Environment
+          <textarea {...form.register('env')} />
+        </label>
+      ) : null
   }
 })
 
@@ -121,6 +158,7 @@ describe('McpSettings', () => {
       isTrusted: false
     }
     currentSearch = { autoEnable: 'true' }
+    currentRuntimeStatus = { state: 'disabled' }
     mocks.confirm.mockResolvedValue(false)
     mocks.invalidate.mockResolvedValue(undefined)
     mocks.updateMcpServer.mockResolvedValue(undefined)
@@ -180,6 +218,125 @@ describe('McpSettings', () => {
     rerender(<McpSettings />)
 
     expect(screen.getByRole('textbox', { name: 'Server name' })).toHaveValue('Server B')
+  })
+
+  it('shows the failed executable path and focuses its configuration for recovery', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'C:\\Program Files\\MCP\\server.exe',
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'Connection closed',
+      errorCode: 'EPERM',
+      errorPath: currentServer.command
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('EPERM')
+    expect(alert).toHaveTextContent(currentServer.command!)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByRole('textbox', { name: 'Command' })).toHaveFocus()
+  })
+
+  it('focuses the environment configuration for an in-memory path placeholder', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'memory-server',
+      name: '@cherry/memory',
+      type: 'inMemory',
+      env: { MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH' },
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'Memory MCP path contains an unresolved placeholder',
+      errorCode: 'MCP_UNRESOLVED_PLACEHOLDER',
+      errorPath: 'YOUR_MEMORY_FILE_PATH'
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
+  })
+
+  it('focuses the command for a legacy remote-typed server with a whitespace-only URL', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'legacy-command-server',
+      name: 'Legacy command server',
+      type: 'sse',
+      baseUrl: '   ',
+      command: 'missing-mcp-command',
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'spawn ENOENT',
+      errorCode: 'ENOENT',
+      errorPath: currentServer.command
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'Command' })).toHaveFocus()
+  })
+
+  it('focuses the endpoint URL when a remote server is unavailable', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'remote-server',
+      name: 'Remote Server',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example.com/mcp',
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'Connection failed'
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'URL' })).toHaveFocus()
+  })
+
+  it('focuses the missing QVeris API key instead of its hosted endpoint', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'qveris-server',
+      name: '@cherry/qveris',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.qveris.ai/mcp',
+      installSource: 'builtin',
+      shouldConfig: true,
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
   })
 
   it('renders selectable MCP logs and copies them to the clipboard', async () => {

@@ -36,6 +36,11 @@ export const isInMemoryBuiltinMcpServer = (server: McpServer): server is Builtin
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
 
+export const normalizeMcpBaseUrl = (baseUrl: string | undefined): string | undefined => {
+  const normalized = baseUrl?.trim()
+  return normalized || undefined
+}
+
 /**
  * Spec-aligned guard for a single MCP `CallToolResult` content block
  * (text / image / audio / resource_link / embedded resource).

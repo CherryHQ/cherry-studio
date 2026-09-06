@@ -99,6 +99,18 @@ describe('toMcpFormDefaultValues', () => {
 
     expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
   })
+
+  it('exposes stdio fields for a legacy command-backed in-memory server', () => {
+    const server = {
+      id: 'legacy-command-server',
+      name: 'Legacy command server',
+      type: 'inMemory',
+      command: 'missing-mcp-command',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
+  })
 })
 
 describe('resolveMcpConfigTransportType', () => {
@@ -106,9 +118,26 @@ describe('resolveMcpConfigTransportType', () => {
     expect(resolveMcpConfigTransportType('inMemory', '@cherry/mcp-auto-install')).toBe('stdio')
   })
 
-  it('keeps other built-in servers on the in-memory configuration', () => {
-    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory')).toBe('inMemory')
+  it('keeps implemented built-in servers in memory when a legacy command remains', () => {
+    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory', 'npx')).toBe('inMemory')
   })
+
+  it('does not let a legacy command override a higher-priority endpoint', () => {
+    expect(resolveMcpConfigTransportType('inMemory', 'Legacy server', 'npx', 'https://example.com/mcp')).toBe(
+      'inMemory'
+    )
+  })
+
+  it('exposes stdio configuration for legacy command-backed servers', () => {
+    expect(resolveMcpConfigTransportType('inMemory', 'Legacy server', 'npx')).toBe('stdio')
+  })
+
+  it.each(['sse', 'streamableHttp'] as const)(
+    'exposes stdio configuration for a command-backed %s row with a whitespace-only URL',
+    (type) => {
+      expect(resolveMcpConfigTransportType(type, 'Legacy server', 'npx', '   ')).toBe('stdio')
+    }
+  )
 })
 
 describe('resolveMcpConfigInstallSource', () => {
