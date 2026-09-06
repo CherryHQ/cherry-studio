@@ -2401,6 +2401,45 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('registers nested tool anchors when replaying buffered recovery chunks', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'buffered-text' },
+        { type: 'tool-input-start', toolCallId: 'nested-1', toolName: 'Read', input: {} },
+        { type: 'text-end', id: 'buffered-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect((getEntry(service) as any).flowMessageIdsByToolCallId?.get('nested-1')).toBe('assistant-1')
+      })
+      // A nested-root chunk routed after the replay resolves without a second DB lookup.
+      const lookupCount = lookupCalls
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'nested-1',
+        chunk: { type: 'text-start', id: 'nested-text' }
+      })
+      expect(lookupCalls).toBe(lookupCount)
+    })
+
     it('does not let a mid-drain successor overwrite the drained tail', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

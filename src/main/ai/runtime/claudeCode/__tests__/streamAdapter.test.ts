@@ -1825,9 +1825,12 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
-    it('registers the edge id when launch-root recovery throws', () => {
+    it('skips registration on a launch-root recovery error and self-heals on the next event', () => {
+      let lookupCalls = 0
       messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
-        throw new Error('db locked')
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db locked')
+        return 'call_launch'
       })
       const { adapter, statusEvents } = createAdapter()
 
@@ -1849,11 +1852,29 @@ describe('ClaudeCodeStreamAdapter', () => {
         task_type: 'subagent'
       } as any)
 
-      // The connection survives the failed recovery and the edge id is registered as a fallback.
+      // The connection survives the failed recovery; the chip surfaces without a toolCallId
+      // (delayed, never misshown) rather than pinning the resume edge id.
+      const first = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(first).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
+      })
+
+      // The next task event re-runs the lookup and finally registers the launch root.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume_2',
+        description: 'Resumed review again',
+        task_type: 'subagent'
+      } as any)
       const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
       expect(last).toEqual({
         type: 'background-tasks',
-        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_resume' }]
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
       })
     })
 
