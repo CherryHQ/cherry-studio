@@ -86,6 +86,13 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
+export class AgentRuntimeInputDeliveryError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause })
+    this.name = 'AgentRuntimeInputDeliveryError'
+  }
+}
+
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
  * renderer stream: the host can append it to the current turn or persist an independent
@@ -183,6 +190,12 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
+  /**
+   * Reserve the next input synchronously before host admission performs async pre-send work.
+   * The returned cleanup cancels an unconsumed reservation when that work fails.
+   */
+  reserveInput?(): () => void
+  /** Resolves only after the input reaches the runtime transport. */
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

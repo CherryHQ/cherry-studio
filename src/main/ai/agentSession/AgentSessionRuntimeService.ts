@@ -57,14 +57,15 @@ import { v7 as uuidv7 } from 'uuid'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
-import type {
-  AgentRuntimeConnection,
-  AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
-  AgentRuntimeToolApprovalRequest,
-  AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
-  AgentSessionUsageCapture
+import {
+  type AgentRuntimeConnection,
+  type AgentRuntimeEvent,
+  AgentRuntimeInputDeliveryError,
+  type AgentRuntimeReconcileResult,
+  type AgentRuntimeToolApprovalRequest,
+  type AgentRuntimeTraceContext,
+  type AgentRuntimeUserInput,
+  type AgentSessionUsageCapture
 } from '../runtime/types'
 import {
   finalizeInterruptedParts,
@@ -2413,7 +2414,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (
       execution.kind === 'steer-transition' ||
       execution.kind === 'autonomous-turn' ||
-      (execution.kind === 'turn' && turn !== undefined && this.isTurnLive(entry, turn))
+      (execution.kind === 'turn' &&
+        turn !== undefined &&
+        isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
+        this.isTurnLive(entry, turn))
     ) {
       this.applyRuntimeStateEvent(entry, {
         type: 'runtime-terminal',
@@ -2432,14 +2436,52 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
-    this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
-    await this.refreshTurnTraceContext(entry, turn)
-    await this.currentConnection(entry)?.send({
-      message: turn.userMessage,
-      systemReminder: turn.systemReminder === true
-    })
+    let deliveryRetries = 0
+    while (this.isCurrentEntry(entry) && this.currentTurn(entry) === turn && this.isTurnLive(entry, turn)) {
+      const connection = this.currentConnection(entry)
+      if (!connection) {
+        if (!(await this.ensureConnection(entry))) return
+        continue
+      }
+
+      const cancelInputReservation = connection.reserveInput?.()
+      try {
+        await this.refreshTurnTraceContext(entry, turn, connection)
+        if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) {
+          cancelInputReservation?.()
+          return
+        }
+        if (this.currentConnection(entry) !== connection) {
+          cancelInputReservation?.()
+          continue
+        }
+        await connection.send({
+          message: turn.userMessage,
+          systemReminder: turn.systemReminder === true
+        })
+        if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+        return
+      } catch (error) {
+        cancelInputReservation?.()
+        if (this.currentConnection(entry) !== connection) continue
+        if (error instanceof AgentRuntimeInputDeliveryError) {
+          if (deliveryRetries === 0 && this.isTurnLive(entry, turn)) {
+            deliveryRetries += 1
+            this.closeConnectionAsync(entry)
+            continue
+          }
+          this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+          this.handleRuntimeError(entry, error.cause ?? error)
+          this.closeConnectionAsync(entry)
+          throw error
+        }
+        this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+        throw error
+      }
+    }
   }
 
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
@@ -2481,10 +2523,20 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+  private async refreshTurnTraceContext(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    connection = this.currentConnection(entry)
+  ): Promise<void> {
+    if (
+      !this.isCurrentEntry(entry) ||
+      this.currentTurn(entry) !== turn ||
+      !this.isTurnLive(entry, turn) ||
+      this.currentConnection(entry) !== connection
+    )
+      return
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
-    if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
+    if (traceContext) await connection?.refreshTraceContext?.(traceContext)
   }
 
   private requestRuntimeLaunch(entry: AgentSessionRuntimeEntry, target: AgentSessionRuntimeLaunchTarget): void {
