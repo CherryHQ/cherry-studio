@@ -40,8 +40,10 @@ function isConflictingSdkIdentity(text: string): boolean {
 function leadingStandingIdentityEnd(texts: readonly string[]): number {
   const cherryIndex = texts.findIndex(isCherrySupportIdentity)
   if (cherryIndex !== -1) return cherryIndex
-  const firstInstructionIndex = texts.findIndex((text) => !isConflictingSdkIdentity(text))
-  return firstInstructionIndex === -1 ? texts.length : firstInstructionIndex
+  for (let index = texts.length - 1; index >= 0; index--) {
+    if (isConflictingSdkIdentity(texts[index])) return index
+  }
+  return -1
 }
 
 function stripConflictingLeadingLines(section: string): string {
