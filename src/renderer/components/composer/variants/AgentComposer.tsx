@@ -1107,6 +1107,15 @@ const AgentComposerInner = ({
   }, [actionsRef, sessionTopicId])
 
   useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
+      const data =
+        typeof payload === 'object' && payload ? (payload as { topicId?: string; token?: ComposerDraftToken }) : null
+      if (!data?.token || data.topicId !== sessionTopicId) return
+      actionsRef.current.insertToken(data.token)
+    })
+  }, [actionsRef, sessionTopicId])
+
+  useEffect(() => {
     if (!launchOptions?.initialDraft) return
     const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     return () => window.cancelAnimationFrame(frameId)

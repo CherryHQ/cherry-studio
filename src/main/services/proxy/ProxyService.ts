@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
+import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
@@ -170,8 +170,7 @@ export class ProxyService extends BaseService {
     // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
     const sessions = [
       session.defaultSession,
-      session.fromPartition('persist:webview'),
-      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
     // Await the session AND app proxy config together so a one-shot apply can't fail
     // silently and callers can rely on the proxy being in effect once this resolves.

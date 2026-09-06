@@ -64,6 +64,11 @@ function createSessionStore() {
   return { getSnapshot, subscribe, setState }
 }
 
+export interface WebviewAnnotationSavedPayload {
+  annotation: WebviewAnnotation
+  page: { url: string; title: string }
+}
+
 interface Options {
   webviewRef: RefObject<WebviewTag | null>
   webviewRevision: number
@@ -71,6 +76,8 @@ interface Options {
   target: WebviewAnnotationTarget
   locale: WebviewAnnotationLocale
   theme: 'light' | 'dark'
+  /** Fired when the guest persists a newly created annotation. */
+  onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
 
 interface Binding {
@@ -117,7 +124,8 @@ export function useWebviewAnnotationSession({
   isHostActive,
   target,
   locale,
-  theme
+  theme,
+  onAnnotationSaved
 }: Options) {
   const webview = webviewRef.current
   const storeRef = useRef<ReturnType<typeof createSessionStore> | null>(null)
@@ -135,9 +143,11 @@ export function useWebviewAnnotationSession({
   const targetRef = useRef(target)
   const hostActiveRef = useRef(isHostActive)
   const configurationRef = useRef({ locale, theme })
+  const onAnnotationSavedRef = useRef(onAnnotationSaved)
   targetRef.current = target
   hostActiveRef.current = isHostActive
   configurationRef.current = { locale, theme }
+  onAnnotationSavedRef.current = onAnnotationSaved
 
   const sendCommand = useCallback(
     async (attachedWebview: WebviewTag, command: WebviewAnnotationHostCommand): Promise<boolean> => {
@@ -256,6 +266,20 @@ export function useWebviewAnnotationSession({
             ? { ...current, editor: { ...current.editor, anchor: guestEvent.anchor } }
             : current
         )
+        return
+      }
+
+      if (guestEvent.type === 'editor_saved') {
+        if (sessionRef.current !== guestEvent.sessionId || !hostActiveRef.current) return
+        let url = ''
+        let title = ''
+        try {
+          url = attachedWebview.getURL() ?? ''
+          title = attachedWebview.getTitle() ?? ''
+        } catch {
+          // Page metadata is best-effort; the annotation itself is already saved.
+        }
+        onAnnotationSavedRef.current?.({ annotation: guestEvent.annotation, page: { url, title } })
         return
       }
 

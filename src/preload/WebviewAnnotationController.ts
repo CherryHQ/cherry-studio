@@ -288,19 +288,65 @@ const summarizeText = (element: Element) => {
   return normalized ? normalized.slice(0, WEBVIEW_ANNOTATION_LIMITS.text) : null
 }
 
+/** Layout-relevant computed styles; values matching these defaults are omitted as noise. */
+const STYLE_PROPERTY_DEFAULTS: readonly (readonly [property: string, defaults: readonly string[]])[] = [
+  ['position', ['static']],
+  ['display', []],
+  ['z-index', ['auto']],
+  ['top', ['auto']],
+  ['right', ['auto']],
+  ['bottom', ['auto']],
+  ['left', ['auto']],
+  ['width', ['auto']],
+  ['height', ['auto']],
+  ['margin', ['0px']],
+  ['padding', ['0px']],
+  ['transform', ['none']],
+  ['float', ['none']],
+  ['overflow', ['visible']],
+  ['flex', ['0 1 auto']],
+  ['gap', ['normal', 'normal normal']]
+]
+
+// Style resolution on embedded-document hosts can reach into their content
+// document in some engines; annotations must never enter an iframe's document.
+const EMBEDDED_DOCUMENT_TAGS = new Set(['IFRAME', 'FRAME', 'OBJECT', 'EMBED'])
+
+const summarizeComputedStyles = (element: Element): string | undefined => {
+  if (EMBEDDED_DOCUMENT_TAGS.has(element.tagName)) return undefined
+  const view = element.ownerDocument?.defaultView
+  if (!view) return undefined
+  let computed: CSSStyleDeclaration
+  try {
+    computed = view.getComputedStyle(element)
+  } catch {
+    return undefined
+  }
+
+  const parts: string[] = []
+  for (const [property, defaults] of STYLE_PROPERTY_DEFAULTS) {
+    const value = computed.getPropertyValue(property).trim()
+    if (!value || defaults.includes(value)) continue
+    parts.push(`${property}: ${value}`)
+  }
+  return parts.length > 0 ? parts.join('; ').slice(0, WEBVIEW_ANNOTATION_LIMITS.styleText) : undefined
+}
+
 export function createWebviewElementLocator(element: Element): WebviewElementLocator | null {
   const selector = buildWebviewElementSelector(element)
   if (!selector) return null
 
   const ariaLabel = element.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() || null
   const role = element.getAttribute('role')?.replace(/\s+/g, ' ').trim() || null
+  const styles = summarizeComputedStyles(element)
 
   return {
     selector,
     tagName: element.tagName.toLowerCase().slice(0, WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: summarizeText(element),
     ariaLabel: ariaLabel?.slice(0, WEBVIEW_ANNOTATION_LIMITS.ariaLabel) ?? null,
-    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null
+    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null,
+    ...(styles ? { styles } : {})
   }
 }
 
@@ -1038,6 +1084,14 @@ export class WebviewAnnotationController {
       }
       this.annotations.push(annotation)
       this.annotationElements.set(annotation.id, editorElement)
+      if (this.sessionId) {
+        this.onStateChange({
+          type: 'editor_saved',
+          sessionId: this.sessionId,
+          requestId,
+          annotation: structuredClone(annotation)
+        })
+      }
     }
 
     this.observeElementRoot(editorElement)

@@ -14,6 +14,7 @@ export const WEBVIEW_ANNOTATION_LIMITS = {
   regionSize: 10_000_000,
   role: 64,
   selector: 2_048,
+  styleText: 400,
   tagName: 64,
   targetId: 160,
   targetLabel: 120,
@@ -33,7 +34,9 @@ const WebviewElementLocatorSchema = z
     tagName: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.text).nullable(),
     ariaLabel: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.ariaLabel).nullable(),
-    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable()
+    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable(),
+    /** Compact non-default computed layout styles, e.g. `position: absolute; z-index: 3`. */
+    styles: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.styleText).optional()
   })
   .strict()
 
@@ -145,6 +148,14 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
       sessionId: z.uuid(),
       requestId: z.uuid(),
       anchor: WebviewAnnotationAnchorRectSchema
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('editor_saved'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      annotation: WebviewAnnotationSchema
     })
     .strict(),
   z.object({ type: z.literal('editor_closed'), sessionId: z.uuid(), requestId: z.uuid() }).strict(),

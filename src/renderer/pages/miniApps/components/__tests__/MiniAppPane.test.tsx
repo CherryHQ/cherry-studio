@@ -40,7 +40,7 @@ vi.mock('../MinimalToolbar', () => ({
   }
 }))
 
-vi.mock('../WebviewSearch', () => ({
+vi.mock('@renderer/components/WebviewSearch', () => ({
   default: ({ webviewRef }: { webviewRef: RefObject<WebviewTag | null> }) => {
     mocks.searchWebviewRef = webviewRef
     return <div data-testid="webview-search" data-webview-id={webviewRef.current?.dataset.miniAppId ?? ''} />

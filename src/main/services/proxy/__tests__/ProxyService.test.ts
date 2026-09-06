@@ -8,10 +8,12 @@ const {
   sessionSetProxyMock,
   webviewSetProxyMock,
   appSetProxyMock,
+  sessionFromPartitionMock,
   getSystemProxyMock,
   intervalRegistrations
 } = vi.hoisted(() => {
   const nodeProxyConfigureMock = vi.fn()
+  const webviewSetProxyMock = vi.fn().mockResolvedValue(undefined)
   const nodeProxyRoutingSnapshotMock = vi.fn()
 
   return {
@@ -22,8 +24,9 @@ const {
       getRoutingSnapshot: nodeProxyRoutingSnapshotMock
     })),
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
-    webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    webviewSetProxyMock,
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    sessionFromPartitionMock: vi.fn(() => ({ setProxy: webviewSetProxyMock })),
     getSystemProxyMock: vi.fn(),
     intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
   }
@@ -73,7 +76,7 @@ vi.mock('electron', () => ({
   app: { setProxy: appSetProxyMock },
   session: {
     defaultSession: { setProxy: sessionSetProxyMock },
-    fromPartition: vi.fn(() => ({ setProxy: webviewSetProxyMock }))
+    fromPartition: sessionFromPartitionMock
   }
 }))
 
@@ -150,6 +153,8 @@ describe('ProxyService — preference wiring', () => {
     const expected = { mode: 'fixed_servers', proxyRules: 'http://127.0.0.1:7890', proxyBypassRules: 'localhost' }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
+    expect(sessionFromPartitionMock).toHaveBeenCalledWith('agent-dev-preview')
+    expect(sessionFromPartitionMock).toHaveBeenCalledWith('agent-html-artifact')
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
   })
 

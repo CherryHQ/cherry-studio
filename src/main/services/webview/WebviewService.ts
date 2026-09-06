@@ -4,6 +4,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 
@@ -14,6 +15,15 @@ import { AnnotationSession } from './AnnotationSession'
 const logger = loggerService.withContext('WebviewService')
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
 const WEBVIEW_PARTITION = 'persist:webview'
+/** Sessions whose guests run the annotation preload: mini-app sites plus the agent browser panes. */
+const ANNOTATION_PARTITIONS = [
+  WEBVIEW_PARTITION,
+  getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
+  getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)
+] as const
+
+const isAnnotationCapableSession = (guestSession: Electron.Session) =>
+  ANNOTATION_PARTITIONS.some((partition) => guestSession === session.fromPartition(partition))
 
 interface ExportAnnotationsInput {
   webviewId: number
@@ -165,7 +175,7 @@ export class WebviewService extends BaseService {
   }
 
   private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
-    if (contents.getType?.() !== 'webview' || contents.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    if (contents.getType?.() !== 'webview' || !isAnnotationCapableSession(contents.session)) {
       return
     }
     const existing = this.annotationSessions.get(contents.id)
@@ -209,14 +219,17 @@ export class WebviewService extends BaseService {
     return guest
   }
 
-  private requireOwnedSiteWebview(webviewId: number, senderId: WindowId | null) {
-    const guest = this.findOwnedSiteWebview(webviewId, senderId)
-    if (!guest) throw new Error('The caller does not own this webview')
+  /** Annotation routes accept agent browser guests too; link policy stays site-only. */
+  private requireOwnedAnnotationWebview(webviewId: number, senderId: WindowId | null) {
+    const guest = this.findOwnedGuest(webviewId, senderId)
+    if (!guest || !isAnnotationCapableSession(guest.session)) {
+      throw new Error('The caller does not own this webview')
+    }
     return guest
   }
 
   async exportAnnotations(input: ExportAnnotationsInput, senderId: WindowId | null): Promise<string> {
-    const guest = this.requireOwnedSiteWebview(input.webviewId, senderId)
+    const guest = this.requireOwnedAnnotationWebview(input.webviewId, senderId)
     const annotationSession = this.annotationSessions.get(input.webviewId)
     if (!annotationSession?.isFor(guest)) throw new Error('Annotation document session is stale')
 
@@ -227,7 +240,7 @@ export class WebviewService extends BaseService {
         annotations: input.annotations,
         signal
       })
-      if (this.requireOwnedSiteWebview(input.webviewId, senderId) !== guest) {
+      if (this.requireOwnedAnnotationWebview(input.webviewId, senderId) !== guest) {
         throw new Error('The caller does not own this webview')
       }
       return markdown

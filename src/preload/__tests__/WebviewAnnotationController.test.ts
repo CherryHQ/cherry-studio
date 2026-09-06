@@ -226,6 +226,22 @@ describe('WebviewAnnotationController selectors', () => {
     expect(JSON.stringify(locator)).not.toContain('do-not-read')
   })
 
+  it('captures non-default layout styles and caps their length', () => {
+    const element = document.createElement('div')
+    element.id = 'floating-card'
+    element.style.cssText = 'position: absolute; z-index: 30; top: 12px; left: 24px; transform: translateX(10px);'
+    document.body.appendChild(element)
+
+    const locator = createWebviewElementLocator(element)
+
+    expect(locator?.styles).toContain('position: absolute')
+    expect(locator?.styles).toContain('z-index: 30')
+    expect(locator?.styles).toContain('top: 12px')
+    expect(locator?.styles).toContain('transform: translateX(10px)')
+    expect(locator?.styles).not.toContain('float')
+    expect(locator?.styles?.length).toBeLessThanOrEqual(WEBVIEW_ANNOTATION_LIMITS.styleText)
+  })
+
   it('omits text from editable elements and containers with editable descendants', () => {
     const contenteditable = document.createElement('div')
     contenteditable.id = 'draft'

@@ -12,7 +12,7 @@ type FoundInPageResult = Electron.FoundInPageResult
 interface WebviewSearchProps {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
-  appId: string
+  targetId: string
   /**
    * Whether this instance answers the host window's Find shortcut. In split
    * view every pane mounts one of these, and the host `keydown` listener is
@@ -26,7 +26,12 @@ const logger = loggerService.withContext('WebviewSearch')
 
 const OVERLAY_SELECTOR = '[data-webview-search-overlay]'
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId, hostShortcutEnabled = true }) => {
+const WebviewSearch: FC<WebviewSearchProps> = ({
+  webviewRef,
+  isWebviewReady,
+  targetId,
+  hostShortcutEnabled = true
+}) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
@@ -35,7 +40,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const focusFrameRef = useRef<number | null>(null)
-  const lastAppIdRef = useRef<string>(appId)
+  const lastTargetIdRef = useRef<string>(targetId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
   const activeWebview = webviewRef.current ?? null
 
@@ -64,17 +69,17 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
       try {
         const webContentsId = candidate.getWebContentsId?.()
         if (!webContentsId) {
-          logger.debug('WebviewSearch: missing webContentsId before action', { appId })
+          logger.debug('WebviewSearch: missing webContentsId before action', { targetId })
           return null
         }
       } catch (error) {
-        logger.debug('WebviewSearch: getWebContentsId failed before action', { appId, error })
+        logger.debug('WebviewSearch: getWebContentsId failed before action', { targetId, error })
         return null
       }
 
       return candidate
     },
-    [appId]
+    [targetId]
   )
 
   const stopFindOnWebview = useCallback(
@@ -85,11 +90,11 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         usable.stopFindInPage('clearSelection')
         return true
       } catch (error) {
-        logger.debug('stopFindInPage failed', { appId, error })
+        logger.debug('stopFindInPage failed', { targetId, error })
         return false
       }
     },
-    [appId, ensureWebviewReady]
+    [targetId, ensureWebviewReady]
   )
 
   const getUsableWebview = useCallback(() => {
@@ -263,13 +268,13 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [isWebviewReady, resetSearchState, stopSearch])
 
   useEffect(() => {
-    if (!appId) return
-    if (lastAppIdRef.current === appId) return
-    lastAppIdRef.current = appId
+    if (!targetId) return
+    if (lastTargetIdRef.current === targetId) return
+    lastTargetIdRef.current = targetId
     setIsVisible(false)
     resetSearchState()
     stopSearch()
-  }, [appId, resetSearchState, stopSearch])
+  }, [targetId, resetSearchState, stopSearch])
 
   useEffect(() => {
     return () => {

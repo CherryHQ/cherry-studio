@@ -5,19 +5,22 @@ import { shell } from 'electron'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { guestById, getAllWebContents, getWindow, getPath, siteSession, localSession } = vi.hoisted(() => ({
-  guestById: new Map<number, unknown>(),
-  getAllWebContents: vi.fn(() => [] as unknown[]),
-  getWindow: vi.fn(),
-  getPath: vi.fn(() => '/app/out/preload/webview.js'),
-  siteSession: {
-    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
-    setUserAgent: vi.fn(),
-    setSpellCheckerEnabled: vi.fn(),
-    webRequest: { onBeforeSendHeaders: vi.fn() }
-  },
-  localSession: { setSpellCheckerEnabled: vi.fn() }
-}))
+const { guestById, getAllWebContents, getWindow, getPath, siteSession, localSession, agentSessions } = vi.hoisted(
+  () => ({
+    agentSessions: new Map<string, { setSpellCheckerEnabled: ReturnType<typeof vi.fn> }>(),
+    guestById: new Map<number, unknown>(),
+    getAllWebContents: vi.fn(() => [] as unknown[]),
+    getWindow: vi.fn(),
+    getPath: vi.fn(() => '/app/out/preload/webview.js'),
+    siteSession: {
+      getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+      setUserAgent: vi.fn(),
+      setSpellCheckerEnabled: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    },
+    localSession: { setSpellCheckerEnabled: vi.fn() }
+  })
+)
 
 vi.mock('@application', () => ({
   application: {
@@ -52,7 +55,20 @@ vi.mock('electron', () => ({
   app: { on: vi.fn(), removeListener: vi.fn() },
   dialog: { showSaveDialog: vi.fn() },
   session: {
-    fromPartition: vi.fn((partition: string) => (partition === 'persist:webview' ? siteSession : localSession))
+    fromPartition: vi.fn((partition: string) => {
+      if (partition === 'persist:webview') return siteSession
+      // Agent browser partitions are annotation-capable and must stay distinct
+      // from the local mini app session the non-site rejection cases use.
+      if (partition.startsWith('agent-')) {
+        let agentSession = agentSessions.get(partition)
+        if (!agentSession) {
+          agentSession = { setSpellCheckerEnabled: vi.fn() }
+          agentSessions.set(partition, agentSession)
+        }
+        return agentSession
+      }
+      return localSession
+    })
   },
   shell: { openExternal: vi.fn() },
   webContents: { fromId: (id: number) => guestById.get(id), getAllWebContents }

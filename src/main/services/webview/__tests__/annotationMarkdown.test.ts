@@ -83,7 +83,14 @@ describe('formatWebviewAnnotations', () => {
           region: {
             rect: { x: 10, y: 20, width: 190, height: 180 },
             elements: [
-              { selector: '#overlap-a', tagName: 'div', text: 'First card', ariaLabel: null, role: null },
+              {
+                selector: '#overlap-a',
+                tagName: 'div',
+                text: 'First card',
+                ariaLabel: null,
+                role: null,
+                styles: 'position: absolute; z-index: 2'
+              },
               { selector: '#overlap-b', tagName: 'div', text: 'Second card', ariaLabel: null, role: null }
             ]
           }
@@ -95,7 +102,7 @@ describe('formatWebviewAnnotations', () => {
     expect(result.text).toContain('Region: 190×180 at page (10, 20)')
     expect(result.text).toContain('Containing element: `<button>`')
     expect(result.text).toContain('Elements in region:')
-    expect(result.text).toContain('`#overlap-a` — `<div>` — First card')
+    expect(result.text).toContain('`#overlap-a` — `<div>` — First card — styles: `position: absolute; z-index: 2`')
     expect(result.text).toContain('`#overlap-b` — `<div>` — Second card')
   })
 

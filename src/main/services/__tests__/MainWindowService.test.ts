@@ -1,3 +1,8 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,8 +17,22 @@ const {
   windowManagerMock,
   loggerMock,
   previewSessionMock,
+  agentDevSessionMock,
+  agentArtifactSessionMock,
+  sessionFromPartitionMock,
   defaultSessionMock
 } = vi.hoisted(() => {
+  const createSessionMock = () => ({
+    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
+    setPermissionRequestHandler: vi.fn(),
+    setUserAgent: vi.fn(),
+    webRequest: {
+      onBeforeRequest: vi.fn()
+    }
+  })
   const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
   const prefValues: Record<string, unknown> = {
     'app.tray.enabled': false,
@@ -47,17 +66,14 @@ const {
     info: vi.fn(),
     warn: vi.fn()
   }
-  const previewSessionMock = {
-    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    setPermissionCheckHandler: vi.fn(),
-    setPermissionRequestHandler: vi.fn(),
-    setUserAgent: vi.fn(),
-    webRequest: {
-      onBeforeRequest: vi.fn()
-    }
-  }
+  const previewSessionMock = createSessionMock()
+  const agentDevSessionMock = createSessionMock()
+  const agentArtifactSessionMock = createSessionMock()
+  const sessionFromPartitionMock = vi.fn((partition: string) => {
+    if (partition === 'agent-dev-preview') return agentDevSessionMock
+    if (partition === 'agent-html-artifact') return agentArtifactSessionMock
+    return previewSessionMock
+  })
   const defaultSessionMock = {
     setSpellCheckerEnabled: vi.fn(),
     setSpellCheckerLanguages: vi.fn()
@@ -92,6 +108,9 @@ const {
     windowManagerMock,
     loggerMock,
     previewSessionMock,
+    agentDevSessionMock,
+    agentArtifactSessionMock,
+    sessionFromPartitionMock,
     defaultSessionMock
   }
 })
@@ -126,7 +145,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
-  session: { fromPartition: vi.fn(() => previewSessionMock), defaultSession: defaultSessionMock },
+  session: { fromPartition: sessionFromPartitionMock, defaultSession: defaultSessionMock },
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
@@ -157,7 +176,8 @@ vi.mock('@main/core/lifecycle', async () => {
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { app } from 'electron'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { app, session } from 'electron'
 
 import { contextMenu } from '../ContextMenu'
 import { MainWindowService } from '../MainWindowService'
@@ -270,6 +290,16 @@ describe('MainWindowService', () => {
     previewSessionMock.setPermissionRequestHandler.mockClear()
     previewSessionMock.setUserAgent.mockClear()
     previewSessionMock.webRequest.onBeforeRequest.mockClear()
+    for (const restrictedSession of [agentDevSessionMock, agentArtifactSessionMock]) {
+      restrictedSession.getUserAgent.mockClear()
+      restrictedSession.on.mockClear()
+      restrictedSession.removeListener.mockClear()
+      restrictedSession.setPermissionCheckHandler.mockClear()
+      restrictedSession.setPermissionRequestHandler.mockClear()
+      restrictedSession.setUserAgent.mockClear()
+      restrictedSession.webRequest.onBeforeRequest.mockClear()
+    }
+    sessionFromPartitionMock.mockClear()
 
     svc = new MainWindowService()
     win = createMockWindow()
@@ -322,9 +352,9 @@ describe('MainWindowService', () => {
     })
   })
 
-  describe('HTML artifact webviews', () => {
+  describe('WebView security profiles', () => {
     it('locks interactive previews to an isolated sandbox without a preload', () => {
-      ;(svc as any).setupHtmlArtifactWebviews(win)
+      ;(svc as any).setupWebviewSecurityProfiles(win)
       const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
       if (!listener) throw new Error('will-attach-webview listener was not registered')
       const event = { preventDefault: vi.fn() }
@@ -357,7 +387,7 @@ describe('MainWindowService', () => {
     })
 
     it('rejects non-data entry points for the interactive preview partition', () => {
-      ;(svc as any).setupHtmlArtifactWebviews(win)
+      ;(svc as any).setupWebviewSecurityProfiles(win)
       const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
       if (!listener) throw new Error('will-attach-webview listener was not registered')
       const event = { preventDefault: vi.fn() }
@@ -367,8 +397,102 @@ describe('MainWindowService', () => {
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
     })
 
+    it('rejects WebViews that do not declare a known security profile', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const event = { preventDefault: vi.fn() }
+
+      listener(event, {}, { partition: 'persist:undeclared', src: 'https://example.com' })
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([WebviewSecurityProfile.AgentDevPreview, WebviewSecurityProfile.AgentHtmlArtifact])(
+      'keeps the narrow annotation preload for the %s profile',
+      (securityProfile) => {
+        ;(svc as any).setupWebviewSecurityProfiles(win)
+        const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+        if (!listener) throw new Error('will-attach-webview listener was not registered')
+        const event = { preventDefault: vi.fn() }
+        const webPreferences = {
+          allowRunningInsecureContent: true,
+          contextIsolation: false,
+          nodeIntegration: true,
+          nodeIntegrationInSubFrames: true,
+          preload: '/unsafe/preload.js',
+          safeDialogs: false,
+          sandbox: false,
+          webSecurity: false
+        }
+
+        listener(event, webPreferences, {
+          partition: getWebviewPartition(securityProfile),
+          src: ''
+        })
+
+        expect(event.preventDefault).not.toHaveBeenCalled()
+        expect(webPreferences).toEqual({
+          allowRunningInsecureContent: false,
+          contextIsolation: true,
+          nodeIntegration: false,
+          nodeIntegrationInSubFrames: false,
+          preload: '/mock/feature.webview.preload_file',
+          safeDialogs: true,
+          sandbox: true,
+          webSecurity: true
+        })
+      }
+    )
+
+    it('rejects an Agent profile whose declared entry point belongs to another profile', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const artifactEvent = { preventDefault: vi.fn() }
+      const devEvent = { preventDefault: vi.fn() }
+
+      listener(
+        artifactEvent,
+        {},
+        {
+          partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
+          src: 'https://example.com'
+        }
+      )
+      listener(
+        devEvent,
+        {},
+        {
+          partition: getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
+          src: 'file:///tmp/index.html'
+        }
+      )
+
+      expect(artifactEvent.preventDefault).toHaveBeenCalledOnce()
+      expect(devEvent.preventDefault).toHaveBeenCalledOnce()
+    })
+
+    it('rejects a remote file authority for the Agent artifact profile', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const event = { preventDefault: vi.fn() }
+
+      listener(
+        event,
+        {},
+        {
+          partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
+          src: 'file://attacker/share/index.html'
+        }
+      )
+
+      expect(event.preventDefault).toHaveBeenCalledOnce()
+    })
+
     it('denies guest popups and top-level navigation away from the generated document', () => {
-      ;(svc as any).setupHtmlArtifactWebviews(win)
+      ;(svc as any).setupWebviewSecurityProfiles(win)
       const listener = win.webContents.on.mock.calls.find(([event]) => event === 'did-attach-webview')?.[1]
       if (!listener) throw new Error('did-attach-webview listener was not registered')
       const guestWebContents = {
@@ -393,6 +517,23 @@ describe('MainWindowService', () => {
       expect(generatedDocumentNavigation.preventDefault).not.toHaveBeenCalled()
     })
 
+    it.each([agentDevSessionMock, agentArtifactSessionMock])('denies popups for Agent guests', (restrictedSession) => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'did-attach-webview')?.[1]
+      if (!listener) throw new Error('did-attach-webview listener was not registered')
+      const guestWebContents = {
+        id: 42,
+        on: vi.fn(),
+        session: restrictedSession,
+        setWindowOpenHandler: vi.fn()
+      }
+
+      listener({}, guestWebContents)
+
+      const windowOpenHandler = guestWebContents.setWindowOpenHandler.mock.calls[0]?.[0]
+      expect(windowOpenHandler?.()).toEqual({ action: 'deny' })
+    })
+
     it('denies permissions, downloads, local targets, and identifying user-agent tokens', () => {
       ;(svc as any).setupHtmlArtifactPreviewSession()
 
@@ -415,6 +556,60 @@ describe('MainWindowService', () => {
       const fileRequestCallback = vi.fn()
       requestHandler({ url: 'file:///etc/passwd' }, fileRequestCallback)
       expect(fileRequestCallback).toHaveBeenCalledWith({ cancel: true })
+    })
+
+    it('sets up isolated Agent sessions with denied permissions and downloads', async () => {
+      await (svc as any).onInit()
+
+      expect(session.fromPartition).toHaveBeenCalledWith(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview))
+      expect(session.fromPartition).toHaveBeenCalledWith(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
+
+      for (const restrictedSession of [agentDevSessionMock, agentArtifactSessionMock]) {
+        expect(restrictedSession.setUserAgent).toHaveBeenCalledWith('Browser/1.0')
+        expect(restrictedSession.setPermissionCheckHandler.mock.calls[0]?.[0]()).toBe(false)
+        const permissionCallback = vi.fn()
+        restrictedSession.setPermissionRequestHandler.mock.calls[0]?.[0](null, null, permissionCallback)
+        expect(permissionCallback).toHaveBeenCalledWith(false)
+        const downloadEvent = { preventDefault: vi.fn() }
+        restrictedSession.on.mock.calls.find(([event]) => event === 'will-download')?.[1](downloadEvent)
+        expect(downloadEvent.preventDefault).toHaveBeenCalledOnce()
+      }
+    })
+
+    it('enforces the bound dev origin for programmatic main-frame loads', async () => {
+      await (svc as any).onInit()
+      const requestHandler = agentDevSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      if (!requestHandler) throw new Error('Agent dev request handler was not registered')
+      const dispatch = (url: string) =>
+        new Promise<{ cancel: boolean }>((resolve) => {
+          requestHandler({ resourceType: 'mainFrame', url, webContentsId: 42 }, resolve)
+        })
+
+      await expect(dispatch('http://localhost:5173/')).resolves.toEqual({ cancel: false })
+      await expect(dispatch('http://localhost:5173/dashboard')).resolves.toEqual({ cancel: false })
+      await expect(dispatch('http://localhost:4173/')).resolves.toEqual({ cancel: true })
+    })
+
+    it('cancels remote requests from a bound Agent HTML artifact', async () => {
+      const tempDirectory = await mkdtemp(path.join(tmpdir(), 'cherry-agent-artifact-session-'))
+      const artifactPath = path.join(tempDirectory, 'index.html')
+      await writeFile(artifactPath, '<script src="https://cdn.example.com/app.js"></script>')
+
+      try {
+        await (svc as any).onInit()
+        const requestHandler = agentArtifactSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+        if (!requestHandler) throw new Error('Agent artifact request handler was not registered')
+        const dispatch = (url: string, resourceType: string) =>
+          new Promise<{ cancel: boolean }>((resolve) => {
+            requestHandler({ resourceType, url, webContentsId: 42 }, resolve)
+          })
+
+        await expect(dispatch(pathToFileURL(artifactPath).toString(), 'mainFrame')).resolves.toEqual({ cancel: false })
+        await expect(dispatch('https://cdn.example.com/app.js', 'script')).resolves.toEqual({ cancel: true })
+        await expect(dispatch('file://attacker/share/app.js', 'script')).resolves.toEqual({ cancel: true })
+      } finally {
+        await rm(tempDirectory, { recursive: true, force: true })
+      }
     })
   })
 
@@ -775,7 +970,7 @@ describe('MainWindowService', () => {
     beforeEach(() => {
       // Stub the other (heavy) setup steps so this isolates the read-back path.
       for (const m of [
-        'setupHtmlArtifactWebviews',
+        'setupWebviewSecurityProfiles',
         'setupSpellCheck',
         'setupWindowEvents',
         'setupWebContentsHandlers',
@@ -869,18 +1064,36 @@ describe('MainWindowService', () => {
     })
   })
 
-  it('does not inject the application preload into non-preview webviews', () => {
-    ;(svc as any).setupHtmlArtifactWebviews(win)
+  it('leaves MiniApp site webviews to the WebviewService preload gate', () => {
+    ;(svc as any).setupWebviewSecurityProfiles(win)
     const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
     if (!listener) throw new Error('will-attach-webview listener was not registered')
     const webPreferences = {}
+    const preventDefault = vi.fn()
 
-    listener({ preventDefault: vi.fn() }, webPreferences, {
-      partition: 'persist:webview',
+    listener({ preventDefault }, webPreferences, {
+      partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
       src: 'https://example.com'
     })
 
-    expect(webPreferences).not.toHaveProperty('preload')
+    // `persist:webview` lockdown and preload live in WebviewService.attachWebviewPreload.
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(webPreferences).toEqual({})
+  })
+
+  it('keeps OAuth popup BrowserWindows on the existing persistent MiniApp session', () => {
+    ;(svc as any).setupWebContentsHandlers(win)
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    if (!handler) throw new Error('window open handler was not registered')
+
+    expect(handler({ url: 'https://account.siliconflow.cn/oauth/callback' })).toEqual({
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        webPreferences: {
+          partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+        }
+      }
+    })
   })
 
   // The origin/app-root decision itself is covered by validateSender's tests; these
