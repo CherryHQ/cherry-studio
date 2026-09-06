@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'aionly',
   name: 'AIOnly',
   baseUrl: 'https://api.aiionly.com',
+  modelListApi: { type: 'new-api' },
   website: {
     apiKey: 'https://maas.aiionly.com/keyApi',
     docs: 'https://maas.aiionly.com/document',

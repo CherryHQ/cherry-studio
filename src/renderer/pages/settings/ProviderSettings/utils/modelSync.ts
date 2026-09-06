@@ -6,7 +6,6 @@ import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNewApiProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
@@ -24,7 +23,7 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
-type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+type ModelSyncProviderEndpointSource = Pick<Provider, 'defaultChatEndpoint' | 'modelListApi'>
 
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
@@ -34,7 +33,7 @@ export function resolveCreateModelEndpointTypes(
     return [...model.endpointTypes]
   }
 
-  if (!provider || !isNewApiProvider(provider as Provider)) {
+  if (provider?.modelListApi?.type !== 'new-api') {
     return undefined
   }
 

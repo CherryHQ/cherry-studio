@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'burncloud',
   name: 'BurnCloud',
   baseUrl: 'https://ai.burncloud.com',
+  modelListApi: { type: 'new-api', supportsPricing: true },
   website: {
     apiKey: 'https://ai.burncloud.com/token',
     docs: 'https://ai.burncloud.com/docs',

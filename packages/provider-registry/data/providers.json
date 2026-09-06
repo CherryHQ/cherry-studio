@@ -33,6 +33,10 @@
           "official": "https://open.cherryin.ai"
         }
       },
+      "modelListApi": {
+        "supportsPricing": true,
+        "type": "new-api"
+      },
       "name": "CherryIN",
       "serverTools": [
         {
@@ -174,6 +178,10 @@
           "models": "https://api.ocoolai.com/info/models/",
           "official": "https://one.ocoolai.com/"
         }
+      },
+      "modelListApi": {
+        "supportsPricing": true,
+        "type": "new-api"
       },
       "name": "ocoolAI"
     },
@@ -388,6 +396,9 @@
           "official": "https://www.aiionly.com"
         }
       },
+      "modelListApi": {
+        "type": "new-api"
+      },
       "name": "AIOnly"
     },
     {
@@ -407,6 +418,10 @@
           "models": "https://ai.burncloud.com/pricing",
           "official": "https://ai.burncloud.com/"
         }
+      },
+      "modelListApi": {
+        "supportsPricing": true,
+        "type": "new-api"
       },
       "name": "BurnCloud"
     },
@@ -709,6 +724,10 @@
           "docs": "https://docs.newapi.pro",
           "official": "https://docs.newapi.pro/"
         }
+      },
+      "modelListApi": {
+        "supportsPricing": true,
+        "type": "new-api"
       },
       "name": "New API",
       "serverTools": [
@@ -2415,5 +2434,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4a6f7225220e7a46"
+  "version": "01f3250ed7a29b4e"
 }

@@ -93,7 +93,6 @@ describe('resolveCreateModelEndpointTypes', () => {
     expect(
       resolveCreateModelEndpointTypes(
         {
-          id: 'new-api',
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
         },
         {
@@ -107,8 +106,7 @@ describe('resolveCreateModelEndpointTypes', () => {
     expect(
       resolveCreateModelEndpointTypes(
         {
-          id: 'custom-new-api',
-          presetProviderId: 'new-api',
+          modelListApi: { type: 'new-api' },
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
         },
         {}
@@ -120,8 +118,7 @@ describe('resolveCreateModelEndpointTypes', () => {
     expect(
       resolveCreateModelEndpointTypes(
         {
-          id: 'custom-new-api',
-          presetProviderId: 'new-api'
+          modelListApi: { type: 'new-api' }
         },
         {}
       )
@@ -132,7 +129,6 @@ describe('resolveCreateModelEndpointTypes', () => {
     expect(
       resolveCreateModelEndpointTypes(
         {
-          id: 'openai',
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
         },
         {}

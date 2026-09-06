@@ -17,6 +17,7 @@ import {
   ENDPOINT_TYPE,
   FastModeTransportSchema,
   objectValues,
+  ProviderModelListApiSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -263,6 +264,8 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
+  /** Registry-owned model-list response protocol and companion endpoints. */
+  modelListApi: ProviderModelListApiSchema.optional(),
   /** Provider-native (server-executed) built-in tools resolved from the registry. */
   serverTools: z.array(ServerToolConfigSchema).optional(),
   /**

@@ -96,6 +96,7 @@ export function openaiCompatible(
      * Exact provider-model exceptions belong in endpoint-keyed `reasoningContracts`.
      */
     reasoningFormat?: ProviderReasoningFormat
+    modelListApi?: ProviderConfig['modelListApi']
     authOptional?: ProviderConfig['authOptional']
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
@@ -115,6 +116,7 @@ export function openaiCompatible(
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs,
     metadata: { website: p.website },
+    ...(p.modelListApi ? { modelListApi: p.modelListApi } : {}),
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),

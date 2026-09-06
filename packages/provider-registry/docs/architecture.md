@@ -52,8 +52,9 @@ A creator declares a creator and its models. Fields:
 
 A provider declares how to connect + what it serves. Fields:
 
-- Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`,
-  `apiFeatures`, optional `reportedCostCurrency`, and `metadata` — emitted to
+- Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`, optional
+  `modelListApi` (the model-catalog response protocol and companion pricing
+  endpoint), `apiFeatures`, `reportedCostCurrency`, and `metadata` — emitted to
   `providers.json` (minus `description`, which is templated).
 - `modelsDevProvider` — models.dev key whose listing is this provider's served catalog (with per-model pricing). **Generation-only**, not emitted to `providers.json`.
 - `fetchModels()` — or pull the served list from the provider's own API.

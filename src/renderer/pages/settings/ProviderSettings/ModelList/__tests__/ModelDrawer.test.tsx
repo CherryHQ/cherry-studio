@@ -180,7 +180,7 @@ describe('Model drawers', () => {
   it('creates a New API model with multiple endpoint types', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: { id: 'new-api', name: 'New API', modelListApi: { type: 'new-api' } }
     })
 
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
@@ -836,7 +836,7 @@ describe('Model drawers', () => {
   it('auto-saves New API endpoint type changes from the edit drawer', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: { id: 'new-api', name: 'New API', modelListApi: { type: 'new-api' } }
     })
 
     render(
@@ -882,7 +882,7 @@ describe('Model drawers', () => {
 
   it('shows and preserves the image-edit endpoint when adding another endpoint type', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: { id: 'cherryin', name: 'CherryIN', modelListApi: { type: 'new-api' } }
     })
 
     render(
@@ -926,7 +926,7 @@ describe('Model drawers', () => {
 
   it('allows clearing the last endpoint type from the edit drawer', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: { id: 'cherryin', name: 'CherryIN', modelListApi: { type: 'new-api' } }
     })
 
     render(

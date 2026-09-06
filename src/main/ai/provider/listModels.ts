@@ -536,28 +536,26 @@ function buildNewApiModels(
 }
 
 const newApiFetcher: ModelFetcher = {
-  match: (p) =>
-    matchesPreset(p, SystemProviderIds['new-api']) ||
-    matchesPreset(p, SystemProviderIds.cherryin) ||
-    matchesPreset(p, SystemProviderIds.ocoolai) ||
-    matchesPreset(p, SystemProviderIds.burncloud),
+  match: (provider) => provider.modelListApi?.type === 'new-api',
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const headers = defaultHeaders(provider)
-    const pricingRequest = getFromApi({
-      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
-      headers,
-      responseSchema: NewApiPricingResponseSchema,
-      abortSignal: signal
-    })
-      .then((data) => ({ data, available: true }))
-      .catch((error) => ({
-        data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
-          providerId: provider.id,
-          endpoint: 'new-api-pricing'
-        }),
-        available: false
-      }))
+    const pricingRequest = provider.modelListApi?.supportsPricing
+      ? getFromApi({
+          url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
+          headers,
+          responseSchema: NewApiPricingResponseSchema,
+          abortSignal: signal
+        })
+          .then((data) => ({ data, available: true }))
+          .catch((error) => ({
+            data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
+              providerId: provider.id,
+              endpoint: 'new-api-pricing'
+            }),
+            available: false
+          }))
+      : Promise.resolve({ data: { data: [] }, available: false })
     const [response, pricingResult] = await Promise.all([
       getFromApi({
         url: `${baseUrl}/models`,
@@ -575,19 +573,6 @@ const newApiFetcher: ModelFetcher = {
       : new Map(pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)]))
     const missingPricing = pricingResult.available ? unknownUsdPricing() : undefined
     return buildNewApiModels(provider, response.data, pricingByModel, missingPricing)
-  }
-}
-
-const aiOnlyFetcher: ModelFetcher = {
-  match: (provider) => matchesPreset(provider, SystemProviderIds.aionly),
-  fetch: async (provider, signal) => {
-    const response = await getFromApi({
-      url: `${formatApiHost(getBaseUrl(provider))}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: NewApiModelsResponseSchema,
-      abortSignal: signal
-    })
-    return buildNewApiModels(provider, response.data)
   }
 }
 
@@ -939,7 +924,6 @@ const fetchers: ModelFetcher[] = [
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
-  aiOnlyFetcher,
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,

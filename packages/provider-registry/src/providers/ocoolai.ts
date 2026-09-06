@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'ocoolai',
   name: 'ocoolAI',
   baseUrl: 'https://api.ocoolai.com',
+  modelListApi: { type: 'new-api', supportsPricing: true },
   website: {
     apiKey: 'https://one.ocoolai.com/token',
     docs: 'https://docs.ocoolai.com/',

@@ -31,6 +31,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
+          modelListApi: { type: 'new-api', supportsPricing: true },
           reportsActualCost: false,
           reportedCostCurrency: 'USD'
         },
@@ -223,6 +224,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     // Registry baseline over app defaults; nothing frozen in the row.
     expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(provider.modelListApi).toEqual({ type: 'new-api', supportsPricing: true })
     expect(provider.reportedCostCurrency).toBe('USD')
   })
 

@@ -717,7 +717,8 @@ describe('listModels — Radeon Cloud source header', () => {
 describe('listModels — newApiFetcher endpoint types', () => {
   it('maps supported_endpoint_types from NewAPI model responses', async () => {
     const provider = makeProvider({
-      id: 'new-api',
+      id: 'declared-new-api',
+      modelListApi: { type: 'new-api', supportsPricing: true },
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://newapi.example.com/v1' }
       }
@@ -766,6 +767,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
   it('routes aionly through the NewAPI-compatible model parser', async () => {
     const provider = makeProvider({
       id: 'aionly',
+      modelListApi: { type: 'new-api' },
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aiionly.com/v1' }
       }
@@ -1255,7 +1257,9 @@ describe('listModels — provider-published pricing', () => {
         : Promise.resolve({ value: { data: [{ id: 'priced-model' }] } })
     )
 
-    const [model] = await listModels(makeProvider({ id: providerId }))
+    const [model] = await listModels(
+      makeProvider({ id: providerId, modelListApi: { type: 'new-api', supportsPricing: true } })
+    )
 
     expect(model.pricing).toEqual({
       input: { currency: 'USD', perMillionTokens: 1 },
@@ -1268,6 +1272,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
   function makeNewApiProvider() {
     return makeProvider({
       id: 'new-api',
+      modelListApi: { type: 'new-api', supportsPricing: true },
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/v1' }
@@ -1433,7 +1438,9 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
         : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
     )
 
-    const models = await listModels(makeProvider({ id: 'cherryin' }))
+    const models = await listModels(
+      makeProvider({ id: 'cherryin', modelListApi: { type: 'new-api', supportsPricing: true } })
+    )
 
     expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
     expect(models[0].pricing).toBeUndefined()

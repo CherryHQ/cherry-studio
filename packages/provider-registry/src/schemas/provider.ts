@@ -135,6 +135,13 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
+/** Provider-specific model-list protocol exposed by the configured host. */
+export const ProviderModelListApiSchema = z.object({
+  type: z.literal('new-api'),
+  /** The host publishes the standard NewAPI `/api/pricing` rate card. */
+  supportsPricing: z.literal(true).optional()
+})
+
 /**
  * How a host deviates from one endpoint's dialect. These are properties of the
  * protocol, not of the vendor: a provider serving both chat-completions and
@@ -211,6 +218,8 @@ export const ProviderConfigSchema = z
      * to `'api'` (the provider exposes a `/models` endpoint).
      */
     modelListSource: z.enum(['api', 'registry']).default('api'),
+    /** Model-list response protocol and optional companion endpoints. */
+    modelListApi: ProviderModelListApiSchema.optional(),
     /**
      * Which credential kinds the provider accepts — the auth UIs to surface and
      * the runtime credential semantics. A *set*, because a provider can offer
@@ -275,5 +284,6 @@ export type ServiceTierOptions = z.infer<typeof ServiceTierOptionsSchema>
 export type ServiceTierDelivery = z.infer<typeof ServiceTierDeliverySchema>
 export type ServiceTierRequestControl = z.infer<typeof ServiceTierRequestControlSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
+export type ProviderModelListApi = z.infer<typeof ProviderModelListApiSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

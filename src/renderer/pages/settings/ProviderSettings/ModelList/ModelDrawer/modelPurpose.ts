@@ -7,7 +7,6 @@ import {
   type ModelCapability
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { matchesPreset } from '@shared/utils/provider'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import type { ModelDrawerMode } from './types'
@@ -42,7 +41,7 @@ export interface ApplyModelPurposeOptions {
   previousPurpose?: ModelPurpose
 }
 
-type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
+type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId' | 'modelListApi'>
 type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
@@ -62,7 +61,7 @@ function removeItem<T>(items: readonly T[] | undefined, item: T): T[] | undefine
 }
 
 export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMode {
-  if (matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
+  if (provider.modelListApi?.type === 'new-api') {
     return 'endpoint-types'
   }
   if (provider.presetProviderId == null && !isSystemProviderId(provider.id)) {

@@ -20,11 +20,13 @@ import {
 describe('getModelDrawerMode', () => {
   it.each([
     [{ id: 'custom-provider', presetProviderId: undefined }, 'purpose'],
-    [{ id: 'new-api', presetProviderId: 'new-api' }, 'endpoint-types'],
-    [{ id: 'custom-new-api', presetProviderId: 'new-api' }, 'endpoint-types'],
-    [{ id: 'cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
-    [{ id: 'custom-cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
-    [{ id: 'aionly', presetProviderId: 'aionly' }, 'endpoint-types'],
+    [{ id: 'new-api', presetProviderId: 'new-api', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'custom-new-api', presetProviderId: 'new-api', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'cherryin', presetProviderId: 'cherryin', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'custom-cherryin', presetProviderId: 'cherryin', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'aionly', presetProviderId: 'aionly', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'ocoolai', presetProviderId: 'ocoolai', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
+    [{ id: 'burncloud', presetProviderId: 'burncloud', modelListApi: { type: 'new-api' } }, 'endpoint-types'],
     [{ id: 'openai', presetProviderId: undefined }, 'legacy'],
     [{ id: 'openai', presetProviderId: 'openai' }, 'legacy'],
     [{ id: 'custom-anthropic', presetProviderId: 'anthropic' }, 'legacy']

@@ -113,6 +113,8 @@ export interface ProviderDisplayMetadata {
   websites?: ProviderWebsites
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
+  /** Registry capability: model-list response protocol and companion endpoints. */
+  modelListApi?: ProtoProviderConfig['modelListApi']
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
@@ -926,6 +928,7 @@ class ProviderRegistryService {
         description: provider?.description,
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
+        modelListApi: provider?.modelListApi,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
         serverTools: provider?.serverTools,

@@ -383,6 +383,32 @@ describe('catalog invariants (data/*.json)', () => {
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
   })
 
+  it.each([
+    ['gpt-oss-20b', 'accounts/fireworks/models/gpt-oss-20b', 0.07, 0.3, 0.035],
+    ['minimax-m2-7', 'accounts/fireworks/models/minimax-m2p7', 0.3, 1.2, 0.059]
+  ])('keeps Fireworks wire identity and pricing for %s', (modelId, apiModelId, input, output, cacheRead) => {
+    expect(
+      providerModelOverrides.find((override) => override.providerId === 'fireworks' && override.modelId === modelId)
+    ).toMatchObject({
+      apiModelId,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: input },
+        output: { currency: 'USD', perMillionTokens: output },
+        cacheRead: { currency: 'USD', perMillionTokens: cacheRead }
+      }
+    })
+  })
+
+  it('declares the NewAPI model-list protocol and pricing capability per provider', () => {
+    const modelListApi = (providerId: string) => providers.find((provider) => provider.id === providerId)?.modelListApi
+
+    expect(modelListApi('new-api')).toEqual({ type: 'new-api', supportsPricing: true })
+    expect(modelListApi('cherryin')).toEqual({ type: 'new-api', supportsPricing: true })
+    expect(modelListApi('ocoolai')).toEqual({ type: 'new-api', supportsPricing: true })
+    expect(modelListApi('burncloud')).toEqual({ type: 'new-api', supportsPricing: true })
+    expect(modelListApi('aionly')).toEqual({ type: 'new-api' })
+  })
+
   it('Fast transports belong only to Codex, Claude Code, and Ark', () => {
     expect(
       providers

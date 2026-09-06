@@ -63,8 +63,6 @@ const toggleModels = ['glm-5-1', 'kimi-k2-6', 'kimi-k2-7-code']
 
 const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'gpt-oss-120b', values: ['low', 'medium', 'high'] },
-  { modelId: 'gpt-oss-20b', values: ['low', 'medium', 'high'] },
-  { modelId: 'minimax-m2-7', values: ['low', 'medium', 'high'] },
   { modelId: 'minimax-m3', values: ['low', 'medium', 'high'] }
 ]
 
@@ -127,6 +125,16 @@ export default defineProvider({
       pricing: rate(1.9, 8, 0.38)
     },
     { ...override('glm-5-1-fast', toggleSupport), name: 'GLM 5.1 Fast' },
+    {
+      ...override('gpt-oss-20b', effortSupport(['low', 'medium', 'high'])),
+      apiModelId: 'accounts/fireworks/models/gpt-oss-20b',
+      pricing: rate(0.07, 0.3, 0.035)
+    },
+    {
+      ...override('minimax-m2-7', effortSupport(['low', 'medium', 'high'])),
+      apiModelId: 'accounts/fireworks/models/minimax-m2p7',
+      pricing: rate(0.3, 1.2, 0.059)
+    },
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]

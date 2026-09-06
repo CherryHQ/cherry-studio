@@ -10928,8 +10928,23 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/models/gpt-oss-20b",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "gpt-oss-20b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11270,8 +11285,23 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "accounts/fireworks/models/minimax-m2p7",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "minimax-m2-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.059
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -37904,5 +37934,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "593a07f18d8f5dd6"
+  "version": "eff1616388fbdcca"
 }
