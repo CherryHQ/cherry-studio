@@ -22,11 +22,8 @@ export interface ComposerAttachment {
    * Absolute path of the backing file, used at send (`createInternalEntry
    * source:'path'`) + image preview.
    *
-   * Absent when the attachment has no path we can prove is a filesystem path —
-   * today that is the message-editing round-trip, which reconstructs
-   * attachments from a stored part's `file://` URL. Such an attachment is
-   * display-only: it is never re-sent through `createInternalEntry` (the edit
-   * flow reuses the original part), and every path-consuming call site skips it.
+   * Absent when the attachment has no path we can prove is a filesystem path.
+   * Message editing restores a path only for pasted-text preview; it reuses the original part when saving.
    */
   path?: AbsoluteFilePath
   /**

@@ -17,6 +17,7 @@ interface QueuedFollowupsDockProps {
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
+  editDisabled?: boolean
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }
@@ -52,6 +53,7 @@ function QueuedFollowupRow({
   onSteer,
   onEdit,
   onRemove,
+  editDisabled,
   isSteerDisabled,
   steerDisabledReason
 }: {
@@ -60,6 +62,7 @@ function QueuedFollowupRow({
   onSteer: (id: string) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
+  editDisabled?: boolean
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }) {
@@ -107,6 +110,7 @@ function QueuedFollowupRow({
             size="icon-sm"
             className="size-7 shadow-none"
             aria-label={t('chat.input.followup_queue.edit')}
+            disabled={editDisabled}
             onClick={() => onEdit(item.id)}>
             <Pencil className="size-4" />
           </Button>
@@ -140,6 +144,7 @@ export function QueuedFollowupsDock({
   onEdit,
   onRemove,
   onReorder,
+  editDisabled,
   isSteerDisabled,
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
@@ -182,6 +187,7 @@ export function QueuedFollowupsDock({
               onSteer={onSteer}
               onEdit={onEdit}
               onRemove={onRemove}
+              editDisabled={editDisabled}
               isSteerDisabled={isSteerDisabled}
               steerDisabledReason={steerDisabledReason}
             />

@@ -1,4 +1,5 @@
 import { FILE_TYPE } from '@renderer/types/file'
+import { parseFilePreviewUrlPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
@@ -56,12 +57,27 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
   return ''
 }
 
-function createEditableAttachment(
+async function getEditableFilePath(part: Extract<CherryMessagePart, { type: 'file' }>) {
+  const cherry = readCherryMeta(part)
+  if (!cherry?.composerFileKind) return undefined
+
+  if (cherry.fileEntryId) {
+    try {
+      return await window.api.file.getPhysicalPath({ id: cherry.fileEntryId })
+    } catch {
+      return undefined
+    }
+  }
+
+  return parseFilePreviewUrlPath(part.url)
+}
+
+async function createEditableAttachment(
   part: Extract<CherryMessagePart, { type: 'file' }>,
   index: number,
   fileTokenSourceId: string,
   tokenPayload: ComposerMessageTokenPayload | undefined
-): ComposerAttachment | null {
+): Promise<ComposerAttachment | null> {
   const url = part.url
   if (!url) return null
 
@@ -73,24 +89,23 @@ function createEditableAttachment(
     `attachment-${index + 1}`
   const ext = tokenPayload?.ext || getFileExtension(name || url, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : (tokenPayload?.type ?? getFileTypeByExt(ext))
+  const composerFileKind = readCherryMeta(part)?.composerFileKind
+  const path = await getEditableFilePath(part)
 
   return {
     fileTokenSourceId,
     name,
     origin_name: name,
-    // The stored part carries a `file://` URL, not a filesystem path. Leave the
-    // path absent rather than smuggling a URL through a path-typed field: the
-    // edit flow re-sends the original part verbatim, so nothing downstream
-    // needs it.
-    path: undefined,
+    ...(path && { path }),
     previewUrl: url,
     size: tokenPayload?.size ?? 0,
     ext,
-    type
+    type,
+    ...(path && composerFileKind && { composerFileKind })
   }
 }
 
-export function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessageDraft {
+export async function createEditableMessageDraft(parts: CherryMessagePart[]): Promise<EditableMessageDraft> {
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
   const text = textParts.map((part) => part.text).join('\n\n')
   // Recover the composer snapshot even when the reply was split across multiple text parts
@@ -113,7 +128,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
   const fileTokens = draftTokens.filter((token) => token.kind === 'file')
   const usedFileTokenIds = new Set<string>()
   const attachmentByMatchedTokenId = new Map<string, ComposerAttachment>()
-  const files = parts.flatMap((part, index) => {
+  const filePromises = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
     const path = part.url
     const token = path ? findEditableFileToken(part, path, fileTokens, usedFileTokenIds) : undefined
@@ -122,9 +137,15 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
     const fileTokenSourceId =
       getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
       createComposerFileTokenSourceId()
-    const file = createEditableAttachment(part, index, fileTokenSourceId, readFileTokenPayload(token?.payload))
-    if (token && file) attachmentByMatchedTokenId.set(token.id, file)
-    return file ? [file] : []
+    return [
+      { token, file: createEditableAttachment(part, index, fileTokenSourceId, readFileTokenPayload(token?.payload)) }
+    ]
+  })
+  const resolvedFiles = await Promise.all(filePromises.map(async ({ token, file }) => ({ token, file: await file })))
+  const files = resolvedFiles.flatMap(({ token, file }) => {
+    if (!file) return []
+    if (token) attachmentByMatchedTokenId.set(token.id, file)
+    return [file]
   })
   // Live composer file tokens carry the attachment as their payload; the stored snapshot only
   // carries the serialized display fields. Restore the attachment so the token renders the same.

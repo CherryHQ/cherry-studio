@@ -37,23 +37,23 @@ const imageParts = [
 
 describe('createEditableMessageDraft', () => {
   // The stored part has no filesystem path, so without the URL the edit composer has no image to preview.
-  it('carries the stored file URL as the attachment preview source', () => {
-    const draft = createEditableMessageDraft(imageParts)
+  it('carries the stored file URL as the attachment preview source', async () => {
+    const draft = await createEditableMessageDraft(imageParts)
 
     expect(draft.files).toHaveLength(1)
     expect(draft.files[0].path).toBeUndefined()
     expect(draft.files[0].previewUrl).toBe('file:///tmp/shot.png')
   })
 
-  it('restores the attachment onto its file token so the token renders like a live one', () => {
-    const draft = createEditableMessageDraft(imageParts)
+  it('restores the attachment onto its file token so the token renders like a live one', async () => {
+    const draft = await createEditableMessageDraft(imageParts)
 
     const fileToken = draft.draftTokens.find((token) => token.kind === 'file')
     expect(fileToken?.payload).toBe(draft.files[0])
   })
 
-  it('recovers size and type from the stored token payload', () => {
-    const draft = createEditableMessageDraft(imageParts)
+  it('recovers size and type from the stored token payload', async () => {
+    const draft = await createEditableMessageDraft(imageParts)
 
     expect(draft.files[0].size).toBe(238_592)
     expect(draft.files[0].type).toBe(FILE_TYPE.IMAGE)
