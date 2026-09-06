@@ -139,14 +139,14 @@ export async function getClaudeCodeLoginShellEnvironment(
   // system mise shims (e.g. pnpx) inside the agent bash don't get
   // redirected to Cherry's data dir (#19738).
   const rawShellEnv = await getRawShellEnv()
-  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_'))
   if (rawMiseEntries.length > 0) {
     // User has mise activated — replace the contract wholesale: drop
     // Cherry-only MISE keys, then restore the user's values.
     const { getBinaryExecutionEnv } = await import('@main/utils/binaryEnv')
     const cherryMiseEnv = getBinaryExecutionEnv()
     for (const key of Object.keys(cherryMiseEnv)) {
-      if (!rawMiseEntries.some(([k]) => k === key || k.toUpperCase() === key.toUpperCase())) {
+      if (!rawMiseEntries.some(([k]) => k === key)) {
         delete stripped[key]
       }
     }

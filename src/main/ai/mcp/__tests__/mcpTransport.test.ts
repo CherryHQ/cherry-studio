@@ -150,7 +150,11 @@ describe('createTransport', () => {
 
     expect(transport.params.command).toBe('/usr/local/bin/npx')
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
-    expect(transport.params.env.PATH).toContain('/shell/bin')
+    const pathValue = transport.params.env.PATH as string
+    // User PATH entries must stay before Cherry fallbacks (load-bearing order).
+    expect(pathValue.split(/[:;]/)[0]).toBe('/shell/bin')
+    expect(pathValue).toContain('/mock/feature.binary.data/shims')
+    expect(pathValue.indexOf('/shell/bin')).toBeLessThan(pathValue.indexOf('/mock/feature.binary.data'))
     expect(transport.params.stderr).toBe('pipe')
   })
 

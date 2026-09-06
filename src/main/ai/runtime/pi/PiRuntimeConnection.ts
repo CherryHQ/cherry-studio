@@ -110,7 +110,7 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.startsWith('MISE_'))
 
   if (callerOwnsMiseEnvironment) {
     // A generic shell may already be activated against the user's mise installation. Do not
@@ -343,7 +343,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // isolated value redirects it to the wrong data dir (#19738).
       const rawShellEnvForBash = await getRawShellEnv()
       const rawMiseEnvForBash = Object.fromEntries(
-        Object.entries(rawShellEnvForBash).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+        Object.entries(rawShellEnvForBash).filter(([key]) => key.startsWith('MISE_'))
       )
       const cherryMiseEnvForBash = getBinaryExecutionEnv()
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
