@@ -38,6 +38,7 @@ vi.mock('@renderer/utils/error', () => ({
 import { tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
 
 import { useTranslate } from '../useTranslate'
+import { useTranslateSession } from '../useTranslateSession'
 
 const TARGET = {
   langCode: parseTranslateLangCode('en-us'),
@@ -67,7 +68,8 @@ function pendingTranslateText() {
 }
 
 let sessionSeq = 0
-const newSessionId = () => `session-${(sessionSeq += 1)}`
+/** The real translate session, so these tests exercise the runtime the page actually gets. */
+const newSession = () => renderHook(() => useTranslateSession(`session-${(sessionSeq += 1)}`)).result.current
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -75,11 +77,19 @@ beforeEach(() => {
   abortRequest.mockClear()
 })
 
+describe('useTranslateSession', () => {
+  it('fails loudly without a session id rather than inventing one', () => {
+    // A fallback id would be shared by every page in this state and would name a session no tab
+    // refers to — the next sweep would cancel and release it under a page still using it.
+    expect(() => renderHook(() => useTranslateSession(undefined))).toThrow(/tabSession/)
+  })
+})
+
 describe('useTranslate with a tab session', () => {
   it('keeps the run alive when the page unmounts', async () => {
     // #18885: switching tabs unmounts the page under `Activity`; the run must not be cancelled.
     const { getSignal } = pendingTranslateText()
-    const session = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
+    const session = newSession()
     const { result, unmount } = renderHook(() => useTranslate({ session }))
 
     act(() => {
@@ -95,7 +105,7 @@ describe('useTranslate with a tab session', () => {
 
   it('still reports isTranslating to a page that remounted mid-run', async () => {
     pendingTranslateText()
-    const session = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
+    const session = newSession()
     const first = renderHook(() => useTranslate({ session }))
 
     act(() => {
@@ -112,7 +122,7 @@ describe('useTranslate with a tab session', () => {
     // The Stop button after a tab switch — this mount started nothing, so the stream id held by
     // the session is the only handle on the run.
     const { getStreamId } = pendingTranslateText()
-    const session = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
+    const session = newSession()
     const first = renderHook(() => useTranslate({ session }))
 
     act(() => {
@@ -131,8 +141,7 @@ describe('useTranslate with a tab session', () => {
 
   it('aborts the run when the session is released', async () => {
     const { getStreamId } = pendingTranslateText()
-    const id = newSessionId()
-    const session = tabSessionRegistry.getOrCreate(id, () => true)
+    const session = newSession()
     const { result } = renderHook(() => useTranslate({ session }))
 
     act(() => {
@@ -149,8 +158,8 @@ describe('useTranslate with a tab session', () => {
   it('keeps two sessions independent', async () => {
     const runA = pendingTranslateText()
     const runB = pendingTranslateText()
-    const sessionA = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
-    const sessionB = tabSessionRegistry.getOrCreate(newSessionId(), () => true)
+    const sessionA = newSession()
+    const sessionB = newSession()
     const a = renderHook(() => useTranslate({ session: sessionA }))
     const b = renderHook(() => useTranslate({ session: sessionB }))
 

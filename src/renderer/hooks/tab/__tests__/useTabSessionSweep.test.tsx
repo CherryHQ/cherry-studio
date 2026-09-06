@@ -4,8 +4,6 @@ import { renderHook } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
-
 import { useTabSessionSweep } from '../useTabSessionSweep'
 
 const routeTab = (sessionId: string): Tab => ({
@@ -17,6 +15,8 @@ const routeTab = (sessionId: string): Tab => ({
 
 let seq = 0
 const newSessionId = () => `sweep-${(seq += 1)}`
+
+const idleOwner = (release: () => boolean) => () => ({ isBusy: () => false, cancel: () => {}, release })
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -32,7 +32,7 @@ describe('useTabSessionSweep', () => {
     // the same pass would hit `useCache` hooks that are still registered (#20074).
     const id = newSessionId()
     const release = vi.fn(() => true)
-    tabSessionRegistry.getOrCreate(id, release)
+    tabSessionRegistry.getOrCreate(id, idleOwner(release))
 
     renderHook(({ tabs }) => useTabSessionSweep(tabs), { initialProps: { tabs: [] as Tab[] } })
 
@@ -48,7 +48,7 @@ describe('useTabSessionSweep', () => {
   it('never releases a session an open tab still refers to', () => {
     const id = newSessionId()
     const release = vi.fn(() => true)
-    tabSessionRegistry.getOrCreate(id, release)
+    tabSessionRegistry.getOrCreate(id, idleOwner(release))
 
     renderHook(({ tabs }) => useTabSessionSweep(tabs), { initialProps: { tabs: [routeTab(id)] } })
     act(() => {
@@ -62,7 +62,7 @@ describe('useTabSessionSweep', () => {
     const id = newSessionId()
     let releasable = false
     const release = vi.fn(() => releasable)
-    tabSessionRegistry.getOrCreate(id, release)
+    tabSessionRegistry.getOrCreate(id, idleOwner(release))
 
     const { rerender } = renderHook(({ tabs }) => useTabSessionSweep(tabs), {
       initialProps: { tabs: [] as Tab[] }

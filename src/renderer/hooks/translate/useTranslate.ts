@@ -21,7 +21,6 @@
  */
 
 import { loggerService } from '@logger'
-import type { TabSessionHandle } from '@renderer/services/TabSessionRegistry'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { createTranslateStreamId, translateText } from '@renderer/utils/translate'
@@ -30,6 +29,8 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
+
+import type { TranslateSessionHandle } from './useTranslateSession'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
@@ -68,7 +69,7 @@ export interface UseTranslateOptions {
    * Omit it wherever the component genuinely is the run's owner — a popup or an overlay that the
    * user dismissed has no reason to keep translating.
    */
-  session?: TabSessionHandle | null
+  session?: TranslateSessionHandle | null
 }
 
 export interface UseTranslateResult {
@@ -124,7 +125,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     // With a session the run may have been started by an earlier mount, so this component's refs
     // can be empty while a translation is still going — the session holds the stream id and
     // cancels main's run by id, which is the only handle that survives a remount.
-    session?.abortStreams()
+    session?.cancel()
 
     if (!activeAbortKeyRef.current) return
     // Clear the ref first so the in-flight translate's continuation sees

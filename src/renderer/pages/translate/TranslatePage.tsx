@@ -242,7 +242,7 @@ const TranslatePage: FC = () => {
   // thing telling two of them apart — it keys this page's whole draft (#18879). The route mints
   // it before the page mounts, so it is always present here.
   const { tabSession } = parseTranslateRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  const session = useTranslateSession(tabSession ?? '')
+  const session = useTranslateSession(tabSession)
 
   const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
   const [translateOutput, setTranslateOutput] = useCache(`translate.output.${session.id}`)
