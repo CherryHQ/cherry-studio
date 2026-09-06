@@ -1,5 +1,13 @@
 import { isDev } from '@renderer/utils/platform'
-import type { DataResponse, HttpMethod } from '@shared/data/api/types'
+import type { HttpMethod } from '@shared/data/api/types'
+
+import {
+  type DataApiInstrumentationError,
+  type DataApiInstrumentationRetry,
+  dataApiInstrumentationService,
+  type DataApiInstrumentationStart,
+  type DataApiInstrumentationSuccess
+} from './DataApiInstrumentationService'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
@@ -236,17 +244,12 @@ function installGlobal(): void {
 }
 
 function exposeControlSurface(): void {
+  if (!isEnabled()) return
+  dataApiInstrumentationService.install(DataApiDevtools)
   installGlobal()
 }
 
-function recordStart(input: {
-  requestId: string
-  method: HttpMethod
-  path: string
-  query?: unknown
-  body?: unknown
-  retryAttempt: number
-}): void {
+function recordStart(input: DataApiInstrumentationStart): void {
   safeRecord(() => {
     appendEvent(
       {
@@ -263,7 +266,7 @@ function recordStart(input: {
   })
 }
 
-function recordSuccess(input: { requestId: string; method: HttpMethod; path: string; response: DataResponse }): void {
+function recordSuccess(input: DataApiInstrumentationSuccess): void {
   safeRecord(() => {
     // Stop client timing before payload preview generation so DevTools work is
     // never attributed to the DataApi request itself.
@@ -280,14 +283,7 @@ function recordSuccess(input: { requestId: string; method: HttpMethod; path: str
   })
 }
 
-function recordError(input: {
-  requestId: string
-  method: HttpMethod
-  path: string
-  error: unknown
-  status?: number
-  metadata?: DataResponse['metadata']
-}): void {
+function recordError(input: DataApiInstrumentationError): void {
   safeRecord(() => {
     const timingFields: Partial<DataApiDevtoolsEvent> = {
       mainDuration: input.metadata?.duration,
@@ -304,13 +300,7 @@ function recordError(input: {
   })
 }
 
-function recordRetry(input: {
-  requestId: string
-  method: HttpMethod
-  path: string
-  retryAttempt: number
-  error: unknown
-}): void {
+function recordRetry(input: DataApiInstrumentationRetry): void {
   safeRecord(() => {
     upsertEvent(input, {
       state: 'retry',
@@ -334,6 +324,7 @@ export const dataApiDevtoolsTesting = {
   reset: () => {
     options = { ...DEFAULT_OPTIONS }
     clearEvents()
+    dataApiInstrumentationService.reset()
     if (typeof window !== 'undefined') {
       delete window.__CHERRY_DATA_API_DEVTOOLS__
     }

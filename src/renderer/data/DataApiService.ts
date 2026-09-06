@@ -36,7 +36,7 @@ import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/d
 import type { ApiClient, ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod } from '@shared/data/api/types'
 
-import { DataApiDevtools } from './utils/dataApiDevtools'
+import { dataApiInstrumentationService } from './services/DataApiInstrumentationService'
 
 const logger = loggerService.withContext('DataApiService')
 
@@ -119,7 +119,7 @@ export class DataApiService implements ApiClient {
       throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
     }
     let errorMetadata: DataResponse['metadata'] | undefined
-    DataApiDevtools.recordStart({
+    dataApiInstrumentationService.recordStart({
       requestId: request.id,
       method: request.method,
       path: request.path,
@@ -153,7 +153,7 @@ export class DataApiService implements ApiClient {
         throw DataApiError.fromJSON(response.error)
       }
 
-      DataApiDevtools.recordSuccess({
+      dataApiInstrumentationService.recordSuccess({
         requestId: request.id,
         method: request.method,
         path: request.path,
@@ -171,7 +171,7 @@ export class DataApiService implements ApiClient {
       const apiError =
         error instanceof DataApiError ? error : toDataApiError(error, `${request.method} ${request.path}`)
 
-      DataApiDevtools.recordError({
+      dataApiInstrumentationService.recordError({
         requestId: request.id,
         method: request.method,
         path: request.path,
@@ -184,7 +184,7 @@ export class DataApiService implements ApiClient {
 
       // Check if should retry using the error's built-in isRetryable getter
       if (retryCount < this.defaultRetryOptions.maxRetries && apiError.isRetryable) {
-        DataApiDevtools.recordRetry({
+        dataApiInstrumentationService.recordRetry({
           requestId: request.id,
           method: request.method,
           path: request.path,
