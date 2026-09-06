@@ -1,18 +1,14 @@
 /**
  * Main-process translate service.
  *
- * Stateless orchestration — resolves the configured translate model, builds the
- * interpolated prompt, and gates the configured model parameters against that
- * model, all from main-side preferences/DataApi; then hands the stream off to
- * `AiStreamManager.streamPrompt` with a `WebContentsListener` keyed by the
- * renderer-supplied `translate:*` streamId.
+ * Two entry points onto the same machinery. `startTask` owns a whole translation — detect,
+ * resolve the target, stream — as a {@link TranslateTask} this process keeps alive across a
+ * window detach; `open` is the older one-shot stream, kept for callers that already know their
+ * target language. Both resolve the configured model, interpolate the prompt and gate the model
+ * parameters here, from main-side preferences/DataApi.
  *
- * Renderer subscribers consume `ai.stream.chunk` / `done` / `error` events
- * filtered by that streamId; abort flows back through `ai.stream.abort`.
- *
- * Per CLAUDE.md's lifecycle-decision guide this is a **direct-import
- * singleton**, not a `BaseService` — no long-lived resources, no persistent
- * side effects. The thin IpcApi handler lives in
+ * Renderer subscribers consume `ai.stream.chunk` / `done` / `error` filtered by `streamId`, and
+ * a task's own milestones through `translate.task.*`. The thin IpcApi handler lives in
  * `src/main/ipc/handlers/translate.ts`.
  */
 
@@ -39,7 +35,7 @@ import { isQwenMTModel } from '@shared/utils/model'
 import { v4 as uuid } from 'uuid'
 
 import { WebContentsListener } from '../../ai/streamManager'
-import { TranslateTask, type TranslateTaskRequest, type TranslateTaskState } from './translateTask'
+import { TranslateTask, type TranslateTaskRequest, type TranslateTaskState } from './TranslateTask'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -142,13 +138,6 @@ export class TranslateService extends BaseService {
    */
   attachTask(taskId: string, senderId: WindowId, sender: Electron.WebContents): TranslateTaskState | undefined {
     return this.tasks.get(taskId)?.attach(senderId, sender)
-  }
-
-  /** Drop every task started by a window that no longer exists. */
-  releaseWindow(senderId: WindowId): void {
-    for (const task of [...this.tasks.values()]) {
-      if (task.ownedBy(senderId)) task.cancel()
-    }
   }
 
   /**

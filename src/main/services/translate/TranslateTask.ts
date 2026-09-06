@@ -108,11 +108,6 @@ export class TranslateTask implements StreamListener {
     }
   }
 
-  /** Whether this task was last followed by the given window. */
-  ownedBy(senderId: WindowId): boolean {
-    return this.senderId === senderId
-  }
-
   /** Point the task at another window — the same tab after a detach. */
   attach(senderId: WindowId, sender: Electron.WebContents): TranslateTaskState {
     this.unwatchWindow?.()

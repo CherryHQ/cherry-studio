@@ -32,7 +32,7 @@ vi.mock('../../../ai/streamManager', () => ({
   }))
 }))
 
-const { TranslateTask } = await import('../translateTask')
+const { TranslateTask } = await import('../TranslateTask')
 
 /** A WebContents stand-in that records its `destroyed` listener so tests can fire it. */
 function fakeSender() {
