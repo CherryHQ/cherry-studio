@@ -242,7 +242,8 @@ const TranslatePage: FC = () => {
     loggerContext: 'TranslatePage',
     onResponse: smoothUpdate
   })
-  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
+  const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
@@ -330,32 +331,26 @@ const TranslatePage: FC = () => {
     [setTranslateInput, setTranslateOutput]
   )
 
-  const copy = useCallback(
-    async (value: string) => {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-    },
-    [setCopied]
-  )
-
   const onCopyInput = useCallback(async () => {
     if (!translateInput) return
     try {
-      await copy(translateInput)
+      await navigator.clipboard.writeText(translateInput)
+      setInputCopied(true)
     } catch (error) {
       logger.error('Failed to copy source text:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateInput])
+  }, [setInputCopied, t, translateInput])
 
   const onCopyOutput = useCallback(async () => {
     try {
-      await copy(translateOutput)
+      await navigator.clipboard.writeText(translateOutput)
+      setOutputCopied(true)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateOutput])
+  }, [setOutputCopied, t, translateOutput])
 
   const onExportOutputToNotes = useCallback(() => {
     const translationResult = translateOutput.trim()
@@ -388,7 +383,8 @@ const TranslatePage: FC = () => {
           'auto-copy',
           async () => {
             try {
-              await copy(translated)
+              await navigator.clipboard.writeText(translated)
+              setOutputCopied(true)
             } catch (error) {
               logger.error('Failed to auto copy translated text', error as Error)
               toast.error(t('translate.error.auto_copy_failed'))
@@ -405,7 +401,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, isTranslating, runTranslate, setOutputCopied, setTimeoutTimer, smoothReset, t]
   )
 
   // Off the translation critical path: a failed detection or patch just leaves
@@ -1062,7 +1058,7 @@ const TranslatePage: FC = () => {
                           translatedContent={translateOutput}
                           enableMarkdown={enableMarkdown}
                           translating={isTranslating || isDetecting || isPdfTextExtracting}
-                          copied={copied}
+                          copied={outputCopied}
                           onCopy={onCopyOutput}
                           onExportToNotes={onExportOutputToNotes}
                           onScroll={outputScrollHandler}
@@ -1095,6 +1091,7 @@ const TranslatePage: FC = () => {
                 onPaste={onPaste}
                 onDrop={onDrop}
                 onSelectFile={handleSelectFile}
+                copied={inputCopied}
                 onCopy={onCopyInput}
                 onCancelOcr={clearOcrJob}
                 disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
@@ -1108,7 +1105,7 @@ const TranslatePage: FC = () => {
                 translatedContent={translateOutput}
                 enableMarkdown={enableMarkdown}
                 translating={isTranslating || isDetecting}
-                copied={copied}
+                copied={outputCopied}
                 onCopy={onCopyOutput}
                 onExportToNotes={onExportOutputToNotes}
                 onScroll={outputScrollHandler}

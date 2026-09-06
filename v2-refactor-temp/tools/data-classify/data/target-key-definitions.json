@@ -513,6 +513,16 @@
       "description": "Command shortcut: app.zoom.reset (unified command system)"
     },
     {
+      "targetKey": "shortcut.chat.input.focus",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "I"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.input.focus (unified command system)"
+    },
+    {
       "targetKey": "shortcut.chat.context.toggle_new",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
