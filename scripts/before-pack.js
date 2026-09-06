@@ -5,6 +5,7 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { discoverDshRuntimePackaging } = require('../packages/dsh-bridge/scripts/runtimeEntries.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -136,13 +137,91 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
+// Main's external predicate leaves root dependencies as runtime imports, so keep those DSH packages available.
+const getMainProcessDshPackages = (projectRoot) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
+  return new Set(
+    [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.optionalDependencies ?? {})].filter((name) =>
+      name.startsWith('@deepseek-ai/dsh-')
+    )
+  )
+}
+
+const getDshPackageExclusions = (runtime, mainProcessDshPackages) => {
+  const externalPackageNames = new Set(runtime.externalPackageNames)
+  const dshPackageNames = new Set(runtime.dshPackageNames)
+  const recordsByName = new Map()
+  for (const record of runtime.packageRecords ?? []) {
+    if (!record.name || !dshPackageNames.has(record.name)) continue
+    const records = recordsByName.get(record.name) ?? []
+    records.push(record)
+    recordsByName.set(record.name, records)
+  }
+  const protectedPackages = new Set(mainProcessDshPackages)
+  const pending = [...protectedPackages]
+  while (pending.length > 0) {
+    const packageName = pending.pop()
+    for (const record of recordsByName.get(packageName) ?? []) {
+      for (const dependencyName of [
+        ...Object.keys(record.manifest.dependencies ?? {}),
+        ...Object.keys(record.manifest.optionalDependencies ?? {})
+      ]) {
+        if (dshPackageNames.has(dependencyName) && !protectedPackages.has(dependencyName)) {
+          protectedPackages.add(dependencyName)
+          pending.push(dependencyName)
+        }
+      }
+    }
+  }
+  return runtime.dshPackageNames
+    .filter((packageName) => !externalPackageNames.has(packageName))
+    .filter((packageName) => !protectedPackages.has(packageName))
+    .flatMap((packageName) => [`!node_modules/${packageName}/**`, `!node_modules/**/node_modules/${packageName}/**`])
+}
+exports.getDshPackageExclusions = getDshPackageExclusions
+exports.getMainProcessDshPackages = getMainProcessDshPackages
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
   const projectRoot = path.join(__dirname, '..')
+  const nativePlatform = platform === 'linuxmusl' ? 'linux' : platform
 
   assertPrebuiltPackages(platform, arch)
+
+  const dshRuntime = discoverDshRuntimePackaging({
+    packageRoot: path.join(projectRoot, 'packages/dsh-bridge'),
+    platform: nativePlatform,
+    arch
+  })
+  const runtimeManifestPath = path.join(projectRoot, 'packages/dsh-bridge', 'dist/runtime/runtime-manifest.json')
+  if (!fs.existsSync(runtimeManifestPath)) {
+    throw new Error(
+      `Missing DSH runtime manifest: ${runtimeManifestPath}. Run 'pnpm --filter @cherrystudio/dsh-bridge build'.`
+    )
+  }
+  const runtimeManifest = JSON.parse(fs.readFileSync(runtimeManifestPath, 'utf8'))
+  const expectedRuntimeEntries = dshRuntime.entries
+  if (
+    runtimeManifest.schemaVersion !== 1 ||
+    JSON.stringify(Object.keys(runtimeManifest.entries ?? {}).sort()) !==
+      JSON.stringify(Object.keys(expectedRuntimeEntries).sort())
+  ) {
+    throw new Error(`DSH runtime manifest is out of date. Run 'pnpm --filter @cherrystudio/dsh-bridge build'.`)
+  }
+  for (const [specifier, fileName] of Object.entries(runtimeManifest.entries ?? {})) {
+    if (
+      fileName !== expectedRuntimeEntries[specifier] ||
+      !fs.existsSync(path.join(path.dirname(runtimeManifestPath), fileName))
+    ) {
+      throw new Error(`Missing generated DSH runtime entry ${specifier}: ${fileName}`)
+    }
+  }
+  process.stdout.write(
+    `DSH runtime discovered ${Object.keys(dshRuntime.entries).length} entries and ` +
+      `${dshRuntime.externalPackageNames.length} native/sidecar packages for ${platform}-${arch}\n`
+  )
 
   if (platform === 'linux') {
     const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
@@ -172,7 +251,25 @@ exports.default = async function (context) {
     filters.push(...packagesToExclude)
 
     context.packager.config.files[0].filter = filters
+    const dshBridgeFrom = path.join(projectRoot, 'packages/dsh-bridge')
+    const dshBridgeTo = 'node_modules/@cherrystudio/dsh-bridge'
+    const hasDshBridgeFileSet = context.packager.config.files.some(
+      (fileSet) => typeof fileSet === 'object' && fileSet.from === dshBridgeFrom && fileSet.to === dshBridgeTo
+    )
+    if (!hasDshBridgeFileSet) {
+      context.packager.config.files.push({
+        from: dshBridgeFrom,
+        to: dshBridgeTo,
+        filter: ['package.json', 'dist/index.cjs', 'dist/index.mjs', 'dist/runtime/runtime-manifest.json']
+      })
+    }
   }
+
+  const dshPackageExclusions = getDshPackageExclusions(dshRuntime, getMainProcessDshPackages(projectRoot))
+  const foreignNativeExclusions = dshRuntime.foreignNativePaths.flatMap(({ packageName, relative }) => [
+    `!node_modules/${packageName}/${relative}`,
+    `!node_modules/**/node_modules/${packageName}/${relative}`
+  ])
 
   const arm64KeepPackages = keepPackages(platform, 'arm64')
   const arm64ExcludePackages = packages
@@ -194,8 +291,37 @@ exports.default = async function (context) {
     .map((p) => '!resources/binaries/' + p + '/**')
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([
+      ...arm64ExcludePackages,
+      ...dshPackageExclusions,
+      ...foreignNativeExclusions,
+      ...excludeBundledBinaryFilters
+    ])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([
+      ...x64ExcludePackages,
+      ...dshPackageExclusions,
+      ...foreignNativeExclusions,
+      ...excludeBundledBinaryFilters
+    ])
   }
+
+  const configuredAsarUnpack = context.packager.config.asarUnpack
+  const dshAsarUnpack = [
+    'node_modules/@cherrystudio/dsh-bridge/dist/runtime/**',
+    ...dshRuntime.externalPackageNames.flatMap((packageName) => [
+      `node_modules/${packageName}/**`,
+      `node_modules/**/node_modules/${packageName}/**`
+    ])
+  ]
+  const unpackPatterns = [
+    ...(Array.isArray(configuredAsarUnpack)
+      ? configuredAsarUnpack
+      : configuredAsarUnpack
+        ? [configuredAsarUnpack]
+        : []),
+    ...dshAsarUnpack
+  ]
+  context.packager.config.asarUnpack = unpackPatterns
+  context.packager.platformSpecificBuildOptions.asarUnpack = unpackPatterns
 }
