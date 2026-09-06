@@ -84,10 +84,17 @@ export function resolveAutoCompactWindow(
   // Only the canonical system Anthropic provider reports an accurate window;
   // a relay must not inherit trust by cloning the preset or merely reusing
   // the endpoint type — a custom baseUrl confirms an untrusted channel that
-  // can overstate the window (e.g. #18894).
-  const hasCustomAnthropicBaseUrl = Boolean(
-    provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl?.trim()
-  )
+  // can overstate the window (e.g. #18894). The preset itself defines
+  // `https://api.anthropic.com`, which is merged into every provider's
+  // runtime endpointConfigs, so the check must compare against that value
+  // rather than merely testing for existence.
+  const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
+  const rawBaseUrl = provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+  const normalizedActual =
+    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() ? rawBaseUrl.trim().replace(/\/+$/, '') : undefined
+  const normalizedPreset = ANTHROPIC_PRESET_BASE_URL.replace(/\/+$/, '')
+  const hasCustomAnthropicBaseUrl =
+    normalizedActual !== undefined && normalizedActual !== '' && normalizedActual !== normalizedPreset
   const isTrustedAnthropic =
     provider != null &&
     provider.id === 'anthropic' &&
