@@ -35,6 +35,26 @@ export const windowRequestSchemas = {
   // The init data WindowManager stored for the caller window; its shape varies per
   // window type, so it is opaque (unknown) and the consumer casts (see useWindowInitData).
   'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() }),
+  // Rasterize a region of the caller's own page through Chromium's compositor
+  // (CDP Page.captureScreenshot with captureBeyondViewport — the mechanism
+  // Puppeteer/DevTools element screenshots use). Unlike DOM-clone rasterizers
+  // (html-to-image), the output is pixel-faithful to what the page actually
+  // renders: same fonts, same layout, no re-serialization. `clip` is in CSS
+  // layout pixels in page space (not viewport space); `scale` is an extra
+  // multiplier on top of the window's device scale factor (1 = on-screen
+  // pixel density).
+  'window.capture_screenshot': defineRoute({
+    input: z.object({
+      clip: z.object({
+        x: z.number().finite().nonnegative(),
+        y: z.number().finite().nonnegative(),
+        width: z.number().finite().positive(),
+        height: z.number().finite().positive()
+      }),
+      scale: z.number().finite().positive().max(4)
+    }),
+    output: z.object({ dataUrl: z.string() })
+  }),
 
   // window.sub.* — the caller sub-window pins itself. The handler re-checks that
   // ctx.senderId resolves to a SubWindow-type window (main window is rejected) and

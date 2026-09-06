@@ -840,4 +840,103 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
     })
   })
+
+  describe('captureScrollableImage (native compositor capture)', () => {
+    const rect = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
+
+    const stubGeometry = (el: HTMLElement, width: number, height: number) => {
+      Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
+      Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
+      el.getBoundingClientRect = () => rect(10, 20, width, height)
+    }
+
+    const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
+
+    afterEach(() => {
+      document.documentElement.getBoundingClientRect = originalDocumentElementRect
+    })
+
+    it('returns the native capture result without touching the html-to-image pipeline', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(result).toBe('data:image/png;base64,bmF0aXZl')
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.capture_screenshot', {
+        clip: { x: 10, y: 20, width: 800, height: 600 },
+        scale: 1
+      })
+      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+    })
+
+    it('restores inline styles and the capture marker after a native capture', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      await captureScrollableAsDataUrl({ current: div })
+
+      expect(div.style.overflow).toBe('')
+      expect(div.style.height).toBe('')
+      expect(div.style.maxHeight).toBe('')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('falls back to the html-to-image pipeline when the native path rejects', async () => {
+      ipcMocks.request.mockRejectedValueOnce(new Error('CDP attach failed'))
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(htmlToImage.toCanvas).toHaveBeenCalled()
+    })
+
+    it('skips the native path for an element with no measurable size', async () => {
+      const div = document.createElement('div')
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+    })
+
+    it('skips the native path when the clip would exceed composited-surface limits', async () => {
+      const div = document.createElement('div')
+      stubGeometry(div, 20000, 100)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 40000, 3000)
+
+      await captureScrollableAsDataUrl({ current: div })
+
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(htmlToImage.toCanvas).toHaveBeenCalled()
+    })
+
+    it('feeds the native data URL to the blob callback via fetch', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({ blob: async () => new Blob(['native'], { type: 'image/png' }) } as Response)
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        captureScrollableAsBlob({ current: div }, (result) => resolve(result))
+      )
+
+      expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,bmF0aXZl')
+      expect(blob).toBeInstanceOf(Blob)
+      expect(blob?.type).toBe('image/png')
+      fetchSpy.mockRestore()
+    })
+  })
 })

@@ -170,7 +170,9 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
 }
 
 /**
- * 捕获可滚动元素的完整内容图像。
+ * 捕获可滚动元素的完整内容图像（html-to-image 克隆管线）。
+ * 仅作为原生合成器截图不可用时的回退路径；产品入口应优先走
+ * {@link captureScrollableImage}。
  * @param elRef 可滚动元素的引用
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
@@ -265,18 +267,125 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
   return Promise.resolve(undefined)
 }
 
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+/** Chromium composited-surface edge cap; larger capture requests are not worth attempting. */
+const MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION = 16384
+
+/**
+ * Compute the page-space capture clip for `el`, mirroring DevTools' own
+ * "capture node screenshot" recipe: the element rect relative to the
+ * documentElement rect (page coordinates, scroll- and root-transform-agnostic).
+ * Uses scrollWidth/Height so content that the capture-only CSS expanded beyond
+ * the border box (wide tables) stays inside the clip.
+ */
+function computeCaptureClip(el: HTMLElement): { x: number; y: number; width: number; height: number } | undefined {
+  const rect = el.getBoundingClientRect()
+  const rootRect = document.documentElement.getBoundingClientRect()
+  const width = Math.ceil(Math.max(el.scrollWidth, rect.width))
+  const height = Math.ceil(Math.max(el.scrollHeight, rect.height))
+  if (!(width > 0) || !(height > 0)) return undefined
+  return { x: rect.left - rootRect.left, y: rect.top - rootRect.top, width, height }
+}
+
+/**
+ * Expand `el` for the duration of a native capture so clipped scroll content
+ * (max-height containers, overflow scrolling) is actually rendered for the
+ * compositor to pick up — the real-DOM equivalent of the style override the
+ * html-to-image clone applies. Restores inline styles and the scroll offset.
+ */
+async function withExpandedForCapture<T>(el: HTMLElement, fn: () => Promise<T>): Promise<T> {
+  const inline = { overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight }
+  const scrollTop = el.scrollTop
+  el.style.overflow = 'visible'
+  el.style.height = 'auto'
+  el.style.maxHeight = 'none'
+  try {
+    // Two rAFs: the first commits the expanded layout, the second lets the
+    // compositor produce a frame from it.
+    await nextFrame()
+    await nextFrame()
+    return await fn()
+  } finally {
+    el.style.overflow = inline.overflow
+    el.style.height = inline.height
+    el.style.maxHeight = inline.maxHeight
+    el.scrollTop = scrollTop
+  }
+}
+
+/**
+ * Rasterize `el` through Chromium's own compositor (CDP Page.captureScreenshot,
+ * captureBeyondViewport). This is pixel-faithful to what the page renders —
+ * fonts, layout and effects are the live page's, not a re-serialized clone.
+ * Returns undefined (or throws) when the native path is unavailable; callers
+ * fall back to the html-to-image pipeline.
+ */
+async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined> {
+  const deviceScale = window.devicePixelRatio || 1
+  // CDP clip.scale multiplies ON TOP of the device scale factor: the output is
+  // clip × scale × DPR. scale 1 therefore yields exactly on-screen pixel
+  // density — the most faithful match to what the page renders.
+  const CAPTURE_SCALE = 1
+  // Only worth attempting when the composited surface fits Chromium's texture
+  // limits; anything larger fails at the CDP layer anyway.
+  const physical = (value: number) => value * deviceScale * CAPTURE_SCALE
+  const withinLimits = (clip: { width: number; height: number }) =>
+    physical(clip.width) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION &&
+    physical(clip.height) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION
+
+  el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+  try {
+    // Webfonts are already rendered by the live page, but capture-only CSS may
+    // reveal content that has not loaded fonts/images yet — keep the same
+    // bounded wait the clone path uses.
+    await Promise.race([
+      document.fonts?.ready ?? Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 1000))
+    ])
+
+    return await withExpandedForCapture(el, async () => {
+      const clip = computeCaptureClip(el)
+      if (!clip || !withinLimits(clip)) return undefined
+      const { dataUrl } = await ipcApi.request('window.capture_screenshot', { clip, scale: CAPTURE_SCALE })
+      return dataUrl
+    })
+  } finally {
+    el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+  }
+}
+
+/**
+ * 捕获可滚动元素的完整内容图像（PNG data URL）。
+ * 优先走原生合成器截图（CDP，与页面渲染逐像素一致）；不可用时回退
+ * html-to-image 克隆管线。
+ * @param elRef 可滚动元素的引用
+ * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
+ */
+export const captureScrollableImage = async (
+  elRef: React.RefObject<HTMLElement | null>
+): Promise<string | undefined> => {
+  const el = elRef.current
+  if (!el) return undefined
+
+  try {
+    const native = await captureNativeDataUrl(el)
+    if (native) return native
+  } catch (error) {
+    logger.warn('Native compositor capture unavailable, falling back to html-to-image', error as Error)
+  }
+
+  const canvas = await captureScrollable(elRef)
+  return canvas?.toDataURL('image/png')
+}
+
 /**
  * 将可滚动元素的图像数据转换为 Data URL 格式。
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
 export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollable(elRef).then((canvas) => {
-    if (canvas) {
-      return canvas.toDataURL('image/png')
-    }
-    return Promise.resolve(undefined)
-  })
+  return captureScrollableImage(elRef)
 }
 
 /**
@@ -286,9 +395,11 @@ export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElem
  * @returns Promise<void> 处理结果
  */
 export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  await captureScrollable(elRef).then((canvas) => {
-    canvas?.toBlob(func, 'image/png')
-  })
+  const dataUrl = await captureScrollableImage(elRef)
+  if (dataUrl) {
+    // fetch() on a data: URL decodes locally — no network involved.
+    func(await fetch(dataUrl).then((response) => response.blob()))
+  }
 }
 
 /**
