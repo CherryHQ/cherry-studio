@@ -19,11 +19,30 @@ import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { read as fsRead } from '@main/utils/file'
+import { read as fsRead, stat } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import mime from 'mime'
+
+/**
+ * Native inline file size cap: the largest file (bytes) that we will inline
+ * as a base64 `data:` URL in a model request. Larger files are not read;
+ * the caller degrades them to a model-visible note instead.
+ *
+ * Rationale: base64 inflates a file by ~4/3. A 238 MB PDF becomes ~317 MB
+ * of base64, and with JSON.stringify overhead the main-process V8 heap
+ * (~2 GB on an 8 GB machine) is exhausted → SIGTRAP → whole app exits.
+ * 50 MB is also the Gemini inline PDF limit, so callers cannot send larger
+ * files natively regardless.
+ *
+ * Per-modality override points exist in attachmentRouting.ts for
+ * provider-specific limits (e.g. DashScope qwen-vl ≤ 10 MB raw, which
+ * corresponds to ~13 MB inline). Until that wiring is in place, 50 MB is a
+ * safe conservative floor that prevents crashes while allowing all
+ * reasonable files through.
+ */
+export const NATIVE_INLINE_FILE_CAP_BYTES = 50 * 1_000_000 // 50 MB
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
@@ -58,7 +77,27 @@ function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
  */
 async function fileEntryIdToDataUrl(fileEntryId: string) {
   try {
-    const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
+    // Pre-stat the entry to enforce NATIVE_INLINE_FILE_CAP_BYTES before
+    // allocating a base64 buffer; reading a >cap file would inflate it
+    // ~4/3 into the request JSON and exhaust main-process V8 heap on
+    // 8 GB machines (see #19706). Caller treats `null` as 'degrade to
+    // note', the same path used for missing / unreadable entries.
+    const fileManager = application.get('FileManager')
+    let size: number
+    try {
+      size = (await fileManager.getMetadata(fileEntryId)).size
+    } catch {
+      size = Number.POSITIVE_INFINITY
+    }
+    if (size > NATIVE_INLINE_FILE_CAP_BYTES) {
+      logger.warn('Refusing to inline oversized native file; degrading to note', {
+        fileEntryId,
+        size,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
+      })
+      return null
+    }
+    const { content, mime } = await fileManager.read(fileEntryId, { encoding: 'base64' })
     return { url: `data:${mime};base64,${content}`, mediaType: mime }
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
@@ -77,6 +116,24 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
 async function fileUrlToDataUrl(fileUrl: string) {
   try {
     const absPath = AbsoluteFilePathSchema.parse(fileURLToPath(fileUrl))
+    // Pre-stat the file on disk to enforce NATIVE_INLINE_FILE_CAP_BYTES before
+    // allocating a base64 buffer. Uses `stat` (follows symlinks) so the size
+    // check matches what `fsRead` will actually read — a symlink-target larger
+    // than cap is caught here too.
+    let size: number
+    try {
+      size = (await stat(absPath)).size
+    } catch {
+      size = Number.POSITIVE_INFINITY
+    }
+    if (size > NATIVE_INLINE_FILE_CAP_BYTES) {
+      logger.warn('Refusing to inline oversized file:// URL; degrading to note', {
+        fileUrl,
+        size,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
+      })
+      return null
+    }
     const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
     return { url: `data:${mime};base64,${data}`, mediaType: mime }
   } catch (error) {
