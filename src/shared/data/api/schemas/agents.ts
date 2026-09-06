@@ -147,6 +147,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
+  /** Read-only soft-delete timestamp, present only for trashed agents. */
+  deletedAt: z.string().optional(),
   /**
    * Human-readable primary model name resolved from the current runtime Model
    * at read time. Edits still go through the `model` UniqueModelId field.
@@ -252,6 +254,8 @@ export const AGENTS_MAX_LIMIT = 500
  *   builtin Cherry Assistant fallback when its stored description is blank.
  */
 export const ListAgentsQuerySchema = z.strictObject({
+  /** `true` lists only trashed agents; omitted/false lists active agents. */
+  inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
@@ -284,6 +288,14 @@ export type AgentSchemas = {
     PATCH: {
       params: { agentId: string }
       body: UpdateAgentDto
+      response: AgentEntity
+    }
+  }
+
+  /** Restore one trashed agent. Pins purged at Delete time are not restored. */
+  '/agents/:agentId/restore': {
+    POST: {
+      params: { agentId: string }
       response: AgentEntity
     }
   }

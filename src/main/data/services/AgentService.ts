@@ -35,7 +35,7 @@ import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
@@ -51,9 +51,19 @@ export interface AgentCreatedEvent {
   agent: AgentEntity
 }
 
-export interface AgentDeletedEvent {
+export interface AgentTrashedEvent {
   agentId: string
 }
+
+export interface AgentRestoredEvent {
+  agentId: string
+}
+
+export interface AgentPurgedEvent {
+  agentId: string
+}
+
+export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
@@ -185,6 +195,7 @@ function rowToAgent(
     configuration: parseConfiguration(row.configuration, row.id),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     modelName
   }
 }
@@ -250,8 +261,32 @@ export class AgentService {
   private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
   readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
 
-  private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
-  readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
+  private readonly _onAgentTrashed = new Emitter<AgentTrashedEvent>()
+  readonly onAgentTrashed: Event<AgentTrashedEvent> = this._onAgentTrashed.event
+
+  private readonly _onAgentRestored = new Emitter<AgentRestoredEvent>()
+  readonly onAgentRestored: Event<AgentRestoredEvent> = this._onAgentRestored.event
+
+  private readonly _onAgentPurged = new Emitter<AgentPurgedEvent>()
+  readonly onAgentPurged: Event<AgentPurgedEvent> = this._onAgentPurged.event
+
+  notifyReadModelChange(agentIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (agentIds.length === 0) return
+    const entityIds = [...new Set(agentIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agents', kind, entityIds },
+      { endpoint: '/agents/:agentId', entityIds }
+    ])
+  }
+
+  /** Publish the post-commit effects of a retention purge. */
+  notifyPurged(agentIds: readonly string[]): void {
+    if (agentIds.length === 0) return
+    const entityIds = [...new Set(agentIds)]
+    this.notifyReadModelChange(entityIds, 'membership')
+    promptService.notifyTargetBindingsChanged()
+    for (const agentId of entityIds) this._onAgentPurged.fire({ agentId })
+  }
 
   /**
    * Create primitive for main-process command orchestration. The caller owns
@@ -530,12 +565,14 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { inTrash?: boolean } = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    const conditions: SQL[] = [
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
+    ]
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
@@ -768,7 +805,7 @@ export class AgentService {
 
   deleteAgent(
     id: string,
-    options: { deleteSessions?: boolean } = {}
+    options: { deleteSessions?: boolean; permanent?: boolean } = {}
   ): { deleted: boolean; deletedSessionIds?: string[] } {
     const result = this.deleteAgentForDelivery(id, options)
     return {
@@ -779,32 +816,73 @@ export class AgentService {
 
   deleteAgentForDelivery(
     id: string,
-    options: { deleteSessions?: boolean } = {}
+    options: { deleteSessions?: boolean; permanent?: boolean } = {}
   ): {
     deleted: boolean
     deletedSessionIds?: string[]
     affectedSessionIds: string[]
     deliveryResults: AgentSessionMessageEntity[]
   } {
-    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
-    // can opt into deleting them in this same transaction. `pin` has no FK back
-    // to agent, so purge it alongside the agent row. Junction table rows are
-    // cascade-deleted by FK.
+    const permanent = options.permanent === true
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [agent] = tx
             .select({ id: agentsTable.id })
             .from(agentsTable)
-            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .where(
+              permanent
+                ? and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt))
+                : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
+            )
             .limit(1)
             .all()
           if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
 
-          const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
-            deleteSessions: options.deleteSessions === true
-          })
-          return { ...this.deleteAgentTx(tx, id), sessionImpact }
+          if (permanent) {
+            const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
+              deleteSessions: false
+            })
+            return { ...this.deleteAgentTx(tx, id), sessionImpact }
+          }
+
+          // One timestamp for the agent and the sessions moved with it, so
+          // `restoreAgent` can bring back exactly that set.
+          const trashedAt = Date.now()
+          const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
+          const trashed =
+            options.deleteSessions === true
+              ? agentSessionService.trashByAgentIdTx(tx, id, {
+                  validateAgent: false,
+                  deletedAt: trashedAt,
+                  preserveTaskScheduleRelations: true
+                })
+              : {
+                  trashedIds: [],
+                  taskScheduleIds: [],
+                  // Sessions outlive the trashed agent, but deliveries targeting
+                  // them can no longer complete — interrupt them like a hard delete.
+                  deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
+                    tx,
+                    sessionIds
+                  )
+                }
+          const result = tx
+            .update(agentsTable)
+            .set({ deletedAt: trashedAt })
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .run()
+          pinService.purgeForEntityTx(tx, 'agent', id)
+          return {
+            rowsAffected: result.changes,
+            sessionImpact: {
+              sessionIds,
+              deletedSessionIds: trashed.trashedIds,
+              taskScheduleIds: trashed.taskScheduleIds,
+              changeKind: trashed.trashedIds.length > 0 ? ('membership' as const) : ('projection' as const),
+              deliveryResults: trashed.deliveryResults
+            }
+          }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -821,10 +899,17 @@ export class AgentService {
         { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
       ])
       promptService.notifyTargetBindingsChanged()
-      this._onAgentDeleted.fire({ agentId: id })
+      if (permanent) this._onAgentPurged.fire({ agentId: id })
+      else this._onAgentTrashed.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
-    const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
+    const deletedSessionIds =
+      !permanent &&
+      options.deleteSessions === true &&
+      result.sessionImpact &&
+      'deletedSessionIds' in result.sessionImpact
+        ? result.sessionImpact.deletedSessionIds
+        : undefined
     return {
       deleted,
       deletedSessionIds,
@@ -840,9 +925,62 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
+  /** Restore a trashed agent and the sessions trashed with it. */
+  restoreAgent(id: string): AgentEntity {
+    const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
+      const [trashed] = tx
+        .select({ deletedAt: agentsTable.deletedAt })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (trashed?.deletedAt == null) throw DataApiErrorFactory.notFound('Agent', id)
+
+      const [restored] = tx.update(agentsTable).set({ deletedAt: null }).where(eq(agentsTable.id, id)).returning().all()
+      return {
+        row: restored,
+        restoredSessionIds: agentSessionService.restoreTrashedWithAgentTx(tx, id, trashed.deletedAt)
+      }
+    })
+    if (restoredSessionIds.length > 0) agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+    this.notifyReadModelChange([id], 'membership')
+
+    const database = application.get('DbService').getDb()
+    const modelName = row.model
+      ? (modelService.getNamesByUniqueIdsTx(database, [row.model]).get(row.model) ?? null)
+      : null
+    const agent = rowToAgent(
+      row,
+      modelName,
+      fetchMcpsForAgents(database, [id]).get(id) ?? [],
+      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
+    )
+    logger.info('Restored agent', { id })
+    this._onAgentRestored.fire({ agentId: id })
+    return agent
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    for (const id of ids) this.deleteAgentTx(tx, id)
+    return ids
+  }
+
   agentExists(id: string): boolean {
     const result = this.findAgentRow(id)
     return !!result
+  }
+
+  getLifecycleState(id: string): AgentLifecycleState {
+    const row = this.findAgentRow(id, { includeDeleted: true })
+    if (!row) return 'missing'
+    return row.deletedAt == null ? 'active' : 'trashed'
   }
 
   /**

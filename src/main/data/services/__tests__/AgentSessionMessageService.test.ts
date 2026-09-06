@@ -428,13 +428,21 @@ describe('AgentSessionMessageService', () => {
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
-      expect(agentSessionService.getById('target').agentId).toBeNull()
+      expect(agentSessionService.getById('target')).toMatchObject({ id: 'target', agentId: 'agent-b' })
+      const [retained] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'target'))
+      expect(retained.agentId).toBe('agent-b')
       const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
       expect(result.delivery).toMatchObject({
         inReplyTo: request.id,
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
+
+      agentService.restoreAgent('agent-b')
+      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
     })
   })
 

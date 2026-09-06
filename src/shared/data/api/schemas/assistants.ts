@@ -113,6 +113,11 @@ export const ASSISTANTS_MAX_LIMIT = 500
 export const ListAssistantsQuerySchema = z.strictObject({
   /** Filter by assistant ID */
   id: z.string().optional(),
+  /**
+   * `true` lists only trashed (soft-deleted) assistants — the trash view.
+   * Omitted/false keeps the default active-only filter (files.ts precedent).
+   */
+  inTrash: z.boolean().optional(),
   /** Free-text match against name OR description (case-insensitive LIKE) */
   search: z.string().trim().min(1).optional(),
   /** Return assistants assigned to this group */
@@ -145,10 +150,17 @@ export type ListAssistantsQuery = z.output<typeof ListAssistantsQuerySchema>
 
 export const DeleteAssistantQuerySchema = z.strictObject({
   /**
-   * Delete the assistant's topics in the same main-process transaction.
-   * Omitted/false preserves the historical "delete assistant only" behavior.
+   * On soft delete, move the assistant's active topics to the Recycle Bin in the
+   * same main-process transaction. Omitted/false preserves the topics unchanged.
+   * Ignored when `permanent` is true.
    */
-  deleteTopics: z.boolean().optional()
+  deleteTopics: z.boolean().optional(),
+  /**
+   * `true` hard-deletes only an assistant already in the Recycle Bin. Junction
+   * rows cascade and `topic.assistantId` is set to null; `deleteTopics` is ignored,
+   * so topic active/trash state is preserved. Omitted/false performs soft delete.
+   */
+  permanent: z.boolean().optional()
 })
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
@@ -226,6 +238,19 @@ export type AssistantSchemas = {
       params: { id: string }
       query?: DeleteAssistantQueryParams
       response: DeleteAssistantResult
+    }
+  }
+
+  /**
+   * Restore a trashed assistant (resource-action pattern).
+   * Clears `deletedAt` so the assistant reappears in active listings.
+   * Tags/pins purged at Delete time are NOT restored.
+   * @example POST /assistants/abc123/restore
+   */
+  '/assistants/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Assistant
     }
   }
 } & OrderEndpoints<'/assistants'>

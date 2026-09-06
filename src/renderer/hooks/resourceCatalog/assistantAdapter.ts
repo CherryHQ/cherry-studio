@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
+  type DeleteAssistantResult,
   type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
@@ -105,14 +106,23 @@ export function useAssistantMutationsById(id: string) {
     refresh: ['/assistants', '/assistants/*']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*', '/pins']
+    refresh: ({ args }) => [
+      '/assistants',
+      '/assistants/*',
+      '/pins',
+      ...(args?.query?.deleteTopics === true ? (['/topics'] as const) : [])
+    ]
   })
 
   const updateAssistant = useCallback(
     (dto: UpdateAssistantDto): Promise<Assistant> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAssistant = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
+  const deleteAssistant = useCallback(
+    (options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> =>
+      deleteTrigger(options.deleteTopics === true ? { query: { deleteTopics: true } } : undefined),
+    [deleteTrigger]
+  )
 
   return { updateAssistant, deleteAssistant }
 }

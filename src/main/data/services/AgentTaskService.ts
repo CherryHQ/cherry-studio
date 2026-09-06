@@ -6,7 +6,9 @@
  * transaction primitives used by workspace deletion.
  */
 
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -29,6 +31,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
+import { and, inArray, isNull } from 'drizzle-orm'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 
@@ -133,12 +136,12 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 
 export class AgentTaskService {
   /** Publish every DataApi projection backed by the composed task read model. */
-  notifyReadModelChange(taskIds: readonly string[]): void {
+  notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
     notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
+      { endpoint: '/agent-tasks', kind, entityIds },
+      { endpoint: '/agents/:agentId/tasks', kind, entityIds },
       { endpoint: '/agent-tasks/:taskId', entityIds },
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
     ])
@@ -180,7 +183,8 @@ export class AgentTaskService {
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
+    if (!template || !this.getActiveAgentIds([template.agentId]).has(template.agentId)) return null
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
@@ -223,12 +227,22 @@ export class AgentTaskService {
     const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
-    const filtered = all.filter((s) => {
+    const candidates = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
       if (!template) return false
       if (agentId !== undefined && template.agentId !== agentId) return false
       if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
+    })
+    const activeAgentIds = this.getActiveAgentIds(
+      candidates.flatMap((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template ? [template.agentId] : []
+      })
+    )
+    const filtered = candidates.filter((schedule) => {
+      const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+      return template !== null && activeAgentIds.has(template.agentId)
     })
 
     const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -244,6 +258,19 @@ export class AgentTaskService {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
+  }
+
+  private getActiveAgentIds(agentIds: readonly string[]): Set<string> {
+    const uniqueIds = [...new Set(agentIds)]
+    if (uniqueIds.length === 0) return new Set()
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ id: agentTable.id })
+      .from(agentTable)
+      .where(and(inArray(agentTable.id, uniqueIds), isNull(agentTable.deletedAt)))
+      .all()
+    return new Set(rows.map((row) => row.id))
   }
 
   private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {

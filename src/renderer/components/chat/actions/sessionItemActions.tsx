@@ -41,7 +41,7 @@ export interface SessionActionContext {
   onCopyImage?: () => void | Promise<void>
   onCopyMarkdown?: () => void | Promise<void>
   onCopyPlainText?: () => void | Promise<void>
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
   onExportMarkdown?: () => void | Promise<void>
@@ -484,12 +484,10 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 90,
   surface: 'menu',
-  danger: true,
   availability: ({ pinned }) => ({ visible: !pinned }),
   confirm: ({ t }) => ({
-    title: t('agent.session.delete.title'),
-    description: t('agent.session.delete.content'),
-    confirmText: t('common.delete'),
+    title: t('recycle_bin.move.confirm_title'),
+    confirmText: t('recycle_bin.move.confirm_action'),
     cancelText: t('common.cancel'),
     destructive: true
   })

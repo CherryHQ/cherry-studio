@@ -1,7 +1,10 @@
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
-import AgentComposer, { type AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
+import AgentComposer, {
+  type AgentComposerLaunchOptions,
+  MissingAgentHomeComposer
+} from '@renderer/components/composer/variants/AgentComposer'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
@@ -21,6 +24,8 @@ interface AgentComposerSlotProps {
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
+  onAgentChange?: (agentId: string | null) => void | Promise<void>
+  agentChanging?: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
   composerContext: ComposerContextValue
   composerLaunchOptions?: AgentComposerLaunchOptions
@@ -38,13 +43,15 @@ function AgentComposerSlot({
   stop,
   isStreaming,
   sendDisabled,
+  onAgentChange,
+  agentChanging,
   onCreateEmptySession,
   composerContext,
   composerLaunchOptions
 }: AgentComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
-  const fallback =
-    agentId && !isMultiSelectMode ? (
+  const fallback = !isMultiSelectMode ? (
+    agentId ? (
       <AgentComposer
         agentId={agentId}
         sessionId={sessionId}
@@ -61,7 +68,10 @@ function AgentComposerSlot({
         compactWhenSingleLine={compactWhenSingleLine}
         launchOptions={composerLaunchOptions}
       />
-    ) : undefined
+    ) : (
+      <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />
+    )
+  ) : undefined
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }

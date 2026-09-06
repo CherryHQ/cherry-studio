@@ -170,11 +170,17 @@ describe('session item actions', () => {
     expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
-  it('uses localized cancel text for the delete confirmation', () => {
+  it('labels the recoverable action as Delete and uses the Recycle Bin confirmation', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
-    expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
+    expect(deleteAction?.label).toBe('common.delete')
+    expect(deleteAction?.confirm).toEqual({
+      title: 'recycle_bin.move.confirm_title',
+      confirmText: 'recycle_bin.move.confirm_action',
+      cancelText: 'common.cancel',
+      destructive: true
+    })
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

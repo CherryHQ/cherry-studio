@@ -206,8 +206,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.delete': ({ agentId, deleteSessions }) =>
-    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
   'ai.agent.sessions.delete': ({ agentId }) =>
     application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
@@ -224,8 +224,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
-  'ai.agent.session.delete': ({ sessionIds }) =>
-    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.delete': ({ sessionIds, permanent }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

@@ -130,7 +130,7 @@ describe('aiHandlers', () => {
     await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'], undefined)
   })
 
   it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
@@ -157,7 +157,7 @@ describe('aiHandlers', () => {
       deleted: true,
       deletedSessionIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true, undefined)
   })
 
   it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {

@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -1905,14 +1905,28 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
+    let written = false
     try {
-      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
+      written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
     }
 
     const persisted = jobService.getById(jobId)
+
+    // The write is skipped when the row is already terminal, so `written === false`
+    // means an earlier finalize won — it published and resolved the waiters. Repeating
+    // that emits a duplicate settle, even when the late status happens to match.
+    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
+      logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
+        jobId,
+        attempted: status,
+        kept: persisted.status
+      })
+      return
+    }
+
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {

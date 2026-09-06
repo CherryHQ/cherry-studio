@@ -12,6 +12,7 @@ const {
   moveMock,
   reorderBatchMock,
   reorderMock,
+  restoreMock,
   reuseOrCreatePlaceholderMock,
   setActiveNodeMock,
   updateMock
@@ -27,6 +28,7 @@ const {
   moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
+  restoreMock: vi.fn(),
   reuseOrCreatePlaceholderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
   updateMock: vi.fn()
@@ -45,6 +47,7 @@ vi.mock('@data/services/TopicService', () => ({
     move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
+    restore: restoreMock,
     reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock,
     setActiveNode: setActiveNodeMock,
     update: updateMock
@@ -94,6 +97,42 @@ describe('topicHandlers', () => {
       ).rejects.toThrow()
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('trash routing', () => {
+    it('purges only when permanent=true, and moves to the Recycle Bin otherwise', async () => {
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: true } } as never)
+      expect(deleteMock).toHaveBeenCalledWith('topic-a', { permanent: true })
+
+      deleteMock.mockClear()
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: {} } as never)
+      expect(deleteMock).toHaveBeenCalledWith('topic-a', { permanent: undefined })
+    })
+
+    it('rejects a non-boolean permanent instead of coercing it into a purge', async () => {
+      await expect(
+        topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: 'true' } } as never)
+      ).rejects.toThrow()
+      expect(deleteMock).not.toHaveBeenCalled()
+    })
+
+    it('delegates restore to TopicService', async () => {
+      const restored = { id: 'topic-a' }
+      restoreMock.mockReturnValueOnce(restored)
+
+      await expect(topicHandlers['/topics/:id/restore'].POST({ params: { id: 'topic-a' } } as never)).resolves.toEqual(
+        restored
+      )
+      expect(restoreMock).toHaveBeenCalledWith('topic-a')
+    })
+
+    it('forwards inTrash to the list query so the Recycle Bin page sees trashed rows', async () => {
+      listByCursorMock.mockResolvedValueOnce({ items: [], nextCursor: null })
+
+      await topicHandlers['/topics'].GET({ query: { inTrash: true } } as never)
+
+      expect(listByCursorMock).toHaveBeenCalledWith(expect.objectContaining({ inTrash: true }))
     })
   })
 

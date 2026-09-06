@@ -2128,6 +2128,7 @@ describe('MessageService', () => {
       await seedChain('topic-deep-purge')
 
       topicService.delete('topic-deep-purge')
+      topicService.delete('topic-deep-purge', { permanent: true })
 
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
     })

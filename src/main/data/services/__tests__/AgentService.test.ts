@@ -18,6 +18,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -1095,11 +1096,50 @@ describe('AgentService', () => {
   })
 
   describe('deleteAgent', () => {
+    it('publishes distinct post-commit events for trash and purge, but not stale deletes', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_events_001' })
+      const trashed: Array<{ agentId: string; deletedAt: number | null | undefined }> = []
+      const purged: Array<{ agentId: string; remainingRows: number }> = []
+      const trashedDisposable = agentService.onAgentTrashed(({ agentId }) => {
+        const [row] = dbh.db
+          .select({ deletedAt: agentTable.deletedAt })
+          .from(agentTable)
+          .where(eq(agentTable.id, agentId))
+          .all()
+        trashed.push({ agentId, deletedAt: row?.deletedAt })
+      })
+      const purgedDisposable = agentService.onAgentPurged(({ agentId }) => {
+        const remainingRows = dbh.db
+          .select({ id: agentTable.id })
+          .from(agentTable)
+          .where(eq(agentTable.id, agentId))
+          .all().length
+        purged.push({ agentId, remainingRows })
+      })
+
+      try {
+        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(false)
+        expect(agentService.deleteAgent(id).deleted).toBe(true)
+        expect(agentService.deleteAgent(id).deleted).toBe(false)
+        expect(trashed).toEqual([{ agentId: id, deletedAt: expect.any(Number) }])
+        expect(purged).toEqual([])
+
+        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(true)
+        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(false)
+        expect(trashed).toHaveLength(1)
+        expect(purged).toEqual([{ agentId: id, remainingRows: 0 }])
+      } finally {
+        trashedDisposable.dispose()
+        purgedDisposable.dispose()
+      }
+    })
+
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      agentService.deleteAgent(id)
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id, { permanent: true })
 
       expect(result.deleted).toBe(true)
       expect(result.deletedSessionIds).toBeUndefined()
@@ -1109,6 +1149,111 @@ describe('AgentService', () => {
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
         { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
       ])
+    })
+
+    it('keeps active sessions attached when moving only the agent to the Recycle Bin', async () => {
+      const { id } = await insertAgent({ id: 'agent_standalone_trash_001' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-standalone-trash',
+        name: 'Workspace',
+        path: '/tmp/agent-standalone-trash',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-standalone-trash',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-standalone-trash',
+        orderKey: 'a0'
+      })
+
+      const result = agentService.deleteAgent(id)
+
+      expect(result).toEqual({ deleted: true })
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-standalone-trash'))
+      expect(session).toEqual({ agentId: id, deletedAt: null })
+    })
+
+    it('cascades one timestamp only to active sessions and restores exactly that batch', async () => {
+      const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
+        { id: 'workspace-trash-2', name: 'W2', path: '/tmp/agent-trash-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        { id: 'session-with-agent', agentId: id, name: '', workspaceId: 'workspace-trash-1', orderKey: 'a0' },
+        { id: 'session-trashed-earlier', agentId: id, name: '', workspaceId: 'workspace-trash-2', orderKey: 'a1' }
+      ])
+      await dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: 100 })
+        .where(eq(agentSessionTable.id, 'session-trashed-earlier'))
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(result).toEqual({ deleted: true, deletedSessionIds: ['session-with-agent'] })
+      const [trashedAgent] = await dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, id))
+      const trashedSessions = await dbh.db
+        .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+      expect(trashedSessions.find((session) => session.id === 'session-with-agent')?.deletedAt).toBe(
+        trashedAgent.deletedAt
+      )
+      expect(trashedSessions.find((session) => session.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
+      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
+
+      notifyDataApiDataChangeMock.mockClear()
+      agentService.restoreAgent(id)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
+
+      const sessions = await dbh.db
+        .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).not.toBeNull()
+    })
+
+    it('does not reclaim a cascade-trashed session that was independently restored and reassigned', async () => {
+      const { id } = await insertAgent({ id: 'agent-former-owner-001' })
+      const nextOwner = await insertAgent({ id: 'agent-next-owner-001' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-independent-reassign',
+        name: 'Workspace',
+        path: '/tmp/agent-independent-reassign',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-independent-reassign',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-independent-reassign',
+        orderKey: 'a0'
+      })
+
+      agentService.deleteAgent(id, { deleteSessions: true })
+      agentSessionService.restore('session-independent-reassign')
+      agentSessionService.update('session-independent-reassign', { agentId: nextOwner.id })
+      agentService.restoreAgent(id)
+
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-independent-reassign'))
+      expect(session).toEqual({ agentId: nextOwner.id, deletedAt: null })
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -1125,7 +1270,7 @@ describe('AgentService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
-    it('purges prompt bindings without deleting the global prompt', async () => {
+    it('purges prompt bindings on permanent delete without deleting the global prompt', async () => {
       const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
       const promptId = '550e8400-e29b-41d4-a716-446655440021'
       await dbh.db
@@ -1134,9 +1279,27 @@ describe('AgentService', () => {
       await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
 
       agentService.deleteAgent(id)
+      agentService.deleteAgent(id, { permanent: true })
 
       expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
       expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
+    })
+
+    it('keeps prompt bindings when moving to the Recycle Bin, so restore returns the agent fully bound', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_002' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440022'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+
+      // Unlike pins, bindings survive Delete — only a purge drops them.
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
+
+      agentService.restoreAgent(id)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1144,12 +1307,13 @@ describe('AgentService', () => {
       const { id } = await insertAgent({ id: 'agent_with_kb_001', knowledgeBaseIds: ['kb_agent_delete'] })
 
       agentService.deleteAgent(id)
+      agentService.deleteAgent(id, { permanent: true })
 
       const rows = await dbh.db.select().from(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id))
       expect(rows).toHaveLength(0)
     })
 
-    it('deletes agent sessions atomically when requested', async () => {
+    it('permanently deletes only the agent and ignores deleteSessions', async () => {
       const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
       const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
       await dbh.db.insert(agentWorkspaceTable).values([
@@ -1165,38 +1329,66 @@ describe('AgentService', () => {
           orderKey: 'a0'
         },
         {
+          id: 'session-trashed-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a1',
+          deletedAt: 222
+        },
+        {
           id: 'session-keep-with-other-agent',
           agentId: otherAgent.id,
           name: '',
           workspaceId: 'workspace-agent-delete-2',
-          orderKey: 'a1'
+          orderKey: 'a2'
         }
       ])
+      agentService.deleteAgent(id)
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id, { deleteSessions: true })
+      const result = agentService.deleteAgent(id, { deleteSessions: true, permanent: true })
 
       expect(result.deleted).toBe(true)
-      expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
+      expect(result.deletedSessionIds).toBeUndefined()
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(0)
-      const sessionRows = await dbh.db.select().from(agentSessionTable)
-      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+      const sessionRows = await dbh.db
+        .select({
+          id: agentSessionTable.id,
+          agentId: agentSessionTable.agentId,
+          deletedAt: agentSessionTable.deletedAt
+        })
+        .from(agentSessionTable)
+      expect(sessionRows).toEqual(
+        expect.arrayContaining([
+          { id: 'session-delete-with-agent', agentId: null, deletedAt: null },
+          { id: 'session-trashed-with-agent', agentId: null, deletedAt: 222 },
+          { id: 'session-keep-with-other-agent', agentId: otherAgent.id, deletedAt: null }
+        ])
+      )
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'projection',
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
+        },
         {
           endpoint: '/agent-sessions',
           kind: 'order',
           dimension: 'lastActivityAt',
-          entityIds: ['session-delete-with-agent']
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
         },
-        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
+        },
         { endpoint: '/agent-sessions/latest' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
-    it('clears a task binding before default agent deletion detaches its session', async () => {
+    it('clears a task binding before permanent agent deletion detaches its session', async () => {
       const { id } = await insertAgent({ id: 'agent_default_detach_001' })
       const task = jobScheduleService.create({
         type: 'agent.task',
@@ -1220,9 +1412,10 @@ describe('AgentService', () => {
         taskScheduleId: task.id,
         orderKey: 'a0'
       })
+      agentService.deleteAgent(id)
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
         .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
@@ -1242,7 +1435,7 @@ describe('AgentService', () => {
       ])
     })
 
-    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+    it('rolls back the soft-cascade parent and child updates when agent pin cleanup fails', async () => {
       const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
       await dbh.db
         .insert(agentWorkspaceTable)
@@ -1254,31 +1447,49 @@ describe('AgentService', () => {
         workspaceId: 'workspace-rollback-1',
         orderKey: 'a0'
       })
-
-      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
-      // the default DbService mock just passes the callback through without one.
       ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) =>
         dbh.db.transaction(fn as never)
       )
-      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
-      // below can only pass if that earlier delete is rolled back with the agent delete.
-      const deleteAgentSpy = vi.spyOn(agentService, 'deleteAgentTx').mockImplementationOnce(() => {
-        throw new Error('agent delete failed')
+      const purgePinSpy = vi.spyOn(pinService, 'purgeForEntityTx').mockImplementationOnce(() => {
+        throw new Error('agent pin purge failed')
       })
 
       try {
-        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent pin purge failed')
       } finally {
-        deleteAgentSpy.mockRestore()
+        purgePinSpy.mockRestore()
       }
 
-      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
-      expect(agentRows).toHaveLength(1)
-      const sessionRows = await dbh.db
-        .select()
+      const [agent] = await dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, id))
+      expect(agent.deletedAt).toBeNull()
+      const [session] = await dbh.db
+        .select({ deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-rollback-1'))
-      expect(sessionRows).toHaveLength(1)
+      expect(session.deletedAt).toBeNull()
+    })
+
+    it('rejects permanent deletion of an active agent and keeps it active', async () => {
+      const { id } = await insertAgent({ id: 'agent_active_permanent_001' })
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the agent has been restored', async () => {
+      const { id } = await insertAgent({ id: 'agent_restored_permanent_001' })
+      agentService.deleteAgent(id)
+      agentService.restoreAgent(id)
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
     })
   })
 

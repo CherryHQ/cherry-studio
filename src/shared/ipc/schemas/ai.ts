@@ -296,7 +296,11 @@ export const aiRequestSchemas = {
     output: AgentEntitySchema
   }),
   'ai.agent.delete': defineRoute({
-    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      deleteSessions: z.boolean().default(false),
+      permanent: z.boolean().optional()
+    }),
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
   'ai.agent.sessions.delete': defineRoute({
@@ -316,7 +320,10 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
-    input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
+    input: z.strictObject({
+      sessionIds: z.array(z.string().min(1)).min(1).max(200),
+      permanent: z.boolean().optional()
+    }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
   'ai.agent.session.reuse_or_create': defineRoute({

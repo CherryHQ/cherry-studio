@@ -1,0 +1,1 @@
+export { TrashService } from './TrashService'

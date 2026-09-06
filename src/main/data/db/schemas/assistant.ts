@@ -31,6 +31,8 @@ export const assistantTable = sqliteTable(
     // JSON blob: inference params + context source toggles
     // Tunable product value: AssistantService.create() supplies DEFAULT_ASSISTANT_SETTINGS
     settings: text({ mode: 'json' }).$type<AssistantSettings>().notNull(),
+    // Internal identity shared only with topics trashed by the same assistant cascade.
+    deletionBatchId: text(),
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps
   },
