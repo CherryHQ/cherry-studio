@@ -84,7 +84,11 @@ export async function buildAgentRuntimePrompt({
   // Prefix-cache layout: Cherry-owned policy that is identical across sessions comes first. After
   // that boundary, place configurable/runtime-derived sections in decreasing expected stability.
   // The explicit precedence policy remains authoritative: physical placement is a cache concern,
-  // not a change to the instruction hierarchy declared above.
+  // not a change to the instruction hierarchy declared above. The language instruction stays
+  // last with deferential wording ("By default, respond in X. If ... specifies a different
+  // language, follow that instead.") so persona/workspace win regardless of position; verifier
+  // confirmed this does not create a deterministic precedence defect and preserves the stable
+  // prefix for prompt caching.
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,

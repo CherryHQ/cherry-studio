@@ -12,5 +12,5 @@ export const AgentLanguageSchema = z
   .trim()
   .min(1)
   .max(50)
-  .refine((value) => !/[\r\n]/.test(value), { message: 'Language must be a single line' })
+  .refine((value) => !/[\r\n\u2028\u2029]/.test(value), { message: 'Language must be a single line' })
 export type AgentLanguage = z.infer<typeof AgentLanguageSchema>

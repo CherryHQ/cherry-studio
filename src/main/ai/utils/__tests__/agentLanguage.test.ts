@@ -50,6 +50,13 @@ describe('getEffectiveAgentLanguage', () => {
     expect(getEffectiveAgentLanguage(agentWithLanguage('   '))).toBe('English')
     expect(getEffectiveAgentLanguage(agentWithLanguage('x'.repeat(51)))).toBe('English')
   })
+  it('rejects values containing CR, LF or unicode line separators and inherits the global default', () => {
+    preferenceGet.mockReturnValue('English')
+    expect(getEffectiveAgentLanguage(agentWithLanguage('English\nFrench'))).toBe('English')
+    expect(getEffectiveAgentLanguage(agentWithLanguage('English\rFrench'))).toBe('English')
+    expect(getEffectiveAgentLanguage(agentWithLanguage('English\u2028French'))).toBe('English')
+    expect(getEffectiveAgentLanguage(agentWithLanguage('English\u2029French'))).toBe('English')
+  })
 
   it('global value is normalized: whitespace trimmed, invalid treated as unset', () => {
     preferenceGet.mockReturnValue('  中文 ')

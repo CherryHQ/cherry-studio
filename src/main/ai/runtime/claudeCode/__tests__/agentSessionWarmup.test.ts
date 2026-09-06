@@ -1392,6 +1392,32 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('changes the rebuild signature when the global agent.language preference changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? 'English' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
+    const english = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? '中文' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
+    const chinese = await deriveSignature()
+
+    expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
+    expect(
+      Object.keys(english.rebuildFactFingerprints).filter(
+        (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['language'])
+  })
+
   it('changes only the prompt username rebuild fact when the user name changes', async () => {
     mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
     const alice = await deriveSignature()

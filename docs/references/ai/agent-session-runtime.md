@@ -57,7 +57,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 6. linked-channel security policy;
 7. citation markers for the lookup tools the runtime actually exposes;
 8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the configured app response language.
+9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 

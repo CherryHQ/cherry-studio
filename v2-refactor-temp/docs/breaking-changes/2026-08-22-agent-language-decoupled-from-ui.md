@@ -2,7 +2,7 @@
 title: Agent replies are no longer forced to follow the UI language
 category: changed
 severity: notice
-introduced_in_pr: #19160
+introduced_in_pr: '#19160'
 date: 2026-08-22
 ---
 
