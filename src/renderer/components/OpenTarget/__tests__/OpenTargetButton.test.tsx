@@ -37,6 +37,11 @@ const selectedTarget: ExternalOpenTarget = {
   kind: 'application'
 }
 
+const fileManagerTarget: ExternalOpenTarget = {
+  id: 'file_manager',
+  kind: 'file_manager'
+}
+
 describe('OpenTargetButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -55,6 +60,25 @@ describe('OpenTargetButton', () => {
     await user.click(screen.getByRole('button', { name: 'Open in Visual Studio Code' }))
 
     expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
+  })
+
+  it('keeps a custom workspace trigger as the primary action with a separate target menu', async () => {
+    const user = userEvent.setup()
+    mocks.usePreferredExternalOpenTarget.mockReturnValue({
+      targets: [fileManagerTarget, selectedTarget],
+      selectedTarget,
+      openTarget: mocks.openTarget
+    })
+    render(<OpenTargetButton targetPath="/tmp/My Workspace" pathKind="directory" primaryContent="Open workspace" />)
+
+    await user.click(screen.getByRole('button', { name: 'Open workspace' }))
+
+    expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('button', { name: /agent\.session\.file_manager/ }))
+
+    expect(mocks.openTarget).toHaveBeenLastCalledWith(fileManagerTarget)
   })
 
   it('reports a launch failure', async () => {
