@@ -254,9 +254,17 @@ const MiniAppTabsPool: React.FC = () => {
 
   const devToolsAppId = shouldShow ? (focusedAppId === paneSplitId && paneSplitId ? paneSplitId : currentMiniAppId) : ''
 
-  useCommandHandler('app.devtools.toggle', () => webviewRefs.current.get(devToolsAppId)?.openDevTools(), {
-    enabled: Boolean(devToolsAppId)
-  })
+  useCommandHandler(
+    'app.devtools.toggle',
+    () => {
+      const webview = webviewRefs.current.get(devToolsAppId)
+      if (!webview) return
+      // A toggle, so the same shortcut closes the guest console it opened.
+      if (webview.isDevToolsOpened()) webview.closeDevTools()
+      else webview.openDevTools()
+    },
+    { enabled: Boolean(devToolsAppId) }
+  )
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {

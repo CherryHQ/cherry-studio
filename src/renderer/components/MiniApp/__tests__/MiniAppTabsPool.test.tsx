@@ -26,8 +26,23 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
       ref={(el) => {
         // A local app's <webview> mounts only after `runtime.prepare`; `deferAttach`
         // replays that late attach when the test says so.
-        // The real ref is a <webview> tag; the pool calls openDevTools() on it.
-        if (el) (el as unknown as { openDevTools: () => void }).openDevTools = () => mocks.openDevTools(appid)
+        // The real ref is a <webview> tag; the pool toggles devtools on it.
+        if (el) {
+          const tag = el as unknown as {
+            openDevTools: () => void
+            closeDevTools: () => void
+            isDevToolsOpened: () => boolean
+          }
+          tag.openDevTools = () => {
+            mocks.devToolsOpen.add(appid)
+            mocks.openDevTools(appid)
+          }
+          tag.closeDevTools = () => {
+            mocks.devToolsOpen.delete(appid)
+            mocks.closeDevTools(appid)
+          }
+          tag.isDevToolsOpened = () => mocks.devToolsOpen.has(appid)
+        }
         if (el && mocks.deferAttach.has(appid)) mocks.pendingAttach.set(appid, () => onSetRefCallback(appid, el))
         else onSetRefCallback(appid, el)
         if (onLoadedCallback) mocks.loadHandlers.set(appid, onLoadedCallback)
@@ -52,6 +67,8 @@ const stubApp = (id: string): MiniApp => ({
 
 const mocks = vi.hoisted(() => ({
   openDevTools: vi.fn(),
+  closeDevTools: vi.fn(),
+  devToolsOpen: new Set<string>(),
   commandHandlers: new Map<string, { handler: () => void; enabled: boolean }>(),
   openedKeepAliveMiniApps: [] as MiniApp[],
   currentMiniAppId: '',
@@ -183,6 +200,8 @@ describe('MiniAppTabsPool', () => {
     mocks.contextKeys = []
     mocks.commandHandlers.clear()
     mocks.openDevTools.mockReset()
+    mocks.closeDevTools.mockReset()
+    mocks.devToolsOpen.clear()
   })
 
   /** Latest value the pool published for `webview.focused`. */
@@ -231,6 +250,22 @@ describe('MiniAppTabsPool', () => {
     expect(devToolsEntry()?.enabled).toBe(true)
     act(() => devToolsEntry()!.handler())
     expect(mocks.openDevTools).toHaveBeenCalledWith('alpha')
+  })
+
+  it('closes the MiniApp console on a second invocation', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    // The command is a toggle: opening only would leave the guest console stuck open.
+    act(() => devToolsEntry()!.handler())
+    act(() => devToolsEntry()!.handler())
+
+    expect(mocks.openDevTools).toHaveBeenCalledTimes(1)
+    expect(mocks.closeDevTools).toHaveBeenCalledWith('alpha')
   })
 
   it('hands the shortcut back to the host when no MiniApp pane is on screen', () => {

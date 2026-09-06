@@ -121,7 +121,6 @@ export const AppShell = () => {
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
-  useCommandHandler('app.devtools.toggle', () => void ipcApi.request('system.toggle_dev_tools'))
 
   useEffect(() => {
     if (isSettingsTabActive) {

@@ -3,3 +3,4 @@ export { CommandButton, CommandHint, CommandShortcut, CommandTooltip } from './C
 export type { CommandContextMenuExtraItem, MaybePromise } from './CommandMenus'
 export { CommandContextMenu, CommandMenuItems, CommandPopupMenu } from './CommandMenus'
 export { CommandProvider } from './CommandProvider'
+export { WindowCommandHandlers } from './WindowCommandHandlers'
