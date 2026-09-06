@@ -2179,6 +2179,7 @@
   "message.tools.activity.codeFiles": "程式檔案",
   "message.tools.activity.codeHostInfo": "遠端儲存庫資訊",
   "message.tools.activity.configFiles": "專案文件與設定",
+  "message.tools.activity.continueHandle": "繼續處理",
   "message.tools.activity.copy": "複製",
   "message.tools.activity.copying": "正在複製",
   "message.tools.activity.create": "建立",

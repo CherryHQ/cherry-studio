@@ -2179,6 +2179,7 @@
   "message.tools.activity.codeFiles": "Codedateien",
   "message.tools.activity.codeHostInfo": "Informationen zum Remote-Repository",
   "message.tools.activity.configFiles": "Projektdokumentation und Konfiguration",
+  "message.tools.activity.continueHandle": "Verarbeitung fortsetzen",
   "message.tools.activity.copy": "Kopieren",
   "message.tools.activity.copying": "Wird kopiert",
   "message.tools.activity.create": "Erstellen",
