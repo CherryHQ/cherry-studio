@@ -1,5 +1,5 @@
 /**
- * PreToolUse / PostToolUse hook assembly for a Claude Code session.
+ * PreToolUse / PostToolUse / PostToolBatch hook assembly for a Claude Code session.
  *
  * Policy lives in the declarative guard table (guardRules.ts) and is enforced by ONE hook that
  * evaluates it — new policy is a table row, never a new hook. The remaining hooks are mechanical
@@ -11,7 +11,7 @@
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
 
-import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import type { HookCallback, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -165,12 +165,17 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
-  // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
-  // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
-  // model can change direction without aborting. If the turn ends with no tool call, the connection
-  // emits `steer-undelivered` and the host queues it as the next turn instead.
-  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+  // Real mid-turn steer (the agent SDK has no native steer API): inject steers stashed via
+  // `redirect()` as `additionalContext` at the next tool boundary — PostToolBatch (guaranteed
+  // before the next model request) or PreToolUse; otherwise the turn-end `steer-undelivered`
+  // fallback queues them. The synchronous splice makes the take once-only across both points.
+  const takePendingSteer = (
+    hookEventName: 'PreToolUse' | 'PostToolBatch',
+    input: HookInput | undefined
+  ): HookJSONOutput => {
+    // A subagent boundary (`agent_id` present) must not consume the queue: the steer addresses the
+    // top-level turn, and the driver only rolls `steer-boundary` at a top-level assistant message.
+    if (!input || input.hook_event_name !== hookEventName || input.agent_id) return {}
     // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
     // holder the connection wired, not a holder instance captured before this connection existed.
     const holder = sessionState().getSteerHolder(sessionId)
@@ -185,17 +190,21 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       holder.pending.unshift(...taken)
       return {}
     }
-    logger.info('Injecting steer into the running turn via PreToolUse hook', {
+    logger.info('Injecting steer into the running turn', {
       sessionId,
-      count: taken.length
+      count: taken.length,
+      hook: hookEventName
     })
     // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
     holder.onInjected?.(taken)
     return {
       continue: true,
-      hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
+      hookSpecificOutput: { hookEventName, additionalContext: wrapSteerReminder(text) }
     }
   }
+
+  const steerHook: HookCallback = async (input) => takePendingSteer('PreToolUse', input)
+  const postToolBatchSteerHook: HookCallback = async (input) => takePendingSteer('PostToolBatch', input)
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
@@ -284,6 +293,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolBatch: [{ hooks: [postToolBatchSteerHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }
