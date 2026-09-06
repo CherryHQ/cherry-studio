@@ -1862,6 +1862,190 @@ describe('BackupManager.copyDirWithProgress', () => {
     })
   })
 
+  describe('Vanished File Handling', () => {
+    // Simulate the reported macOS race (issue #17179): a nested Skills schema file is
+    // enumerated during readdir/lstat but vanishes before the copy/chmod pass runs, so the
+    // copy rejects with ENOENT. The backup must skip it and continue, not abort.
+    const createVanishedError = () =>
+      Object.assign(new Error("ENOENT: no such file or directory, chmod '/src/vanishing-skill.xsd'"), {
+        code: 'ENOENT'
+      })
+
+    // Mirror LevelDB Lock Handling's automatic-copy error injection: a Readable that
+    // destroys itself with the target error, driving the pipeline + explicit chmod path.
+    const mockAutomaticCopyError = (error: Error) => {
+      vi.mocked(fs.createReadStream).mockReturnValue(
+        new Readable({
+          read() {
+            this.destroy(error)
+          }
+        }) as never
+      )
+      vi.mocked(fs.createWriteStream).mockReturnValue(
+        new Writable({
+          write(_chunk, _encoding, callback) {
+            callback()
+          }
+        }) as never
+      )
+    }
+
+    it('should skip a file that vanishes mid-staging during an automatic backup copy and continue with survivors (issue #17179)', async () => {
+      const vanishedError = createVanishedError()
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([
+        createDirent('vanishing-skill.xsd'),
+        createDirent('survivor.json')
+      ] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+      // First call (vanishing file) destroys the stream with ENOENT; the survivor must copy normally.
+      let callCount = 0
+      vi.mocked(fs.createReadStream).mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return new Readable({
+            read() {
+              this.destroy(vanishedError)
+            }
+          }) as never
+        }
+        return new Readable({
+          read() {
+            this.push('data')
+            this.push(null)
+          }
+        }) as never
+      })
+      vi.mocked(fs.createWriteStream).mockImplementation(
+        () =>
+          new Writable({
+            write(_chunk, _encoding, callback) {
+              callback()
+            }
+          }) as never
+      )
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).resolves.toBeUndefined()
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/vanishing-skill.xsd')
+      // The survivor is still copied and its byte size is still reported.
+      expect(onProgress).toHaveBeenCalledWith(10)
+      expect(onProgress).toHaveBeenCalledTimes(1)
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] File disappeared during backup, skipping', {
+        path: '/src/vanishing-skill.xsd'
+      })
+    })
+
+    it('should skip a file that vanishes mid-staging during a manual backup copy and continue with survivors (issue #17179)', async () => {
+      const vanishedError = createVanishedError()
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([
+        createDirent('vanishing-skill.xsd'),
+        createDirent('survivor.json')
+      ] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+      // First copy rejects with ENOENT (vanished); the survivor copies normally.
+      vi.mocked(fs.copy).mockRejectedValueOnce(vanishedError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, {
+          dereferenceSymlinks: false
+        })
+      ).resolves.toBeUndefined()
+
+      // The survivor is still copied and its byte size is still reported.
+      expect(fs.copy).toHaveBeenCalledWith('/src/survivor.json', '/dest/survivor.json')
+      expect(onProgress).toHaveBeenCalledWith(10)
+      expect(onProgress).toHaveBeenCalledTimes(1)
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] File disappeared during backup, skipping', {
+        path: '/src/vanishing-skill.xsd'
+      })
+    })
+
+    it('should skip when the explicit chmod after a successful pipeline throws ENOENT (issue #17179)', async () => {
+      // The real macOS failure surfaces at fs.chmod, not the stream: the pipeline copies the
+      // bytes, but by the time the explicit chmod runs the source has vanished. This guards
+      // the chmod-specific ENOENT path that the stream-destroy mocks above do not exercise.
+      const chmodError = createVanishedError()
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([
+        createDirent('vanishing-skill.xsd'),
+        createDirent('survivor.json')
+      ] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+      // Stream completes normally; the first chmod rejects with ENOENT, the survivor's resolves.
+      vi.mocked(fs.createReadStream).mockImplementation(
+        () =>
+          new Readable({
+            read() {
+              this.push('data')
+              this.push(null)
+            }
+          }) as never
+      )
+      vi.mocked(fs.createWriteStream).mockImplementation(
+        () =>
+          new Writable({
+            write(_chunk, _encoding, callback) {
+              callback()
+            }
+          }) as never
+      )
+      vi.mocked(fs.chmod).mockRejectedValueOnce(chmodError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).resolves.toBeUndefined()
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/vanishing-skill.xsd')
+      expect(onProgress).toHaveBeenCalledWith(10)
+      expect(onProgress).toHaveBeenCalledTimes(1)
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] File disappeared during backup, skipping', {
+        path: '/src/vanishing-skill.xsd'
+      })
+    })
+
+    it('should still abort an automatic backup copy when a non-ENOENT error occurs', async () => {
+      const permissionError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('locked.json')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+      mockAutomaticCopyError(permissionError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(permissionError)
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        '[BackupManager] File disappeared during backup, skipping',
+        expect.objectContaining({ path: '/src/locked.json' })
+      )
+    })
+
+    it('should still abort a manual backup copy when a non-ENOENT error occurs', async () => {
+      const permissionError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('locked.json')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+      vi.mocked(fs.copy).mockRejectedValueOnce(permissionError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
+          dereferenceSymlinks: false
+        })
+      ).rejects.toBe(permissionError)
+    })
+  })
+
   it('should skip symlinks during restore copy', async () => {
     vi.mocked(fs.readdir).mockResolvedValue([createDirent('restore-link')] as never)
     vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
