@@ -378,8 +378,8 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
     expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
     const reconcile = vi.mocked(cache.seedOptimisticBranch).mock.calls[1][0]
-    reconcile([])
-    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']))
+    reconcile([], 'a1')
+    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']), 'a1')
     expect(invalidateMessages).toHaveBeenCalledWith(['a1-old', 'a1', 'a2'])
   })
 
@@ -526,6 +526,22 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('lets Main resolve the current model when retrying a failed assistant without a persisted model', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = null
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(streamOpen).not.toHaveBeenCalled()
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({ parentAnchorId: 'u1' })
+    })
+    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+  })
+
   it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
     nonTextAssistant.metadata.modelId = 'provider::model-a'
@@ -669,6 +685,27 @@ describe('useChatWriteActions — fork and resend', () => {
         fastMode: true
       })
     )
+  })
+
+  it('deduplicates migrated snapshot IDs when inheriting models', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const authoritativeReply = uiMsg('a1', 'assistant', 'u1')
+    authoritativeReply.metadata.modelId = 'provider::model-a'
+    authoritativeReply.metadata.messageSnapshot = {
+      model: { id: 'model-a', provider: 'provider' }
+    }
+    const legacyReply = uiMsg('a2', 'assistant', 'u1')
+    legacyReply.metadata.modelId = null
+    legacyReply.metadata.messageSnapshot = {
+      model: { id: 'provider::model-a', provider: 'provider' }
+    }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), authoritativeReply, legacyReply], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(expect.objectContaining({ mentionedModelIds: ['provider::model-a'] }))
   })
 
   it('rejects edit-and-resend when stream open is blocked', async () => {

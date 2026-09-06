@@ -183,10 +183,10 @@ export interface CherryUIMessageMetadata {
   //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
-  /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
+  /** Non-zero for messages in an edit/resend, regeneration, or multi-model cohort. */
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
-  modelId?: string
+  modelId?: string | null
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
@@ -541,7 +541,7 @@ export const MessageSchema = z.strictObject({
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
-  /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
+  /** Siblings group ID (0 = normal branch; non-zero groups contain edit/resend, multi-model, or regeneration alternatives) */
   siblingsGroupId: z.number(),
   // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
@@ -594,7 +594,7 @@ export interface TreeNode {
 
 /**
  * Group of sibling nodes with same parentId and siblingsGroupId
- * Used for multi-model responses in tree view
+ * Used for edit/resend, multi-model, and regeneration alternatives in tree view
  */
 export interface SiblingsGroup {
   /** Parent message ID — the virtual root for first-turn groups, else a content message */
@@ -611,7 +611,7 @@ export interface SiblingsGroup {
 export interface TreeResponse {
   /** Regular nodes (siblingsGroupId = 0) */
   nodes: TreeNode[]
-  /** Multi-model response groups (siblingsGroupId != 0) */
+  /** Alternative message groups (siblingsGroupId != 0) */
   siblingsGroups: SiblingsGroup[]
   /** Current active node ID */
   activeNodeId: string | null

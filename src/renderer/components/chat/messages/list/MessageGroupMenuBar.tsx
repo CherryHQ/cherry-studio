@@ -2,8 +2,8 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import { resolveUniqueModelIds } from '@shared/utils/model'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { memo } from 'react'
@@ -22,10 +22,15 @@ function selectRetryCandidates(
   selectedMessageId: string
 ): { candidates: MessageListItem[]; skippedCount: number } {
   const candidatesByModel = new Map<string, MessageListItem>()
+  const modelIds = resolveUniqueModelIds(
+    messages.map((message) => ({
+      modelId: message.persistedModelId === undefined ? message.modelId : message.persistedModelId,
+      modelSnapshot: message.model ?? message.messageSnapshot?.model
+    }))
+  )
 
-  for (const message of messages) {
-    const modelId = resolveUniqueModelId(message.modelId, message.model ?? message.messageSnapshot?.model)
-    const key = modelId ?? `message:${message.id}`
+  for (const [index, message] of messages.entries()) {
+    const key = modelIds[index] ?? `message:${message.id}`
     const current = candidatesByModel.get(key)
     if (
       !current ||

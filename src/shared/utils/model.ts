@@ -13,8 +13,66 @@
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+
+/** Resolve the stored model ID, falling back to its creation-time snapshot. */
+export function resolveUniqueModelId(
+  modelId: string | null | undefined,
+  modelSnapshot: { id: string; provider: string } | null | undefined
+): UniqueModelId | undefined {
+  if (isUniqueModelId(modelId)) return modelId
+  if (!modelSnapshot) return undefined
+  if (isUniqueModelId(modelSnapshot.id)) return modelSnapshot.id
+
+  try {
+    return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
+  } catch {
+    return undefined
+  }
+}
+
+interface ModelIdentityReference {
+  modelId: string | null | undefined
+  modelSnapshot: { id: string; provider: string } | null | undefined
+}
+
+/** Resolve persisted references without reinterpreting snapshot IDs. */
+export function resolveUniqueModelIds(references: readonly ModelIdentityReference[]): Array<UniqueModelId | undefined> {
+  return references.map(({ modelId, modelSnapshot }) => resolveUniqueModelId(modelId, modelSnapshot))
+}
+
+/** Return true only when two persisted references identify distinct models. */
+export function areDifferentModelIdentities(left: ModelIdentityReference, right: ModelIdentityReference): boolean {
+  const [leftModelId, rightModelId] = resolveUniqueModelIds([left, right])
+  if (leftModelId === undefined || rightModelId === undefined) return false
+
+  return leftModelId !== rightModelId
+}
+
+interface OrderedModelIdentityReference extends ModelIdentityReference {
+  id: string
+  createdAt: string
+}
+
+/** Select the newest candidate with a distinct resolvable model identity. */
+export function findNewestDifferentModelReference<TCandidate extends OrderedModelIdentityReference>(
+  reference: ModelIdentityReference,
+  candidates: readonly TCandidate[]
+): TCandidate | undefined {
+  let newest: TCandidate | undefined
+  for (const candidate of candidates) {
+    if (!areDifferentModelIdentities(reference, candidate)) continue
+    if (
+      !newest ||
+      candidate.createdAt > newest.createdAt ||
+      (candidate.createdAt === newest.createdAt && candidate.id > newest.id)
+    ) {
+      newest = candidate
+    }
+  }
+  return newest
+}
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>

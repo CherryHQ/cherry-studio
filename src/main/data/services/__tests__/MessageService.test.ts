@@ -2433,6 +2433,147 @@ describe('MessageService', () => {
       expect(follow.parentId).toBe('m-root')
     })
 
+    it('keeps a surviving multi-model reply active when deleting the selected reply', async () => {
+      await seedMultiModelTree()
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.delete('m-a2', false)
+
+      expect(result.deletedIds).toEqual(['m-a2'])
+      expect(result.newActiveNodeId).toBe('m-a1')
+      expect(messageService.getById('m-root').data).toEqual(mainText('hi'))
+      expect(messageService.getById('m-a1').data).toEqual(mainText('reply A'))
+
+      const reloadedBranch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+      expect(reloadedBranch.activeNodeId).toBe('m-a1')
+      expect(reloadedBranch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1'])
+    })
+
+    it.each([
+      { scenario: 'both model IDs are removed', deletedModelId: undefined },
+      {
+        scenario: 'only the surviving model ID is removed',
+        deletedModelId: createUniqueModelId('provider-b', 'model-B')
+      }
+    ])('uses message snapshots to distinguish replies when $scenario', async ({ scenario, deletedModelId }) => {
+      const topicId = `topic-snapshot-model-delete-${scenario}`
+      const rootId = await seedTopicWithRoot(topicId)
+      const prompt = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const olderReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('model A answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-A', name: 'Model A', provider: 'provider-a' }
+        }
+      })
+      const latestReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('model B answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId: deletedModelId,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-B', name: 'Model B', provider: 'provider-b' }
+        }
+      })
+      dbh.db.update(topicTable).set({ activeNodeId: latestReply.id }).where(eq(topicTable.id, topicId)).run()
+
+      const result = messageService.delete(latestReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(olderReply.id)
+      const [topic] = dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).all()
+      expect(topic.activeNodeId).toBe(olderReply.id)
+    })
+
+    it('treats migrated snapshot model IDs as the same model after the foreign key is cleared', async () => {
+      const topicId = 'topic-snapshot-model-separator-delete'
+      const rootId = await seedTopicWithRoot(topicId)
+      const prompt = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('separator model answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'provider-a::model-A', name: 'Separator Model', provider: 'provider-a' }
+        }
+      })
+      const selectedReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('plain model answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId: createUniqueModelId('provider-a', 'model-A'),
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-A', name: 'Authoritative Model', provider: 'provider-a' }
+        }
+      })
+
+      const result = messageService.delete(selectedReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(prompt.id)
+      const [topic] = dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).all()
+      expect(topic.activeNodeId).toBe(prompt.id)
+    })
+
+    it('falls back to the parent when deleting the latest same-model regeneration', async () => {
+      const rootId = await seedTopicWithRoot('topic-regeneration-delete')
+      const prompt = messageService.create('topic-regeneration-delete', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const modelId = createUniqueModelId('provider-a', 'model-A')
+      const olderReply = messageService.create('topic-regeneration-delete', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('older answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId
+      })
+      const latestReply = messageService.create('topic-regeneration-delete', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('latest answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId
+      })
+
+      const result = messageService.delete(latestReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(prompt.id)
+      expect(messageService.getById(olderReply.id).data).toEqual(mainText('older answer'))
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-regeneration-delete'))
+      expect(topic.activeNodeId).toBe(prompt.id)
+    })
+
     it('reparent rebases a moved group id so it cannot merge with an unrelated group at the destination', async () => {
       // u1 → { x(g=0), y(g=5) };  x → { c1(g=5), c2(g=5) }
       // Deleting x moves c1/c2 to u1, where group 5 already belongs to the unrelated y.

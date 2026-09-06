@@ -23,7 +23,6 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
-import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -33,6 +32,7 @@ import type {
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
+import { resolveUniqueModelIds } from '@shared/utils/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
@@ -41,19 +41,17 @@ import type { useTopicMessagesCache } from './useTopicMessagesCache'
 const logger = loggerService.withContext('useChatWriteActions')
 
 function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: string): UniqueModelId[] {
-  const modelIds = new Set<UniqueModelId>()
+  const directAssistants = messages.filter(
+    (message) => message.role === 'assistant' && message.metadata?.parentId === userMessageId
+  )
+  const modelIds = resolveUniqueModelIds(
+    directAssistants.map((message) => ({
+      modelId: message.metadata?.modelId,
+      modelSnapshot: message.metadata?.messageSnapshot?.model
+    }))
+  ).filter((modelId): modelId is UniqueModelId => modelId !== undefined)
 
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    if (message.metadata?.parentId !== userMessageId) continue
-
-    const snapshot = message.metadata?.messageSnapshot
-    const model = snapshot?.model
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
-    if (modelId) modelIds.add(modelId)
-  }
-
-  return Array.from(modelIds)
+  return Array.from(new Set(modelIds))
 }
 
 function getInheritedTurnOptions(
@@ -142,7 +140,9 @@ export function useChatWriteActions(params: Params): Result {
     const operation = (async () => {
       const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
       if (hasClearContextPart(activeMessage?.parts)) {
-        await seedOptimisticBranch((items) => branchWithoutIds(items, new Set([activeNodeId])))
+        await seedOptimisticBranch((items, branchActiveNodeId) =>
+          branchWithoutIds(items, new Set([activeNodeId]), branchActiveNodeId)
+        )
         try {
           await deleteMessageTrigger({ params: { id: activeNodeId }, query: { cascade: false } })
           logger.info('Removed context boundary', { messageId: activeNodeId, topicId: topic.id })
@@ -220,7 +220,9 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const optimisticIds = new Set([id])
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
+      await seedOptimisticBranch((prev, branchActiveNodeId) =>
+        branchWithoutIds(prev, optimisticIds, branchActiveNodeId)
+      )
 
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
@@ -245,10 +247,14 @@ export function useChatWriteActions(params: Params): Result {
       }
       // Optimistically remove only the rendered representatives. The service resolves the
       // complete sibling group inside its transaction and returns the authoritative ids.
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(uniqueMessageIds)))
+      await seedOptimisticBranch((prev, branchActiveNodeId) =>
+        branchWithoutIds(prev, new Set(uniqueMessageIds), branchActiveNodeId)
+      )
       try {
         const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
-        await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
+        await seedOptimisticBranch((prev, branchActiveNodeId) =>
+          branchWithoutIds(prev, new Set(result.deletedIds), branchActiveNodeId)
+        )
         invalidateCachedMessageUiStates(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
@@ -305,7 +311,7 @@ export function useChatWriteActions(params: Params): Result {
       const regenerateModelId = options?.modelId
       const retryModelId =
         target?.role === 'assistant'
-          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
+          ? (regenerateModelId ?? ((target.metadata?.modelId ?? undefined) as UniqueModelId | undefined))
           : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
