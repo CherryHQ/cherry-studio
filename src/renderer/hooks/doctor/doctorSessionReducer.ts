@@ -1,7 +1,5 @@
 import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorPanel, DoctorRunTier } from '@shared/types/doctor'
 
-export type { DoctorPanel }
-
 export type DoctorInteraction =
   | { readonly kind: 'idle' }
   | { readonly kind: 'confirm-evidence'; readonly checkId: DoctorCheckId }

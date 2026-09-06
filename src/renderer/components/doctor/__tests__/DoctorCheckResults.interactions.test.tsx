@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
-import type { DoctorController, DoctorInteraction } from '@renderer/hooks/doctor'
+import type { DoctorController } from '@renderer/hooks/doctor'
+import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -27,7 +28,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { DoctorCheckList, DoctorCheckResults } from '../DoctorCheckResults'
+import { DoctorCheckAccordionItems, DoctorCheckResults } from '../DoctorCheckResults'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
 type ControllerOverrides = {
@@ -221,7 +222,7 @@ function EvidenceFocusHarness() {
   return <DoctorChecksPanel controller={controller} />
 }
 
-describe('DoctorCheckList interactions', () => {
+describe('DoctorCheckAccordionItems interactions', () => {
   it('keeps the test controller surface in sync with production', () => {
     expectTypeOf<keyof ReturnType<typeof createController>>().toEqualTypeOf<keyof DoctorController>()
   })
@@ -259,7 +260,7 @@ describe('DoctorCheckList interactions', () => {
     const user = userEvent.setup()
     render(
       <Accordion type="single" collapsible defaultValue="doctor-runtime-claude-login">
-        <DoctorCheckList controller={createController()} />
+        <DoctorCheckAccordionItems controller={createController()} />
       </Accordion>
     )
 
@@ -297,7 +298,7 @@ describe('DoctorCheckList interactions', () => {
 
     render(
       <Accordion type="single" collapsible defaultValue="doctor-mcp-servers-connected">
-        <DoctorCheckList controller={controller} />
+        <DoctorCheckAccordionItems controller={controller} />
       </Accordion>
     )
 
@@ -313,7 +314,7 @@ describe('DoctorCheckList interactions', () => {
         <DialogContent>
           <DialogTitle>Error details</DialogTitle>
           <Accordion type="single" collapsible defaultValue="doctor-runtime-claude-login">
-            <DoctorCheckList controller={createController()} />
+            <DoctorCheckAccordionItems controller={createController()} />
           </Accordion>
         </DialogContent>
       </Dialog>
