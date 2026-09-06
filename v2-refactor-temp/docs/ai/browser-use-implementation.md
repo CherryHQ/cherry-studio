@@ -10,7 +10,7 @@ Read the design doc first. This document does not repeat the rationale; it fixes
 
 | Decision | Choice | Why |
 |---|---|---|
-| Where the engine lives | `src/main/services/browser/` (new module, lifecycle service `BrowserSessionService`) | Same layer as `services/webview/`; the MCP server under `src/main/ai/mcp/servers/browser/` becomes a thin tool adapter |
+| Where the engine lives | `src/main/features/browser/` — one domain holding the session engine, snapshot, actions, import **and** the MCP tool adapter (moved out of `src/main/ai/mcp/servers/browser/`) | It is the browser feature's business logic, feature-sized from day one (five sub-modules, three consumers). `ai/` must not import a feature ([main-process.md §3](../../../docs/references/architecture/main-process.md)), so the MCP factory obtains the server through `application.get('BrowserSessionService').createMcpServer()` — ambient DI access, not a module edge |
 | Single debugger session per guest | `GuestSession` is the only code that calls `webContents.debugger.attach()` | Electron allows one attach per `webContents`; `annotationExport.ts` and browser use must share it |
 | Element addressing | `ref` = `e<n>`, allocated per **document generation**, mapped to `backendNodeId` in main | Stable within a document, cheap to resolve, never leaks across a main-frame navigation |
 | Snapshot source | `Accessibility.getFullAXTree` + `DOMSnapshot.captureSnapshot`, serialised in main | Replaces the guest-side JS walker in `tools/snapshot.ts`; works without a preload |
@@ -27,11 +27,12 @@ Read the design doc first. This document does not repeat the rationale; it fixes
 src/shared/types/browserUse.ts              ref / snapshot / action result types + zod schemas
 src/shared/utils/webMcpPolyfill.ts          the injected `navigator.modelContext` script (string)
 
-src/main/services/browser/
+src/main/features/browser/
   index.ts                                  barrel: BrowserSessionService, GuestSession, types
-  BrowserSessionService.ts                  lifecycle service: registry, budget, sweep timer
-  GuestSession.ts                           one per webContents: debugger, refs, dialog, downloads, retention
-  cdpAllowList.ts                           Set<string> of permitted CDP methods
+  BrowserSessionService.ts                  lifecycle service: registry, budget, sweep timer, createMcpServer()
+  session/
+    GuestSession.ts                         one per webContents: debugger, refs, dialog, downloads, retention
+    cdpAllowList.ts                         Set<string> of permitted CDP methods
   snapshot/
     captureSnapshot.ts                      CDP calls → raw AX + DOM snapshot
     buildSnapshotTree.ts                    raw → SnapshotNode[] (visibility, interactivity, viewport filter)
@@ -43,21 +44,28 @@ src/main/services/browser/
     keyboard.ts                             type / press_key via Input.dispatchKeyEvent + insertText, key table
     forms.ts                                select_option / upload_file
     settle.ts                               post-action wait (navigation or network-quiet)
+  mcp/                                      moved from src/main/ai/mcp/servers/browser/ (git mv, history kept)
+    server.ts                               BrowserServer; constructed by BrowserSessionService.createMcpServer()
+    controller.ts                           keeps windows + tabs; CDP calls move to GuestSession
+    tabbarHtml.ts, types.ts, README.md      unchanged
+    tools/
+      snapshot.ts                           rewritten on the engine
+      interact.ts                           click, type, press_key, select_option, hover, scroll, upload_file
+      navigate.ts                           go_back, go_forward, wait_for
+      dialog.ts                             handle_dialog
+      inspect.ts                            find, console_messages, network_requests
+      webMcp.ts                             list_web_tools, call_web_tool
+      tabs.ts                               + mark_tab
+      registry.ts                           tool lists extended
+      result.ts                             shared result envelope
   __tests__/                                see §8
 
-src/main/ai/mcp/servers/browser/
-  controller.ts                             keeps windows + tabs; CDP calls move to GuestSession
-  tools/
-    snapshot.ts                             rewritten on the engine
-    interact.ts                             click, type, press_key, select_option, hover, scroll, upload_file
-    navigate.ts                             go_back, go_forward, wait_for
-    dialog.ts                               handle_dialog
-    inspect.ts                              find, console_messages, network_requests
-    webMcp.ts                               list_web_tools, call_web_tool
-    tabs.ts                                 + mark_tab
-    registry.ts                             tool lists extended
-    result.ts                               shared result envelope
+src/main/ai/mcp/servers/factory.ts          browser entry becomes application.get('BrowserSessionService').createMcpServer()
 ```
+
+Dependency edges after the move: `ai/mcp` → feature: none (DI only); `services/webview` → feature:
+`application.get` plus type imports through the barrel; `ipc/handlers/browser.ts` → feature: DI. The
+feature imports down to `data/`, `core/`, `utils/` and `@shared` only.
 
 `src/main/services/webview/annotationExport.ts` loses its own attach/detach cycle and calls
 `GuestSession.describeElement()` instead (§6).
@@ -102,7 +110,7 @@ export interface BrowserActionResult {
 export type TabRetention = 'temporary' | 'deliverable' | 'handoff'
 ```
 
-Tool input schemas follow the existing convention in `servers/browser/tools/*.ts`: a hand-written
+Tool input schemas follow the existing convention in the MCP adapter's `tools/*.ts`: a hand-written
 MCP `inputSchema` JSON next to the zod schema that parses `args`. The zod schemas live in
 `browserUse.ts`; a schema test (A1) keeps the two in step.
 
@@ -274,7 +282,7 @@ lints and passes the listed tests on its own; conventional-commit scopes are the
 | # | Commit | Files | Tests |
 |---|---|---|---|
 | A1 | `feat(browser-use): add shared browser-use types and tool input schemas` | `src/shared/types/browserUse.ts` | `src/shared/types/__tests__/browserUse.test.ts`: ref regex, every tool schema accepts its documented input and rejects a wrong shape |
-| A2 | `feat(browser-session): add GuestSession with allow-listed debugger access` | `services/browser/{GuestSession,cdpAllowList,index}.ts` | `GuestSession.test.ts` (§8.2) |
+| A2 | `feat(browser-session): add GuestSession with allow-listed debugger access` | `features/browser/{index,session/GuestSession,session/cdpAllowList}.ts` | `GuestSession.test.ts` (§8.2) |
 | A3 | `feat(browser-session): register BrowserSessionService with budget and sweep` | `BrowserSessionService.ts`, `serviceRegistry.ts` | `BrowserSessionService.test.ts` (§8.3) |
 | A4 | `feat(browser-session): capture and serialise CDP accessibility snapshots` | `snapshot/{captureSnapshot,buildSnapshotTree,serializeSnapshot}.ts` | `snapshot.test.ts` with recorded fixtures (§8.1) |
 | A5 | `feat(browser-session): diff consecutive snapshots` | `snapshot/diffSnapshot.ts` | `diffSnapshot.test.ts` |
@@ -284,14 +292,15 @@ lints and passes the listed tests on its own; conventional-commit scopes are the
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
-| B1 | `refactor(browser-mcp): route controller CDP calls through BrowserSessionService` | `controller.ts` (drop `ensureDebuggerAttached`, `dbg.sendCommand`), `server.ts` (owner = `mcp:<uuid>`; `onclose` → `endTurn` + release) | existing `servers/__tests__/browser.test.ts` adapted: the fake debugger is now reached via the service mock |
+| B0 | `refactor(browser-mcp): move the MCP server into features/browser` | `git mv src/main/ai/mcp/servers/browser src/main/features/browser/mcp`; `factory.ts` → `application.get('BrowserSessionService').createMcpServer()`; `BrowserSessionService.createMcpServer()` | `servers/__tests__/browser.test.ts` moves to `features/browser/__tests__/mcp/` unchanged; `factory` test asserts the browser entry resolves through DI |
+| B1 | `refactor(browser-mcp): route controller CDP calls through BrowserSessionService` | `mcp/controller.ts` (drop `ensureDebuggerAttached`, `dbg.sendCommand`), `mcp/server.ts` (owner = `mcp:<uuid>`; `onclose` → `endTurn` + release) | the moved controller test adapted: the fake debugger is now reached via the service |
 | B2 | `feat(browser-mcp): serve snapshot from the accessibility engine with diff by default` | `tools/snapshot.ts`, `tools/result.ts` | `tools/__tests__/snapshot.test.ts`: `full`, `scope`, `(no change)`, cap |
 | B3 | `feat(browser-mcp): add click, hover and scroll` | `actions/{resolveTarget,mouse}.ts`, `tools/interact.ts` | `resolveTarget.test.ts`, `mouse.test.ts` (§8.2) |
 | B4 | `feat(browser-mcp): add type and press_key` | `actions/keyboard.ts` | `keyboard.test.ts` |
 | B5 | `feat(browser-mcp): add select_option and upload_file` | `actions/forms.ts` | `forms.test.ts` incl. path-escape rejection |
 | B6 | `feat(browser-mcp): add go_back, go_forward, wait_for and action settling` | `actions/settle.ts`, `tools/navigate.ts` | `settle.test.ts` with fake timers |
 | B7 | `feat(browser-mcp): surface dialogs and downloads, add handle_dialog` | `GuestSession.ts` listeners, `tools/dialog.ts` | `GuestSession.test.ts` dialog cases; `dialog.test.ts` |
-| B8 | `docs(browser-mcp): document the browser-use tool set` | `servers/browser/README.md`, `settings.mcp.builtinServersDescriptions.browser` in `en-us.json` + `pnpm i18n:sync` + translations | `pnpm lint` (i18n check) |
+| B8 | `docs(browser-mcp): document the browser-use tool set` | `features/browser/mcp/README.md`, `settings.mcp.builtinServersDescriptions.browser` in `en-us.json` + `pnpm i18n:sync` + translations | `pnpm lint` (i18n check) |
 
 ### PR C — `feat(browser-mcp): P1 stability, inspection and WebMCP`
 
@@ -312,7 +321,7 @@ target (P3).
 Projects come from `vitest.config.*`: `main` (node), `shared`, `preload`, `renderer` (jsdom).
 Run with `pnpm exec vitest run <path>`; never `pnpm test <path>`.
 
-### 8.1 Fixtures (`src/main/services/browser/__tests__/fixtures/`)
+### 8.1 Fixtures (`src/main/features/browser/__tests__/fixtures/`)
 
 Recorded once from the dev app with the existing `execute` tool replaced by a one-off debugger
 call (`getFullAXTree` + `captureSnapshot` JSON), committed as `<page>.ax.json` / `<page>.dom.json`:
@@ -331,7 +340,7 @@ The HTML files double as the manual acceptance pages (§9).
 ### 8.2 `main` project — engine
 
 `GuestSession.test.ts` (fake `webContents` with `debugger.{attach,detach,sendCommand,on,isAttached}`,
-same pattern as `servers/__tests__/browser.test.ts`):
+same pattern as today's `servers/__tests__/browser.test.ts`):
 
 - attaches once across many `send` calls; `attach` throwing → `isAvailable() === false` and `send` rejects `debugger_unavailable`;
 - `send('Target.createTarget')` rejects `not_allowed` without touching the debugger;
@@ -366,7 +375,7 @@ same pattern as `servers/__tests__/browser.test.ts`):
 
 ### 8.3 `main` project — MCP adapter
 
-`servers/__tests__/browser.test.ts` keeps its window/tab coverage. New `tools/__tests__/*.test.ts`
+The moved controller test keeps its window/tab coverage. New `__tests__/mcp/tools/*.test.ts`
 use a fake `GuestSession` and assert the result envelope: `dialog` present when pending, `snapshot`
 appended after actions, `stale_ref` text includes the hint to re-snapshot, unknown tool name rejected
 by the registry.
@@ -436,7 +445,7 @@ Two import paths, in order of preference:
 ### 10.2 Module layout and API
 
 ```
-src/main/services/browser/import/
+src/main/features/browser/import/
   formats.ts            parseStorageState(json) / parseNetscape(text) → ImportedCookie[] + ImportedOrigin[]
   chromiumProfile.ts    locate profiles, copy + read `Cookies`, decrypt `encrypted_value`
   firefoxProfile.ts     locate profiles via profiles.ini, read `cookies.sqlite`
