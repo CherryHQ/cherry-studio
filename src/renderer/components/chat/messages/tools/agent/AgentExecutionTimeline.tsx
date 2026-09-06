@@ -83,8 +83,11 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message scan.
   const stampedLaunchId = tool?.name === AgentToolsType.SendMessage ? getPartLaunchToolCallId(toolResponse) : undefined
   const resumedLaunch = useMemo(() => {
-    if (stampedLaunchId) return { toolCallId: stampedLaunchId }
-    return resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
+    // The stamped id navigates without scanning; the description (label/flow title) is
+    // best-effort from the scan and falls back to the receipt's own summary when unresolved.
+    const resolved = resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
+    if (stampedLaunchId) return { toolCallId: stampedLaunchId, description: resolved?.description }
+    return resolved
   }, [response, fullPartsMap, resumedAgentId, stampedLaunchId])
 
   if (tool?.name === 'mcp__assistant__navigate') {
