@@ -25,6 +25,7 @@ import {
   type ResolvedReasoningKind,
   resolveSelection
 } from '@main/ai/utils/reasoningSerializers'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
@@ -32,10 +33,13 @@ import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/prefer
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
+import { v4 as uuid } from 'uuid'
 
 import { WebContentsListener } from '../../ai/streamManager'
+import { TranslateTask, type TranslateTaskRequest, type TranslateTaskState } from './translateTask'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -77,6 +81,11 @@ export interface TranslateOpenRequest {
   targetLangCode: TranslateLangCode
 }
 
+export interface TranslateTaskStartResult {
+  taskId: string
+  streamId: string
+}
+
 export interface TranslateOpenResult {
   /** Streaming id; renderer filters `ai.stream.*` events by this. */
   streamId: string
@@ -90,7 +99,58 @@ interface ResolvedPayload {
   model: Model
 }
 
-export class TranslateService {
+@Injectable('TranslateService')
+@ServicePhase(Phase.WhenReady)
+export class TranslateService extends BaseService {
+  /**
+   * Translations whose orchestration this process owns. Keyed by task id, which a renderer holds
+   * in its tab session — the one handle that survives the renderer being rebuilt by a detach.
+   */
+  private readonly tasks = new Map<string, TranslateTask>()
+
+  protected async onStop(): Promise<void> {
+    for (const task of [...this.tasks.values()]) {
+      task.cancel()
+    }
+  }
+
+  /**
+   * Start a translation and return the ids the renderer follows it by: `taskId` for the task's
+   * own events, `streamId` for the `ai.stream.*` events the text rides on, exactly as before.
+   */
+  startTask(senderId: WindowId, sender: Electron.WebContents, request: TranslateTaskRequest): TranslateTaskStartResult {
+    const taskId = uuid()
+    const streamId = `${TRANSLATE_STREAM_PREFIX}${taskId}`
+    const task = new TranslateTask(taskId, streamId, request, senderId, sender, {
+      finish: (id) => {
+        this.tasks.delete(id)
+      }
+    })
+    this.tasks.set(taskId, task)
+    void task.run()
+    return { taskId, streamId }
+  }
+
+  /** End a task wherever it is — the detection step as well as the stream. */
+  cancelTask(taskId: string): void {
+    this.tasks.get(taskId)?.cancel()
+  }
+
+  /**
+   * Point a task at another window and hand back what it missed. This is what makes a detach
+   * survivable: the rebuilt renderer re-attaches by id and replays from the returned state.
+   */
+  attachTask(taskId: string, senderId: WindowId, sender: Electron.WebContents): TranslateTaskState | undefined {
+    return this.tasks.get(taskId)?.attach(senderId, sender)
+  }
+
+  /** Drop every task started by a window that no longer exists. */
+  releaseWindow(senderId: WindowId): void {
+    for (const task of [...this.tasks.values()]) {
+      if (task.ownedBy(senderId)) task.cancel()
+    }
+  }
+
   /**
    * IPC entry-point (called from `AiService.onInit`). Resolves the model +
    * prompt, then dispatches the stream through `AiStreamManager.streamPrompt`.
@@ -212,5 +272,3 @@ export class TranslateService {
     return { uniqueModelId, content, model }
   }
 }
-
-export const translateService = new TranslateService()

@@ -42,7 +42,8 @@ vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
 }))
 
 const { makeModel } = await import('../../../ai/__tests__/fixtures')
-const { translateService } = await import('../translateService')
+const { TranslateService } = await import('../translateService')
+const translateService = new TranslateService()
 
 const TARGET: TranslateLanguage = {
   langCode: 'en-us',
