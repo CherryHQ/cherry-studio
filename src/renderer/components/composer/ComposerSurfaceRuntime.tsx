@@ -1271,7 +1271,7 @@ export default function ComposerSurfaceRuntime({
           }
 
           openUnifiedComposerPanel({
-            inputAdapter: createComposerInputAdapter(editor),
+            inputAdapter: createComposerInputAdapter(editor, () => editableRef.current),
             queryAnchor,
             requestRootPanelOpen: false,
             triggerInfo
@@ -1899,7 +1899,7 @@ export default function ComposerSurfaceRuntime({
     if (!editor) return undefined
 
     return {
-      ...createComposerInputAdapter(editor),
+      ...createComposerInputAdapter(editor, () => editableRef.current),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
         return () => {

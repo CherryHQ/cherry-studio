@@ -1,4 +1,4 @@
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -1432,6 +1432,35 @@ describe('ComposerSurface', () => {
 
     expect(mocks.setContent).not.toHaveBeenCalled()
     expect(onTextChange).not.toHaveBeenCalled()
+  })
+
+  it('blocks writes through a retained input adapter after the composer becomes read-only', async () => {
+    mocks.stabilizeEditor = true
+    let retainedAdapter: QuickPanelInputAdapter | undefined
+    const renderLeftControls: NonNullable<ComposerSurfaceProps['renderLeftControls']> = (inputAdapter) => {
+      retainedAdapter ??= inputAdapter
+      return null
+    }
+    const renderSurface = (editable: boolean) => (
+      <ComposerSurface {...baseProps} editable={editable} renderLeftControls={renderLeftControls} />
+    )
+    const view = render(renderSurface(true))
+
+    await waitFor(() => expect(retainedAdapter).toBeDefined())
+    view.rerender(renderSurface(false))
+    mocks.insertContent.mockClear()
+    mocks.insertComposerToken.mockClear()
+    mocks.focus.mockClear()
+
+    act(() => {
+      retainedAdapter?.insertText('late prompt')
+      retainedAdapter?.insertToken?.({ id: 'late-resource', kind: 'mcpResource' })
+      retainedAdapter?.focus()
+    })
+
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(mocks.insertComposerToken).not.toHaveBeenCalled()
+    expect(mocks.focus).not.toHaveBeenCalled()
   })
 
   it('replaces same-text token content when an external draft replacement is requested', async () => {
