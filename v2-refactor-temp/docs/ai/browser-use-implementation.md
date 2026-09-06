@@ -18,7 +18,7 @@ Read the design doc first. This document does not repeat the rationale; it fixes
 | Input execution | Real `Input.*` events with a JS fallback when the hit-test says the point is occluded | What every mature project converged on |
 | WebMCP polyfill | Installed via `Page.addScriptToEvaluateOnNewDocument`, **not** via preload | Hidden MCP tabs have `preload: ''`; one mechanism covers both hidden tabs and `<webview>` guests. Preload injection stays a P3 option for guests the engine attaches to lazily |
 | CDP surface | Explicit allow-list in `cdpAllowList.ts`; `GuestSession.send()` rejects anything else | Reviewable security boundary; `execute` stays the escape hatch |
-| Session ownership | Registry keyed by `webContents.id`; owners (`mcp:<serverId>`, later `agent:<sessionId>`) acquire/release; retention marks per tab | Per-connection controllers are the leak |
+| Session ownership | Registry keyed by `webContents.id`; every session is `managed` (engine-created hidden tab) or `borrowed` (someone else's page, debugger only); owners acquire/release; retention marks per managed tab | Per-connection controllers are the leak |
 | Existing tools | `open`, `execute`, `screenshot`, `list_tabs`, `switch_tab`, `close_tab`, `reset` keep their names and input schemas; `snapshot` keeps its name but changes output | No prompt churn for the tools that already work |
 
 ## 2. Module layout
@@ -140,30 +140,50 @@ MCP `inputSchema` JSON next to the zod schema that parses `args`. The zod schema
 @Injectable('BrowserSessionService')
 @ServicePhase(Phase.WhenReady)
 export class BrowserSessionService extends BaseService {
-  acquire(guest: WebContents, owner: string): GuestSession   // creates or refcounts; throws when over budget
+  acquire(guest: WebContents, owner: string, opts: { ownership: 'managed'; close: () => void } | { ownership: 'borrowed' }): GuestSession
+                                                              // creates or refcounts; a guest keeps the ownership it was created with; managed acquire throws when over budget
   get(webContentsId: number): GuestSession | undefined
-  release(guest: WebContents, owner: string): void            // refcount → 0 keeps the session until sweep
-  endTurn(owner: string): void                                // closes `temporary` tabs of that owner, clears marks
+  release(guest: WebContents, owner: string): void            // managed: refcount → 0 keeps the session until sweep; borrowed: refcount → 0 detaches the debugger and drops the session
+  endTurn(owner: string): void                                // closes that owner's `temporary` managed tabs, clears marks; see "Turn boundary" below
   onStart(): registerInterval(sweep, 60_000)
   onStop(): dispose every session
 }
 ```
 
-Budget constants (in `BrowserSessionService.ts`, not configurable):
+**Ownership contract.** `managed` sessions are hidden tabs the engine created (the MCP controller
+passes its close callback). `borrowed` sessions wrap a `webContents` someone else owns: the agent
+browser pane, an annotated `<webview>`, later a user tab. For a borrowed session the registry may
+only attach and detach the debugger. It never closes, freezes, evicts or budget-counts the page, has
+no `close` callback to call, and `retention` is not applicable. `annotationExport` (§6) always acquires
+as `borrowed`. If the same `webContents` is acquired with a different ownership than it was created
+with, `acquire` throws — ownership is a property of the page, not of the caller.
+
+**Turn boundary.** The MCP runtime caches one client per server configuration for the app lifetime
+(`McpRuntimeService.clients`) and `callToolById(toolId, params, callId)` carries no agent-session
+identity, so today the engine cannot tell which session or turn a tool call belongs to. Until that
+changes, `owner` is one value per MCP server instance (`mcp:<uuid>`) and `endTurn` fires only when
+that server closes. Consequently `temporary` means "reclaimed by idle timeout or budget", not "closed
+at turn end". Real turn scoping needs an upstream change first: the agent runtime passes the session id
+into MCP tool calls and emits a turn-ended event (the natural hook is
+`AgentSessionRuntimeService.handleAutonomousGenerationFinished`). That is a separate decision and PR;
+C4 does not pretend to deliver it.
+
+Budget constants (in `BrowserSessionService.ts`, not configurable; managed sessions only):
 
 | Constant | Value | Applies to |
 |---|---|---|
 | `MAX_GUESTS_PER_OWNER` | 4 | `acquire` throws `budget_exceeded` after evicting that owner's oldest `temporary` tab |
 | `MAX_GUESTS_GLOBAL` | 8 | same, across owners, `temporary` before `handoff`, never `deliverable` |
-| `TEMPORARY_IDLE_MS` | 5 min | sweep closes the tab (`webContents.close()` via the owning controller callback) |
-| `RETAINED_IDLE_MS` | 2 min | sweep freezes: `setBackgroundThrottling(true)`, `Page.setWebLifecycleState({state:'frozen'})`, `debugger.detach()` |
+| `TEMPORARY_IDLE_MS` | 5 min | sweep calls the managed session's `close` callback |
+| `RETAINED_IDLE_MS` | 2 min | sweep freezes managed `deliverable` / `handoff` sessions: `setBackgroundThrottling(true)`, `Page.setWebLifecycleState({state:'frozen'})`, `debugger.detach()` |
 
 `GuestSession` (one per `webContents.id`):
 
 ```ts
 export class GuestSession {
   readonly guest: WebContents
-  retention: TabRetention = 'temporary'
+  readonly ownership: 'managed' | 'borrowed'
+  retention: TabRetention = 'temporary'                     // managed only
   lastActive: number
 
   // debugger
@@ -173,7 +193,7 @@ export class GuestSession {
 
   // document + refs
   readonly documentId: string                             // main-frame loaderId; regenerated on Page.frameNavigated
-  resolveRef(ref: BrowserRef): number                     // backendNodeId or throws `stale_ref` when documentId changed
+  resolveRef(ref: BrowserRef): number                     // backendNodeId; throws `stale_ref` when the ref's documentId ≠ current or the ref is unknown
   snapshot(opts): Promise<{ text: string; snapshot: BrowserSnapshot }>
   describeElement(selector: string): Promise<AccessibilityCapture>   // used by annotationExport (§6)
 
@@ -200,8 +220,23 @@ until the next `send`). Downloads: `guest.session.on('will-download')` filtered 
 `cdpAllowList.ts` enumerates exactly the methods named in §4–§5 plus `Emulation.setFocusEmulationEnabled`
 (§10); adding a method is a reviewed one-line change.
 
-`send()` while `pendingDialog` is set returns `dialog_open` for every method except
-`Page.handleJavaScriptDialog`; this is what stops `execute` from hanging.
+**Dialog contract.** Two cases, both handled in `send()`:
+
+1. A dialog is already pending: every method except `Page.handleJavaScriptDialog` returns
+   `dialog_open` immediately.
+2. The in-flight command itself opens the dialog (`execute` running `alert()`, a `click` whose handler
+   calls `confirm()`, a navigation hitting `beforeunload`): the renderer's JS thread is blocked and the
+   CDP reply will never arrive. `send()` therefore races every in-flight command against
+   `Page.javascriptDialogOpening`; when the event fires, the command settles right away with
+   `{ ok: false, error: 'dialog_open', dialog }` and control returns to the model. The underlying CDP
+   promise stays pending in the background and its eventual result is discarded. The settle loop
+   (§5.6) is interrupted by the same event. After `handle_dialog`, the blocked command completes inside
+   the renderer on its own; nothing is replayed.
+
+A dialog left pending for `DIALOG_TIMEOUT_MS` (60 s) is dismissed by the watchdog and reported in the
+next result, so a hidden window can never sit behind an invisible modal. §9 case 4 must also confirm
+that no native sheet appears on the hidden window while a dialog is pending; if one does, the timeout
+becomes the primary policy and the model only sees the reported dialog.
 
 ## 5. Algorithms
 
@@ -215,7 +250,7 @@ until the next `send`). Downloads: `guest.session.on('will-download')` filtered 
    - keep a node if interactive, or role ∈ {heading, text, StaticText, img, listitem, cell, row} with a non-empty name;
    - drop `ignored` AX nodes and generic containers with exactly one kept child (re-parent);
    - viewport filter: keep when `rect.y ∈ [scrollY − 1000, scrollY + h + 1000]`, mark `inViewport` when inside the actual viewport; nodes outside the band are counted, not emitted;
-   - refs: interactive nodes get `e<n>` from the session's ref map (`backendNodeId → ref`, per `documentId`, monotonic so a re-snapshot keeps existing refs).
+   - refs: interactive nodes get `e<n>` from the session's ref map. The counter is per `GuestSession` and never resets, not even on navigation, so a ref from an earlier document can never name an element in a later one. Each entry records `{ backendNodeId, documentId }`; a re-snapshot of the same document keeps existing refs, a new document allocates fresh numbers. `resolveRef` returns `stale_ref` when the entry's `documentId` differs from the current one or the ref is unknown; it never re-resolves across documents.
 3. `serializeSnapshot`: one node per line, two spaces per depth:
    `[e12] button "Submit" (disabled)` / `heading "Pricing" (level=2)` / `[e13] link "Docs" (href=/docs)`; textbox values as `value="…"` truncated at 80 chars. Header line `url · title · N interactive / M total`. Cap 40 000 chars, closing with `… (K more nodes below; use scroll, scope, or find)`.
 4. `diffSnapshot`: key each line by `backendNodeId`. Output = header + lines that are new (prefixed `*`) or whose text changed, plus `- N nodes removed`. Fall back to the full text when more than 60 % of the lines changed or the `documentId` differs. Unchanged snapshot → `(no change)`.
@@ -255,7 +290,7 @@ Main-world script, idempotent, installs `navigator.modelContext` when absent:
 `isAttached()` check). Replace with:
 
 ```ts
-const session = application.get('BrowserSessionService').acquire(guest, `annotation:${webviewId}`)
+const session = application.get('BrowserSessionService').acquire(guest, `annotation:${webviewId}`, { ownership: 'borrowed' })
 try {
   return await session.describeElement(annotation.locator.selector)   // Runtime.evaluate → DOM.describeNode → Accessibility.getAXNodeAndAncestors / getChildAXNodes
 } finally {
@@ -306,15 +341,15 @@ lints and passes the listed tests on its own; conventional-commit scopes are the
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
-| C1 | `feat(browser-mcp): recover stale refs by role and name` | `GuestSession.resolveRef` fallback via `Accessibility.queryAXTree` | `GuestSession.test.ts` stale-ref cases |
+| C1 | `feat(browser-mcp): recover re-rendered refs by role and name` | `GuestSession.resolveRef` fallback via `Accessibility.queryAXTree`, only when the ref's `documentId` equals the current one and its `backendNodeId` no longer resolves (SPA re-render); cross-document refs stay `stale_ref` | `GuestSession.test.ts`: same-document re-render recovers, cross-document with an identical role+name does not |
 | C2 | `feat(browser-mcp): add find, console_messages and network_requests` | `tools/inspect.ts`, ring buffers in `GuestSession` | `inspect.test.ts` |
 | C3 | `feat(browser-mcp): inject the WebMCP polyfill and expose page tools` | `src/shared/utils/webMcpPolyfill.ts`, `tools/webMcp.ts` | `webMcpPolyfill.test.ts` (jsdom), `webMcp.test.ts` |
-| C4 | `feat(browser-session): retain tabs per turn and freeze idle sessions` | `BrowserSessionService` sweep + `mark_tab` tool | `BrowserSessionService.test.ts` freeze/evict cases |
+| C4 | `feat(browser-session): reclaim idle managed tabs and freeze retained ones` | `BrowserSessionService` sweep + `mark_tab` tool; retention marks change eviction order and freeze eligibility only, no turn scoping (§4 "Turn boundary") | `BrowserSessionService.test.ts` freeze/evict cases |
 | C5 | `refactor(browser-mcp): replace BrowserView tabs with WebContentsView` | `controller.ts`, `types.ts`, `tabbarHtml.ts` | existing controller tests; manual (§9) |
 
-Deferred (tracked as follow-ups, not in these PRs): explicit `endTurn` from the agent runtime
-(today it fires on MCP disconnect only), per-origin CDP policy, the `<webview>` pane as an engine
-target (P3).
+Deferred (tracked as follow-ups, not in these PRs): the upstream turn signal (agent session id on
+MCP tool calls + a turn-ended event, §4 "Turn boundary") without which `temporary` cannot mean
+per-turn; per-origin CDP policy; the `<webview>` pane as an engine target (P3).
 
 ## 8. Automated test plan
 
@@ -344,8 +379,10 @@ same pattern as today's `servers/__tests__/browser.test.ts`):
 
 - attaches once across many `send` calls; `attach` throwing → `isAvailable() === false` and `send` rejects `debugger_unavailable`;
 - `send('Target.createTarget')` rejects `not_allowed` without touching the debugger;
-- `Page.frameNavigated` for the main frame changes `documentId`, `resolveRef` of an old ref throws `stale_ref`; a sub-frame navigation does not;
+- `Page.frameNavigated` for the main frame changes `documentId`, `resolveRef` of an old ref throws `stale_ref`; a sub-frame navigation does not; after navigation the next allocated ref is numerically higher than every ref of the previous document (no reuse);
 - `Page.javascriptDialogOpening` sets `pendingDialog`; the next `send('Runtime.evaluate')` rejects `dialog_open`; `Page.handleJavaScriptDialog` clears it;
+- an in-flight `send('Runtime.evaluate')` whose fake never replies settles with `dialog_open` as soon as `Page.javascriptDialogOpening` fires; the late reply is ignored; a pending dialog is dismissed after `DIALOG_TIMEOUT_MS` (fake timers) and reported once;
+- a `borrowed` session with refcount 0 is detached, never closed or frozen, and `acquire` with the other ownership throws;
 - `will-download` items appear once in `takeDownloads()` and are then gone;
 - `debugger` `detach` event (DevTools opened) flips `isAvailable()`; the next `send` re-attaches when possible.
 
@@ -366,10 +403,10 @@ same pattern as today's `servers/__tests__/browser.test.ts`):
 
 `BrowserSessionService.test.ts` (use `tests/__mocks__` `application` mock, `registerInterval` from `BaseService`):
 
-- `acquire` returns the same session for the same `webContents.id`; refcount survives one `release`;
+- `acquire` returns the same session for the same `webContents.id`; refcount survives one `release`; a `borrowed` session is not counted against either budget and is skipped by the sweep;
 - fifth `acquire` for one owner evicts that owner's oldest `temporary` session first and never a `deliverable` one; ninth global `acquire` with only `deliverable` sessions throws `budget_exceeded`;
 - sweep after `TEMPORARY_IDLE_MS` closes temporary sessions, after `RETAINED_IDLE_MS` freezes retained ones (`setBackgroundThrottling(true)`, `Page.setWebLifecycleState`, `detach` in that order) and `thaw` on the next `send`;
-- `endTurn(owner)` closes only that owner's temporary tabs and resets marks.
+- `endTurn(owner)` closes only that owner's temporary managed tabs and resets marks; borrowed sessions of the same owner are untouched.
 
 `annotationExport.test.ts` (existing): add the case "engine already attached → export still returns AX context"; delete the case that asserted `debugger_unavailable` on a pre-attached debugger.
 
