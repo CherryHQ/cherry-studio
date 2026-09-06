@@ -286,10 +286,12 @@ export function resolveFlowToolCallId(
  */
 function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
-  if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]{16,})/.exec(output)?.[1]
+  // The trailer explicitly names the id, so any length is legitimate (short ids / task ids are
+  // not a reason to drop the launch identity; the round-split gate compares exact equality).
+  if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
   if (isRecord(output)) {
     const direct = output.agentId ?? output.agent_id
-    return typeof direct === 'string' && direct.length >= 16 ? direct : undefined
+    return typeof direct === 'string' && direct.length > 0 ? direct : undefined
   }
   return undefined
 }
