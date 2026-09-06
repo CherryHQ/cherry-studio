@@ -18,7 +18,10 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({})
 })
-vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
+  net: { fetch: vi.fn() }
+}))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: async () => ({ PATH: '/shell/bin' }),
   getRawShellEnv: async () => ({ PATH: '/shell/bin' }),
@@ -155,9 +158,11 @@ describe('createTransport', () => {
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
     const pathValue = transport.params.env.PATH as string
     // User PATH entries must stay before Cherry fallbacks (load-bearing order).
-    expect(pathValue.split(/[:;]/)[0]).toBe('/shell/bin')
-    expect(pathValue).toContain('/mock/feature.binary.data/shims')
-    expect(pathValue.indexOf('/shell/bin')).toBeLessThan(pathValue.indexOf('/mock/feature.binary.data'))
+    // Normalize backslashes for Windows so the assertion is platform-agnostic.
+    const normalizedPath = pathValue.replace(/\\/g, '/')
+    expect(normalizedPath.split(/[:;]/)[0]).toBe('/shell/bin')
+    expect(normalizedPath).toContain('/mock/feature.binary.data/shims')
+    expect(normalizedPath.indexOf('/shell/bin')).toBeLessThan(normalizedPath.indexOf('/mock/feature.binary.data'))
     expect(transport.params.stderr).toBe('pipe')
   })
 
