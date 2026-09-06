@@ -311,7 +311,9 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
     // send-back instruction that follows the id on every real receipt.
     if (!/Async agent launched successfully|\(internal|Use SendMessage with to/.test(output)) return undefined
-    return /\bagent_?[Ii]d\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
+    // Older receipts name the id `Internal id:` before `output_file`; the id spellings share
+    // the same trailer grammar, so extract them all through one regex.
+    return /\b(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
   }
   if (isRecord(output)) {
     // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools).
