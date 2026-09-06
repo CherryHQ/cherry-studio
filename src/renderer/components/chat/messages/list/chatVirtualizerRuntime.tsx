@@ -32,12 +32,12 @@ import {
   useRef,
   useState
 } from 'react'
-import type { VListHandle } from 'virtua'
+import type { CacheSnapshot, VListHandle } from 'virtua'
 
 import { getDistanceToBottom, getRealBottom, isMoreThanOneViewportFromBottom } from './scrollGeometry'
 import { clampForwardedWheelDelta, findOutermostVerticalScrollContainer } from './ScrollOwnershipContext'
 import { useAutoStickToBottom } from './useAutoStickToBottom'
-import { useScrollPositionMemory } from './useScrollPositionMemory'
+import { readScrollSizes, useScrollPositionMemory } from './useScrollPositionMemory'
 import { useSmoothScrollAnimation } from './useSmoothScrollAnimation'
 import { type FollowingReason, type ReadingReason, useViewportFollowState } from './useViewportFollowState'
 
@@ -122,6 +122,8 @@ export interface ChatVirtualizerRuntime<T> {
   wrappedRenderItem(item: WrappedItem<T>, index: number): ReactElement
   /** True only for the render where older items were prepended. */
   shift: boolean
+  /** Heights measured on a previous mount of this topic; virtua reads it once. */
+  restoredSizeCache: CacheSnapshot | undefined
   keepMounted: readonly number[]
   scrollerProps: ScrollerEventHandlers
   isScrollToBottomButtonVisible: boolean
@@ -716,6 +718,13 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- per-topic scroll position memory -------------------------------
 
+  // virtua takes a size cache at mount only, so this resolves on the first
+  // render that has items — an earlier empty render would mount without it.
+  const restoredSizeCacheRef = useRef<CacheSnapshot | undefined>(undefined)
+  if (!restoredSizeCacheRef.current && dataKeys.length > 0) {
+    restoredSizeCacheRef.current = readScrollSizes(topicId, dataKeys)
+  }
+
   const { save: saveScrollPosition } = useScrollPositionMemory({
     topicId,
     itemCount: items.length,
@@ -1194,6 +1203,7 @@ export function useChatVirtualizerRuntime<T>({
     wrappedItems,
     wrappedRenderItem: wrappedRenderItem as ChatVirtualizerRuntime<T>['wrappedRenderItem'],
     shift,
+    restoredSizeCache: restoredSizeCacheRef.current,
     keepMounted,
     scrollerProps,
     isScrollToBottomButtonVisible,

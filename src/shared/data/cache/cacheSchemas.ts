@@ -131,6 +131,8 @@ export type UseCacheSchema = {
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
+  // Measured message heights, so a remount does not re-estimate the whole list.
+  'chat.scroll_sizes.${topicId}': CacheValueTypes.ChatScrollSizes | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -225,6 +227,7 @@ export const DefaultUseCache: UseCacheSchema = {
     modelMultiSelectMode: false
   },
   'chat.scroll_anchor.${topicId}': null,
+  'chat.scroll_sizes.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
