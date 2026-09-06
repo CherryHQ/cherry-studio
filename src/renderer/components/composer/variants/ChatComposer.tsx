@@ -24,6 +24,11 @@ import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/compo
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import {
+  ModelSpeedControl,
+  resolveSupportedReasoningEffort,
+  resolveSupportedServiceTier
+} from '@renderer/components/ModelSpeedControl'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -52,7 +57,12 @@ import {
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import {
+  type Model,
+  type ReasoningSummary,
+  type ServiceTierSelection,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -89,11 +99,6 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import {
-  ComposerSpeedControl,
-  resolveComposerReasoningEffort,
-  resolveComposerServiceTier
-} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -522,7 +527,8 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -548,7 +554,7 @@ const ChatComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -1359,7 +1365,7 @@ const ChatComposerInner = ({
   )
 
   const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {
-    const items = [customizePanelItem]
+    const items: QuickPanelListItem[] = []
     if (!chatWrite || pinnedToolIds.includes(CHAT_CLEAR_CONTEXT_TOOL_ID)) return items
 
     const label = t('chat.input.new.context')
@@ -1373,7 +1379,11 @@ const ChatComposerInner = ({
       action: () => void handleStartNewContext()
     })
     return items
-  }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
+  }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1416,13 +1426,13 @@ const ChatComposerInner = ({
             : undefined,
           reasoningEffort:
             assistantId && speedControlModel
-              ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+              ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
               : assistantId
                 ? reasoningEffort
                 : 'default',
           serviceTier:
             assistantId && speedControlModel
-              ? resolveComposerServiceTier(speedControlModel, serviceTier)
+              ? resolveSupportedServiceTier(speedControlModel, serviceTier)
               : assistantId
                 ? serviceTier
                 : 'standard',
@@ -1634,13 +1644,13 @@ const ChatComposerInner = ({
             : {
                 reasoningEffort:
                   assistantId && speedControlModel
-                    ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                    ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
                     : assistantId
                       ? reasoningEffort
                       : 'default',
                 serviceTier:
                   assistantId && speedControlModel
-                    ? resolveComposerServiceTier(speedControlModel, serviceTier)
+                    ? resolveSupportedServiceTier(speedControlModel, serviceTier)
                     : assistantId
                       ? serviceTier
                       : 'standard',
@@ -1833,7 +1843,7 @@ const ChatComposerInner = ({
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
       {speedControlModel ? (
-        <ComposerSpeedControl
+        <ModelSpeedControl
           model={speedControlModel}
           reasoningEffort={reasoningEffort}
           reasoningSummary={assistant?.settings.reasoning_summary}
@@ -1860,6 +1870,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          showAiDisclaimer
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}

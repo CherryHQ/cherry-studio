@@ -33,7 +33,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/services/PyodideService', () => ({
@@ -276,5 +277,18 @@ describe('CodeBlockView', () => {
     )
 
     expect(screen.getByLabelText('Code viewer')).toHaveAttribute('data-wrapped', 'false')
+  })
+
+  it('keeps passive tools while suppressing Python execution when execution is not allowed', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.execution.enabled', true)
+
+    render(
+      <CodeBlockView language="python" editable={false} allowExecution={false}>
+        print(42)
+      </CodeBlockView>
+    )
+
+    expect(screen.getByRole('button', { name: 'code_block.copy.source' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code_block.run' })).not.toBeInTheDocument()
   })
 })

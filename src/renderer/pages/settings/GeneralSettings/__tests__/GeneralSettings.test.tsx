@@ -1,6 +1,6 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import GeneralSettings from '../GeneralSettings'
@@ -22,6 +22,10 @@ vi.mock('@renderer/components/Selector', () => ({
   default: () => null
 }))
 
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
+
 vi.mock('../ContextManagementSettings', () => ({
   ContextManagementSettings: () => (
     <section>
@@ -32,8 +36,13 @@ vi.mock('../ContextManagementSettings', () => ({
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
+  SettingDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   SettingGroup: ({ children }: { children: ReactNode }) => <section>{children}</section>,
-  SettingRow: ({ children }: { children: ReactNode }) => <div data-testid="setting-row">{children}</div>,
+  SettingRow: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div data-testid="setting-row" {...props}>
+      {children}
+    </div>
+  ),
   SettingRowTitle: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   SettingsContentColumn: ({ children }: { children: ReactNode }) => <main>{children}</main>,
   SettingTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>
@@ -48,11 +57,33 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   Flex: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   InfoTooltip: () => null,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Switch: ({ checked, onCheckedChange }: { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)}>
+  InputNumber: ({
+    onBlur,
+    ...props
+  }: Omit<InputHTMLAttributes<HTMLInputElement>, 'onBlur'> & { onBlur?: (value: number | null) => void }) => (
+    <input
+      {...props}
+      readOnly
+      onBlur={(event) => onBlur?.(event.currentTarget.value === '' ? null : Number(event.currentTarget.value))}
+    />
+  ),
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)} {...props}>
       switch
     </button>
   )
@@ -78,6 +109,27 @@ describe('GeneralSettings', () => {
       'settings.models.context_management.title',
       'settings.developer.title'
     ])
+  })
+
+  it('renders model retry settings in General and persists changes', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.max_attempts': 3,
+      'chat.retry.backoff_enabled': true,
+      'chat.retry.fallback_model_ids': ['openai::gpt-4o']
+    })
+
+    render(<GeneralSettings />)
+
+    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue('3')
+    expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
+    expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.enabled')).toBe(false)
+    })
   })
 
   it('turns off every tray-dependent preference when the tray is disabled', async () => {

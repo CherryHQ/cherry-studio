@@ -1,6 +1,8 @@
 const fs = require('fs')
 const path = require('path')
 
+const { getReleaseProductName } = require('./release/edition')
+
 const PLATFORM_PREFIXES = {
   linux: 'linux',
   mac: 'mac',
@@ -15,9 +17,10 @@ const ARCH_ALIASES = {
   x86_64: 'x64'
 }
 
-function normalizeArtifactFilePath(file, productName, version, platform) {
+function normalizeArtifactFilePath(file, productName, version, platform, releaseProductName = productName) {
   const normalizedFileName = path.basename(file).replace(/ /g, '-')
   const normalizedProductName = productName.replace(/ /g, '-')
+  const normalizedReleaseProductName = releaseProductName.replace(/ /g, '-')
   const productVersionPrefix = `${normalizedProductName}-${version}-`
   const platformPrefix = PLATFORM_PREFIXES[platform]
 
@@ -36,30 +39,28 @@ function normalizeArtifactFilePath(file, productName, version, platform) {
     artifactSuffix = `${ARCH_ALIASES[archMatch[1]]}${artifactSuffix.slice(archMatch[1].length)}`
   }
 
-  return path.join(path.dirname(file), `${productVersionPrefix}${platformPrefix}-${artifactSuffix}`)
+  return path.join(path.dirname(file), `${normalizedReleaseProductName}-${version}-${platformPrefix}-${artifactSuffix}`)
 }
 
 function artifactBuildCompleted(buildResult) {
-  try {
-    const oldFilePath = buildResult.file
-    const newFilePath = normalizeArtifactFilePath(
-      oldFilePath,
-      buildResult.packager.appInfo.productName,
-      buildResult.packager.appInfo.version,
-      buildResult.packager.platform.name
-    )
+  const oldFilePath = buildResult.file
+  const edition = buildResult.packager.config.extraMetadata?.cherryEdition ?? 'global'
+  const newFilePath = normalizeArtifactFilePath(
+    oldFilePath,
+    buildResult.packager.appInfo.productName,
+    buildResult.packager.appInfo.version,
+    buildResult.packager.platform.name,
+    getReleaseProductName(buildResult.packager.appInfo.productName, edition)
+  )
 
-    if (oldFilePath === newFilePath) return
+  if (oldFilePath === newFilePath) return
 
-    fs.renameSync(oldFilePath, newFilePath)
-    buildResult.file = newFilePath
-    if (buildResult.safeArtifactName != null) {
-      buildResult.safeArtifactName = path.basename(newFilePath)
-    }
-    console.log(`[artifact build completed] renamed ${oldFilePath} to ${newFilePath}`)
-  } catch (error) {
-    console.error('Error renaming file:', error)
+  fs.renameSync(oldFilePath, newFilePath)
+  buildResult.file = newFilePath
+  if (buildResult.safeArtifactName != null) {
+    buildResult.safeArtifactName = path.basename(newFilePath)
   }
+  console.log(`[artifact build completed] renamed ${oldFilePath} to ${newFilePath}`)
 }
 
 exports.ARCH_ALIASES = ARCH_ALIASES
