@@ -40,6 +40,8 @@ export interface AssistantFormState {
   maxTokens: number
   enableMaxTokens: boolean
   streamOutput: boolean
+  enableRuntimeContext: boolean
+  runtimeContextPrompt: string
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
@@ -88,6 +90,8 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxTokens: maxTokens.success ? maxTokens.data : UI_DEFAULT_MAX_TOKENS,
     enableMaxTokens: settings.enableMaxTokens ?? false,
     streamOutput: settings.streamOutput ?? true,
+    enableRuntimeContext: settings.enableRuntimeContext ?? false,
+    runtimeContextPrompt: settings.runtimeContextPrompt ?? '',
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
@@ -166,6 +170,12 @@ export function diffAssistantUpdate(
     ...(maxTokensChanged || (enableMaxTokensChanged && form.enableMaxTokens) ? { maxTokens: form.maxTokens } : {}),
     ...(enableMaxTokensChanged ? { enableMaxTokens: form.enableMaxTokens } : {}),
     ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
+    ...(baseline.enableRuntimeContext !== form.enableRuntimeContext
+      ? { enableRuntimeContext: form.enableRuntimeContext }
+      : {}),
+    ...(baseline.runtimeContextPrompt !== form.runtimeContextPrompt
+      ? { runtimeContextPrompt: form.runtimeContextPrompt }
+      : {}),
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),

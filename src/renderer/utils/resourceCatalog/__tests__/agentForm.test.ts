@@ -61,6 +61,8 @@ describe('buildInitialAgentFormState', () => {
       configuration: {
         avatar: '🚀',
         permission_mode: 'bypassPermissions',
+        runtime_context_enabled: true,
+        runtime_context_prompt: 'Custom runtime context',
         heartbeat_enabled: true,
         heartbeat_interval: 15,
         env_vars: {
@@ -72,6 +74,8 @@ describe('buildInitialAgentFormState', () => {
     const state = buildInitialAgentFormState(agent)
     expect(state.avatar).toBe('🚀')
     expect(state.permissionMode).toBe('bypassPermissions')
+    expect(state.runtimeContextEnabled).toBe(true)
+    expect(state.runtimeContextPrompt).toBe('Custom runtime context')
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(15)
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
@@ -82,6 +86,12 @@ describe('buildInitialAgentFormState', () => {
 
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(30)
+  })
+
+  it('keeps runtime context disabled when a legacy Agent omits the configuration key', () => {
+    const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
+
+    expect(state.runtimeContextEnabled).toBe(false)
   })
 })
 
@@ -250,6 +260,24 @@ describe('diffAgentUpdate', () => {
     const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
+    })
+  })
+
+  it('persists runtime context in agent configuration', () => {
+    const agent = createAgent({ configuration: { plugin_state: 'keep-me' } })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = {
+      ...baseline,
+      runtimeContextEnabled: true,
+      runtimeContextPrompt: 'Custom runtime context'
+    }
+
+    const result = diffAgentUpdate(baseline, next)
+
+    expect(result?.dto.configuration).toEqual({
+      runtime_context_enabled: true,
+      runtime_context_prompt: 'Custom runtime context',
+      max_turns: undefined
     })
   })
 })

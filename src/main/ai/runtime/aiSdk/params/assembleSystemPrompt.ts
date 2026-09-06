@@ -2,7 +2,7 @@
  * TODO：distinguish static and dynamic system prompt and xml-based user prompt
  */
 
-import { replacePromptVariables } from '@main/utils/prompt'
+import { buildRuntimeContextPrompt, buildWebSearchDateContext, replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -38,6 +38,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
     if (resolved) sections.push(resolved)
   }
 
+  if (assistant?.settings?.enableRuntimeContext) {
+    sections.push(await buildRuntimeContextPrompt(model.name, assistant.settings.runtimeContextPrompt))
+  }
+
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {
     sections.push(getDeferredToolsSystemPrompt(deferredEntries))
   }
@@ -59,9 +63,4 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   return sections.join('\n\n')
 }
 
-export function buildWebSearchDateContext(now: Date): string {
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `<current-date>${year}-${month}-${day}</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.`
-}
+export { buildWebSearchDateContext }

@@ -33,7 +33,8 @@ const runtimeMocks = vi.hoisted(() => ({
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  resolveAgentTurnContextPrompt: vi.fn().mockResolvedValue(undefined)
 }))
 
 const baseSnapshot = () => ({
@@ -155,12 +156,12 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({
-  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
+  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' }),
+  captureAgentRuntimeContextSnapshot: vi.fn(() => undefined),
+  resolveAgentTurnContextPrompt: runtimeMocks.resolveAgentTurnContextPrompt
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
-vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
-
 const { DshBridgeServer } = await import('../DshBridgeServer')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
 
@@ -191,6 +192,7 @@ beforeEach(() => {
     SECRET: 'do-not-forward'
   })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.resolveAgentTurnContextPrompt.mockReset().mockResolvedValue(undefined)
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
   vi.mocked(DshBridgeServer).mockClear()
@@ -263,6 +265,24 @@ describe('DshRuntimeConnection tracing', () => {
 
     expect(spans.map((span) => span.name)).toEqual(['dsh.generate_content'])
     expect(spans[0].options.attributes).toMatchObject({ 'cs.agent_turn_id': 'turn-1' })
+    await connection.close()
+  })
+
+  it('appends resolved runtime context to the user prompt sent to DSH', async () => {
+    runtimeMocks.resolveAgentTurnContextPrompt.mockResolvedValueOnce('Resolved runtime context')
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    runtimeMocks.bridgeRequest.mockClear()
+
+    await connection.send({
+      message: { id: 'message-1', data: { parts: [{ type: 'text', text: 'Hello' }] } }
+    } as never)
+
+    expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('session/prompt', {
+      sessionId: 'session-1',
+      contentBlocks: [
+        { type: 'text', text: 'Hello\n\n<system-reminder>\nResolved runtime context\n</system-reminder>' }
+      ]
+    })
     await connection.close()
   })
 

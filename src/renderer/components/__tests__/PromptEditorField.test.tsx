@@ -193,6 +193,24 @@ describe('PromptEditorField', () => {
     expect(editorFrame).toHaveClass('flex-col', 'border-border')
   })
 
+  it('renders editor actions inside the editor frame', () => {
+    render(
+      <PromptEditorField
+        label={<span>Prompt</span>}
+        value=""
+        onChange={vi.fn()}
+        editorActions={<button type="button">Polish</button>}
+      />
+    )
+
+    const action = screen.getByRole('button', { name: 'Polish' })
+    const actionArea = action.closest('[data-slot="prompt-editor-actions"]')
+    const editorFrame = screen.getByTestId('editor-empty-area').parentElement
+
+    expect(actionArea?.parentElement).toBe(editorFrame)
+    expect(editorFrame).toHaveClass('relative')
+  })
+
   // Regression guard for #18377: the prompt preview container must carry the
   // `prompt-preview` scope class so the scoped CSS rule can restore visible
   // line breaks (global `.markdown p { white-space: normal }` collapses soft

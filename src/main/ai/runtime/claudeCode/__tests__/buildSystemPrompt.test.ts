@@ -97,6 +97,7 @@ vi.mock('@main/utils/prompt', () => ({
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
+const RUNTIME_CONTEXT_MARKER = '## Runtime Context'
 const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
@@ -367,6 +368,33 @@ describe('buildSystemPrompt — runtime/CLI handbook', () => {
 
     expect(result).not.toContain('## Managed CLI Installation')
     expect(result).not.toContain('## Available Runtimes')
+  })
+})
+
+describe('buildSystemPrompt — runtime context', () => {
+  it('keeps runtime context out of the connection-level system prompt when enabled', async () => {
+    const result = promptText(
+      await buildSystemPrompt(
+        makeAgent({
+          instructions: 'Do the task.',
+          modelName: 'Claude Sonnet',
+          configuration: {
+            runtime_context_enabled: true,
+            runtime_context_prompt: 'Active model: {{model_name}}'
+          }
+        }),
+        '/tmp/cwd'
+      )
+    )
+
+    expect(result).not.toContain(RUNTIME_CONTEXT_MARKER)
+    expect(result).not.toContain('Active model: Claude Sonnet')
+  })
+
+  it('does not append current environment details by default', async () => {
+    const result = promptText(await buildSystemPrompt(makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd'))
+
+    expect(result).not.toContain(RUNTIME_CONTEXT_MARKER)
   })
 })
 
