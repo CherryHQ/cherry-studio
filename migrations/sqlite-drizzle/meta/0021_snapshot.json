@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1f08c8d4-d4a1-44ab-a61c-3f9227901a34",
+  "id": "28be0439-e392-46ad-92b7-6d4e02205e42",
   "prevId": "5aa247ef-31a6-45ca-bbce-f6f2aec894b6",
   "tables": {
     "agent": {
@@ -1560,6 +1560,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deletion_batch_id": {
+          "name": "deletion_batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "order_key": {
@@ -4791,6 +4798,13 @@
         },
         "trace_id": {
           "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deletion_batch_id": {
+          "name": "deletion_batch_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
