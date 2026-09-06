@@ -10,13 +10,7 @@ import { loggerService } from '@logger'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
-import {
-  detectLanguageOrUnknown,
-  useDetectLang,
-  useTranslate,
-  useTranslateHistory,
-  useTranslateSession
-} from '@renderer/hooks/translate'
+import { useTranslate, useTranslateHistory, useTranslateSession } from '@renderer/hooks/translate'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -220,7 +214,6 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
-  const detectLanguage = useDetectLang()
   const { add: addHistory, update: updateHistory } = useTranslateHistory({
     update: { showErrorToast: false, rethrowError: false }
   })
@@ -452,14 +445,15 @@ const TranslatePage: FC = () => {
   // nothing here reads that state — revisit if this call site ever does.
   const backfillHistorySourceLanguage = useCallback(
     (historyId: string, rawText: string) => {
-      void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
-        .then((language) => {
+      void ipcApi
+        .request('translate.detect', { text: rawText })
+        .then(({ langCode: language }) => {
           if (language === UNKNOWN_LANG_CODE) return
           return updateHistory(historyId, { sourceLanguage: language })
         })
         .catch(() => undefined)
     },
-    [detectLanguage, updateHistory]
+    [updateHistory]
   )
 
   const translateTextContent = useCallback(
@@ -477,9 +471,13 @@ const TranslatePage: FC = () => {
       if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
         setIsDetecting(true)
         try {
-          actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
-            logger.error('Failed to detect language', error as Error)
-          })
+          actualSourceLanguage = await ipcApi
+            .request('translate.detect', { text: rawText })
+            .then(({ langCode }) => langCode)
+            .catch((error: unknown) => {
+              logger.error('Failed to detect language', error as Error)
+              return UNKNOWN_LANG_CODE
+            })
           if (isCurrent && !isCurrent()) return
           setDetectedLanguage(actualSourceLanguage)
         } finally {
@@ -510,7 +508,6 @@ const TranslatePage: FC = () => {
     [
       backfillHistorySourceLanguage,
       bidirectionalPair,
-      detectLanguage,
       isBidirectional,
       isDetecting,
       isTranslating,

@@ -25,6 +25,11 @@ export const translateRequestSchemas = {
     }),
     output: z.object({ streamId: z.string() })
   }),
+  /** Detect a text's language on its own — for callers that are not running a full task. */
+  'translate.detect': defineRoute({
+    input: z.object({ text: z.string() }),
+    output: z.strictObject({ langCode: TranslateLangCodeSchema })
+  }),
   'translate.pdf.start': defineRoute({
     input: pdfJobInputSchema.extend({
       sourcePath: AbsoluteFilePathSchema,

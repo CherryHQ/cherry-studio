@@ -120,18 +120,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
-  detectLanguageOrUnknown: async (
-    text: string,
-    detectLanguage: (text: string) => Promise<string>,
-    onError: (error: unknown) => void
-  ) => {
-    try {
-      return await detectLanguage(text)
-    } catch (error) {
-      onError(error)
-      return 'unknown'
-    }
-  },
   useTranslateHistory: (options?: unknown) => {
     translateCoreMock.historyHookOptions(options)
     return { add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory }
@@ -140,10 +128,6 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
 
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => ({ tabSession: TEST_TAB_SESSION }) })
-}))
-
-vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
-  useDetectLang: () => translateCoreMock.detectLanguage
 }))
 
 vi.mock('@renderer/hooks/useDrag', () => ({
@@ -514,6 +498,11 @@ describe('TranslatePage', () => {
       if (channel === 'file_processing.start_job') return fileMock.startJob(payload)
       if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
       if (channel === 'binary.install_tool') return Promise.resolve(undefined)
+      if (channel === 'translate.detect') {
+        return translateCoreMock
+          .detectLanguage((payload as { text: string }).text)
+          .then((langCode: string) => ({ langCode }))
+      }
       return Promise.resolve(undefined)
     })
     fileMock.readExternal.mockResolvedValue('document content')

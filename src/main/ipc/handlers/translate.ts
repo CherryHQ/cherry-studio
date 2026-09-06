@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { detectLanguageOrUnknown } from '@main/services/translate/detectLanguage'
 import type { translateRequestSchemas } from '@shared/ipc/schemas/translate'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
@@ -18,6 +19,7 @@ export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> =
     if (!wc) throw new Error('translate.open requires a managed window')
     return application.get('TranslateService').open(wc, request)
   },
+  'translate.detect': async ({ text }) => ({ langCode: await detectLanguageOrUnknown(text) }),
   'translate.pdf.start': async (request, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.start requires a managed window')
     return application.get('PdfTranslationService').translate(

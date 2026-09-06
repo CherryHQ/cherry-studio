@@ -1,4 +1,3 @@
-export { detectLanguageOrUnknown, useDetectLang } from './useDetectLang'
 export type { UseTranslateOptions, UseTranslateResult } from './useTranslate'
 export { useTranslate } from './useTranslate'
 export { useTranslateHistories } from './useTranslateHistories'
