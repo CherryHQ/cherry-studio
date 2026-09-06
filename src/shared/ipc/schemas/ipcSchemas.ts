@@ -11,6 +11,7 @@ import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { type DeepSeekHarnessEventSchemas, deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
+import { doctorRequestSchemas } from './doctor'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
@@ -59,6 +60,7 @@ export const ipcRequestSchemas = {
   ...codeCliRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
+  ...doctorRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,
   ...hermesDashboardRequestSchemas,

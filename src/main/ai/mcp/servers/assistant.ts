@@ -15,11 +15,13 @@ import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } fr
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import type { DoctorRunTier } from '@shared/types/doctor'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
   diagnosticDescriptionByteLength,
   normalizeDiagnosticDescription
 } from '@shared/utils/diagnostics'
+import { projectDoctorReport } from '@shared/utils/doctor'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
 import { app } from 'electron'
@@ -101,13 +103,18 @@ const DIAGNOSE_TOOL: Tool = {
     properties: {
       action: {
         type: 'string',
-        enum: ['info', 'providers', 'health', 'logs', 'errors', 'mcp_status', 'read_source', 'config'],
+        enum: ['info', 'providers', 'health', 'doctor', 'logs', 'errors', 'mcp_status', 'read_source', 'config'],
         description:
-          'info: app version/paths/system. providers: list configured providers. health: test provider connectivity (cached 30s). logs: read recent log entries. errors: extract only ERROR/WARN entries from logs. mcp_status: check MCP server states. read_source: read a source file (read-only). config: read user settings (theme, language, proxy, default model, etc).'
+          'info: app version/paths/system. providers: list configured providers. health: layered reachability of a provider endpoint (DNS/TLS/proxy/HTTP, cached 30s). doctor: run the System Doctor checks and return the report (quick = local checks, live = quick + network probes). logs: read recent log entries. errors: extract only ERROR/WARN entries from logs. mcp_status: check MCP server states. read_source: read a source file (read-only). config: read user settings (theme, language, proxy, default model, etc).'
       },
       provider_id: {
         type: 'string',
         description: 'Provider ID for the health action'
+      },
+      tier: {
+        type: 'string',
+        enum: ['quick', 'live'],
+        description: 'Doctor tier for the doctor action (default quick)'
       },
       lines: {
         type: 'number',
@@ -280,6 +287,7 @@ const ASSISTANT_TOOLS = {
 // Health check cache: { providerId -> { result, timestamp } }
 const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
+const HEALTH_TIMEOUT_MS = 10_000
 
 class AssistantServer {
   public mcpServer: McpServer
@@ -591,6 +599,8 @@ class AssistantServer {
         return this.diagnoseProviders()
       case 'health':
         return await this.diagnoseHealth(args.provider_id as string | undefined)
+      case 'doctor':
+        return await this.diagnoseDoctor(args.tier === 'live' ? 'live' : 'quick')
       case 'logs':
         return this.diagnoseLogs(args.lines as number | undefined)
       case 'errors':
@@ -707,88 +717,42 @@ class AssistantServer {
         (provider.defaultChatEndpoint && endpointConfigs[provider.defaultChatEndpoint]?.baseUrl) ||
         Object.values(endpointConfigs)[0]?.baseUrl ||
         ''
+      const host = redactUrlToOrigin(apiHost)
 
       if (provider.apiKeys.length === 0) {
-        const result = {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  providerId,
-                  status: 'error',
-                  error: 'No API key configured'
-                },
-                null,
-                2
-              )
-            }
-          ]
-        }
+        const result = this.jsonResult({ providerId, status: 'error', error: 'No API key configured', host })
         healthCache.set(providerId, { result, timestamp: Date.now() })
         return result
       }
 
-      // Simple connectivity test — try to reach the API host
-      const startTime = Date.now()
-      const host = redactUrlToOrigin(apiHost)
-      let timeout: ReturnType<typeof setTimeout> | undefined
-      try {
-        const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
-        const controller = new AbortController()
-        timeout = setTimeout(() => controller.abort(), 10000)
-        const response = await fetch(testUrl, {
-          method: 'HEAD',
-          signal: controller.signal
-        })
-        const latency = Date.now() - startTime
-
-        const result = {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  providerId,
-                  status: response.ok || response.status === 401 || response.status === 403 ? 'reachable' : 'error',
-                  httpStatus: response.status,
-                  latencyMs: latency,
-                  host
-                },
-                null,
-                2
-              )
-            }
-          ]
+      // Same layered probe the System Doctor uses; only the origin and the layer verdicts leave here.
+      const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
+      const diagnosis = await application
+        .get('NetworkService')
+        .diagnoseEndpoint({ id: `provider:${providerId}`, url: testUrl }, AbortSignal.timeout(HEALTH_TIMEOUT_MS))
+      const layer = (result: { status: string; kind?: string; code?: string; durationMs: number }) => ({
+        status: result.status,
+        ...(result.kind ? { kind: result.kind } : {}),
+        ...(result.code ? { code: result.code } : {}),
+        latencyMs: Math.round(result.durationMs)
+      })
+      const result = this.jsonResult({
+        providerId,
+        status: diagnosis.verdict,
+        host,
+        dns: layer(diagnosis.dns),
+        tls: layer(diagnosis.tls),
+        proxy: {
+          mode: diagnosis.proxy.configuredMode,
+          ...(diagnosis.proxy.mismatch ? { mismatch: diagnosis.proxy.mismatch } : {})
+        },
+        http: {
+          ...layer(diagnosis.http),
+          ...(diagnosis.http.status === 'ok' ? { httpStatus: diagnosis.http.data.status } : {})
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
-        return result
-      } catch (fetchError) {
-        const latency = Date.now() - startTime
-        const result = {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  providerId,
-                  status: 'unreachable',
-                  error:
-                    fetchError instanceof Error && fetchError.name === 'AbortError' ? 'timeout' : 'connection failure',
-                  latencyMs: latency,
-                  host
-                },
-                null,
-                2
-              )
-            }
-          ]
-        }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
-        return result
-      } finally {
-        if (timeout !== undefined) clearTimeout(timeout)
-      }
+      })
+      healthCache.set(providerId, { result, timestamp: Date.now() })
+      return result
     } catch (error) {
       return {
         content: [
@@ -800,6 +764,17 @@ class AssistantServer {
         isError: true
       }
     }
+  }
+
+  /** The System Doctor report in its `upload` projection: nothing local-only reaches the model. */
+  private async diagnoseDoctor(tier: DoctorRunTier) {
+    const outcome = await application.get('DoctorService').run({ tier })
+    if (outcome.status !== 'completed') return this.jsonResult(outcome)
+    return this.jsonResult(projectDoctorReport(outcome.report, 'upload'))
+  }
+
+  private jsonResult(value: unknown) {
+    return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] }
   }
 
   private diagnoseLogs(requestedLines?: number) {
