@@ -399,12 +399,14 @@ describe('DoctorCheckAccordionItems interactions', () => {
       name: /settings\.doctor\.checks\.runtime-claude-login\.title/
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' }))
+    const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
+    await user.click(localDetails)
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
     const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })
     await user.click(within(confirmation).getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     const evidence = screen.getByText('private Doctor evidence').closest('dl')
     expect(evidence).toHaveFocus()
   })
