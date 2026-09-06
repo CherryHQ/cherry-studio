@@ -163,6 +163,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton
                     active={enableSpellCheck}
+                    aria-label={t('notes.spell_check_tooltip')}
+                    aria-pressed={enableSpellCheck}
                     onClick={() => {
                       void setEnableSpellCheck(!enableSpellCheck).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
