@@ -78,6 +78,25 @@ describe('resolvePiApi', () => {
     )
   })
 
+  it('uses declared order for dual-protocol models unless the user pins another route', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' },
+        'anthropic-messages': { adapterFamily: 'anthropic' }
+      }
+    })
+    const endpointTypes = ['openai-chat-completions', 'anthropic-messages'] as const
+
+    expect(resolvePiApi(provider, makeModel({ endpointTypes: [...endpointTypes] }))).toBe('openai-completions')
+    expect(
+      resolvePiApi(
+        provider,
+        makeModel({ endpointTypes: [...endpointTypes], preferredEndpointType: 'anthropic-messages' })
+      )
+    ).toBe('anthropic-messages')
+  })
+
   it('is false for an unmapped provider', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'ollama-chat',

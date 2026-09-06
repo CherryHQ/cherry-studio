@@ -59,7 +59,7 @@ const chatModel: Model = {
   id: 'openai::gpt-4o',
   providerId: 'openai',
   name: 'GPT-4o',
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
@@ -182,7 +182,11 @@ describe('useHealthCheck', () => {
         resolveCommit = resolve
       }).then(() => [{ kind: 'api-key' as const, entry: primaryKey }])
     )
-    const reclassifiedModel = { ...imageModel, name: 'Image Model Reclassified', capabilities: [] }
+    const reclassifiedModel = {
+      ...imageModel,
+      name: 'Image Model Reclassified',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     checkModelsHealthMock.mockResolvedValue([okResult(reclassifiedModel)])
     const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
 
@@ -308,7 +312,7 @@ describe('useHealthCheck', () => {
     const renamedChatModel = { ...chatModel, name: 'GPT-4o Renamed' }
     models = [
       renamedChatModel,
-      { ...imageModel, capabilities: [] },
+      { ...imageModel, capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] },
       { ...rerankModel, endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
     ]
     rerender()

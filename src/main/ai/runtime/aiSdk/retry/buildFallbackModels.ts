@@ -21,7 +21,13 @@ import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  isUniqueModelId,
+  type Model,
+  MODEL_CAPABILITY,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
@@ -150,6 +156,7 @@ async function resolveFallback(
     signal: args.signal,
     provider,
     model,
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []

@@ -130,7 +130,12 @@ export default defineProvider({
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
       modelIds: webSearchModelIds,
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
+      imageModelIds: [
+        'gemini-3-pro-image',
+        'gemini-3-pro-image-preview',
+        'gemini-3-1-flash-image',
+        'gemini-3-1-flash-image-preview'
+      ]
     }
   ],
   overrides: [

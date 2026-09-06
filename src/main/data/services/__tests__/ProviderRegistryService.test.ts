@@ -205,7 +205,7 @@ describe('ProviderRegistryService', () => {
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
 
-      expect(model.capabilities).toEqual([])
+      expect(model.capabilities).toEqual(['text-generation'])
       expect(model.inputModalities).toBeUndefined()
       expect(model.outputModalities).toBeUndefined()
     })
@@ -483,6 +483,115 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
       expect(result.presetModel?.id).toBe('gpt-4o')
+    })
+
+    it('resolves a dual-endpoint reasoning profile from the persisted model route', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'qwen-plus', name: 'Qwen Plus', capabilities: ['reasoning'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'dashscope',
+            modelId: 'qwen-plus',
+            endpointTypes: ['openai-chat-completions', 'openai-responses']
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'dashscope',
+            name: 'DashScope',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              },
+              'openai-responses': {
+                adapterFamily: 'openai',
+                reasoningFormat: { type: 'openai-responses' },
+                requestControls: {
+                  serviceTier: {
+                    default: 'standard',
+                    options: ['standard', 'fast'],
+                    wire: {
+                      delivery: { type: 'provider-option', key: 'serviceTier' },
+                      values: { standard: 'default', fast: 'priority' }
+                    }
+                  }
+                }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const responses = providerRegistryService.lookupModel('dashscope', 'qwen-plus', undefined, {
+        endpointTypes: ['openai-chat-completions', 'openai-responses'],
+        preferredEndpointType: 'openai-responses'
+      })
+      const chat = providerRegistryService.lookupModel('dashscope', 'qwen-plus', undefined, {
+        endpointTypes: ['openai-chat-completions', 'openai-responses'],
+        preferredEndpointType: 'openai-chat-completions'
+      })
+
+      expect(responses.reasoningProfile.format).toBe('openai-responses')
+      expect(responses.serviceTierControl?.options).toEqual(['standard', 'fast'])
+      expect(chat.reasoningProfile.format).toBe('openai-chat')
+      expect(chat.serviceTierControl).toBeUndefined()
+    })
+
+    it('uses the same available fallback route as requests for a stale preference', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'relay-model', name: 'Relay Model', capabilities: ['reasoning'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'relay',
+            modelId: 'relay-model',
+            endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages']
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'relay',
+            name: 'Relay',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-responses': {
+                adapterFamily: 'openai',
+                reasoningFormat: { type: 'openai-responses' }
+              },
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const result = providerRegistryService.lookupModel('relay', 'relay-model', undefined, {
+        endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+        preferredEndpointType: 'anthropic-messages'
+      })
+
+      // Anthropic is unconfigured, so the pin is declined and the lookup lands where a request would:
+      // the provider's default chat endpoint, which this model declares.
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
 
     it('should rethrow provider lookup errors instead of silently using registry defaults', async () => {

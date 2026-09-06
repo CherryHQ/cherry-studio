@@ -23,6 +23,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -205,7 +206,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
     convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
+    resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.TEXT_GENERATION }).endpointType,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest

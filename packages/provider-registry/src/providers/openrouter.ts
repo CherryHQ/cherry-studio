@@ -49,6 +49,9 @@ export default defineProvider({
         image: 'https://openrouter.ai/api/v1/images/models'
       }
     },
+    'openai-embeddings': {
+      adapterFamily: 'openrouter'
+    },
     'openai-image-generation': {
       adapterFamily: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1/'

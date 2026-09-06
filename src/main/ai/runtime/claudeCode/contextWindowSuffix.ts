@@ -22,24 +22,10 @@
 
 const ONE_MILLION = 1_000_000
 const DEFAULT_CONTEXT_WINDOW = 200_000
-const ANTHROPIC_OFFICIAL_HOST = 'api.anthropic.com'
 
 /** Claude Code's local context budget (see the header): 200K by default, 1M under the `[1m]` suffix. */
 export function effectiveContextWindowTokens(modelId: string | undefined): number {
   return modelId && /\[1m\]$/i.test(modelId) ? ONE_MILLION : DEFAULT_CONTEXT_WINDOW
-}
-
-/**
- * True for the first-party Anthropic endpoint: an explicit `api.anthropic.com`
- * host, or an unset base URL (the Claude Code SDK then defaults to it).
- */
-export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return true
-  try {
-    return new URL(baseUrl).hostname === ANTHROPIC_OFFICIAL_HOST
-  } catch {
-    return false
-  }
 }
 
 export function with1mSuffix(

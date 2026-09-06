@@ -8,6 +8,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import {
   mockUseMultiplePreferences,
@@ -201,11 +202,23 @@ describe('OnboardingPage', () => {
       id: 'openai::gpt-4o-mini',
       providerId: 'openai',
       isEnabled: true,
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     })
-    selectedModelsMock.defaultModel = { id: 'default-model', providerId: 'openai', capabilities: [] }
-    selectedModelsMock.quickModel = { id: 'quick-model', providerId: 'openai', capabilities: [] }
-    selectedModelsMock.translateModel = { id: 'translate-model', providerId: 'openai', capabilities: [] }
+    selectedModelsMock.defaultModel = {
+      id: 'default-model',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.quickModel = {
+      id: 'quick-model',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.translateModel = {
+      id: 'translate-model',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
@@ -357,7 +370,7 @@ describe('OnboardingPage', () => {
       id: 'cherryai::qwen',
       providerId: 'cherryai',
       isEnabled: true,
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     })
     render(<OnboardingPage />)
 
@@ -412,7 +425,11 @@ describe('OnboardingPage', () => {
   })
 
   it('does not complete with a persisted model whose provider is unavailable', async () => {
-    selectedModelsMock.translateModel = { id: 'legacy::model', providerId: 'legacy', capabilities: [] }
+    selectedModelsMock.translateModel = {
+      id: 'legacy::model',
+      providerId: 'legacy',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     render(<OnboardingPage />)
 
     await openModelSelection()
@@ -421,9 +438,21 @@ describe('OnboardingPage', () => {
   })
 
   it('excludes CherryAI models, hides painting, and rejects built-in selections', async () => {
-    selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
-    selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
-    selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
+    selectedModelsMock.defaultModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.quickModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.translateModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     render(<OnboardingPage />)
 
     await openModelSelection()
@@ -432,9 +461,14 @@ describe('OnboardingPage', () => {
     expect(modelSettingsProps?.autoFillEmptyModels).toBe(true)
     expect(modelSettingsProps?.onDefaultModelSelected).toBeTypeOf('function')
     expect(modelSettingsProps?.showPaintingModel).toBe(false)
-    expect(modelSettingsProps?.modelFilter?.({ providerId: CHERRYAI_PROVIDER_ID, capabilities: [] })).toBe(false)
-    expect(modelSettingsProps?.modelFilter?.({ providerId: CHERRY_CLOUD_PROVIDER_ID, capabilities: [] })).toBe(false)
-    expect(modelSettingsProps?.modelFilter?.({ providerId: 'openai', capabilities: [] })).toBe(true)
+    const textCapabilities = [MODEL_CAPABILITY.TEXT_GENERATION]
+    expect(
+      modelSettingsProps?.modelFilter?.({ providerId: CHERRYAI_PROVIDER_ID, capabilities: textCapabilities })
+    ).toBe(false)
+    expect(
+      modelSettingsProps?.modelFilter?.({ providerId: CHERRY_CLOUD_PROVIDER_ID, capabilities: textCapabilities })
+    ).toBe(false)
+    expect(modelSettingsProps?.modelFilter?.({ providerId: 'openai', capabilities: textCapabilities })).toBe(true)
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
@@ -890,11 +924,23 @@ describe('OnboardingPage', () => {
       id: 'cherryai::qwen',
       providerId: 'cherryai',
       isEnabled: true,
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     })
-    selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
-    selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
-    selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
+    selectedModelsMock.defaultModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.quickModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
+    selectedModelsMock.translateModel = {
+      id: 'cherryai::qwen',
+      providerId: CHERRYAI_PROVIDER_ID,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
       await setKey('sk-one, sk-two')
       return 'sk-one, sk-two'

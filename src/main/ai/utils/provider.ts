@@ -14,15 +14,22 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
 /**
  * Resolve base URL from provider endpoint configs.
  *
- * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
+ * When `preferredEndpoint` is set (from operation-aware model routing),
  * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
  */
-export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+export function getBaseUrl(
+  provider: Provider,
+  preferredEndpoint?: EndpointType | null,
+  options?: { selectedEndpointOnly?: boolean }
+): string {
   const configs = provider.endpointConfigs
   if (!configs) return ''
 
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
     return configs[preferredEndpoint].baseUrl
+  }
+  if (preferredEndpoint && options?.selectedEndpointOnly) {
+    return ''
   }
 
   const ep = provider.defaultChatEndpoint
@@ -54,6 +61,22 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
     }
   }
   return { ...headers, 'X-Source': 'cherry-studio' }
+}
+
+/**
+ * Unset URLs use the Anthropic SDK default, which is the official API host.
+ *
+ * An empty string is NOT that case: it is `getBaseUrl` reporting a route it refused to resolve, and
+ * treating it as first-party would drop the `Authorization` header a third-party gateway needs.
+ */
+export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
+  if (baseUrl === undefined) return true
+  if (baseUrl === '') return false
+  try {
+    return new URL(baseUrl).hostname === 'api.anthropic.com'
+  } catch {
+    return false
+  }
 }
 
 export function defaultHeaders(provider: Provider): Record<string, string> {

@@ -1,7 +1,10 @@
 import {
+  endpointDefaultOperationCapability,
+  isEndpointCompatibleWithOperation,
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
   matchVendor,
+  type ModelOperationCapability,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
   type ServerTool,
@@ -14,7 +17,8 @@ import {
   isManagedCherryCloudModel,
   isManagedCherryProviderId
 } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 import type { AppEdition } from '@shared/types/appEdition'
 
@@ -100,7 +104,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
   return isManagedCherryProviderId(provider.id) || provider.presetProviderId === CHERRYAI_PROVIDER_ID
 }
 
-export function isNewApiProvider(provider: Provider): boolean {
+export function isNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>): boolean {
   return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 
@@ -220,6 +224,85 @@ export function resolveEndpointDialect(
   }
 }
 
+/**
+ * The endpoint protocol a model is called with.
+ *
+ * `preferredEndpointType` is the user's explicit routing choice; `endpointTypes` is the model's
+ * declared protocol set, whose order selects the first route compatible with the requested
+ * operation when no compatible preference applies.
+ */
+type EndpointRoutingModel = Pick<Model, 'id' | 'apiModelId' | 'endpointTypes' | 'preferredEndpointType'>
+type EndpointRoutingProvider = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs'>
+
+function hasEndpointConfig(provider: EndpointRoutingProvider, endpointType: EndpointType): boolean {
+  return provider.endpointConfigs != null && Object.hasOwn(provider.endpointConfigs, endpointType)
+}
+
+/** Whether this model can still reach an endpoint through its current provider row. */
+export function isModelEndpointTypeAvailable(
+  model: EndpointRoutingModel,
+  provider: EndpointRoutingProvider,
+  endpointType: EndpointType
+): boolean {
+  if (!hasEndpointConfig(provider, endpointType)) return false
+  return !model.endpointTypes?.length || model.endpointTypes.includes(endpointType)
+}
+
+/** Resolve the effective model route from live model capabilities and provider configs. */
+export function getModelPreferredEndpoint(
+  model: EndpointRoutingModel,
+  provider: EndpointRoutingProvider,
+  operationCapability: ModelOperationCapability
+): EndpointType | undefined {
+  const isAvailable = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
+    endpointType != null &&
+    isEndpointCompatibleWithOperation(endpointType, operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, endpointType)
+
+  if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
+
+  const compatibleEndpoints = model.endpointTypes?.filter((endpointType) =>
+    isEndpointCompatibleWithOperation(endpointType, operationCapability)
+  )
+
+  // The provider's default chat endpoint is a setting the user picked; the declaration order below
+  // is whatever the catalog or an upstream `/models` happened to list first. Honor the setting
+  // whenever the model actually speaks it (#19688). Non-chat operations never reach here — the
+  // compatibility filter has already dropped a chat endpoint from their candidates.
+  const { defaultChatEndpoint } = provider
+  if (defaultChatEndpoint && compatibleEndpoints?.includes(defaultChatEndpoint) && isAvailable(defaultChatEndpoint)) {
+    return defaultChatEndpoint
+  }
+
+  // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
+  // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.
+  const declaredEndpoint = compatibleEndpoints?.find(isAvailable)
+  if (declaredEndpoint) return declaredEndpoint
+
+  // A model that declares its protocols but has none served keeps the declaration rather than
+  // falling through to the provider default: the default belongs to a different protocol, and
+  // silently answering with it borrows that endpoint's host. Callers fail closed on the missing
+  // route instead, naming the protocol the model actually wants.
+  if (compatibleEndpoints?.length) return compatibleEndpoints[0]
+
+  if (operationCapability === MODEL_CAPABILITY.TEXT_GENERATION) {
+    return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ?? provider.defaultChatEndpoint
+  }
+
+  // A model's endpointTypes describe only its explicit protocol constraints, not an exhaustive
+  // operation matrix. When no compatible protocol is declared, use an operation endpoint the
+  // provider explicitly configured; prefer the endpoint whose primary operation matches this call.
+  const providerEndpoints = Object.keys(provider.endpointConfigs ?? {}) as EndpointType[]
+  const compatibleProviderEndpoints = providerEndpoints.filter((endpointType) =>
+    isEndpointCompatibleWithOperation(endpointType, operationCapability)
+  )
+  return (
+    compatibleProviderEndpoints.find(
+      (endpointType) => endpointDefaultOperationCapability(endpointType) === operationCapability
+    ) ?? compatibleProviderEndpoints[0]
+  )
+}
+
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
   return provider.serverTools?.find((tool) => tool.id === id)
 }
@@ -242,10 +325,10 @@ function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: Endpoint
 
 function resolveServerToolEndpoint(
   model: Model,
-  provider: Pick<Provider, 'defaultChatEndpoint'>,
+  provider: EndpointRoutingProvider,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return endpointType ?? getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
@@ -262,7 +345,7 @@ export function isServerToolModelEligible(
 /** Effective built-in web-search availability for one provider-model pair. */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
@@ -299,7 +382,7 @@ export interface WebToolRoutes {
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)
@@ -346,6 +429,9 @@ export function resolveWebToolRoutes(
     options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider, options.endpointType) : false
   const serverFetchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
+  const effectiveEndpoint = provider
+    ? resolveServerToolEndpoint(model, provider, options.endpointType)
+    : options.endpointType
 
   const googleFunctionToolMixingUnsupported =
     supportsClientTools &&
@@ -357,7 +443,8 @@ export function resolveWebToolRoutes(
   const openaiMinimalConflict =
     options.reasoningEffort !== undefined &&
     provider !== undefined &&
-    (isOpenAIProvider(provider) || isOpenAIChatProvider(provider) || isAzureOpenAIProvider(provider)) &&
+    (effectiveEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ||
+      effectiveEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) &&
     isWebSearchEffortUnsupported(getRawModelId(model), options.reasoningEffort)
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict

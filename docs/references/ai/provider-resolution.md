@@ -3,6 +3,7 @@ description: Endpoint resolution chain from provider.endpointConfigs and adapter
 sources:
   - src/main/ai/provider/endpoint.ts
   - src/main/ai/provider/config.ts
+  - packages/provider-registry/src/registry-utils.ts
   - packages/aiCore/src/core/providers/core/initialization.ts
 ---
 
@@ -16,7 +17,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | resolved from runtime constraints, model preference/capabilities, and provider routes | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
@@ -30,11 +31,39 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, providerOptionsKey? }
+resolveEffectiveEndpoint(provider, model, { operationCapability, requiredEndpointType? }): {
+  endpointType,
+  baseUrl,
+  providerOptionsKey?
+}
 resolveProviderVariant(baseProviderId, endpointType): AppProviderId
 resolveAiSdkProviderId(provider, endpointType): AppProviderId
 resolveProviderOptionsKey(aiSdkProviderId, context): string
 ```
+
+Every request supplies its operation capability (`text-generation`, `embedding`, `rerank`,
+`image-generation`, `audio-transcript`, `audio-generation`, or `video-generation`). The endpoint
+operation contract in provider-registry defines which protocols can carry each operation. For that
+operation, `resolveEffectiveEndpoint` resolves candidates in this order:
+
+1. A compatible, configured caller requirement for a runtime that speaks exactly one protocol.
+2. The model's compatible, configured `preferredEndpointType`.
+3. `provider.defaultChatEndpoint`, when the model declares it and the provider still serves it. It is
+   a setting the user chose; the declaration order below is only the order a catalog or an upstream
+   `/models` happened to list.
+4. The first compatible model-declared endpoint with a configured provider route.
+5. If compatible declarations exist but none is configured, retain the first one and fail closed with
+   an empty URL.
+6. Only for `text-generation`, a registered per-model gateway route or `provider.defaultChatEndpoint`
+   — the last-ditch form of step 3, for models that declare no protocol at all.
+7. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
+   operation is not routable.
+
+`endpointTypes` is a protocol restriction, not a second model-type system. A model may support
+multiple operations and multiple endpoints; it does not have to declare one endpoint for every
+capability. Invalid or operation-incompatible preferences are ignored for that request. A configured
+adapter-only endpoint can inherit the provider's shared host, while an undeclared adapter or an
+unconfigured protocol does not borrow another protocol's host.
 
 `resolveAiSdkProviderId` is the runtime hot-path entry. It reads
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the

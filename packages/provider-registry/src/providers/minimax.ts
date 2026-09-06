@@ -91,6 +91,10 @@ export default openaiCompatible({
   name: 'MiniMax',
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.minimaxi.com/v1/',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'minimax' },
+    'openai-image-generation': { adapterFamily: 'minimax' }
+  },
   anthropic: 'https://api.minimaxi.com/anthropic',
   website: {
     apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',

@@ -31,13 +31,22 @@ export default defineProvider({
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
     },
+    'openai-embeddings': {
+      adapterFamily: 'aihubmix'
+    },
     'openai-responses': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
     },
+    'openai-image-generation': {
+      adapterFamily: 'aihubmix'
+    },
     'google-generate-content': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/gemini/v1beta'
+    },
+    'jina-rerank': {
+      adapterFamily: 'aihubmix'
     }
   },
   // AiHubMix serves the vendors' native endpoints, so its language models carry
@@ -49,7 +58,12 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      imageModelIds: [
+        'gemini-3-pro-image',
+        'gemini-3-pro-image-preview',
+        'gemini-3-1-flash-image',
+        'gemini-3-1-flash-image-preview'
+      ],
       vendors: ['anthropic', 'gemini', 'openai']
     },
     {

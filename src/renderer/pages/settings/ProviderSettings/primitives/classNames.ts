@@ -158,6 +158,10 @@ export const drawerClasses = {
   divider: 'h-px bg-border-subtle',
   switchCard: 'rounded-lg border border-border bg-background px-3 py-3',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
+  /** Chip face of the shared radio primitive; the control itself is `sr-only peer`. */
+  endpointRadioChip:
+    'inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 text-foreground text-xs transition-colors hover:bg-accent peer-focus-visible:ring-1 peer-focus-visible:ring-ring peer-focus-visible:ring-inset',
+  endpointRadioChipActive: 'bg-secondary hover:bg-secondary',
   splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
   footerTextButton:

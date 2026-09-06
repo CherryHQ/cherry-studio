@@ -8,7 +8,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
@@ -65,10 +65,16 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+      operationCapability: MODEL_CAPABILITY.IMAGE_GENERATION
+    })
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+      operationCapability: MODEL_CAPABILITY.IMAGE_GENERATION,
+      resolvedEndpoint
+    })
     const sdkConfig = {
       ...config,
-      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     }
     // Built fresh every execution and held in memory only. Upstream persists this
     // to job metadata so a resumed run can still attribute its cost; with

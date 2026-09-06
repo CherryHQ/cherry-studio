@@ -4,10 +4,9 @@ import {
   type Modality,
   type Model,
   MODEL_CAPABILITY,
-  type ModelCapability
+  type ModelCapability,
+  type ModelOperationCapability
 } from '@shared/data/types/model'
-
-export type ModelDrawerMode = 'legacy' | 'endpoint-types' | 'purpose'
 
 export type ModelDrawerEndpointType = EndpointType
 
@@ -34,9 +33,14 @@ export const MODEL_CAPABILITY_TOGGLE_VALUES = [
 
 export type ModelCapabilityToggle = (typeof MODEL_CAPABILITY_TOGGLE_VALUES)[number]
 
-export const MODEL_PRIMARY_TYPE_VALUES = ['text', 'image', 'embedding', 'rerank'] as const
+export const EDITABLE_MODEL_OPERATION_CAPABILITIES = [
+  MODEL_CAPABILITY.TEXT_GENERATION,
+  MODEL_CAPABILITY.IMAGE_GENERATION,
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK
+] as const satisfies readonly ModelOperationCapability[]
 
-export type ModelPrimaryType = (typeof MODEL_PRIMARY_TYPE_VALUES)[number]
+export type EditableModelOperationCapability = (typeof EDITABLE_MODEL_OPERATION_CAPABILITIES)[number]
 
 export const MODEL_INPUT_MODALITY_VALUES = [
   MODALITY.IMAGE,
@@ -47,7 +51,7 @@ export const MODEL_INPUT_MODALITY_VALUES = [
 export type ModelInputModality = (typeof MODEL_INPUT_MODALITY_VALUES)[number]
 
 export interface ModelClassificationState {
-  primaryType: ModelPrimaryType | null
+  operationCapabilities: Set<ModelOperationCapability>
   capabilities: Set<ModelCapabilityToggle>
   inputModalities: Set<ModelInputModality>
 }

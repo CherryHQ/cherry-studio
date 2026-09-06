@@ -80,10 +80,9 @@ export function resolveCapabilities(
   const enableReasoning =
     isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
-  // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
-  // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
-  // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
-  const enableGenerateImage = isGenerateImageModel(model) && false
+  // Native chat-model image output (Gemini `responseModalities`). Only reaches the wire for the
+  // Gemini option builders, which is the one chat endpoint whose contract serves image generation.
+  const enableGenerateImage = isGenerateImageModel(model)
 
   const isSupportedToolUse = isFunctionCallingModel(model)
 

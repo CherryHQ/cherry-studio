@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -17,7 +17,7 @@ function makeModel(overrides: Partial<Model>): Model {
     id: 'p::m',
     providerId: 'p',
     name: 'M',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     contextWindow: 128_000,
     ...overrides
   } as Model
@@ -58,7 +58,15 @@ describe('isDshCompatibleModel', () => {
 
   it('rejects models the gateway cannot route either', () => {
     // Non-chat endpoint: neither a dsh wire family nor gateway-routable.
-    expect(isDshCompatibleModel(azureProvider, makeModel({ endpointTypes: ['openai-embeddings'] }))).toBe(false)
+    expect(
+      isDshCompatibleModel(
+        azureProvider,
+        makeModel({
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: ['openai-embeddings']
+        })
+      )
+    ).toBe(false)
     // Provider ids containing ':' cannot round-trip the gateway's model address.
     expect(
       isDshCompatibleModel(
@@ -72,10 +80,10 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('does not use input modalities as a compatibility restriction', () => {
-    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
+  it('requires gateway fallback models to accept text input', () => {
     expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['text', 'image'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(false)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(false)
   })
 })

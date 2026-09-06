@@ -1,35 +1,35 @@
 {
   "models": [
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "jamba-1-5-large",
       "metadata": {},
       "name": "jamba-1-5-large",
       "ownedBy": "ai21"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "jamba-1-5-mini",
       "metadata": {},
       "name": "jamba-1-5-mini",
       "ownedBy": "ai21"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "jamba-large-1-7",
       "metadata": {},
       "name": "jamba-large-1-7",
       "ownedBy": "ai21"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "jamba-mini-1-7",
       "metadata": {},
       "name": "jamba-mini-1-7",
       "ownedBy": "ai21"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "qvq",
       "id": "qvq-max",
@@ -51,7 +51,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 32768,
       "id": "qwen-2-5-72b-instruct",
       "inputModalities": ["text"],
@@ -71,7 +71,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 32768,
       "id": "qwen-2-5-7b-instruct",
       "inputModalities": ["text"],
@@ -91,7 +91,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 32768,
       "id": "qwen-2-5-coder-32b-instruct",
       "inputModalities": ["text"],
@@ -111,7 +111,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 40960,
       "family": "qwen",
       "id": "qwen-3-14b",
@@ -141,7 +141,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen-3-235b",
@@ -171,7 +171,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 40960,
       "family": "qwen",
       "id": "qwen-3-30b",
@@ -201,7 +201,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 128000,
       "family": "qwen",
       "id": "qwen-3-32b",
@@ -240,7 +240,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input", "text-generation"],
       "contextWindow": 240000,
       "family": "qwen",
       "id": "qwen-3-6-max-preview",
@@ -288,7 +288,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen-deep-research",
@@ -310,7 +310,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen-doc-turbo",
@@ -332,7 +332,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen-flash",
@@ -587,7 +587,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 10000000,
       "family": "qwen",
       "id": "qwen-long",
@@ -609,7 +609,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "family": "qwen",
       "id": "qwen-math-plus",
@@ -631,7 +631,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "family": "qwen",
       "id": "qwen-math-turbo",
@@ -653,7 +653,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen-max",
@@ -675,7 +675,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 16384,
       "family": "qwen",
       "id": "qwen-mt-plus",
@@ -697,7 +697,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 16384,
       "family": "qwen",
       "id": "qwen-mt-turbo",
@@ -769,7 +769,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen-plus",
@@ -816,7 +816,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32768,
       "family": "qwen",
       "id": "qwen-plus-character",
@@ -838,7 +838,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "family": "qwen",
       "id": "qwen-plus-character-ja",
@@ -860,7 +860,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen-turbo",
@@ -899,7 +899,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen-vl-max",
@@ -921,7 +921,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 34096,
       "family": "qwen",
       "id": "qwen-vl-ocr",
@@ -943,7 +943,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen-vl-plus",
@@ -965,7 +965,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-14b-instruct",
@@ -988,7 +988,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-32b-instruct",
@@ -1011,7 +1011,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-72b-instruct",
@@ -1034,7 +1034,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-7b-instruct",
@@ -1057,7 +1057,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-coder-32b-instruct",
@@ -1080,7 +1080,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-coder-7b-instruct",
@@ -1103,7 +1103,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "family": "qwen",
       "id": "qwen2-5-math-72b-instruct",
@@ -1126,7 +1126,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "family": "qwen",
       "id": "qwen2-5-math-7b-instruct",
@@ -1178,7 +1178,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-vl-72b-instruct",
@@ -1201,7 +1201,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen2-5-vl-7b-instruct",
@@ -1224,7 +1224,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-14b",
@@ -1264,7 +1264,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-235b-a22b",
@@ -1304,7 +1311,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-235b-a22b-instruct-2507-maas",
@@ -1327,7 +1334,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "qwen3-30b-a3b",
       "inputModalities": ["text"],
@@ -1364,7 +1371,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "id": "qwen3-30b-a3b-instruct",
       "inputModalities": ["text"],
@@ -1384,7 +1391,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-32b",
@@ -1431,7 +1438,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1479,7 +1487,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1527,7 +1536,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1575,7 +1585,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1616,7 +1627,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-5-4b",
@@ -1644,7 +1662,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "qwen3-5-9b",
       "inputModalities": ["text", "image", "video"],
@@ -1687,7 +1712,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -1735,7 +1761,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "qwen3-5-flash-02-23",
       "inputModalities": ["text", "image", "video"],
@@ -1778,7 +1811,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -1826,7 +1860,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "qwen3-5-plus-02-15",
       "inputModalities": ["text", "image", "video"],
@@ -1870,7 +1911,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1918,7 +1960,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "qwen",
@@ -1965,7 +2008,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen3.6",
@@ -2009,7 +2053,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-6-max-preview",
@@ -2062,7 +2106,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -2116,7 +2161,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -2164,7 +2210,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-7-max",
@@ -2217,7 +2263,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -2265,7 +2312,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-8-2-4t-a95b",
@@ -2316,7 +2363,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -2366,7 +2414,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-flash",
@@ -2418,7 +2473,59 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1048576,
+      "family": "qwen",
+      "id": "qwen3-8-flash-next",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Qwen 3.8 Flash Next",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.12
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "xhigh"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-max",
@@ -2470,7 +2577,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-max-preview",
@@ -2483,7 +2590,7 @@
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-8b",
@@ -2523,7 +2630,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "contextWindow": 53248,
       "family": "qwen",
       "id": "qwen3-asr-flash",
@@ -2545,7 +2652,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder",
@@ -2571,7 +2678,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-30b-a3b",
@@ -2593,7 +2700,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-30b-a3b-instruct",
@@ -2616,7 +2723,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-coder-480b-a35b",
@@ -2639,7 +2746,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-480b-a35b-instruct",
@@ -2662,7 +2769,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-coder-flash",
@@ -2684,7 +2791,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-next",
@@ -2707,7 +2814,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-coder-plus",
@@ -2792,7 +2899,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-max",
@@ -2832,7 +2939,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-max-preview",
@@ -2858,7 +2965,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-next-80b-a3b",
@@ -2898,7 +3005,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-next-80b-a3b-instruct",
@@ -3025,7 +3132,7 @@
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-vl",
@@ -3061,7 +3168,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262000,
       "family": "qwen",
       "id": "qwen3-vl-235b-a22b",
@@ -3101,7 +3215,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-vl-235b-a22b-instruct",
@@ -3124,7 +3238,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-vl-30b-a3b",
@@ -3164,7 +3278,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "id": "qwen3-vl-30b-a3b-instruct",
       "inputModalities": ["text", "image"],
@@ -3184,7 +3298,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "qwen3-vl-32b-instruct",
       "inputModalities": ["text", "image"],
@@ -3204,7 +3318,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "qwen3-vl-8b",
       "inputModalities": ["image", "text"],
@@ -3241,7 +3355,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "id": "qwen3-vl-8b-instruct",
       "inputModalities": ["image", "text"],
@@ -3261,7 +3375,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-vl-instruct",
@@ -3284,7 +3398,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-vl-plus",
@@ -3323,7 +3437,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwq-32b",
@@ -3346,7 +3460,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "qwen",
       "id": "qwq-plus",
@@ -3368,7 +3482,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "family": "yi",
       "id": "tongyi-intent-detect-v3",
@@ -3529,7 +3643,14 @@
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "nova",
       "id": "nova-2-lite",
@@ -3567,7 +3688,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "nova-2-lite-v1",
       "inputModalities": ["text", "image", "video"],
@@ -3587,7 +3715,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "video-recognition", "file-input", "text-generation"],
       "contextWindow": 300000,
       "family": "nova-lite",
       "id": "nova-lite",
@@ -3613,7 +3741,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 300000,
       "id": "nova-lite-v1",
       "inputModalities": ["text", "image"],
@@ -3633,7 +3761,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "nova-micro",
       "id": "nova-micro",
@@ -3659,7 +3787,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "id": "nova-micro-v1",
       "inputModalities": ["text"],
@@ -3679,7 +3807,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 1000000,
       "id": "nova-premier-v1",
       "inputModalities": ["text", "image"],
@@ -3699,7 +3827,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "video-recognition", "file-input", "text-generation"],
       "contextWindow": 300000,
       "family": "nova-pro",
       "id": "nova-pro",
@@ -3725,7 +3853,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 300000,
       "id": "nova-pro-v1",
       "inputModalities": ["text", "image"],
@@ -3757,7 +3885,7 @@
       "ownedBy": "amazon"
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 200000,
       "family": "claude-haiku",
       "id": "claude-3-haiku",
@@ -3787,7 +3915,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-fable",
       "id": "claude-fable-5",
@@ -3827,7 +3962,61 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1000000,
+      "family": "claude-fable",
+      "id": "claude-fable-5-1",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Fable 5.1",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "claude-fable-latest",
       "inputModalities": ["text", "image"],
@@ -3857,7 +4046,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "claude-haiku",
       "id": "claude-haiku-4-5",
@@ -3905,7 +4101,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "id": "claude-haiku-latest",
       "inputModalities": ["text", "image"],
@@ -3938,7 +4141,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4",
@@ -3986,7 +4189,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4-1",
@@ -4034,7 +4237,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "claude-opus",
       "id": "claude-opus-4-5",
@@ -4086,7 +4296,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-6",
@@ -4138,7 +4355,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-6-v1",
@@ -4187,7 +4411,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-7",
@@ -4239,49 +4470,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1000000,
-      "id": "claude-opus-4-7-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Anthropic: Claude Opus 4.7 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
-          },
-          {
-            "kind": "budget",
-            "max": 128000,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"],
-        "thinkingTokenLimits": {
-          "max": 128000,
-          "min": 1024
-        },
-        "wireDialect": "effort"
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8",
@@ -4324,7 +4520,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8-fast",
@@ -4367,7 +4563,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-5",
@@ -4407,7 +4610,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-5-fast",
@@ -4447,7 +4650,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "claude-opus-latest",
       "inputModalities": ["text", "image"],
@@ -4480,7 +4690,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4",
@@ -4528,7 +4738,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4-5",
@@ -4576,7 +4793,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-4-6",
@@ -4628,7 +4852,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "claude-sonnet",
       "id": "claude-sonnet-5",
@@ -4671,7 +4902,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "id": "claude-sonnet-latest",
       "inputModalities": ["text", "image"],
@@ -4704,7 +4942,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "trinity",
       "id": "trinity-large",
@@ -4856,7 +5094,7 @@
       "ownedBy": "baai"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-3-5-128k",
       "metadata": {},
@@ -4864,7 +5102,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "ernie-3-5-8k",
       "metadata": {},
@@ -4872,7 +5110,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "ernie-4-0-8k",
       "metadata": {},
@@ -4880,7 +5118,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-4-0-turbo-128k",
       "metadata": {},
@@ -4888,7 +5126,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "ernie-4-0-turbo-8k",
       "metadata": {},
@@ -4896,7 +5134,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 123904,
       "id": "ernie-4-5",
       "metadata": {},
@@ -4904,7 +5142,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-4-5-a3b",
       "metadata": {},
@@ -4912,7 +5150,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-4-5-a47b",
       "metadata": {},
@@ -4920,7 +5158,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-4-5-turbo",
       "metadata": {},
@@ -4928,7 +5166,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 32768,
       "id": "ernie-4-5-turbo-vl",
       "inputModalities": ["text", "image"],
@@ -4937,7 +5175,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
+      "capabilities": ["reasoning", "image-recognition", "text-generation"],
       "contextWindow": 123000,
       "id": "ernie-4-5-vl-424b-a47b",
       "inputModalities": ["image", "text"],
@@ -4957,7 +5195,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
+      "capabilities": ["reasoning", "image-recognition", "text-generation"],
       "contextWindow": 32768,
       "id": "ernie-4-5-vl-a3b",
       "inputModalities": ["text", "image"],
@@ -4966,7 +5204,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "ernie-5-0",
       "metadata": {},
@@ -4974,7 +5212,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "id": "ernie-character-8k",
       "metadata": {},
@@ -4982,7 +5220,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "id": "ernie-lite-8k",
       "metadata": {},
@@ -4990,7 +5228,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 131072,
       "id": "ernie-speed-128k",
       "metadata": {},
@@ -4998,7 +5236,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "id": "ernie-tiny-8k",
       "metadata": {},
@@ -5006,7 +5244,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "ernie-x1-1-preview",
       "metadata": {},
@@ -5014,7 +5252,7 @@
       "ownedBy": "baidu"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "ernie-x1-turbo",
       "metadata": {},
@@ -5028,7 +5266,8 @@
         "image-recognition",
         "audio-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "ling",
@@ -5065,7 +5304,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling-small",
@@ -5101,7 +5347,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "ling",
       "id": "ling-1t",
@@ -5124,7 +5370,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "ling",
       "id": "ling-3-0-flash",
@@ -5150,7 +5396,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "ling",
       "id": "ling-3-0-flash-fin",
@@ -5180,7 +5426,7 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 128000,
       "family": "ring",
       "id": "ring-1t",
@@ -5651,7 +5897,7 @@
       "ownedBy": "bria"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "doubao-1-5-lite-32k",
       "inputModalities": ["text"],
@@ -5662,7 +5908,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "id": "doubao-1-5-pro-256k",
       "inputModalities": ["text"],
@@ -5672,7 +5918,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "doubao-1-5-pro-32k",
       "inputModalities": ["text"],
@@ -5683,7 +5929,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "doubao-1-5-thinking-pro",
       "inputModalities": ["text"],
@@ -5694,7 +5940,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "doubao-1-5-thinking-pro-m",
       "inputModalities": ["text"],
@@ -5723,7 +5969,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition"],
+      "capabilities": ["reasoning", "function-call", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "id": "doubao-1-5-thinking-vision-pro",
       "inputModalities": ["text", "image"],
@@ -5752,7 +5998,7 @@
       }
     },
     {
-      "capabilities": ["computer-use", "image-recognition", "function-call"],
+      "capabilities": ["computer-use", "image-recognition", "function-call", "text-generation"],
       "id": "doubao-1-5-ui-tars",
       "inputModalities": ["text", "image"],
       "metadata": {},
@@ -5761,7 +6007,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["image-recognition", "function-call"],
+      "capabilities": ["image-recognition", "function-call", "text-generation"],
       "id": "doubao-1-5-vision-lite",
       "inputModalities": ["text", "image"],
       "metadata": {},
@@ -5770,7 +6016,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["image-recognition", "function-call"],
+      "capabilities": ["image-recognition", "function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "doubao-1-5-vision-pro",
       "inputModalities": ["text", "image"],
@@ -5781,7 +6027,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["image-recognition", "function-call"],
+      "capabilities": ["image-recognition", "function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "doubao-1-5-vision-pro-32k",
       "inputModalities": ["text", "image"],
@@ -5826,7 +6072,8 @@
         "image-recognition",
         "video-recognition",
         "file-input",
-        "structured-output"
+        "structured-output",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "id": "doubao-seed-1-6",
@@ -5862,7 +6109,8 @@
         "image-recognition",
         "video-recognition",
         "file-input",
-        "structured-output"
+        "structured-output",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "id": "doubao-seed-1-6-flash",
@@ -5898,7 +6146,8 @@
         "image-recognition",
         "video-recognition",
         "file-input",
-        "structured-output"
+        "structured-output",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "id": "doubao-seed-1-6-lite",
@@ -5935,7 +6184,8 @@
         "video-recognition",
         "file-input",
         "structured-output",
-        "computer-use"
+        "computer-use",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "id": "doubao-seed-1-6-vision",
@@ -5965,14 +6215,21 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "doubao-seed-1-8",
       "metadata": {},
       "name": "doubao-seed-1-8",
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-0-code-preview",
       "inputModalities": ["text", "image", "video"],
@@ -6001,7 +6258,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-0-lite",
       "inputModalities": ["text", "image", "video"],
@@ -6030,7 +6294,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-0-mini",
       "inputModalities": ["text", "image", "video"],
@@ -6059,7 +6330,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-0-pro",
       "inputModalities": ["text", "image", "video"],
@@ -6088,7 +6366,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-1-pro",
       "inputModalities": ["text", "image", "video"],
@@ -6117,7 +6402,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-2-1-turbo",
       "inputModalities": ["text", "image", "video"],
@@ -6152,7 +6444,8 @@
         "image-recognition",
         "video-recognition",
         "file-input",
-        "structured-output"
+        "structured-output",
+        "text-generation"
       ],
       "contextWindow": 131072,
       "id": "doubao-seed-character",
@@ -6164,7 +6457,14 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "doubao-seed-code-preview",
       "inputModalities": ["text", "image", "video"],
@@ -6193,7 +6493,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1024000,
       "id": "doubao-seed-evolving",
       "inputModalities": ["text", "image", "video"],
@@ -6204,7 +6511,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 4096,
       "id": "doubao-seed-translation",
       "inputModalities": ["text"],
@@ -6447,7 +6754,14 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "seed",
       "id": "seed-1-6",
@@ -6481,7 +6795,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "family": "seed",
       "id": "seed-1-8",
@@ -6519,7 +6833,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 262000,
       "family": "seed",
       "id": "seed-oss-36b-instruct",
@@ -6651,7 +6965,7 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "c4ai-aya-expanse-32b",
       "inputModalities": ["text"],
@@ -6663,7 +6977,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "c4ai-aya-expanse-8b",
       "inputModalities": ["text"],
@@ -6675,7 +6989,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 16384,
       "id": "c4ai-aya-vision-32b",
       "inputModalities": ["text", "image"],
@@ -6687,7 +7001,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 16384,
       "id": "c4ai-aya-vision-8b",
       "inputModalities": ["text", "image"],
@@ -6699,7 +7013,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "id": "command",
       "maxOutputTokens": 4096,
@@ -6708,7 +7022,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "command",
       "id": "command-a",
@@ -6730,7 +7044,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "command-a",
       "id": "command-a-03-2025",
@@ -6753,7 +7067,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "command-a",
       "id": "command-a-plus-05-2026",
@@ -6784,7 +7098,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "command-a",
       "id": "command-a-reasoning-08-2025",
@@ -6815,7 +7129,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "family": "command-a",
       "id": "command-a-translate-08-2025",
@@ -6838,7 +7152,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 131072,
       "family": "command-a",
       "id": "command-a-vision-07-2025",
@@ -6861,7 +7175,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 4096,
       "id": "command-light",
       "maxOutputTokens": 4096,
@@ -6870,7 +7184,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "command-r",
       "maxOutputTokens": 4096,
@@ -6879,7 +7193,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "command-r",
       "id": "command-r-08-2024",
@@ -6902,7 +7216,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "command-r-plus",
       "maxOutputTokens": 4096,
@@ -6911,7 +7225,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "command-r",
       "id": "command-r-plus-08-2024",
@@ -6934,7 +7248,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "command-r",
       "id": "command-r7b-12-2024",
@@ -6957,7 +7271,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "command-r",
       "id": "command-r7b-arabic-02-2025",
@@ -7032,7 +7346,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "north-mini-code",
       "inputModalities": ["text"],
@@ -7052,7 +7366,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "north",
       "id": "north-mini-code-1-0",
@@ -7138,7 +7452,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "tiny-aya-earth",
       "maxOutputTokens": 8192,
@@ -7147,7 +7461,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "tiny-aya-fire",
       "maxOutputTokens": 8192,
@@ -7156,7 +7470,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "tiny-aya-global",
       "maxOutputTokens": 8192,
@@ -7165,7 +7479,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "tiny-aya-water",
       "maxOutputTokens": 8192,
@@ -7174,7 +7488,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "id": "deepseek-chat",
       "inputModalities": ["text"],
@@ -7185,16 +7499,16 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2574
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.0287
+          "perMillionTokens": 0.8899999999999999
         }
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "id": "deepseek-chat-v3",
       "inputModalities": ["text"],
@@ -7214,7 +7528,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "id": "deepseek-chat-v3-1",
       "inputModalities": ["text"],
@@ -7225,11 +7539,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.6500000000000001
+          "perMillionTokens": 0.95
         }
       },
       "reasoning": {
@@ -7242,7 +7556,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek-thinking",
       "id": "deepseek-r1",
@@ -7264,7 +7578,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "deepseek-thinking",
       "id": "deepseek-r1-distill-llama-70b",
@@ -7286,7 +7600,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "deepseek-thinking",
       "id": "deepseek-r1-distill-llama-8b",
@@ -7308,7 +7622,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "qwen",
       "id": "deepseek-r1-distill-qwen-1-5b",
@@ -7330,7 +7644,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "qwen",
       "id": "deepseek-r1-distill-qwen-14b",
@@ -7352,7 +7666,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "qwen",
       "id": "deepseek-r1-distill-qwen-32b",
@@ -7374,7 +7688,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 32768,
       "family": "qwen",
       "id": "deepseek-r1-distill-qwen-7b",
@@ -7396,7 +7710,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3",
@@ -7404,14 +7718,9 @@
       "maxOutputTokens": 163840,
       "metadata": {},
       "name": "DeepSeek V3",
-      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.135
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.287
@@ -7423,7 +7732,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-1",
@@ -7458,7 +7767,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-1-maas",
@@ -7493,7 +7802,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-1-terminus",
@@ -7528,7 +7837,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-2",
@@ -7563,7 +7872,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-2-exp",
@@ -7593,7 +7902,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 163840,
       "family": "deepseek",
       "id": "deepseek-v3-2-maas",
@@ -7628,7 +7937,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
@@ -7664,7 +7973,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash-vision-exp",
@@ -7700,7 +8009,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "deepseek-thinking",
       "id": "deepseek-v4-pro",
@@ -7831,7 +8140,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-2-5-computer-use-preview-10-2025",
@@ -7860,7 +8169,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -7905,8 +8215,8 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
-      "contextWindow": 32768,
+      "capabilities": ["text-generation", "image-recognition", "image-generation"],
+      "contextWindow": 65536,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
       "imageGeneration": {
@@ -7928,6 +8238,7 @@
         }
       },
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "gemini-2.5-flash-image",
       "outputModalities": ["text", "image"],
@@ -7945,28 +8256,10 @@
           "currency": "USD",
           "perMillionTokens": 30
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 24576,
-            "min": 0
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 24576,
-          "min": 0
-        },
-        "wireDialect": "budget"
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image-preview",
       "imageGeneration": {
@@ -8019,7 +8312,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -8114,7 +8408,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-pro",
@@ -8161,7 +8456,8 @@
         "image-recognition",
         "audio-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "id": "gemini-2-5-pro-preview",
@@ -8203,7 +8499,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "id": "gemini-2-5-pro-preview-05-06",
@@ -8282,11 +8579,11 @@
     },
     {
       "capabilities": [
+        "text-generation",
         "reasoning",
         "image-recognition",
         "image-generation",
         "video-recognition",
-        "structured-output",
         "file-input"
       ],
       "contextWindow": 131072,
@@ -8329,7 +8626,7 @@
         }
       },
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 65536,
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "Nano Banana 2",
       "outputModalities": ["text", "image"],
@@ -8369,7 +8666,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-image-preview",
@@ -8439,7 +8736,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -8486,18 +8784,18 @@
     },
     {
       "capabilities": [
-        "function-call",
+        "text-generation",
         "reasoning",
         "image-recognition",
         "image-generation",
-        "structured-output",
+        "video-recognition",
         "file-input"
       ],
       "contextWindow": 65536,
       "family": "gemini-flash-lite",
       "id": "gemini-3-1-flash-lite-image",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 65536,
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Nano Banana 2 Lite",
       "outputModalities": ["text", "image"],
@@ -8544,7 +8842,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -8685,7 +8984,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-pro",
@@ -8738,7 +9038,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-pro",
@@ -8791,7 +9092,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -8844,7 +9146,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -8911,7 +9214,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gemini",
       "id": "gemini-3-5-transcribe",
       "inputModalities": ["audio"],
@@ -8931,7 +9234,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gemini",
       "id": "gemini-3-5-transcribe-live",
       "inputModalities": ["audio"],
@@ -8948,7 +9251,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -9001,7 +9305,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -9047,7 +9352,61 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-flash",
+      "id": "gemini-3-8-flash",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.8 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        },
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "gemini-flash",
       "id": "gemini-3-flash",
@@ -9099,7 +9458,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -9145,15 +9505,8 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 131072,
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation"],
+      "contextWindow": 65536,
       "family": "gemini",
       "id": "gemini-3-pro-image",
       "imageGeneration": {
@@ -9215,7 +9568,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-3-pro-image-preview",
@@ -9325,7 +9678,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash",
@@ -9378,7 +9732,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "gemini-flash-lite",
@@ -9467,7 +9822,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "id": "gemini-pro-latest",
@@ -9514,7 +9870,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 131072,
       "family": "gemini",
@@ -9546,7 +9903,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 8192,
       "id": "gemma-2-27b-it",
       "inputModalities": ["text"],
@@ -9566,7 +9923,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "id": "gemma-2-2b-it",
       "inputModalities": ["text"],
@@ -9588,7 +9945,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "gemma",
       "id": "gemma-3-12b-it",
@@ -9611,7 +9968,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 202752,
       "family": "gemma",
       "id": "gemma-3-27b-it",
@@ -9634,7 +9991,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "gemma",
       "id": "gemma-3-4b-it",
@@ -9657,7 +10014,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "gemma-3n-e2b-it",
       "inputModalities": ["text", "image"],
@@ -9679,7 +10036,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "gemma-3n-e4b-it",
       "inputModalities": ["text", "image"],
@@ -9707,7 +10064,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "gemma",
@@ -9749,7 +10107,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "gemma",
@@ -10584,7 +10943,7 @@
       "ownedBy": "ideogram"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "mercury",
       "id": "mercury-2",
@@ -10619,7 +10978,27 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
+      "contextWindow": 260000,
+      "id": "mercury-2-5-preview",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Inception: Mercury 2.5 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "inception",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32000,
       "family": "mercury",
       "id": "mercury-coder-small",
@@ -10641,7 +11020,7 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 128000,
       "id": "mercury-edit-2",
       "inputModalities": ["text"],
@@ -11105,7 +11484,7 @@
       "ownedBy": "kling"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 65536,
       "id": "lfm-2-5-2-6b",
       "inputModalities": ["text"],
@@ -11143,7 +11522,7 @@
       "ownedBy": "luma"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1048576,
       "description": "LongCat-2.0 is a high-performance agentic model with native tool calling, multi-step reasoning, a 1M-token context window, and a 128K-token maximum output.",
       "family": "longcat",
@@ -11174,7 +11553,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "llama",
       "id": "llama-3-1-70b",
@@ -11196,7 +11575,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "llama-3-1-70b-instruct",
       "inputModalities": ["text"],
@@ -11218,7 +11597,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama-3-1-8b",
@@ -11240,7 +11619,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "llama",
       "id": "llama-3-1-8b-instruct",
@@ -11263,7 +11642,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "llama-3-2-11b-vision-instruct",
       "inputModalities": ["text", "image"],
@@ -11285,7 +11664,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "id": "llama-3-2-1b-instruct",
       "inputModalities": ["text"],
@@ -11307,7 +11686,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "llama",
       "id": "llama-3-2-3b-instruct",
@@ -11330,7 +11709,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama-3-2-90b-vision-instruct",
@@ -11375,7 +11754,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "file-input"],
+      "capabilities": ["function-call", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama-3-3-70b",
@@ -11398,7 +11777,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "llama-3-3-70b-instruct",
       "inputModalities": ["text"],
@@ -11420,7 +11799,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama-3-3-70b-instruct-maas",
@@ -11443,7 +11822,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "nemotron",
       "id": "llama-3-3-nemotron-super-49b-v1",
@@ -11474,7 +11853,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "nemotron",
       "id": "llama-3-3-nemotron-super-49b-v1-5",
@@ -11505,7 +11884,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1048576,
       "family": "llama",
       "id": "llama-4-maverick",
@@ -11528,7 +11907,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "llama-4-maverick-17b-128e-instruct",
       "inputModalities": ["text", "image"],
@@ -11550,7 +11929,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 524288,
       "family": "llama",
       "id": "llama-4-maverick-17b-128e-instruct-maas",
@@ -11573,7 +11952,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1310720,
       "family": "llama",
       "id": "llama-4-scout",
@@ -11596,7 +11975,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "structured-output", "file-input"],
+      "capabilities": ["image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 163840,
       "family": "llama",
       "id": "llama-guard-4-12b",
@@ -11665,7 +12044,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama3-1-70b-instruct",
@@ -11688,7 +12067,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama3-1-8b-instruct",
@@ -11711,7 +12090,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "llama",
       "id": "llama3-3-70b-instruct",
@@ -11734,7 +12113,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "llama",
       "id": "llama4-maverick-17b-instruct",
@@ -11757,7 +12136,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 3500000,
       "family": "llama",
       "id": "llama4-scout-17b-instruct",
@@ -11798,7 +12177,7 @@
       "ownedBy": "microsoft"
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 16384,
       "id": "phi-4",
       "inputModalities": ["text"],
@@ -11818,7 +12197,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "phi",
       "id": "phi-4-mini-instruct",
@@ -11841,7 +12220,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "phi-4-multimodal-instruct",
       "inputModalities": ["text"],
@@ -12032,7 +12411,7 @@
       "ownedBy": "minimax"
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 1000192,
       "id": "minimax-01",
       "inputModalities": ["text", "image"],
@@ -12072,7 +12451,7 @@
       "ownedBy": "minimax"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1000000,
       "id": "minimax-m1",
       "inputModalities": ["text"],
@@ -12092,7 +12471,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 205000,
       "family": "minimax",
       "id": "minimax-m2",
@@ -12123,7 +12502,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-1",
@@ -12154,7 +12533,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-1-lightning",
@@ -12184,7 +12563,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-5",
@@ -12215,7 +12594,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-5-highspeed",
@@ -12246,7 +12625,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-7",
@@ -12277,7 +12656,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input", "text-generation"],
       "contextWindow": 204800,
       "family": "minimax",
       "id": "minimax-m2-7-highspeed",
@@ -12308,7 +12687,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 65536,
       "id": "minimax-m2-her",
       "inputModalities": ["text"],
@@ -12334,7 +12713,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "minimax",
@@ -12370,7 +12750,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output", "file-input"],
+      "capabilities": ["function-call", "structured-output", "file-input", "text-generation"],
       "contextWindow": 256000,
       "family": "codestral",
       "id": "codestral",
@@ -12405,7 +12785,7 @@
       "ownedBy": "mistral"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 256000,
       "family": "codestral",
       "id": "codestral-latest",
@@ -12428,7 +12808,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output", "file-input"],
+      "capabilities": ["function-call", "structured-output", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "devstral",
       "id": "devstral",
@@ -12451,7 +12831,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 256000,
       "family": "devstral",
       "id": "devstral-2",
@@ -12473,7 +12853,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 256000,
       "family": "devstral",
       "id": "devstral-2-123b",
@@ -12496,7 +12876,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "devstral",
       "id": "devstral-latest",
@@ -12519,7 +12899,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "devstral",
       "id": "devstral-medium",
@@ -12542,7 +12922,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "devstral",
       "id": "devstral-medium-latest",
@@ -12565,7 +12945,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "family": "devstral",
       "id": "devstral-small",
@@ -12588,7 +12968,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "family": "devstral",
       "id": "devstral-small-2",
@@ -12610,7 +12990,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 128000,
       "family": "magistral-medium",
       "id": "magistral-medium-latest",
@@ -12633,7 +13013,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "magistral",
       "id": "magistral-small",
@@ -12656,7 +13036,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "ministral",
       "id": "ministral-14b",
@@ -12678,7 +13058,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "ministral",
       "id": "ministral-14b-instruct",
@@ -12701,7 +13081,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "ministral",
       "id": "ministral-3-14b-instruct",
@@ -12723,7 +13103,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 256000,
       "family": "ministral",
       "id": "ministral-3-3b-instruct",
@@ -12746,7 +13126,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "ministral",
       "id": "ministral-3-8b-instruct",
@@ -12768,7 +13148,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "ministral",
       "id": "ministral-3b",
@@ -12791,7 +13171,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "ministral",
       "id": "ministral-3b-latest",
@@ -12814,7 +13194,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "ministral",
       "id": "ministral-8b",
@@ -12837,7 +13217,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "ministral",
       "id": "ministral-8b-latest",
@@ -12860,7 +13240,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 65536,
       "id": "mistral-7b-instruct-v0-3",
       "inputModalities": ["text"],
@@ -12904,7 +13284,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "mistral-large",
       "id": "mistral-large",
@@ -12927,7 +13307,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "file-input"],
+      "capabilities": ["image-recognition", "file-input", "text-generation"],
       "contextWindow": 256000,
       "family": "mistral-large",
       "id": "mistral-large-3",
@@ -12949,7 +13329,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "mistral-large",
       "id": "mistral-large-3-675b-instruct",
@@ -12972,7 +13352,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 262144,
       "family": "mistral-large",
       "id": "mistral-large-latest",
@@ -12995,7 +13375,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "mistral-medium",
       "id": "mistral-medium",
@@ -13027,7 +13414,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 131072,
       "id": "mistral-medium-3",
       "inputModalities": ["text", "image"],
@@ -13047,7 +13434,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 131072,
       "id": "mistral-medium-3-1",
       "inputModalities": ["text", "image"],
@@ -13067,7 +13454,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "mistral-medium",
       "id": "mistral-medium-3-5",
@@ -13098,7 +13492,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "mistral-medium",
       "id": "mistral-medium-3-5-128b",
@@ -13130,7 +13531,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "file-input"],
+      "capabilities": ["image-recognition", "file-input", "text-generation"],
       "contextWindow": 131072,
       "family": "mistral-medium",
       "id": "mistral-medium-3-instruct",
@@ -13152,7 +13553,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "mistral-medium",
       "id": "mistral-medium-latest",
@@ -13184,7 +13592,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "mistral-nemo",
       "id": "mistral-nemo",
@@ -13207,7 +13615,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "mistral-nemotron",
@@ -13230,7 +13638,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output", "file-input"],
+      "capabilities": ["function-call", "structured-output", "file-input", "text-generation"],
       "contextWindow": 32768,
       "id": "mistral-saba",
       "inputModalities": ["text"],
@@ -13250,7 +13658,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "family": "mistral-small",
       "id": "mistral-small",
@@ -13282,7 +13697,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 32768,
       "id": "mistral-small-24b-instruct",
       "inputModalities": ["text"],
@@ -13302,7 +13717,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 128000,
       "id": "mistral-small-3-1-24b-instruct",
       "inputModalities": ["text", "image"],
@@ -13322,7 +13737,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "mistral-small-3-2-24b-instruct",
       "inputModalities": ["image", "text"],
@@ -13342,7 +13757,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 128000,
       "id": "mistral-small-4-119b",
       "inputModalities": ["text", "image"],
@@ -13373,7 +13795,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 256000,
       "family": "mistral-small",
       "id": "mistral-small-latest",
@@ -13405,7 +13827,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8000,
       "family": "mistral",
       "id": "open-mistral-7b",
@@ -13428,7 +13850,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 64000,
       "family": "mixtral",
       "id": "open-mixtral-8x22b",
@@ -13451,7 +13873,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32000,
       "family": "mixtral",
       "id": "open-mixtral-8x7b",
@@ -13474,7 +13896,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "pixtral",
       "id": "pixtral-12b",
@@ -13497,7 +13919,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 128000,
       "family": "mistral",
       "id": "pixtral-large",
@@ -13519,7 +13941,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "pixtral",
       "id": "pixtral-large-latest",
@@ -13542,7 +13964,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "audio-recognition", "structured-output"],
+      "capabilities": ["function-call", "audio-recognition", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "mistral",
       "id": "voxtral-mini-3b",
@@ -13564,7 +13986,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "voxtral",
       "id": "voxtral-mini-latest",
       "inputModalities": ["audio"],
@@ -13584,7 +14006,7 @@
       "ownedBy": "mistral"
     },
     {
-      "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "audio-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 32768,
       "family": "mistral",
       "id": "voxtral-small-24b",
@@ -13607,7 +14029,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "audio-recognition", "file-input"],
+      "capabilities": ["function-call", "audio-recognition", "file-input", "text-generation"],
       "contextWindow": 32000,
       "family": "voxtral",
       "id": "voxtral-small-latest",
@@ -13630,7 +14052,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-thinking",
       "id": "kimi-k2",
@@ -13657,7 +14079,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "family": "kimi-k2",
       "id": "kimi-k2-0711-preview",
@@ -13684,7 +14106,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-k2",
       "id": "kimi-k2-0905-preview",
@@ -13717,7 +14139,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "kimi-k2",
@@ -13768,7 +14191,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "kimi-k2",
@@ -13823,7 +14247,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "kimi-k2",
@@ -13870,7 +14295,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "kimi-k2",
@@ -13911,7 +14337,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-k2",
       "id": "kimi-k2-instruct",
@@ -13934,7 +14360,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-thinking",
       "id": "kimi-k2-thinking-maas",
@@ -13961,7 +14387,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-thinking",
       "id": "kimi-k2-thinking-turbo",
@@ -13988,7 +14414,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "kimi-k2",
       "id": "kimi-k2-turbo-preview",
@@ -14021,7 +14447,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "kimi-k3",
@@ -14061,7 +14488,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "kimi-k3",
       "id": "kimi-k3-fast",
@@ -14097,7 +14531,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 1048576,
       "id": "kimi-latest",
       "inputModalities": ["text", "image", "video"],
@@ -14117,7 +14558,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "hermes-3-llama-3-1-405b",
       "inputModalities": ["text"],
@@ -14137,7 +14578,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "structured-output"],
+      "capabilities": ["reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "hermes-4-405b",
       "inputModalities": ["text"],
@@ -14157,7 +14598,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "structured-output"],
+      "capabilities": ["reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "hermes-4-70b",
       "inputModalities": ["text"],
@@ -14177,7 +14618,7 @@
       }
     },
     {
-      "capabilities": ["video-recognition", "file-input"],
+      "capabilities": ["video-recognition", "file-input", "text-generation"],
       "id": "active-speaker-detection",
       "inputModalities": ["video"],
       "maxOutputTokens": 4096,
@@ -14198,7 +14639,7 @@
       }
     },
     {
-      "capabilities": ["video-recognition", "file-input"],
+      "capabilities": ["video-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "bevformer",
       "inputModalities": ["video"],
@@ -14241,7 +14682,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 131072,
       "id": "cosmos-reason2-8b",
       "inputModalities": ["text", "image", "video"],
@@ -14305,7 +14753,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "esm2-650m",
       "inputModalities": ["text"],
@@ -14327,7 +14775,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "esmfold",
       "inputModalities": ["text"],
@@ -14349,7 +14797,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "gliner-pii",
       "inputModalities": ["text"],
@@ -14371,7 +14819,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "laguna",
       "id": "laguna-xs-2-1",
@@ -14394,7 +14842,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-70b-instruct",
@@ -14417,7 +14865,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-nano-8b-v1",
@@ -14448,7 +14896,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 32768,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-nano-vl-8b-v1",
@@ -14471,7 +14919,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-safety-guard-8b-v3",
@@ -14494,7 +14942,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "llama-3-1-nemotron-ultra-253b-v1",
@@ -14546,7 +14994,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output", "file-input"],
+      "capabilities": ["function-call", "structured-output", "file-input", "text-generation"],
       "contextWindow": 65536,
       "id": "mixtral-8x22b-instruct",
       "inputModalities": ["text"],
@@ -14568,7 +15016,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "mixtral-8x7b-instruct",
       "inputModalities": ["text"],
@@ -14590,7 +15038,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 131072,
       "family": "muse",
       "id": "muse-glimmer-30b",
@@ -14626,7 +15081,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
+      "capabilities": ["reasoning", "image-recognition", "text-generation"],
       "contextWindow": 128000,
       "id": "nemotron-3-5-content-safety",
       "inputModalities": ["text", "image"],
@@ -14646,7 +15101,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "nemotron",
       "id": "nemotron-3-5-lightning",
@@ -14690,7 +15145,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "nemotron",
       "id": "nemotron-3-5-lightning-30b-a3b",
@@ -14721,7 +15176,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-3-content-safety",
@@ -14744,7 +15199,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "nemotron",
       "id": "nemotron-3-nano-30b-a3b",
@@ -14782,7 +15237,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 256000,
       "family": "nemotron",
@@ -14814,7 +15270,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "nemotron",
       "id": "nemotron-3-super-120b-a12b",
@@ -14845,7 +15301,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "nemotron",
       "id": "nemotron-3-ultra-550b-a55b",
@@ -14880,7 +15336,7 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-content-safety-reasoning-4b",
@@ -14903,7 +15359,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-mini-4b-instruct",
@@ -14926,7 +15382,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-nano-12b-v2",
@@ -14948,7 +15404,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 131072,
       "family": "nemotron",
       "id": "nemotron-nano-12b-v2-vl",
@@ -14979,7 +15442,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-nano-3-30b",
@@ -15002,7 +15465,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "nemotron",
       "id": "nemotron-nano-9b-v2",
@@ -15033,7 +15496,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "nemotron",
       "id": "nemotron-super-3-120b",
@@ -15056,7 +15519,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "audio-recognition", "file-input"],
+      "capabilities": ["function-call", "audio-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "nemotron",
       "id": "nemotron-voicechat",
@@ -15123,7 +15586,7 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "file-input"],
+      "capabilities": ["image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "paligemma",
       "inputModalities": ["text", "image"],
@@ -15167,7 +15630,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "riva-translate-4b-instruct-v1-1",
       "inputModalities": ["text"],
@@ -15189,7 +15652,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "id": "sarvam-m",
       "inputModalities": ["text"],
@@ -15211,7 +15674,7 @@
       }
     },
     {
-      "capabilities": ["video-recognition", "file-input"],
+      "capabilities": ["video-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "sparsedrive",
       "inputModalities": ["video"],
@@ -15233,7 +15696,7 @@
       }
     },
     {
-      "capabilities": ["video-recognition", "file-input"],
+      "capabilities": ["video-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "streampetr",
       "inputModalities": ["video"],
@@ -15255,7 +15718,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "studiovoice",
       "inputModalities": ["text"],
@@ -15277,7 +15740,7 @@
       }
     },
     {
-      "capabilities": ["video-recognition", "file-input"],
+      "capabilities": ["video-recognition", "file-input", "text-generation"],
       "id": "synthetic-video-detector",
       "inputModalities": ["video"],
       "maxOutputTokens": 4096,
@@ -15298,7 +15761,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 128000,
       "id": "usdcode",
       "inputModalities": ["text"],
@@ -15319,7 +15782,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "id": "usdvalidate",
       "inputModalities": ["text"],
       "maxOutputTokens": 4096,
@@ -15340,7 +15803,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "whisper-large-v3",
       "inputModalities": ["audio"],
@@ -15433,7 +15896,7 @@
       "ownedBy": "openai"
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 16385,
       "family": "gpt",
       "id": "gpt-3-5-turbo",
@@ -15459,7 +15922,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 16385,
       "id": "gpt-3-5-turbo-16k",
       "inputModalities": ["text"],
@@ -15479,7 +15942,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 4095,
       "id": "gpt-3-5-turbo-instruct",
       "inputModalities": ["text"],
@@ -15499,7 +15962,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output", "file-input"],
+      "capabilities": ["function-call", "structured-output", "file-input", "text-generation"],
       "contextWindow": 8192,
       "family": "gpt",
       "id": "gpt-4",
@@ -15521,7 +15984,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1047576,
       "family": "gpt",
       "id": "gpt-4-1",
@@ -15547,7 +16010,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1047576,
       "family": "gpt-mini",
       "id": "gpt-4-1-mini",
@@ -15573,7 +16036,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1047576,
       "family": "gpt-nano",
       "id": "gpt-4-1-nano",
@@ -15599,7 +16062,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-4-turbo",
@@ -15621,7 +16084,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "id": "gpt-4-turbo-preview",
       "inputModalities": ["text"],
@@ -15641,7 +16104,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-4o",
@@ -15667,7 +16130,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "gpt-mini",
       "id": "gpt-4o-mini",
@@ -15693,7 +16156,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "o-mini",
       "id": "gpt-4o-mini-transcribe",
       "inputModalities": ["audio"],
@@ -15713,7 +16176,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gpt",
       "id": "gpt-4o-transcribe",
       "inputModalities": ["audio"],
@@ -15733,7 +16196,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5",
@@ -15768,7 +16238,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1",
@@ -15803,7 +16280,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-1-codex",
@@ -15838,7 +16322,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-1-codex-max",
@@ -15873,7 +16364,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-1-codex-mini",
@@ -15908,7 +16406,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-2",
@@ -15943,7 +16448,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "id": "gpt-5-2-chat",
       "inputModalities": ["image", "text"],
@@ -15963,7 +16468,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 128000,
       "family": "gpt-codex",
       "id": "gpt-5-2-chat-latest",
@@ -15998,7 +16510,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-2-codex",
@@ -16033,7 +16552,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-pro",
       "id": "gpt-5-2-pro",
@@ -16064,7 +16590,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-3-chat-latest",
@@ -16090,7 +16616,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-3-codex",
@@ -16125,7 +16658,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 128000,
       "family": "gpt-codex-spark",
       "id": "gpt-5-3-codex-spark",
@@ -16160,7 +16700,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-4",
@@ -16195,7 +16742,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-mini",
       "id": "gpt-5-4-mini",
@@ -16230,7 +16784,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-nano",
       "id": "gpt-5-4-nano",
@@ -16265,7 +16826,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-pro",
       "id": "gpt-5-4-pro",
@@ -16296,7 +16864,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt",
       "id": "gpt-5-5",
@@ -16331,7 +16906,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-pro",
       "id": "gpt-5-5-pro",
@@ -16362,7 +16944,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-sol",
       "id": "gpt-5-6",
@@ -16401,7 +16990,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-luna",
       "id": "gpt-5-6-luna",
@@ -16440,7 +17036,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "id": "gpt-5-6-luna-pro",
       "inputModalities": ["image", "text"],
@@ -16469,7 +17072,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-sol",
       "id": "gpt-5-6-sol",
@@ -16508,7 +17118,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "id": "gpt-5-6-sol-pro",
       "inputModalities": ["image", "text"],
@@ -16537,7 +17154,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "family": "gpt-terra",
       "id": "gpt-5-6-terra",
@@ -16576,7 +17200,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "id": "gpt-5-6-terra-pro",
       "inputModalities": ["image", "text"],
@@ -16605,7 +17236,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "id": "gpt-5-chat",
       "metadata": {},
       "name": "GPT-5 Chat",
@@ -16613,7 +17251,14 @@
       "ownedBy": "openai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-codex",
       "id": "gpt-5-codex",
@@ -16648,7 +17293,72 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "contextWindow": 400000,
+      "id": "gpt-5-image",
+      "inputModalities": ["image", "text"],
+      "metadata": {},
+      "name": "OpenAI: GPT-5 Image",
+      "outputModalities": ["image", "text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "contextWindow": 400000,
+      "id": "gpt-5-image-mini",
+      "inputModalities": ["image", "text"],
+      "metadata": {},
+      "name": "OpenAI: GPT-5 Image Mini",
+      "outputModalities": ["image", "text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-mini",
       "id": "gpt-5-mini",
@@ -16683,7 +17393,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-nano",
       "id": "gpt-5-nano",
@@ -16718,7 +17435,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "family": "gpt-pro",
       "id": "gpt-5-pro",
@@ -16789,7 +17513,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 400000,
       "id": "gpt-chat-latest",
       "inputModalities": ["text", "image"],
@@ -17053,7 +17777,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1050000,
       "id": "gpt-latest",
       "inputModalities": ["image", "text"],
@@ -17073,7 +17804,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 400000,
       "id": "gpt-mini-latest",
       "inputModalities": ["image", "text"],
@@ -17093,7 +17831,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "gpt-oss",
       "id": "gpt-oss-120b",
@@ -17125,7 +17863,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "gpt-oss",
       "id": "gpt-oss-120b-maas",
@@ -17157,7 +17895,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "gpt-oss",
       "id": "gpt-oss-20b",
@@ -17189,7 +17927,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "gpt-oss",
       "id": "gpt-oss-20b-maas",
@@ -17225,7 +17963,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 128000,
       "family": "gpt-oss",
       "id": "gpt-oss-safeguard-120b",
@@ -17257,7 +17995,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "gpt-oss",
       "id": "gpt-oss-safeguard-20b",
@@ -17403,7 +18141,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "gpt-realtime-whisper",
       "inputModalities": ["audio"],
@@ -17413,7 +18151,14 @@
       "ownedBy": "openai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "o",
       "id": "o1",
@@ -17448,7 +18193,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "o-pro",
       "id": "o1-pro",
@@ -17479,7 +18231,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "o",
       "id": "o3",
@@ -17514,7 +18273,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "text-generation"],
       "contextWindow": 200000,
       "family": "o-mini",
       "id": "o3-mini",
@@ -17549,7 +18308,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "o-pro",
       "id": "o3-pro",
@@ -17580,7 +18346,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "o-mini",
       "id": "o4-mini",
@@ -17681,7 +18454,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "sonar",
       "id": "sonar",
@@ -17703,7 +18476,7 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 128000,
       "id": "sonar-deep-research",
       "inputModalities": ["text"],
@@ -17733,7 +18506,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 200000,
       "family": "sonar-pro",
       "id": "sonar-pro",
@@ -17755,7 +18535,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "file-input"],
+      "capabilities": ["reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 128000,
       "family": "sonar-reasoning",
       "id": "sonar-reasoning-pro",
@@ -17940,7 +18720,13 @@
       "ownedBy": "recraft"
     },
     {
-      "capabilities": ["function-call", "image-recognition", "video-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
       "contextWindow": 16384,
       "id": "reka-edge",
       "inputModalities": ["image", "text", "video"],
@@ -17960,7 +18746,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "structured-output"],
+      "capabilities": ["reasoning", "structured-output", "text-generation"],
       "contextWindow": 65536,
       "id": "reka-flash-3",
       "inputModalities": ["text"],
@@ -18097,7 +18883,7 @@
       "ownedBy": "stability"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32768,
       "id": "step-1-32k",
       "inputModalities": ["text"],
@@ -18122,7 +18908,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 16384,
       "id": "step-2-16k",
       "inputModalities": ["text"],
@@ -18147,7 +18933,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 262144,
       "id": "step-3-5-flash",
       "inputModalities": ["text", "image"],
@@ -18188,7 +18974,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "id": "step-3-7-flash",
@@ -18234,7 +19021,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "step",
       "id": "stepaudio-2-5-asr",
       "inputModalities": ["audio"],
@@ -18254,7 +19041,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-air-v2-5",
@@ -18280,7 +19067,7 @@
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-pro-v1",
@@ -18306,7 +19093,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2",
@@ -18332,7 +19119,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2-5",
@@ -18394,7 +19181,7 @@
       "ownedBy": "suno"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 196608,
       "id": "hunyuan-2-0",
       "maxInputTokens": 131072,
@@ -18404,7 +19191,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 147456,
       "id": "hunyuan-2-0-instruct",
       "maxInputTokens": 131072,
@@ -18414,7 +19201,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 262144,
       "id": "hunyuan-a13b-instruct",
       "inputModalities": ["text"],
@@ -18452,14 +19239,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "id": "hunyuan-t1",
       "metadata": {},
       "name": "Hunyuan T1",
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "id": "hunyuan-turbos",
       "metadata": {},
       "name": "Hunyuan TurboS",
@@ -18528,7 +19315,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "id": "hy-mt2-1-8b",
       "inputModalities": ["text"],
@@ -18548,7 +19335,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 8192,
       "id": "hy-mt2-30b-a3b",
       "inputModalities": ["text"],
@@ -18568,7 +19355,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 8192,
       "id": "hy-mt2-7b",
       "inputModalities": ["text"],
@@ -18588,7 +19375,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "family": "Hy",
       "id": "hy-mt2-lite",
@@ -18610,7 +19397,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "family": "Hy",
       "id": "hy-mt2-plus",
@@ -18632,7 +19419,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 8192,
       "family": "Hy",
       "id": "hy-mt2-pro",
@@ -18654,7 +19441,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 32768,
       "id": "hy-role",
       "maxInputTokens": 28672,
@@ -18664,7 +19451,7 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 262144,
       "family": "Hy",
       "id": "hy3",
@@ -18701,7 +19488,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 262144,
       "id": "hy3-preview",
       "inputModalities": ["text"],
@@ -18723,7 +19510,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "structured-output"],
+      "capabilities": ["reasoning", "function-call", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "Hy",
       "id": "hy4-preview",
@@ -18760,14 +19547,14 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "id": "tc-code",
       "metadata": {},
       "name": "Tencent Code",
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 128000,
       "id": "solar-10-7b-instruct",
       "inputModalities": ["text"],
@@ -18789,7 +19576,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 32768,
       "family": "solar-mini",
       "id": "solar-mini",
@@ -18811,7 +19598,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "id": "solar-pro-3",
       "inputModalities": ["text"],
@@ -18831,7 +19618,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 65536,
       "family": "solar-pro",
       "id": "solar-pro2",
@@ -18862,7 +19649,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "solar-pro",
       "id": "solar-pro3",
@@ -18893,7 +19680,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 524288,
       "family": "solar-pro",
       "id": "solar-pro4",
@@ -18940,7 +19727,14 @@
       "ownedBy": "vercel"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "fugu",
       "id": "fugu-ultra",
@@ -18966,7 +19760,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
+      "capabilities": ["reasoning", "image-recognition", "text-generation"],
       "contextWindow": 1000000,
       "id": "interfaze-beta",
       "inputModalities": ["text", "image"],
@@ -18996,7 +19790,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1048576,
       "family": "laguna",
       "id": "laguna-s-2-1",
@@ -19031,7 +19825,7 @@
       }
     },
     {
-      "capabilities": [],
+      "capabilities": ["text-generation"],
       "contextWindow": 81920,
       "family": "morph",
       "id": "morph-v3-fast",
@@ -19053,7 +19847,7 @@
       }
     },
     {
-      "capabilities": ["structured-output"],
+      "capabilities": ["structured-output", "text-generation"],
       "contextWindow": 262144,
       "family": "morph",
       "id": "morph-v3-large",
@@ -19092,7 +19886,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "muse",
@@ -19135,7 +19930,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "muse",
@@ -19169,7 +19965,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1048576,
       "family": "muse",
@@ -19196,7 +19993,93 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-1-3",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Muse Spark 1.3",
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high", "xhigh"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-1-3-contributor",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Muse Spark 1.3 Contributor",
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 262144,
       "id": "namazu",
       "inputModalities": ["text", "image"],
@@ -19272,7 +20155,7 @@
       "ownedBy": "vercel"
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "o",
       "id": "transcribe-1",
       "inputModalities": ["audio"],
@@ -19452,7 +20335,7 @@
       "ownedBy": "vercel"
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "whisper-1",
       "inputModalities": ["audio"],
@@ -19774,7 +20657,7 @@
       "ownedBy": "voyage"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 122880,
       "family": "palmyra",
       "id": "palmyra-x4",
@@ -19796,7 +20679,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1040000,
       "family": "palmyra",
       "id": "palmyra-x5",
@@ -19818,7 +20701,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-2",
       "metadata": {},
@@ -19826,7 +20709,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["function-call", "image-recognition", "text-generation"],
       "contextWindow": 32768,
       "id": "grok-2-vision",
       "inputModalities": ["text", "image"],
@@ -19835,7 +20718,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-3",
       "metadata": {},
@@ -19843,7 +20726,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-3-fast",
       "metadata": {},
@@ -19851,7 +20734,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-3-mini",
       "metadata": {},
@@ -19868,7 +20751,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-3-mini-fast",
       "metadata": {},
@@ -19885,7 +20768,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call", "image-recognition"],
+      "capabilities": ["reasoning", "function-call", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "id": "grok-4",
       "metadata": {},
@@ -19893,7 +20776,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 256000,
       "id": "grok-4-1",
       "metadata": {},
@@ -19901,7 +20784,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-1-fast",
@@ -19927,7 +20810,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-1-fast-non-reasoning",
@@ -19953,7 +20836,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20",
@@ -19979,7 +20869,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-20-0309-non-reasoning",
@@ -20005,7 +20895,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-multi-agent",
@@ -20040,7 +20937,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-multi-agent-beta",
@@ -20066,7 +20963,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-non-reasoning",
@@ -20092,7 +20989,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-non-reasoning-beta",
@@ -20118,7 +21015,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 2000000,
       "family": "grok",
       "id": "grok-4-20-reasoning-beta",
@@ -20144,7 +21041,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 1000000,
       "family": "grok",
       "id": "grok-4-3",
@@ -20179,7 +21083,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 500000,
       "family": "grok",
       "id": "grok-4-5",
@@ -20214,7 +21125,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 500000,
       "family": "grok",
       "id": "grok-4-6",
@@ -20249,7 +21167,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "function-call"],
+      "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 2000000,
       "id": "grok-4-fast",
       "metadata": {},
@@ -20257,7 +21175,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "grok-beta",
       "metadata": {},
@@ -20265,7 +21183,14 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 256000,
       "family": "grok-build",
       "id": "grok-build-0-1",
@@ -20291,7 +21216,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 256000,
       "id": "grok-code-fast-1",
       "metadata": {},
@@ -20364,7 +21289,14 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
       "contextWindow": 500000,
       "id": "grok-latest",
       "inputModalities": ["text", "image"],
@@ -20384,7 +21316,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "grok",
       "id": "grok-stt",
       "inputModalities": ["audio"],
@@ -20404,7 +21336,7 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 8192,
       "id": "grok-vision-beta",
       "inputModalities": ["text", "image"],
@@ -20440,7 +21372,8 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1050000,
       "family": "mimo",
@@ -20476,7 +21409,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "text-generation"],
       "contextWindow": 1050000,
       "family": "mimo",
       "id": "mimo-v2-5-pro",
@@ -20511,7 +21444,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1048576,
       "family": "mimo",
       "id": "mimo-v2-5-pro-ultraspeed",
@@ -20546,7 +21479,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "mimo",
       "id": "mimo-v2-flash",
@@ -20587,7 +21520,8 @@
         "image-recognition",
         "audio-recognition",
         "video-recognition",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 262144,
       "family": "mimo",
@@ -20622,7 +21556,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 1048576,
       "family": "mimo",
       "id": "mimo-v2-pro",
@@ -20729,7 +21663,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-3-turbo",
       "metadata": {},
@@ -20737,7 +21671,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-4",
       "metadata": {},
@@ -20745,7 +21679,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["reasoning", "image-recognition"],
+      "capabilities": ["reasoning", "image-recognition", "text-generation"],
       "contextWindow": 65536,
       "id": "glm-4-1v",
       "inputModalities": ["text", "image"],
@@ -20754,7 +21688,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 131072,
       "family": "glm",
       "id": "glm-4-5",
@@ -20793,7 +21727,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "glm-air",
       "id": "glm-4-5-air",
@@ -20832,7 +21766,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 131072,
       "family": "glm-flash",
       "id": "glm-4-5-flash",
@@ -20877,7 +21811,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 66000,
       "family": "glm",
@@ -20913,7 +21848,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 204800,
       "family": "glm",
       "id": "glm-4-6",
@@ -20958,7 +21893,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 131072,
       "family": "glm",
@@ -20990,7 +21926,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 204800,
       "family": "glm",
       "id": "glm-4-7",
@@ -21029,7 +21965,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 202752,
       "family": "glm-flash",
       "id": "glm-4-7-flash",
@@ -21068,7 +22004,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 200000,
       "family": "glm-flash",
       "id": "glm-4-7-flashx",
@@ -21107,7 +22043,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 200000,
       "family": "glm",
       "id": "glm-4-7-maas",
@@ -21142,7 +22078,7 @@
       }
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-4-air",
       "metadata": {},
@@ -21150,7 +22086,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 8192,
       "id": "glm-4-airx",
       "metadata": {},
@@ -21158,7 +22094,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-4-flash",
       "metadata": {},
@@ -21166,7 +22102,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-4-flashx",
       "metadata": {},
@@ -21174,7 +22110,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 1024000,
       "id": "glm-4-long",
       "metadata": {},
@@ -21182,7 +22118,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["function-call", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-4-plus",
       "metadata": {},
@@ -21190,7 +22126,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 8192,
       "id": "glm-4v",
       "inputModalities": ["text", "image"],
@@ -21199,7 +22135,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 8192,
       "id": "glm-4v-flash",
       "inputModalities": ["text", "image"],
@@ -21208,7 +22144,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["image-recognition"],
+      "capabilities": ["image-recognition", "text-generation"],
       "contextWindow": 8192,
       "id": "glm-4v-plus",
       "inputModalities": ["text", "image"],
@@ -21217,7 +22153,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 204800,
       "family": "glm",
       "id": "glm-5",
@@ -21256,7 +22192,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "file-input", "text-generation"],
       "contextWindow": 204800,
       "family": "glm",
       "id": "glm-5-1",
@@ -21295,7 +22231,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "glm",
       "id": "glm-5-2",
@@ -21338,7 +22274,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1000000,
       "family": "glm",
       "id": "glm-5-2-fast",
@@ -21377,7 +22313,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1310720,
       "family": "glm",
       "id": "glm-5-3",
@@ -21417,13 +22353,50 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
+      "contextWindow": 1048576,
+      "family": "glm",
+      "id": "glm-5-3-fast",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "GLM 5.3 Fast",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.21
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6.6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "glm",
@@ -21464,7 +22437,42 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
+      "contextWindow": 1048576,
+      "family": "glm",
+      "id": "glm-5-3-promo-50",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "GLM 5.3 (50% off)",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 202752,
       "family": "glm",
       "id": "glm-5-maas",
@@ -21499,7 +22507,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 202800,
       "family": "glm",
       "id": "glm-5-turbo",
@@ -21543,7 +22551,8 @@
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input"
+        "file-input",
+        "text-generation"
       ],
       "contextWindow": 202752,
       "family": "glm",
@@ -21582,6 +22591,33 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "text-generation"
+      ],
+      "contextWindow": 1310720,
+      "id": "glm-flash-latest",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Z.ai: GLM Flash Latest",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        }
+      }
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "glm-image",
       "imageGeneration": {
@@ -21608,7 +22644,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
       "contextWindow": 1310720,
       "id": "glm-latest",
       "inputModalities": ["text"],
@@ -21619,16 +22655,16 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.1875
+          "perMillionTokens": 1.1340000000000001
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.18
+          "perMillionTokens": 3.564
         }
       }
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-z1",
       "metadata": {},
@@ -21636,7 +22672,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-z1-air",
       "metadata": {},
@@ -21644,7 +22680,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-z1-airx",
       "metadata": {},
@@ -21652,7 +22688,7 @@
       "ownedBy": "zhipu"
     },
     {
-      "capabilities": ["reasoning"],
+      "capabilities": ["reasoning", "text-generation"],
       "contextWindow": 131072,
       "id": "glm-z1-flash",
       "metadata": {},
@@ -21660,5 +22696,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "2f0039fd6893970f"
+  "version": "ba0a1c370820000a"
 }

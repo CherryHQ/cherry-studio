@@ -48,7 +48,7 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             id: 'openai::omni',
             providerId: 'openai',
             name: 'Omni',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO],
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
@@ -69,7 +69,7 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             id: 'openrouter::meta-llama/llama-3',
             providerId: 'openrouter',
             name: 'Llama 3',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
         }

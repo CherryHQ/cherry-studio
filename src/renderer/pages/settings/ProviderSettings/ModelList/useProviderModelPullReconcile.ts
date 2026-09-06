@@ -274,7 +274,9 @@ export function useProviderModelPullReconcile(providerId: string) {
       const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
 
       if (skippedCount > 0) {
-        toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
+        // Reconcile skips both user defaults and knowledge-base embedding models; the response only
+        // reports which rows survived, so the message names the shared reason.
+        toast.warning(t('settings.models.manage.remove_skipped_in_use', { count: skippedCount }))
       } else {
         toast.success(t('settings.models.manage.clean_stale_success', { count: staleIds.length }))
       }

@@ -1,6 +1,6 @@
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -95,7 +95,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     providerId: 'vertexai',
     apiModelId: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     contextWindow: 1_000_000,
     maxOutputTokens: 8_192,
     ...overrides
@@ -179,7 +179,10 @@ describe('buildDshGatewayInjection', () => {
   })
 
   it('rejects models the gateway cannot route and defaults an undeclared context window', () => {
-    const nonChat = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] })
+    const nonChat = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(() => buildDshGatewayInjection(vertexProvider, nonChat, GATEWAY)).toThrow(DshUnsupportedProviderError)
 
     const windowless = makeModel({ contextWindow: undefined })
@@ -256,6 +259,31 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
+  it('uses the persisted model route instead of the legacy endpoint order', async () => {
+    const provider = {
+      ...nativeProvider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.example.com/chat'
+        },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.example.com/responses'
+        }
+      }
+    } as Provider
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://api.example.com/responses/v1')
+  })
+
   it('falls back to the gateway without consuming native key rotation', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())
 
@@ -314,7 +342,12 @@ describe('assertDshProviderUsable', () => {
 
   it('still reports unsupported when the model is not gateway-routable either', async () => {
     mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
+    mocks.getByKey.mockResolvedValue(
+      makeModel({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+    )
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
   })

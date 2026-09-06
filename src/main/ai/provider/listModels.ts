@@ -12,17 +12,13 @@ import {
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
+import { endpointDefaultOperationCapability, MODEL_OPERATION_CAPABILITIES } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
-import type { EndpointType, Model } from '@shared/data/types/model'
-import {
-  createUniqueModelId,
-  ENDPOINT_TYPE,
-  endpointImpliedCapability,
-  MODEL_CAPABILITY
-} from '@shared/data/types/model'
+import type { EndpointType, Model, ModelCapability } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
@@ -238,7 +234,13 @@ const ollamaFetcher: ModelFetcher = {
     return models.map((m, index) =>
       toModel(m.name, provider, {
         ownedBy: 'ollama',
-        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        capabilities: m.capabilities?.includes('embedding')
+          ? [MODEL_CAPABILITY.EMBEDDING]
+          : [
+              MODEL_CAPABILITY.TEXT_GENERATION,
+              ...(m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [])
+            ],
+        ...(m.capabilities?.includes('embedding') ? { endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT] } : {}),
         ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
       })
     )
@@ -483,13 +485,6 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
     (value) => value
   )
 
-  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
-    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
-    if (chatEndpoint) {
-      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
-    }
-  }
-
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
 
@@ -509,12 +504,15 @@ const newApiFetcher: ModelFetcher = {
     })
     return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
       const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
-      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+      const endpointOperations = new Set(endpointTypes?.map(endpointDefaultOperationCapability))
+      const operationCapabilities = endpointTypes?.length
+        ? MODEL_OPERATION_CAPABILITIES.filter((operation) => endpointOperations.has(operation))
+        : [MODEL_CAPABILITY.TEXT_GENERATION]
 
       return toModel(m.id, provider, {
         ownedBy: m.owned_by,
         endpointTypes,
-        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        capabilities: operationCapabilities
       })
     })
   }
@@ -555,19 +553,27 @@ const openRouterFetcher: ModelFetcher = {
         })
       )
     ])
+    const chatModelIds = new Set(modelsResponse.data.map((model) => model.id))
+    const embeddingModelIds = new Set(embedModelsResponse.data.map((model) => model.id))
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => {
       const imageModel = imageModelsById.get(m.id)
+      const capabilities = [
+        ...(chatModelIds.has(m.id) ? [MODEL_CAPABILITY.TEXT_GENERATION] : []),
+        ...(embeddingModelIds.has(m.id) ? [MODEL_CAPABILITY.EMBEDDING] : []),
+        ...(imageModel ? [MODEL_CAPABILITY.IMAGE_GENERATION] : [])
+      ]
+      const endpointTypes = [
+        ...(chatModelIds.has(m.id) ? [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] : []),
+        ...(embeddingModelIds.has(m.id) ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : []),
+        ...(imageModel ? [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION] : [])
+      ]
       return toModel(m.id, provider, {
         name: imageModel?.name ?? m.name,
         ownedBy: m.owned_by,
-        ...(imageModel
-          ? {
-              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
-            }
-          : {})
+        capabilities,
+        endpointTypes
       })
     })
   }
@@ -609,24 +615,22 @@ const ppioFetcher: ModelFetcher = {
       )
     ])
     const modelsById = new Map<string, Partial<Model>>()
-    const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
+    const mergeModel = (model: OpenAIModelResponseItem, capability: ModelCapability) => {
       const id = model.id?.trim()
       if (!id) return
 
       const existing = modelsById.get(id)
       if (!existing) {
-        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: [capability] }))
         return
       }
 
-      if (capability) {
-        existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
-      }
+      existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), capability]))
     }
 
-    for (const model of chat.data) mergeModel(model)
-    for (const model of embed.data) mergeModel(model)
-    for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
+    for (const model of chat.data) mergeModel(model, MODEL_CAPABILITY.TEXT_GENERATION)
+    for (const model of embed.data) mergeModel(model, MODEL_CAPABILITY.EMBEDDING)
+    for (const model of reranker.data) mergeModel(model, MODEL_CAPABILITY.RERANK)
 
     return Array.from(modelsById.values())
   }

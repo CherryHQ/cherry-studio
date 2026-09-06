@@ -5,7 +5,13 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { application } from '@application'
-import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  getModelOperationCapabilities,
+  type Model as DataModel,
+  MODEL_CAPABILITY,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -184,17 +190,20 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
 }
 
 function createModel(overrides: Partial<DataModel> = {}): DataModel {
+  const capabilities = overrides.capabilities ?? []
   return {
     id: 'openai::gpt-4o',
     providerId: 'openai',
     apiModelId: 'gpt-4o',
     name: 'GPT-4o',
-    capabilities: [],
     endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
-    ...overrides
+    ...overrides,
+    capabilities: getModelOperationCapabilities(capabilities).length
+      ? capabilities
+      : [MODEL_CAPABILITY.TEXT_GENERATION, ...capabilities]
   }
 }
 
@@ -1569,7 +1578,7 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
-    it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {
+    it('maps a pinned adapter-only Anthropic endpoint through its provider host', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(
@@ -1577,7 +1586,11 @@ describe('OpenClawService gateway status state machine', () => {
           id: 'new-api',
           name: 'New API',
           endpointConfigs: {
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl: 'https://new-api.example.com',
+              adapterFamily: 'newapi'
+            },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' }
           }
         })
       )
@@ -1585,7 +1598,8 @@ describe('OpenClawService gateway status state machine', () => {
         id: 'new-api::claude-sonnet-4',
         providerId: 'new-api',
         apiModelId: 'claude-sonnet-4',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
       vi.mocked(modelService.list).mockResolvedValue([model])
@@ -1598,8 +1612,8 @@ describe('OpenClawService gateway status state machine', () => {
       expect(syncProviderConfigSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'anthropic',
-          apiHost: 'https://new-api.example.com/anthropic',
-          anthropicApiHost: 'https://new-api.example.com/anthropic'
+          apiHost: 'https://new-api.example.com',
+          anthropicApiHost: 'https://new-api.example.com'
         }),
         expect.objectContaining({ id: 'claude-sonnet-4', endpoint_type: 'anthropic' })
       )

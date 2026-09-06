@@ -4,7 +4,7 @@
  * can physically carry (see `resolveToolResultMediaCapabilities`).
  */
 
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
@@ -35,6 +35,8 @@ export function resolveEndpointTokenDialect(endpointType: EndpointType | undefin
 
 /** Dialect of the endpoint a resolved provider+model pair actually talks to. */
 export function resolveModelTokenDialect(provider: Provider, model: Model): TokenDialect {
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   return resolveEndpointTokenDialect(endpointType)
 }

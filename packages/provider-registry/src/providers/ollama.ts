@@ -14,6 +14,9 @@ export default defineProvider({
       adapterFamily: 'ollama',
       baseUrl: 'http://localhost:11434',
       reasoningFormat: { type: 'ollama' }
+    },
+    'ollama-generate': {
+      adapterFamily: 'ollama'
     }
   },
   metadata: {
@@ -34,6 +37,7 @@ export default defineProvider({
       apiModelId: 'x/z-image-turbo',
       name: 'Z-Image Turbo',
       capabilities: { force: ['image-generation'] },
+      endpointTypes: ['ollama-generate'],
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
@@ -58,6 +62,7 @@ export default defineProvider({
       apiModelId: 'x/flux2-klein',
       name: 'FLUX.2 Klein',
       capabilities: { force: ['image-generation'] },
+      endpointTypes: ['ollama-generate'],
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {

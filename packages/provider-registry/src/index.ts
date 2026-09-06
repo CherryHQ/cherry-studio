@@ -122,13 +122,27 @@ export {
 } from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
-export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'
+export type {
+  EndpointTypeForOperation,
+  ModelEndpointContractInput,
+  ModelLookupResult,
+  ModelOperationCapability,
+  PersistedEndpointConfig
+} from './registry-utils'
 export {
+  applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
-  endpointImpliedCapability,
+  ENDPOINT_OPERATION_CONTRACT,
+  endpointAllowedOperationCapabilities,
+  endpointDefaultOperationCapability,
+  getModelEndpointContractIssues,
+  getModelOperationCapabilities,
   inferAdapterFamily,
+  isEndpointCompatibleWithOperation,
+  isModelOperationCapability,
   lookupRegistryModel,
-  lookupRegistryProvider
+  lookupRegistryProvider,
+  MODEL_OPERATION_CAPABILITIES
 } from './registry-utils'
 
 // Shared vendor identity regex — consumed by @shared capability inference

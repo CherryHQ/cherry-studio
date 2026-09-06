@@ -11,7 +11,7 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -80,20 +80,14 @@ export const isSpeechToTextModel = (model: Model): boolean =>
 export const isTextToSpeechModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
 
-/** Check if model is a dedicated text-to-image model (no text chat) */
+/** Check if model is a dedicated text-to-image model (no text generation operation). */
 export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
-  !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+  !model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION)
 
 export const isNonChatModel = (model: Model): boolean =>
-  endpointImpliedCapability(model.endpointTypes?.[0]) != null ||
-  isEmbeddingModel(model) ||
-  isRerankModel(model) ||
-  isGenerateImageModel(model) ||
-  isGenerateVideoModel(model) ||
-  isGenerateAudioModel(model) ||
-  isTextToSpeechModel(model) ||
-  isSpeechToTextModel(model)
+  !model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION) ||
+  (!!model.inputModalities?.length && !model.inputModalities.includes(MODALITY.TEXT))
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's
@@ -358,7 +352,7 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
 
 /** Check if model is a pure image generation model (no tool use) */
 export const isPureGenerateImageModel = (model: Model): boolean => {
-  if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false
+  if (!isTextToImageModel(model)) return false
   if (isFunctionCallingModel(model)) return false
   return true
 }
