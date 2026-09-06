@@ -66,7 +66,6 @@ import p_zhipu from './zhipu'
 export const PROVIDERS: Provider[] = [
   p_cherryin,
   p_silicon,
-  p_api_route,
   p_aihubmix,
   p_ovms,
   p_ocoolai,
@@ -85,6 +84,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_api_route,
   p_new_api,
   p_lmstudio,
   p_anthropic,
