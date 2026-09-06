@@ -172,19 +172,20 @@ const TranslateLanguageBar: FC<Props> = ({
               )
             }}
           />
-
-          <Tooltip content={t('translate.exchange.label')} placement="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onExchange}
-              disabled={!couldExchange}
-              aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
-              <ArrowLeftRight size={14} />
-            </Button>
-          </Tooltip>
         </>
+      )}
+
+      {!isBidirectional && !showSourceControls && couldExchange && (
+        <Tooltip content={t('translate.exchange.label')} placement="bottom">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onExchange}
+            aria-label={t('translate.exchange.label')}
+            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
+            <ArrowLeftRight size={14} />
+          </Button>
+        </Tooltip>
       )}
 
       {isBidirectional ? (
