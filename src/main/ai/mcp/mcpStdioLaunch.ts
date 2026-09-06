@@ -60,9 +60,7 @@ export async function resolveStdioLaunch({
   const rawShellEnv = await getRawShellEnv(signal)
   const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
   const rawPath = getPathFromEnvironment(rawShellEnv) ?? ''
-  const hasUserMiseInPath = rawPath
-    .split(isWin ? ';' : ':')
-    .some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseInPath = rawPath.split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise'))
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
   const cherryToolDirs = getBinarySearchDirs()
   const bundledGitDir = getBundledGitDir()
