@@ -300,6 +300,14 @@ export default defineProvider({
       }
     },
     {
+      apiModelId: 'qwen3.8-flash',
+      modelId: 'qwen3-8-flash',
+      name: 'Qwen3.8 Flash',
+      reasoningContracts: {
+        'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire }
+      }
+    },
+    {
       apiModelId: 'qwen3.8-max',
       modelId: 'qwen3-8-max',
       name: 'Qwen3.8 Max',
