@@ -103,6 +103,9 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
+    'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+
     // Remote-updated override copy of the registry JSON, preferred over the
     // bundled data when present (see ProviderRegistryUpdaterService). Writable.
     'feature.provider_registry.override': appUserDataProviderRegistryOverride,
@@ -316,6 +319,7 @@ const NO_ENSURE = [
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.webview.preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',

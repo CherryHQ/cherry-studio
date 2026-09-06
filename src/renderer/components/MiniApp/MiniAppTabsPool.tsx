@@ -11,7 +11,12 @@ import {
   trimMiniAppKeepAlive
 } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
-import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  clearWebviewState,
+  getWebviewLoaded,
+  setWebviewElement,
+  setWebviewLoaded
+} from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -217,6 +222,7 @@ const MiniAppTabsPool: React.FC = () => {
   /** 设置 ref 回调 */
   const handleSetRef = useCallback(
     (appid: string, el: WebviewTag | null) => {
+      setWebviewElement(appid, el)
       if (el) {
         webviewRefs.current.set(appid, el)
         syncVisibility(appid, el)

@@ -171,6 +171,7 @@ const MiniAppPage: FC = () => {
         splitActive={splitOpen}
         onSplit={splitOpen ? closeSplit : openSplit}
         hostShortcutEnabled={!splitOpen || activePane === 'primary'}
+        isHostActive={isActiveTab && (!splitOpen || activePane === 'primary')}
         onActivate={activatePrimaryPane}
         className={splitOpen ? 'w-1/2' : 'w-full'}
       />
@@ -181,6 +182,7 @@ const MiniAppPage: FC = () => {
             splitMode="close"
             onSplit={closeSplit}
             hostShortcutEnabled={activePane === 'split'}
+            isHostActive={isActiveTab && activePane === 'split'}
             onActivate={activateSplitPane}
             className="w-1/2 border-border border-l"
           />
