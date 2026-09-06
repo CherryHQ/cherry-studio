@@ -6,7 +6,6 @@ import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
-import { doctorSettingsPath } from '@shared/types/doctor'
 import {
   type CommandId,
   evaluateContextExpr,
@@ -15,6 +14,7 @@ import {
   resolveCommandKeybinding,
   resolveMenu
 } from '@shared/utils/command'
+import { doctorSettingsPath } from '@shared/utils/doctor'
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
 
