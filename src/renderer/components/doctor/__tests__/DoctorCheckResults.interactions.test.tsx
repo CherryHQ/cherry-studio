@@ -9,8 +9,22 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 vi.unmock('@cherrystudio/ui')
 
+const mocks = vi.hoisted(() => ({
+  mcpServers: [{ id: 'filesystem', name: 'Filesystem' }]
+}))
+
+vi.mock('@renderer/hooks/useMcpServer', () => ({
+  useMcpServers: () => ({ mcpServers: mocks.mcpServers })
+}))
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, params?: { name?: string }) => {
+      if (key === 'settings.doctor.fixes.restart_mcp') return `Restart ${params?.name}`
+      if (key === 'settings.doctor.fixes.restart_mcp_generic') return 'Restart MCP service'
+      return key
+    }
+  })
 }))
 
 import { DoctorCheckList, DoctorCheckResults } from '../DoctorCheckResults'
@@ -43,7 +57,6 @@ function createController(overrides: ControllerOverrides = {}) {
     executeAction: vi.fn<DoctorController['executeAction']>(),
     isInteracting: false,
     isCloseBlocked: false,
-    mcpServerName: vi.fn<DoctorController['mcpServerName']>(),
     openLogsPath: vi.fn<DoctorController['openLogsPath']>(),
     openPath: vi.fn<DoctorController['openPath']>(),
     requestEvidence: vi.fn<DoctorController['requestEvidence']>(),
@@ -216,13 +229,12 @@ describe('DoctorCheckList interactions', () => {
   it('keeps standalone results grouped while each check remains a disclosure', async () => {
     const user = userEvent.setup()
     const controller = createCompletedPanelController()
-    const groupedController = {
-      ...controller,
+    const groupedController = createController({
       viewModel: {
         ...controller.viewModel,
         groups: [{ domain: 'runtime', status: 'warn', rows: controller.viewModel.rows }]
       }
-    } as DoctorController
+    })
 
     render(<DoctorCheckResults controller={groupedController} />)
 
@@ -258,6 +270,40 @@ describe('DoctorCheckList interactions', () => {
 
     expect(localEvidenceTrigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('••••••')).toBeVisible()
+  })
+
+  it('labels current and deleted MCP restart targets from the display owner', async () => {
+    const user = userEvent.setup()
+    const actions = [
+      { kind: 'fix', fixId: 'restart', target: 'filesystem' },
+      { kind: 'fix', fixId: 'restart', target: 'deleted' }
+    ] as const
+    const row = {
+      domain: 'mcp',
+      status: 'warn',
+      id: 'mcp-servers-connected',
+      result: {
+        id: 'mcp-servers-connected',
+        status: 'warn',
+        durationMs: 1,
+        attribution: 'user-fixable',
+        detail: { variant: 'server_errors' },
+        actions
+      },
+      actions,
+      actionsDisabled: false
+    } satisfies DoctorController['viewModel']['rows'][number]
+    const controller = createController({ viewModel: { rows: [row] } })
+
+    render(
+      <Accordion type="single" collapsible defaultValue="doctor-mcp-servers-connected">
+        <DoctorCheckList controller={controller} />
+      </Accordion>
+    )
+
+    expect(screen.getByRole('button', { name: 'Restart Filesystem' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    expect(screen.getByRole('menuitem', { name: 'Restart MCP service' })).toBeVisible()
   })
 
   it('closes an expanded action menu without dismissing its parent dialog when the trigger is clicked again', async () => {
