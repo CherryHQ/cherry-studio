@@ -732,6 +732,7 @@
   "chat.message.token_details.tokens": "{{value}} Jetoane",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Tokeni/s",
   "chat.message.token_details.total_duration": "Durată de la capăt la capăt",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Necached/Necacheuit",
   "chat.message.token_details.usage": "Utilizare token-uri",
   "chat.message.token_details.waiting_first_token": "Așteptare",

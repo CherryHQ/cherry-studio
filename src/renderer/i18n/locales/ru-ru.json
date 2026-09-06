@@ -732,6 +732,7 @@
   "chat.message.token_details.tokens": "{{value}} Токенов",
   "chat.message.token_details.tokens_per_second_value": "{{value}} токенов/с",
   "chat.message.token_details.total_duration": "Продолжительность от начала до конца",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Не кэшированный",
   "chat.message.token_details.usage": "Использование токенов",
   "chat.message.token_details.waiting_first_token": "Ожидание",

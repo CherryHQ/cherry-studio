@@ -732,6 +732,7 @@
   "chat.message.token_details.tokens": "{{value}} Tokens",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Tokens/s",
   "chat.message.token_details.total_duration": "Duración de extremo a extremo",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Sin caché",
   "chat.message.token_details.usage": "Uso de tokens",
   "chat.message.token_details.waiting_first_token": "Esperando",

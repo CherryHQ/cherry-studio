@@ -732,6 +732,7 @@
   "chat.message.token_details.tokens": "Μάρκες {{value}}",
   "chat.message.token_details.tokens_per_second_value": "{{value}} token/δ",
   "chat.message.token_details.total_duration": "Διάρκεια από άκρο σε άκρο",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Χωρίς προσωρινή αποθήκευση",
   "chat.message.token_details.usage": "Χρήση token",
   "chat.message.token_details.waiting_first_token": "Αναμονή",

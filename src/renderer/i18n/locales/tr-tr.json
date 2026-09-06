@@ -732,6 +732,7 @@
   "chat.message.token_details.tokens": "{{value}} Token",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/s",
   "chat.message.token_details.total_duration": "Uçtan uca süre",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Önbelleğe alınmamış",
   "chat.message.token_details.usage": "Token kullanımı",
   "chat.message.token_details.waiting_first_token": "Bekleme",
