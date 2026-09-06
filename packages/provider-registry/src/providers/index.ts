@@ -1,4 +1,5 @@
 import p_302ai from './302ai'
+import p_api_route from './api-route'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
@@ -65,6 +66,7 @@ import p_zhipu from './zhipu'
 export const PROVIDERS: Provider[] = [
   p_cherryin,
   p_silicon,
+  p_api_route,
   p_aihubmix,
   p_ovms,
   p_ocoolai,

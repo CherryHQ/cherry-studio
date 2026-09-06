@@ -79,6 +79,30 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "API Route - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://global.api-route.com/v1",
+          "modelsApiUrls": {
+            "default": "https://global.api-route.com/v1/models"
+          }
+        }
+      },
+      "id": "api-route",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.api-route.com",
+          "docs": "https://www.api-route.com",
+          "models": "https://global.api-route.com/v1/models",
+          "official": "https://www.api-route.com"
+        }
+      },
+      "name": "API Route"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "AiHubMix - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2485,5 +2509,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c81369dcccb6c728"
+  "version": "417f331967a3fa92"
 }
