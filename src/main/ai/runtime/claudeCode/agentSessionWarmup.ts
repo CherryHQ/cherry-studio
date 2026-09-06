@@ -50,6 +50,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
+import { ensureTranscriptAvailableForWorkspace } from './claudeProjectDirectory'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
@@ -515,6 +516,24 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  if (resumeSessionId && session.workspace?.path) {
+    try {
+      const availability = await ensureTranscriptAvailableForWorkspace(
+        application.getPath('feature.agents.claude.root'),
+        session.workspace.path,
+        resumeSessionId
+      )
+      if (availability === 'copied') {
+        logger.info('Relocated restored Claude transcript for the current workspace', {
+          sessionId: session.id
+        })
+      }
+    } catch (error) {
+      // Transcript recovery is best effort. Preserve the existing SDK fallback when the
+      // restored cache is unreadable instead of preventing the session from starting.
+      logger.warn('Failed to relocate restored Claude transcript', { sessionId: session.id, error })
+    }
+  }
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,

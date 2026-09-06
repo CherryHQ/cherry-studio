@@ -11,6 +11,15 @@ import {
   ensureAgentStorageDirectory,
   resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
+import {
+  claudeProjectDirectoryName,
+  claudeProjectDirectoryPath,
+  type ClaudeTranscriptSource,
+  existingClaudeProjectsDirectories,
+  expectedClaudeProjectDirectories,
+  findClaudeTranscriptInProjectDirectories,
+  findClaudeTranscriptsGlobally
+} from '@main/ai/runtime/claudeCode'
 import { isMac, isWin } from '@main/core/platform'
 import { isPathInside, isSameOrInside } from '@main/utils/file'
 import PQueue from 'p-queue'
@@ -18,7 +27,6 @@ import { validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')
 const IDENTITY_ENTRY_NAMES = new Set(['soul.md', 'user.md', 'memory'])
-const CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH = 200
 const AGENT_MIGRATION_FILESYSTEM_CONCURRENCY = 16
 const CLAUDE_CONFIG_PROGRESS_INTERVAL_MS = 100
 const CLAUDE_CONFIG_PROGRESS_BYTE_STEP = 16 * 1024 * 1024
@@ -558,134 +566,7 @@ export async function copyLegacyClaudeConfig(
   }
 }
 
-function claudeProjectDirectoryNameHash(workspacePath: string): string {
-  let hash = 0
-  for (let index = 0; index < workspacePath.length; index++) {
-    hash = ((hash << 5) - hash + workspacePath.charCodeAt(index)) | 0
-  }
-  return Math.abs(hash).toString(36)
-}
-
-/**
- * Mirror Claude Agent SDK 0.3.218's private cwd-to-project-directory mapping.
- * Session lookup is scoped to this directory when the runtime passes `cwd`, so
- * a moved workspace needs its transcript copied under the new key.
- */
-export function claudeProjectDirectoryName(workspacePath: string): string {
-  const sanitized = workspacePath.replace(/[^a-zA-Z0-9]/g, '-')
-  if (sanitized.length <= CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH) return sanitized
-  return `${sanitized.slice(0, CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH)}-${claudeProjectDirectoryNameHash(workspacePath)}`
-}
-
-async function claudeProjectDirectoryPath(projectsDirectory: string, workspacePath: string): Promise<string> {
-  let resolvedWorkspacePath: string
-  try {
-    resolvedWorkspacePath = path.normalize(await realpath(workspacePath))
-  } catch {
-    resolvedWorkspacePath = path.resolve(workspacePath)
-  }
-  return path.join(projectsDirectory, claudeProjectDirectoryName(resolvedWorkspacePath))
-}
-
-interface ClaudeSessionSource {
-  transcriptPath: string
-}
-
-async function existingClaudeProjectsDirectories(projectsDirectories: string[]): Promise<string[]> {
-  const existingDirectories: string[] = []
-  const seenDirectories = new Set<string>()
-
-  for (const projectsDirectory of projectsDirectories) {
-    const normalizedProjectsDirectory = path.resolve(projectsDirectory)
-    if (seenDirectories.has(normalizedProjectsDirectory)) continue
-    seenDirectories.add(normalizedProjectsDirectory)
-
-    const projectsStat = await lstatIfExists(normalizedProjectsDirectory)
-    if (projectsStat?.isDirectory() && !projectsStat.isSymbolicLink()) {
-      existingDirectories.push(normalizedProjectsDirectory)
-    }
-  }
-
-  return existingDirectories
-}
-
-async function expectedClaudeProjectDirectories(
-  projectsDirectories: string[],
-  workspacePath: string
-): Promise<string[]> {
-  let resolvedWorkspacePath: string
-  try {
-    resolvedWorkspacePath = path.normalize(await realpath(workspacePath))
-  } catch {
-    resolvedWorkspacePath = path.resolve(workspacePath)
-  }
-
-  const projectDirectoryName = claudeProjectDirectoryName(resolvedWorkspacePath)
-  const existingDirectories: string[] = []
-  for (const projectsDirectory of projectsDirectories) {
-    const projectDirectory = path.join(projectsDirectory, projectDirectoryName)
-    const projectStat = await lstatIfExists(projectDirectory)
-    if (projectStat?.isDirectory() && !projectStat.isSymbolicLink()) {
-      existingDirectories.push(projectDirectory)
-    }
-  }
-  return existingDirectories
-}
-
-async function findClaudeSessionSourceInProjectDirectory(
-  projectDirectory: string,
-  runtimeResumeToken: string
-): Promise<ClaudeSessionSource | undefined> {
-  const transcriptPath = path.join(projectDirectory, `${runtimeResumeToken}.jsonl`)
-  const transcriptStat = await lstatIfExists(transcriptPath)
-  if (!transcriptStat?.isFile() || transcriptStat.isSymbolicLink()) return undefined
-
-  return { transcriptPath }
-}
-
-async function findClaudeSessionSourceInExpectedProjects(
-  projectDirectories: string[],
-  runtimeResumeToken: string
-): Promise<ClaudeSessionSource | undefined> {
-  for (const projectDirectory of projectDirectories) {
-    const source = await findClaudeSessionSourceInProjectDirectory(projectDirectory, runtimeResumeToken)
-    if (source) return source
-  }
-
-  return undefined
-}
-
-async function findClaudeSessionSourcesGlobally(
-  projectsDirectories: string[],
-  runtimeResumeTokens: Set<string>
-): Promise<Map<string, ClaudeSessionSource>> {
-  const sources = new Map<string, ClaudeSessionSource>()
-
-  for (const projectsDirectory of projectsDirectories) {
-    const projectEntries = await readdir(projectsDirectory, { withFileTypes: true })
-    projectEntries.sort((left, right) => left.name.localeCompare(right.name))
-    for (const projectEntry of projectEntries) {
-      if (!projectEntry.isDirectory() || projectEntry.isSymbolicLink()) continue
-      const projectDirectory = path.join(projectsDirectory, projectEntry.name)
-      const sessionEntries = await readdir(projectDirectory, { withFileTypes: true })
-      sessionEntries.sort((left, right) => left.name.localeCompare(right.name))
-
-      for (const sessionEntry of sessionEntries) {
-        if (!sessionEntry.isFile() || !sessionEntry.name.endsWith('.jsonl')) continue
-        const runtimeResumeToken = sessionEntry.name.slice(0, -'.jsonl'.length)
-        if (!runtimeResumeTokens.has(runtimeResumeToken) || sources.has(runtimeResumeToken)) continue
-
-        sources.set(runtimeResumeToken, {
-          transcriptPath: path.join(projectDirectory, sessionEntry.name)
-        })
-      }
-
-      if (sources.size === runtimeResumeTokens.size) return sources
-    }
-  }
-
-  return sources
-}
+export { claudeProjectDirectoryName }
 
 async function copyClaudeSessionEntry(
   sourcePath: string,
@@ -714,13 +595,12 @@ async function copyClaudeSessionEntry(
     }
   }
 
-  await removeTreeWithoutFollowing(destinationPath)
-  const cleanedDestinationRace = await filesystemEntrySnapshot(destinationPath)
-  if (cleanedDestinationRace) {
-    if (cleanedDestinationRace.fingerprint !== sourceSnapshot.fingerprint) {
+  const existingDestinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+  if (existingDestinationSnapshot) {
+    if (existingDestinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
       throw new Error(`Legacy Claude session cache destination conflict: ${destinationPath}`)
     }
-    logger.info('Reusing identical Claude session cache entry created after target cleanup', {
+    logger.info('Reusing identical Claude session cache entry from an earlier migration attempt', {
       sourcePath,
       destinationPath
     })
@@ -785,9 +665,9 @@ async function copyClaudeSessionEntry(
 }
 
 /**
- * Make validated Claude SDK session transcripts available under each v2
- * workspace key. The old project cache remains intact for downgrade and GC;
- * only the JSONL transcript is copied.
+ * Copy every Claude SDK session transcript that can be located under its v2 workspace key.
+ * Missing transcripts are non-fatal: the runtime preserves the SDK's fresh-session fallback.
+ * The old project cache remains intact for downgrade and GC; only the JSONL transcript is copied.
  */
 export async function copyLegacyClaudeSessionData(input: {
   agentsDataRoot: string
@@ -833,8 +713,8 @@ export async function copyLegacyClaudeSessionData(input: {
 
   const sourceProjectsDirectories = await existingClaudeProjectsDirectories(input.sourceProjectsDirectories)
   const projectDirectoriesByWorkspace = new Map<string, string[]>()
-  const expectedSources = new Map<string, ClaudeSessionSource | undefined>()
-  const sourcesByCopyPlan: Array<ClaudeSessionSource | undefined> = []
+  const expectedSources = new Map<string, ClaudeTranscriptSource | undefined>()
+  const sourcesByCopyPlan: Array<ClaudeTranscriptSource | undefined> = []
   const globallyUnresolvedTokens = new Set<string>()
   for (const copyPlan of copyPlans) {
     const sourceKey = `${copyPlan.sourceWorkspacePath}\0${copyPlan.runtimeResumeToken}`
@@ -849,7 +729,7 @@ export async function copyLegacyClaudeSessionData(input: {
         )
         projectDirectoriesByWorkspace.set(workspaceKey, projectDirectories)
       }
-      source = await findClaudeSessionSourceInExpectedProjects(projectDirectories, copyPlan.runtimeResumeToken)
+      source = await findClaudeTranscriptInProjectDirectories(projectDirectories, copyPlan.runtimeResumeToken)
       expectedSources.set(sourceKey, source)
     }
     sourcesByCopyPlan.push(source)
@@ -858,8 +738,8 @@ export async function copyLegacyClaudeSessionData(input: {
 
   const globallyDiscoveredSources =
     globallyUnresolvedTokens.size === 0
-      ? new Map<string, ClaudeSessionSource>()
-      : await findClaudeSessionSourcesGlobally(sourceProjectsDirectories, globallyUnresolvedTokens)
+      ? new Map<string, ClaudeTranscriptSource>()
+      : await findClaudeTranscriptsGlobally(sourceProjectsDirectories, globallyUnresolvedTokens)
   const latestTokensBySessionId = new Map(
     input.sessions
       .filter((session) => session.latestRuntimeResumeToken)
