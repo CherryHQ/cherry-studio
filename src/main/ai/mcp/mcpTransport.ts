@@ -30,7 +30,7 @@ type CreateTransportInput = {
   authProvider: McpOAuthClientProvider
   logger: LoggerService
   onServerLog: (entry: McpServerLogEntry) => void
-  onTransportError?: (details: Record<string, number | string>) => void
+  onTransportError?: (error: Error, details: Record<string, number | string>) => void
 }
 
 function fetchViaNet(url: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -215,7 +215,7 @@ async function createStdio(
   transport.onerror = (error) => {
     const details = getStdioTransportErrorDetails(error)
     logger.error(`Stdio transport error`, error, details)
-    onTransportError?.(details)
+    onTransportError?.(error, details)
     onServerLog({
       timestamp: Date.now(),
       level: 'error',

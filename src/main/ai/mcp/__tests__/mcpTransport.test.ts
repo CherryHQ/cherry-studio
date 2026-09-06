@@ -238,7 +238,7 @@ describe('createTransport', () => {
 
     transport.onerror?.(error)
 
-    expect(onTransportError).toHaveBeenCalledWith({
+    expect(onTransportError).toHaveBeenCalledWith(error, {
       code: 'EPERM',
       errno: -4048,
       syscall: `spawn ${command}`,

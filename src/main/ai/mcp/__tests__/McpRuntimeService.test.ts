@@ -296,6 +296,34 @@ describe('McpRuntimeService stdio environment', () => {
     expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.other-server')).toBeUndefined()
   })
 
+  it('reports a stdio transport error that occurs after the client connected', async () => {
+    const command = 'C:\\Program Files\\MCP\\server.exe'
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+    const error = Object.assign(new Error(`spawn ${command} EPERM`), {
+      code: 'EPERM',
+      errno: -4048,
+      syscall: `spawn ${command}`,
+      path: command
+    })
+    mcpSdkMock.stdioTransports.at(-1)?.onerror?.(error)
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.stdio-server')).toMatchObject({
+      state: 'error',
+      lastError: error.message,
+      errorCode: 'EPERM',
+      errorPath: command
+    })
+  })
+
   it('rejects an unresolved placeholder before creating an SDK transport and identifies the configured path', async () => {
     const command = '${MCP_COMMAND}'
     const service = new McpRuntimeService()

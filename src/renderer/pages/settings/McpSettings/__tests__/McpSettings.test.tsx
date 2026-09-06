@@ -120,12 +120,14 @@ vi.mock('../McpServerFields', async (importOriginal) => {
     McpRuntimeFields: () => null,
     McpTransportFields: ({
       form,
-      serverType
+      serverType,
+      builtinRequiresEnv
     }: {
       form: { register: (name: 'env') => Record<string, unknown> }
       serverType: McpServer['type']
+      builtinRequiresEnv?: boolean
     }) =>
-      serverType === 'stdio' || serverType === 'inMemory' ? (
+      serverType === 'stdio' || serverType === 'inMemory' || builtinRequiresEnv ? (
         <label>
           Environment
           <textarea {...form.register('env')} />
@@ -310,6 +312,30 @@ describe('McpSettings', () => {
     await user.click(screen.getByRole('button', { name: 'common.edit' }))
 
     expect(screen.getByRole('textbox', { name: 'URL' })).toHaveFocus()
+  })
+
+  it('focuses the missing QVeris API key instead of its hosted endpoint', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'qveris-server',
+      name: '@cherry/qveris',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.qveris.ai/mcp',
+      installSource: 'builtin',
+      shouldConfig: true,
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    }
+    currentRuntimeStatus = {
+      state: 'error',
+      lastError: 'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    }
+    const user = userEvent.setup()
+
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
   })
 
   it('renders selectable MCP logs and copies them to the clipboard', async () => {

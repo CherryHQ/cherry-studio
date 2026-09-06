@@ -488,8 +488,11 @@ export class McpRuntimeService extends BaseService {
         authProvider,
         logger: getServerLogger(server),
         onServerLog: (entry) => this.emitServerLog(server, entry),
-        onTransportError: (details) => {
+        onTransportError: (error, details) => {
           transportErrorDetails = details
+          if (this.clients.get(serverKey) === client) {
+            this.setServerStatus(server.id, 'error', error, details)
+          }
         }
       })
 
