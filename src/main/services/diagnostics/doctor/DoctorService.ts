@@ -70,6 +70,21 @@ function fixHandler<Id extends DoctorFixableCheckId>(checkId: Id, fixId: DoctorF
   return definition.fixes[fixId]
 }
 
+/**
+ * Closes a selection over `requires`. The engine rejects a selection that omits a prerequisite,
+ * and a check cannot be judged without the layer below it, so a prerequisite always runs.
+ */
+function withPrerequisites(ids: readonly DoctorCheckId[]): DoctorCheckId[] {
+  const selected = new Set<DoctorCheckId>()
+  const visit = (id: DoctorCheckId) => {
+    if (selected.has(id)) return
+    selected.add(id)
+    for (const required of DOCTOR_CHECK_CATALOG[id].requires) visit(required)
+  }
+  for (const id of ids) visit(id)
+  return [...selected]
+}
+
 function summarize(results: readonly DoctorCheckResult[]): Record<DoctorCheckStatus, number> {
   const summary: Record<DoctorCheckStatus, number> = { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
   for (const result of results) summary[result.status] += 1
@@ -134,9 +149,18 @@ export class DoctorService extends BaseService {
       }
       this.publish({ status: 'completed', report })
       return { status: 'completed', report }
+    } catch (error) {
+      // `running` was already published; without a terminal state every window spins forever.
+      this.publish({ status: 'idle' })
+      throw error
     } finally {
       this.activeRun = null
     }
+  }
+
+  /** A run outlives the service otherwise, publishing onto the shared cache after teardown. */
+  protected onStop(): void {
+    this.activeRun?.controller.abort()
   }
 
   cancel(runId: string): DoctorCancelResult {
@@ -146,26 +170,40 @@ export class DoctorService extends BaseService {
   }
 
   /**
-   * A fix is bound to the finding of one run. It is refused when that run was superseded,
+   * A fix is bound to the finding of one run. It is refused when that run was superseded or expired,
    * and again when a fresh probe no longer offers the fix — so it never acts on a stale conclusion.
+   * It occupies `activeRun` for its duration, so a fix and a run can never overlap in either order.
    */
   async fix(request: DoctorFixRequest): Promise<DoctorFixResult> {
     const state = this.currentState()
-    if (state.status !== 'completed' || state.report.runId !== request.runId) {
+    if (this.activeRun || state.status !== 'completed' || state.report.runId !== request.runId) {
       return { status: 'stale', reason: 'run_superseded' }
     }
-    const [before] = await this.execute([request.checkId])
-    if (!offersFix(before, request.fixId)) return { status: 'stale', reason: 'finding_changed', result: before }
-
-    let outcome: DoctorFixOutcome
+    if (Date.parse(state.report.expiresAt) <= Date.now()) return { status: 'stale', reason: 'run_superseded' }
+    const controller = new AbortController()
+    this.activeRun = { runId: request.runId, controller }
     try {
-      outcome = await fixHandler(request.checkId, request.fixId)(runContext(new AbortController().signal, new Map()))
-    } catch (error) {
-      outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
+      const before = await this.probeOne(request.checkId, controller.signal)
+      if (!offersFix(before, request.fixId)) return { status: 'stale', reason: 'finding_changed', result: before }
+
+      let outcome: DoctorFixOutcome
+      try {
+        outcome = await fixHandler(request.checkId, request.fixId)(runContext(controller.signal, new Map()))
+      } catch (error) {
+        outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
+      }
+      // Re-probe so the caller renders what the fix actually achieved, not what it hoped for.
+      const result = await this.probeOne(request.checkId, controller.signal)
+      return outcome.status === 'failed' ? { ...outcome, result } : { status: outcome.status, result }
+    } finally {
+      this.activeRun = null
     }
-    // Re-probe so the caller renders what the fix actually achieved, not what it hoped for.
-    const [result] = await this.execute([request.checkId])
-    return outcome.status === 'failed' ? { ...outcome, result } : { status: outcome.status, result }
+  }
+
+  /** `execute` also runs the check's prerequisites, so select the requested one by id, not by position. */
+  private async probeOne(id: DoctorCheckId, signal: AbortSignal): Promise<DoctorCheckResult> {
+    const results = await this.execute([id], signal)
+    return results.find((result) => result.id === id)!
   }
 
   private currentState(): DoctorState {
@@ -184,7 +222,7 @@ export class DoctorService extends BaseService {
     const settled: DoctorCheckResult[] = []
     const memo: RunMemo = new Map()
     const results = (await runDoctorChecks({
-      checks: ids.map((id) => toEngineCheck(id, memo)),
+      checks: withPrerequisites(ids).map((id) => toEngineCheck(id, memo)),
       signal,
       laneLimits: LANE_LIMITS,
       onResult: (result) => {

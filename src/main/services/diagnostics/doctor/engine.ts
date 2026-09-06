@@ -122,6 +122,7 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
       })
     )
   }
-  // Preserve the caller's order so the report reads like the catalog.
-  return options.checks.map((check) => results.get(check.id)!)
+  // Preserve the caller's order so the report reads like the catalog; `results` is keyed by id,
+  // so a repeated id must not yield a repeated entry.
+  return [...new Set(options.checks.map((check) => check.id))].map((id) => results.get(id)!)
 }
