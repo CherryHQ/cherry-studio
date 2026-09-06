@@ -556,7 +556,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
     )
 
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(800_000)
+    // With the 0.6 margin the budget is ~491K — still far above the 100K floor.
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(400_000)
   })
 
   // The CLI has no table for third-party models, so without the pin they would request its generic
@@ -626,13 +627,20 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
+    // Trusted channel keeps the full window so the floor is reachable; an
+    // untrusted relay would be capped to its safety-adjusted input room (44.8K).
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
-      {} as never,
+      trustedProvider,
       { contextWindow: 128_000 }
     )
 
@@ -660,6 +668,54 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
   })
 
+  // Third-party channels may report a contextWindow larger than the provider's actual
+  // limit (e.g. #18894: 256K declared / 128K real). The safety margin shrinks the
+  // effective window only for untrusted channels so auto-compaction triggers
+  // earlier there; Anthropic-official channels report accurate windows and must
+  // not pay this cost.
+  it('applies the safety margin to the auto-compact budget for overstated declared windows', async () => {
+    // 256K declared, 128K real limit on a third-party channel: without the margin the
+    // budget would be floor((256K - 32K) * 0.98) = 219K; with the 0.6 margin it is
+    // floor((floor(256K * 0.6) - 32K) * 0.98) = floor((153K - 32K) * 0.98) = 119K.
+    const untrustedProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      untrustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    // Without the margin: floor((256_000 - 32_000) * 0.98) = 219_520
+    // With the margin: floor((floor(256_000 * 0.6) - 32_000) * 0.98) = floor((153_600 - 32_000) * 0.98) = 119_168
+    expect(budget).toBeLessThan(219_520)
+    expect(budget).toBe(119_168)
+
+    // Anthropic-official provider with the same declared window keeps the full budget.
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const trusted = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+    expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+  })
+
   it.each([undefined, 64_000, 99_999])(
     'omits a model context window below Claude Code limits (%s)',
     async (contextWindow) => {
@@ -682,14 +738,21 @@ describe('buildClaudeCodeSessionSettings', () => {
   )
 
   // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
+  // Use a trusted Anthropic channel so the 100K floor is reachable; an untrusted
+  // relay at 100K would be capped to its safety-adjusted input room (28K).
   it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
-      {} as never,
+      trustedProvider,
       { contextWindow }
     )
 
@@ -716,6 +779,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       configuration: { env_vars: { CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' } }
     })
 
+    // Untrusted channel reproduces #18894: budget is shrunken by the 0.6 margin.
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -726,9 +790,28 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000 }
     )
 
-    // The explicit override wins for the env var; the budget still tracks the real window.
+    // The explicit override wins for the env var; the budget still tracks the real window
+    // through the 0.6 safety margin on untrusted channels, so it lands below the override.
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+
+    // Trusted Anthropic channel with accurate 256K window keeps the full budget above the override.
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const trusted = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      { contextWindow: 256_000 }
+    )
+    expect(trusted.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
+    expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {

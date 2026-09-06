@@ -285,7 +285,7 @@ export async function buildClaudeCodeSessionSettings(
     options?.maxOutputTokens,
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
-  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens)
+  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens, provider)
   // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
   if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
