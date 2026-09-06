@@ -1,3 +1,6 @@
+import { AISDKError, APICallError } from 'ai'
+
+import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
 import { redactSecretText } from './redaction'
 
@@ -30,6 +33,18 @@ function actionableText(value: unknown): string {
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
 
+function unstructuredPayloadText(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return actionableText(value)
+  }
+  if (typeof parsed === 'object' && parsed !== null) return ''
+  return actionableText(value)
+}
+
 function payloadText(value: unknown): string {
   if (typeof value === 'string') {
     try {
@@ -48,7 +63,15 @@ function payloadText(value: unknown): string {
     detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : null
 
   return (
-    [error?.message, payload.message, detailError?.message, detail?.message, payload.detail, payload.msg, payload.error]
+    [
+      error?.message,
+      payload.message,
+      detailError?.message,
+      detail?.message,
+      payload.msg,
+      unstructuredPayloadText(payload.detail),
+      unstructuredPayloadText(payload.error)
+    ]
       .map(actionableText)
       .find(Boolean) ?? ''
   )
@@ -81,4 +104,38 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
   if (typeof source.isRetryable === 'boolean') discriminants.isRetryable = source.isRetryable
 
   return discriminants
+}
+
+function serializeNestedAiSdkError(error: AISDKError): SerializedError {
+  const source = error as unknown as Record<string, unknown>
+  return {
+    name: getSafeProviderErrorMessage({ message: error.name }),
+    message: getSafeProviderErrorMessage({ message: error.message }),
+    stack: null,
+    cause: null,
+    ...getSafeAiSdkErrorDiscriminants(source)
+  }
+}
+
+export function serializeNestedProviderError(value: unknown): Serializable {
+  if (APICallError.isInstance(value)) {
+    return {
+      name: value.name,
+      message: getSafeProviderErrorMessage(value),
+      stack: null,
+      cause: null,
+      statusCode: value.statusCode ?? null,
+      isRetryable: value.isRetryable
+    }
+  }
+  if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value)
+  if (value instanceof Error) {
+    return {
+      name: getSafeProviderErrorMessage({ message: value.name }),
+      message: getSafeProviderErrorMessage({ message: value.message }),
+      stack: null,
+      cause: null
+    }
+  }
+  return null
 }

@@ -1,7 +1,6 @@
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/utils/providerError'
-import { AISDKError, APICallError } from 'ai'
+import { serializeNestedProviderError } from '@shared/utils/providerError'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -23,42 +22,6 @@ function toSerializable(value: unknown): Serializable {
   } catch {
     return String(value)
   }
-}
-
-function serializeNestedAiSdkError(error: AISDKError): SerializedError {
-  const source = error as unknown as Record<string, unknown>
-  return {
-    name: getSafeProviderErrorMessage({ message: error.name }),
-    message: getSafeProviderErrorMessage({ message: error.message }),
-    stack: null,
-    cause: null,
-    ...getSafeAiSdkErrorDiscriminants(source)
-  }
-}
-
-function serializeNestedError(value: unknown): Serializable {
-  if (APICallError.isInstance(value)) {
-    return {
-      name: value.name,
-      message: getSafeProviderErrorMessage(value),
-      stack: null,
-      cause: null,
-      statusCode: value.statusCode ?? null,
-      isRetryable: value.isRetryable
-    }
-  }
-  if (AISDKError.isInstance(value)) {
-    return serializeNestedAiSdkError(value)
-  }
-  if (value instanceof Error) {
-    return {
-      name: getSafeProviderErrorMessage({ message: value.name }),
-      message: getSafeProviderErrorMessage({ message: value.message }),
-      stack: null,
-      cause: null
-    }
-  }
-  return null
 }
 
 /** Serialize any Error to a plain object safe for IPC / JSON.
@@ -105,8 +68,8 @@ export function serializeError(error: unknown): SerializedError {
     if ('availableProviders' in e) serialized.availableProviders = e.availableProviders as string[]
     if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
     if ('reason' in e) serialized.reason = e.reason as string
-    if ('lastError' in e) serialized.lastError = serializeNestedError(e.lastError)
-    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedError)
+    if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
+    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedProviderError)
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError) as Serializable
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
