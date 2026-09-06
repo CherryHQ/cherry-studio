@@ -315,11 +315,12 @@ function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
   if (typeof output === 'string') {
     // The trailer marker alone is spoofable by prose; require the launch receipt's structural
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
-    // send-back instruction that follows the id on every real receipt.
+    // send-back instruction that follows the id on every real receipt. Equate on the extracted
+    // trailer id (not a substring) so one id that prefixes another cannot match.
+    const trailerId = /\bagent_?[Ii]d\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
     return (
       /Async agent launched successfully|\(internal|Use SendMessage with to/.test(output) &&
-      /\bagent_?[Ii]d\s*:\s*/.test(output) &&
-      output.includes(resumedAgentId)
+      trailerId === resumedAgentId
     )
   }
   if (isRecord(output)) {
