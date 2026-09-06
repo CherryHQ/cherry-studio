@@ -27,7 +27,8 @@ function normalizePathForComparison(value: string): string {
 /** True iff `candidate` resolves to the current filesystem volume root. */
 export function isFilesystemRoot(candidate: string): boolean {
   const resolved = path.resolve(candidate)
-  return resolved === path.parse(resolved).root
+  const normalized = path.normalize(resolved.replace(/^\\\\\?\\UNC\\/i, '\\\\'))
+  return normalized === path.parse(normalized).root
 }
 
 /**
