@@ -81,10 +81,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   // change this component's hook count (React #310).
   const resumedAgentId = tool?.name === AgentToolsType.SendMessage ? getResumedAgentId(response) : undefined
   // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message scan.
-  const stampedLaunchId =
-    tool?.name === AgentToolsType.SendMessage
-      ? getPartLaunchToolCallId(toolResponse as unknown as CherryMessagePart)
-      : undefined
+  const stampedLaunchId = tool?.name === AgentToolsType.SendMessage ? getPartLaunchToolCallId(toolResponse) : undefined
   const resumedLaunch = useMemo(() => {
     if (stampedLaunchId) return { toolCallId: stampedLaunchId }
     return resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
@@ -128,7 +125,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         status={effectiveStatus}
         hasError={status === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
-        openFlowOnClick={isSubagentTool || resumeHeader !== undefined}
+        openFlowOnClick={isSubagentTool || (resumeHeader !== undefined && resumedLaunch !== undefined)}
         flowTargetToolCallId={resumedLaunch?.toolCallId}
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
