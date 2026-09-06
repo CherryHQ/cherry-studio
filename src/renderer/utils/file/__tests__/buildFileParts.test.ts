@@ -139,5 +139,6 @@ describe('buildFilePartsForAttachments', () => {
       fileEntryId: 'fe-1',
       fileTokenSourceId: 'new-source'
     })
+    expect(readCherryMeta(editedPart)).not.toHaveProperty('composerFileKind')
   })
 })

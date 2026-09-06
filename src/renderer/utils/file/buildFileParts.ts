@@ -23,11 +23,15 @@ export function withComposerFilePartMeta(
   attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
   fileEntryId?: string
 ): FileUIPart {
-  return withCherryMeta(part, {
+  const updatedPart = withCherryMeta(part, {
     ...(fileEntryId ? { fileEntryId } : {}),
     fileTokenSourceId: attachment.fileTokenSourceId,
     composerFileKind: attachment.composerFileKind
   })
+  if (!attachment.composerFileKind) {
+    delete updatedPart.providerMetadata?.cherry?.composerFileKind
+  }
+  return updatedPart
 }
 
 /**
