@@ -74,6 +74,19 @@ describe('RegionService', () => {
     await expect(regionService.isInChina()).resolves.toBe(false)
   })
 
+  it.each([
+    ['network failure', () => netFetchMock.mockRejectedValueOnce(new Error('network down'))],
+    [
+      'HTTP failure',
+      () => netFetchMock.mockResolvedValueOnce(fetchResponse({ country_code: 'US' }, { ok: false, status: 500 }))
+    ],
+    ['missing country_code', () => netFetchMock.mockResolvedValueOnce(fetchResponse({}))]
+  ])('does not treat %s as confirmed China', async (_name, arrangeFailure) => {
+    arrangeFailure()
+
+    await expect(regionService.isInChina()).resolves.toBe(false)
+  })
+
   it('does not cache the CN fallback when the request fails', async () => {
     netFetchMock
       .mockRejectedValueOnce(new Error('network down'))
