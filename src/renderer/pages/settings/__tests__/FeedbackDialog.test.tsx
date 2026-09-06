@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { POPUP_EXIT_MS } from '@renderer/services/popup'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,7 +64,7 @@ describe('FeedbackDialog', () => {
     const diagnostics = screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })
     const agent = screen.getByRole('button', { name: /settings.about.feedback.agent.title/ })
     const github = screen.getByRole('button', { name: /settings.about.feedback.github.title/ })
-    const recommended = screen.getByText('settings.about.feedback.recommended')
+    const recommended = within(diagnostics).getByText('settings.about.feedback.recommended')
 
     expect(diagnostics.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)

@@ -72,23 +72,35 @@ export function ErrorDiagnosticsPanel({
       title={t('settings.doctor.title')}
       description={summary}
       actions={
-        <Button
-          variant="outline"
-          size="sm"
-          loading={isLiveRun}
-          disabled={
-            controller.viewModel.status === 'running' || controller.isInteracting || !controller.viewModel.report
-          }
-          onClick={() => void controller.run('live')}>
-          {t('settings.doctor.actions.run_network')}
-        </Button>
+        controller.viewModel.canCancel ? (
+          <Button
+            variant="outline"
+            size="sm"
+            loading={interaction.kind === 'cancel'}
+            disabled={
+              controller.isInteracting &&
+              interaction.kind !== 'cancel' &&
+              !(interaction.kind === 'run' && controller.viewModel.canCancel)
+            }
+            onClick={() => void controller.cancel()}>
+            {t('settings.doctor.actions.cancel_run')}
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            loading={isLiveRun}
+            disabled={controller.isInteracting || !controller.viewModel.report}
+            onClick={() => void controller.run('live')}>
+            {t('settings.doctor.actions.run_network')}
+          </Button>
+        )
       }
       bodyClassName="space-y-3 pb-3">
       {hasAiDiagnosis || controller.viewModel.rows.length > 0 ? (
         <Accordion
           type="single"
           collapsible
-          defaultValue={hasAiDiagnosis ? 'ai-diagnosis' : undefined}
           className="border-border border-t bg-background px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
           {hasAiDiagnosis ? (
             <AiDiagnosisSectionWithStatus
