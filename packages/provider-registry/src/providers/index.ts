@@ -3,6 +3,7 @@ import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
 import p_anthropic from './anthropic'
+import p_api_route from './api-route'
 import p_aws_bedrock from './aws-bedrock'
 import p_azure_openai from './azure-openai'
 import p_baichuan from './baichuan'
@@ -83,6 +84,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_api_route,
   p_new_api,
   p_lmstudio,
   p_anthropic,
