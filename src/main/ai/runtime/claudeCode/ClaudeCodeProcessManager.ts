@@ -7,6 +7,7 @@ import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { redactSecretText } from '@shared/utils/redaction'
 
 import {
   type ClaudeCodeProcessDiagnostics,
@@ -18,6 +19,8 @@ import {
 
 const logger = loggerService.withContext('ClaudeCodeProcessManager')
 
+// Mirrors the SDK's own `ProcessTransport` local spawn, which the custom spawner replaces:
+// exit is delivered only once stderr closed, so an exit consumer sees the whole tail.
 const STDERR_TAIL_LIMIT = 2048
 const STDERR_DRAIN_GRACE_MS = 200
 
@@ -81,6 +84,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     })
     child.once('error', (error) => {
       recordClaudeCodeSpawnError(diagnostics, error)
+      this.logTerminalReason()
       this.events.emit('error', error)
     })
   }
@@ -141,7 +145,20 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     this.pendingExit = undefined
     if (this.drainTimer) clearTimeout(this.drainTimer)
     recordClaudeCodeProcessExit(this.diagnostics, exit.code, exit.signal, this.stderrTail)
+    if (exit.code !== 0) this.logTerminalReason()
     this.events.emit('exit', exit.code, exit.signal)
+  }
+
+  /**
+   * The renderer only receives the exit status and the reference; this is the one place the
+   * cause is written down, so a user-quoted reference resolves to something.
+   */
+  private logTerminalReason(): void {
+    logger.warn('Claude Code process failed', {
+      reference: this.diagnostics.reference,
+      category: this.diagnostics.category,
+      reason: redactSecretText(this.diagnostics.terminalReason ?? '')
+    })
   }
 }
 
@@ -170,8 +187,8 @@ export class ClaudeCodeProcessManager extends BaseService {
     })
     const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
     this.processes.add(child)
+    // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
     rawChild.once('exit', () => this.processes.delete(child))
-    child.once('exit', () => this.processes.delete(child))
     child.once('error', () => {
       if (child.pid === undefined) this.processes.delete(child)
     })

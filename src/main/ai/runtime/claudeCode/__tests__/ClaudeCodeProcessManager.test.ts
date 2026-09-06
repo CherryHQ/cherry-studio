@@ -11,6 +11,7 @@ import {
   ServiceContainer,
   ServicePhase
 } from '@main/core/lifecycle'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -91,6 +92,7 @@ describe('ClaudeCodeProcessManager', () => {
     LifecycleManager.reset()
     ServiceContainer.reset()
     BaseService.resetInstances()
+    mockMainLoggerService.warn.mockClear()
   })
 
   it('sweeps only after every service that spawns through it has stopped', async () => {
@@ -188,6 +190,38 @@ describe('ClaudeCodeProcessManager', () => {
 
     expect(diagnostics.terminalReason).toContain('HTTP 429 rate limit exceeded')
     expect(diagnostics.terminalReason).not.toContain('discarded-')
+  })
+
+  it('writes the cause down under the reference the renderer shows, with secrets redacted', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const managed = manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('diagnostic-ref'))
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.end('HTTP 403 unsupported_country; api_key=sk-ant-private')
+    child.emitExit(1)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+
+    const logged = mockMainLoggerService.warn.mock.calls.findLast(
+      ([message]) => message === 'Claude Code process failed'
+    )?.[1] as { reference: string; category: string; reason: string }
+    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region' })
+    expect(logged.reason).toContain('unsupported_country')
+    expect(logged.reason).not.toContain('sk-ant-private')
+  })
+
+  it('leaves a clean exit unlogged', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const onExit = vi.fn()
+    manager.spawn(spawnOptions).once('exit', onExit)
+
+    child.stderr.end()
+    child.emitExit(0)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
   })
 
   it('stops tracking a child whose spawn fails before receiving a pid', () => {
