@@ -62,8 +62,9 @@ export const DOCTOR_REDACTED = '[redacted]'
  */
 function projectResult(result: DoctorCheckResult, keepDeveloperText: boolean): DoctorCheckResult {
   if (keepDeveloperText) return result
-  const { devMessage: _devMessage, ...rest } = result
-  return (rest.status === 'error' ? { ...rest, message: DOCTOR_REDACTED } : rest) as DoctorCheckResult
+  const projected = { ...result, ...(result.status === 'error' ? { message: DOCTOR_REDACTED } : {}) }
+  delete (projected as { devMessage?: string }).devMessage
+  return projected as DoctorCheckResult
 }
 
 /**
