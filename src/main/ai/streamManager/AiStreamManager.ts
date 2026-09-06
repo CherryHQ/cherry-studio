@@ -296,7 +296,7 @@ function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
 }
 
 function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean {
-  if (!finalMessage) return false
+  if (!finalMessage) return true
   const parts = finalMessage.parts as CherryMessagePart[]
   if (!parts || parts.length === 0) return true
   // Strip transient and empty text/reasoning parts the same way PersistenceListener does,
@@ -1982,7 +1982,7 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
-    } else if (isEmptySuccessTurn(exec.finalMessage)) {
+    } else if (!isAgentSessionTopic(topicId) && isEmptySuccessTurn(exec.finalMessage)) {
       const noResponseError: SerializedError = {
         name: 'NoResponseError',
         message: 'No response',

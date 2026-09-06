@@ -7,7 +7,8 @@ export const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
   'data-citation',
   'data-agent-task-event',
   'data-knowledge-scope',
-  'data-clear'
+  'data-clear',
+  'data-no-response-dismissed'
 ])
 
 export function isHiddenMarkerPart(part: CherryMessagePart): boolean {

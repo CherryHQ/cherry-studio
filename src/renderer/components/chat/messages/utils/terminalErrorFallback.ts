@@ -1,12 +1,6 @@
 import { hasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-
-function isDismissedNoResponseMarker(part: CherryMessagePart): boolean {
-  return (
-    part.type === 'data-clear' &&
-    (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse === true
-  )
-}
+import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 /**
  * Appends a localized "no response" error part to assistant messages that ended
@@ -31,7 +25,7 @@ export function withTerminalErrorFallback(
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
-    if (parts.some(isDismissedNoResponseMarker)) continue
+    if (hasDismissedNoResponsePart(parts)) continue
     const hasVisiblePart = hasRenderableContent(parts)
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error') && !hasVisiblePart) ||

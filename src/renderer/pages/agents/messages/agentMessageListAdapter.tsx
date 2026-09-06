@@ -165,6 +165,10 @@ export function useAgentMessageListProviderValue({
 
     return { ...streamingLayers, historyPartsByMessageId }
   }, [messages, streamingLayers, t])
+  const displayPartsByMessageIdRef = useRef(displayPartsByMessageId)
+  useEffect(() => {
+    displayPartsByMessageIdRef.current = displayPartsByMessageId
+  }, [displayPartsByMessageId])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -202,7 +206,13 @@ export function useAgentMessageListProviderValue({
       const persistedMessage = (await dataApiService.get(
         `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
       )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
-      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+      let updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+      if (!updatedParts) {
+        const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
+        if (displayParts) {
+          updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
+        }
+      }
       if (!updatedParts) return
 
       await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {
