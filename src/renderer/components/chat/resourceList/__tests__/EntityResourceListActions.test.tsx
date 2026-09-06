@@ -724,6 +724,29 @@ describe('classic layout entity resource list actions', () => {
     expect(onSelectSession).toHaveBeenCalledExactlyOnceWith('session-created', createdSession)
   })
 
+  it('toggles the selected agent pane while its active session is absent from the loading snapshot', async () => {
+    const user = userEvent.setup()
+    const onSelectedAgentClick = vi.fn()
+    const onCreateSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-not-loaded"
+        agentSessionsSource={createAgentSessionsSource({ isFullyLoaded: false, sessions: [] })}
+        onSelectSession={vi.fn()}
+        onSelectedAgentClick={onSelectedAgentClick}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Select Agent 1' }))
+
+    expect(onSelectedAgentClick).toHaveBeenCalledOnce()
+    expect(onCreateSession).not.toHaveBeenCalled()
+  })
+
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
     const nextTopic = { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }

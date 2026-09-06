@@ -520,11 +520,10 @@ export function AgentResourceList({
 
   const handleSelectedEntityClick = useCallback(
     (item: ResourceEntityRailItem) => {
-      const hasSession = sessions.some((session) => getAgentEntityId(session.agentId) === item.id)
-      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID || !hasSession) return handleSelect(item)
+      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID || !activeSessionId) return handleSelect(item)
       return onSelectedAgentClick?.()
     },
-    [getAgentEntityId, handleSelect, onSelectedAgentClick, sessions]
+    [activeSessionId, handleSelect, onSelectedAgentClick]
   )
 
   return (
