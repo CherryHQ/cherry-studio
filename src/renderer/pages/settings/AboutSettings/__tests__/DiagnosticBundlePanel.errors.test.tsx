@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,7 +64,11 @@ describe('DiagnosticBundlePanel export errors', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'settings.about.diagnostics.actions.export'
+      })
+    )
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.destination_conflict')

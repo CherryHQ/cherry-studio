@@ -6,6 +6,8 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.unmock('@cherrystudio/ui')
+
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   request: vi.fn(),
@@ -99,19 +101,38 @@ describe('DiagnosticBundlePanel', () => {
     })
   })
 
-  it('keeps sensitive-source confirmation inline', async () => {
+  it('dismisses sensitive-source confirmation without closing the panel or losing selections', async () => {
     const user = userEvent.setup()
-    render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
+    const onClose = vi.fn()
+    render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={onClose} />)
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.about.diagnostics.ranges.3d' }))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
+    await user.click(screen.getByRole('switch', { name: logsSwitchName }))
+    await user.click(screen.getByRole('switch', { name: chatRecordsSwitchName }))
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.about.diagnostics.privacy.title')).toHaveFocus()
+    expect(screen.getByRole('dialog', { name: 'settings.about.diagnostics.privacy.title' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox')).not.toBeChecked()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(0)
 
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('radio', { name: 'settings.about.diagnostics.ranges.3d' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: logsSwitchName })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('radio', { name: 'settings.about.diagnostics.ranges.3d' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: logsSwitchName })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: chatRecordsSwitchName })).toBeChecked()
     expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toHaveFocus()
   })
 

@@ -1,4 +1,15 @@
-import { Alert, Button, Checkbox, DescriptionSwitch, DialogFooter, Scrollbar, SegmentedControl } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Checkbox,
+  DescriptionSwitch,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  Scrollbar,
+  SegmentedControl
+} from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -260,27 +271,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         <span className="sr-only" role="status">
           {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
         </span>
-        {isConfirmationOpen ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <h3 ref={confirmationHeadingRef} tabIndex={-1} className="font-semibold text-base">
-                {t('settings.about.diagnostics.privacy.title')}
-              </h3>
-              <p className="text-muted-foreground text-sm leading-6">
-                {t('settings.about.diagnostics.privacy.description')}
-              </p>
-            </div>
-            <p className="text-muted-foreground text-sm leading-6">
-              {t('settings.about.diagnostics.limit', {
-                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
-              })}
-            </p>
-            <label className="flex cursor-pointer items-center gap-3 text-sm">
-              <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
-              <span>{t('settings.about.diagnostics.privacy.consent')}</span>
-            </label>
-          </div>
-        ) : status === 'saved' && savedResult ? (
+        {status === 'saved' && savedResult ? (
           <div className="space-y-4">
             <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
               <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
@@ -369,16 +360,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
       </Scrollbar>
 
       <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-        {isConfirmationOpen ? (
-          <>
-            <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
-              {t('settings.about.diagnostics.actions.cancel')}
-            </Button>
-            <Button variant="emphasis" disabled={!consent} onClick={handleConfirmedExport}>
-              {t('settings.about.diagnostics.actions.export')}
-            </Button>
-          </>
-        ) : status === 'saved' ? (
+        {status === 'saved' ? (
           <>
             <Button variant="outline" onClick={handleClose}>
               {t('settings.about.diagnostics.actions.close')}
@@ -416,6 +398,38 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
           </>
         )}
       </DialogFooter>
+
+      <Dialog open={isConfirmationOpen} onOpenChange={handleConfirmationOpenChange}>
+        <DialogContent aria-describedby={undefined} showCloseButton={false} size="sm">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <DialogTitle ref={confirmationHeadingRef} tabIndex={-1} className="text-base">
+                {t('settings.about.diagnostics.privacy.title')}
+              </DialogTitle>
+              <p className="text-muted-foreground text-sm leading-6">
+                {t('settings.about.diagnostics.privacy.description')}
+              </p>
+            </div>
+            <p className="text-muted-foreground text-sm leading-6">
+              {t('settings.about.diagnostics.limit', {
+                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+              })}
+            </p>
+            <label className="flex cursor-pointer items-center gap-3 text-sm">
+              <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
+              <span>{t('settings.about.diagnostics.privacy.consent')}</span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.cancel')}
+            </Button>
+            <Button variant="emphasis" disabled={!consent} onClick={handleConfirmedExport}>
+              {t('settings.about.diagnostics.actions.export')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
