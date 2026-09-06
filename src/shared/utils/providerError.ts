@@ -40,6 +40,8 @@ function unstructuredPayloadText(value: unknown): string {
     try {
       parsed = JSON.parse(parsed)
     } catch {
+      const text = parsed.trim()
+      if (text.startsWith('{') || text.startsWith('[')) return ''
       return actionableText(value)
     }
   }
