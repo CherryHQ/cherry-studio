@@ -5,8 +5,8 @@
  * Claude Code's web search/fetch and image generation run identical logic against
  * the user's configured `WebSearchService` provider and painting model. Injected by
  * `settingsBuilder` as an `sdk`-type MCP server; Claude calls these tools as
- * `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__report_artifacts`, and
- * `…__generate_image`.
+ * `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__report_artifacts`,
+ * `…__runtime_info`, and `…__generate_image`.
  *
  * These stateless builtins carry no per-agent authorization, so their handlers take
  * only `(args, signal)`. Domain tools that act on behalf of the session's agent are
@@ -62,12 +62,14 @@ import {
   webFetchInputSchema,
   webSearchInputSchema
 } from '@shared/ai/builtinTools'
+import { app } from 'electron'
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
 import { CherryCliTools } from './cherryCliTools'
 import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
+import { RUNTIME_INFO_DESCRIPTION, RUNTIME_INFO_TOOL_NAME, runtimeInfoInputSchema } from './runtimeInfoTool'
 
 export type { CherryAgentContext }
 export type CherryBuiltinToolsContext = CherryAgentContext & CherryDocumentContext
@@ -116,6 +118,26 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args) => {
       const { artifacts } = reportArtifactsInputSchema.parse(args)
       return { type: 'text', value: `Recorded ${artifacts.length} artifact(s).` }
+    }
+  },
+  [RUNTIME_INFO_TOOL_NAME]: {
+    description: RUNTIME_INFO_DESCRIPTION,
+    inputSchema: runtimeInfoInputSchema,
+    run: async (args) => {
+      runtimeInfoInputSchema.parse(args)
+      return {
+        type: 'json',
+        value: {
+          appVersion: app.getVersion(),
+          platform: process.platform,
+          arch: process.arch,
+          runtimes: {
+            node: process.versions.node,
+            electron: process.versions.electron ?? null,
+            chrome: process.versions.chrome ?? null
+          }
+        }
+      }
     }
   }
 }
@@ -192,7 +214,7 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
   return { content: [{ type: 'text', text }] }
 }
 
-/** List the stateless builtin tools (web / report / image); domain tools live in their providers. */
+/** List the stateless builtin tools (web / report / runtime / image); domain tools live in their providers. */
 export function listCherryBuiltinTools(): Tool[] {
   return Object.entries(resolveHandlers()).map(([name, handler]) => ({
     name,
