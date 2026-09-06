@@ -29,7 +29,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import DiagnosticBundleDialog from '../DiagnosticBundleDialog'
+import DiagnosticBundlePanel from '@renderer/components/feedback/DiagnosticBundlePanel'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
@@ -42,7 +42,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   }
 }
 
-describe('DiagnosticBundleDialog export errors', () => {
+describe('DiagnosticBundlePanel export errors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('electron', { process: { platform: 'darwin' } })
@@ -57,15 +57,18 @@ describe('DiagnosticBundleDialog export errors', () => {
 
   it('explains how to recover when the selected destination conflicts with diagnostic data', async () => {
     const user = userEvent.setup()
-    render(<DiagnosticBundleDialog appVersion="2.0.0" open onOpenChange={vi.fn()} />)
+    render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toBeEnabled()
     )
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
-    const confirmation = screen.getAllByRole('dialog').at(-1)!
-    await user.click(within(confirmation).getByRole('checkbox'))
-    await user.click(within(confirmation).getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'settings.about.diagnostics.actions.export'
+      })
+    )
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.destination_conflict')

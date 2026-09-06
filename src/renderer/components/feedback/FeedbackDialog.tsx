@@ -14,14 +14,14 @@ import {
   ItemTitle
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { DoctorPopup } from '@renderer/components/doctor'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const DiagnosticUploadDialog = lazy(() => import('./DiagnosticUploadDialog'))
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
 
@@ -76,15 +76,14 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
 
 export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const { t } = useTranslation()
-  const [diagnosticUploadOpen, setDiagnosticUploadOpen] = useState(false)
 
-  const selectOption = (action: () => void | Promise<void>) => {
+  const selectOption = (action: () => void | Promise<void>, delay = 0) => {
     onOpenChange(false)
     window.setTimeout(() => {
       void Promise.resolve()
         .then(action)
         .catch((error) => logger.error('Failed to run deferred feedback action', error as Error))
-    }, 0)
+    }, delay)
   }
 
   const openAgentFeedback = async () => {
@@ -107,44 +106,36 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="lg">
-          <DialogHeader>
-            <DialogTitle>{t('settings.about.feedback.dialog.title')}</DialogTitle>
-            <DialogDescription>{t('settings.about.feedback.dialog.description')}</DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>{t('settings.about.feedback.dialog.title')}</DialogTitle>
+          <DialogDescription>{t('settings.about.feedback.dialog.description')}</DialogDescription>
+        </DialogHeader>
 
-          <ItemGroup className="gap-3 px-2">
-            <FeedbackOption
-              icon={<FileArchive className="size-5" />}
-              title={t('settings.about.feedback.diagnostics.title')}
-              description={t('settings.about.feedback.diagnostics.description')}
-              recommended
-              onSelect={() => selectOption(() => setDiagnosticUploadOpen(true))}
-            />
-            <FeedbackOption
-              icon={<Bot className="size-5" />}
-              title={t('settings.about.feedback.agent.title')}
-              description={t('settings.about.feedback.agent.description')}
-              onSelect={() => selectOption(openAgentFeedback)}
-            />
-            <FeedbackOption
-              icon={<Github className="size-5" />}
-              title={t('settings.about.feedback.github.title')}
-              description={t('settings.about.feedback.github.description')}
-              onSelect={() => selectOption(openGitHubIssue)}
-            />
-          </ItemGroup>
-        </DialogContent>
-      </Dialog>
-
-      {diagnosticUploadOpen ? (
-        <Suspense fallback={null}>
-          <DiagnosticUploadDialog open onOpenChange={setDiagnosticUploadOpen} />
-        </Suspense>
-      ) : null}
-    </>
+        <ItemGroup className="gap-3 px-2">
+          <FeedbackOption
+            icon={<FileArchive className="size-5" />}
+            title={t('settings.about.feedback.diagnostics.title')}
+            description={t('settings.about.feedback.diagnostics.description')}
+            recommended
+            onSelect={() => selectOption(() => void DoctorPopup.show({ initialPanel: 'report' }), POPUP_EXIT_MS)}
+          />
+          <FeedbackOption
+            icon={<Bot className="size-5" />}
+            title={t('settings.about.feedback.agent.title')}
+            description={t('settings.about.feedback.agent.description')}
+            onSelect={() => selectOption(openAgentFeedback)}
+          />
+          <FeedbackOption
+            icon={<Github className="size-5" />}
+            title={t('settings.about.feedback.github.title')}
+            description={t('settings.about.feedback.github.description')}
+            onSelect={() => selectOption(openGitHubIssue)}
+          />
+        </ItemGroup>
+      </DialogContent>
+    </Dialog>
   )
 }
 

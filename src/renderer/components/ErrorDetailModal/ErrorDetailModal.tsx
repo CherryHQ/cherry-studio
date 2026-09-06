@@ -1,9 +1,10 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
-import ContentPopup from '@renderer/components/popups/ContentPopup'
+import { DoctorPopup } from '@renderer/components/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
@@ -33,16 +34,16 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { CheckCircle, Copy, FileUp, Loader2, Stethoscope } from 'lucide-react'
-import React, { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Copy, FileUp } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
-import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
-
-const DiagnosticUploadDialog = lazy(() => import('@renderer/components/feedback/DiagnosticUploadDialog'))
+import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -52,26 +53,13 @@ interface ErrorDetailContentProps {
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
+  onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
-interface DiagnosticUploadPopupProps {
-  initialDescription: string
+interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
+  readonly doctorCloseBlocked?: boolean
+  readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
 }
-
-const DiagnosticUploadPopup = createPopup<DiagnosticUploadPopupProps, void>(
-  ({ initialDescription, open, resolve }: DiagnosticUploadPopupProps & PopupInjectedProps<void>) => (
-    <Suspense fallback={null}>
-      <DiagnosticUploadDialog
-        fixedRange="24h"
-        initialDescription={initialDescription}
-        open={open}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) resolve()
-        }}
-      />
-    </Suspense>
-  )
-)
 
 const truncateLargeData = (
   data: string,
@@ -517,34 +505,21 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
 // --- Main Content Component ---
 
-const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
+const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   diagnosisContext,
   diagnosticReport,
   blockId,
   onDiagnosisComplete,
   onOpenDiagnosticReport,
-  cachedDiagnosis
+  cachedDiagnosis,
+  onDoctorNavigate,
+  doctorCloseBlocked = false,
+  onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
-  const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const isInitialRenderRef = useRef(true)
-
-  // Scroll to bottom when diagnosis status changes, but skip initial render
-  useEffect(() => {
-    if (isInitialRenderRef.current) {
-      isInitialRenderRef.current = false
-      return
-    }
-
-    if (diagStatus !== 'idle') {
-      requestAnimationFrame(() => {
-        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [diagStatus])
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -564,15 +539,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     toast.success(t('message.copied'))
   }, [error, t])
 
-  const handleDiagnosisComplete = useCallback(
-    async (partId: string, diagnosis: DiagnosisResult) => {
-      await onDiagnosisComplete?.(partId, diagnosis)
-    },
-    [onDiagnosisComplete]
-  )
-
   const openDiagnosticReport = useCallback(() => {
-    if (!diagnosticReport || !onOpenDiagnosticReport) return
+    if (doctorCloseBlocked || !diagnosticReport || !onOpenDiagnosticReport) return
     onOpenDiagnosticReport(
       buildDiagnosticReportDescription({
         diagnosisContext,
@@ -588,7 +556,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         location: diagnosticReport.location
       })
     )
-  }, [diagnosticReport, diagnosisContext, error, onOpenDiagnosticReport, t])
+  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, onOpenDiagnosticReport, t])
+
+  const showDetails = () => {
+    setDetailsOpen(true)
+  }
 
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) {
@@ -606,83 +578,126 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     )
   }
 
-  const handleDiagnose = () => {
-    if (diagStatus === 'loading') return
-    setDiagStatus('loading')
-    diagSectionRef.current?.runDiagnosis()
-  }
-
-  const getDiagButtonText = () => {
-    switch (diagStatus) {
-      case 'loading':
-        return t('error.diagnosis.ai_loading') + '...'
-      case 'done':
-        return t('error.diagnosis.ai_done')
-      default:
-        return t('error.diagnosis.ai_button')
-    }
-  }
-
   return (
     <>
-      <ErrorDetailContainer ref={containerRef}>
-        {renderErrorDetails(error)}
-        {diagStatus !== 'idle' && (
-          <AiDiagnosisSectionWithStatus
-            key={blockId ?? error?.message}
-            ref={diagSectionRef}
+      <DialogHeader className="pr-8">
+        <DialogTitle>{t('error.detail')}</DialogTitle>
+      </DialogHeader>
+      <ErrorDetailContainer>
+        <div className="space-y-4">
+          <ErrorBasicInformation
+            viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
-            status={diagStatus}
-            onStatusChange={setDiagStatus}
             diagnosisContext={diagnosisContext}
-            blockId={blockId}
-            onDiagnosisComplete={handleDiagnosisComplete}
-            cachedDiagnosis={cachedDiagnosis}
+            diagnosticReport={diagnosticReport}
+            onCopy={copyErrorDetails}
+            onViewDetails={showDetails}
           />
-        )}
+          <ErrorDiagnosticsPanel
+            blockId={blockId}
+            cachedDiagnosis={cachedDiagnosis}
+            diagnosisContext={diagnosisContext}
+            error={error}
+            onCloseBlockedChange={onDoctorCloseBlockedChange}
+            onDiagnosisComplete={onDiagnosisComplete}
+            onNavigate={onDoctorNavigate}
+            onReportProblem={onOpenDiagnosticReport}
+          />
+        </div>
       </ErrorDetailContainer>
-      <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button variant="outline" onClick={copyErrorDetails}>
-          <Copy size={14} />
-          {t('common.copy')}
-        </Button>
-        {diagnosticReport && onOpenDiagnosticReport ? (
-          <Button variant="outline" onClick={openDiagnosticReport}>
+
+      {diagnosticReport && onOpenDiagnosticReport ? (
+        <div className="flex justify-end">
+          <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}
           </Button>
-        ) : null}
-        <Button disabled={diagStatus === 'loading'} onClick={handleDiagnose}>
-          {diagStatus === 'loading' ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : diagStatus === 'done' ? (
-            <CheckCircle size={14} />
-          ) : (
-            <Stethoscope size={14} />
-          )}
-          {getDiagButtonText()}
-        </Button>
-      </div>
+        </div>
+      ) : null}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent
+          size="xl"
+          closeLabel={t('common.close')}
+          className="max-h-[calc(100vh-2rem)] overflow-hidden"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            viewDetailsButtonRef.current?.focus()
+          }}>
+          <DialogHeader className="flex-row items-center gap-2 pr-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnostics.back_to_overview')}
+              onClick={() => setDetailsOpen(false)}>
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
+            <DialogTitle>{t('error.detail')}</DialogTitle>
+          </DialogHeader>
+          <ErrorDetailContainer>
+            <div className="space-y-4">{renderErrorDetails(error)}</div>
+          </ErrorDetailContainer>
+          <DialogFooter>
+            <Button variant="outline" disabled={!error} onClick={copyErrorDetails}>
+              <Copy size={14} />
+              {t('common.copy')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
 
-export function showErrorDetailPopup(params: Omit<ErrorDetailContentProps, 'onOpenDiagnosticReport'>) {
-  void ContentPopup.show({
-    title: i18n.t('error.detail'),
-    content: (
-      <ErrorDetailContent
-        {...params}
-        onOpenDiagnosticReport={(initialDescription) => {
-          ContentPopup.hide()
-          setTimeout(() => {
-            void DiagnosticUploadPopup.show({ initialDescription })
-          }, POPUP_EXIT_MS)
-        }}
-      />
-    ),
-    width: '60vw',
-    styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
+type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
+
+const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
+  const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
+  const close = useCallback(() => {
+    if (!doctorCloseBlocked) resolve()
+  }, [doctorCloseBlocked, resolve])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}>
+      <DialogContent
+        size="xl"
+        closeLabel={i18n.t('common.close')}
+        closeOnOverlayClick={!doctorCloseBlocked}
+        showCloseButton={!doctorCloseBlocked}
+        className="max-h-[calc(100vh-2rem)] overflow-hidden"
+        onEscapeKeyDown={(event) => {
+          if (doctorCloseBlocked) event.preventDefault()
+        }}>
+        <ErrorDetailContent
+          {...props}
+          doctorCloseBlocked={doctorCloseBlocked}
+          onDoctorCloseBlockedChange={setDoctorCloseBlocked}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
+
+export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
+  const finishHandoff = (action: () => void) => {
+    ErrorDetailPopup.hide()
+    window.setTimeout(action, POPUP_EXIT_MS)
+  }
+
+  void ErrorDetailPopup.show({
+    ...params,
+    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onOpenDiagnosticReport: (initialDescription) =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
+      })
   })
 }
 
