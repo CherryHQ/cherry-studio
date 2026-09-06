@@ -8,6 +8,7 @@ import {
 import {
   type AgentToolOutput,
   AgentToolsType,
+  extractLaunchReceiptId,
   getResumedAgentId,
   isBackgroundAgentOutput,
   resolveResumedAgent
@@ -186,12 +187,12 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
-const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfully.'
-
 function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
   return (
     isBackgroundAgentOutput(output as AgentToolOutput | undefined) ||
-    (text?.startsWith(LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX) ?? false)
+    // Receipt wording varies across CLI versions (`Async agent launched successfully.` /
+    // `done.`), so the shared parser's structural markers decide, not a single prefix.
+    (typeof text === 'string' && extractLaunchReceiptId(text) !== undefined)
   )
 }
 
@@ -286,16 +287,9 @@ export function resolveFlowToolCallId(
  */
 function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
-  if (typeof output === 'string') {
-    // Only launch-receipt text contributes an identity; prose that merely contains an
-    // `agentId:` token would otherwise split an unrelated flow timeline. Receipt wording varies
-    // across CLI versions (`Async agent launched successfully.` / `done.`), so match the
-    // structural markers, not a single prefix.
-    if (!/Async agent launched successfully|\(internal|Use SendMessage with to/.test(output)) return undefined
-    // The trailer explicitly names the id, so any length is legitimate (short ids / task ids are
-    // not a reason to drop the launch identity; the round-split gate compares exact equality).
-    return /\bagent_?[Ii]d[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
-  }
+  // Single launch-receipt grammar everywhere: the shared parser gates on the structural markers
+  // and extracts the trailer, so round splitting and entry redirection can never disagree.
+  if (typeof output === 'string') return extractLaunchReceiptId(output)
   if (isRecord(output)) {
     // Workflow/local launches carry the same identity under `taskId`.
     const direct = output.agentId ?? output.agent_id ?? output.taskId
