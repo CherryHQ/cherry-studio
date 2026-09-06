@@ -262,6 +262,11 @@ export function AssistantResourceList({
     (topic: Topic) => getAssistantEntityId(topic.assistantId),
     [getAssistantEntityId]
   )
+  const entityIdsWithTopics = useMemo(() => new Set(topics.map(getTopicAssistantId)), [getTopicAssistantId, topics])
+  const visibleEntities = useMemo(
+    () => entities.filter((entity) => entityIdsWithTopics.has(entity.id)),
+    [entities, entityIdsWithTopics]
+  )
   const loadLatestTopicForAssistant = useCallback(
     async (assistantId: string) => {
       const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
@@ -299,9 +304,7 @@ export function AssistantResourceList({
   )
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
-    entities,
-    resources: topics,
-    getResourceParentId: getTopicAssistantId,
+    entities: visibleEntities,
     activeEntityId: activeAssistantEntityId,
     isLoading:
       isAssistantsLoading ||

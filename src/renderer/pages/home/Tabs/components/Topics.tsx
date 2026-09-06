@@ -667,6 +667,7 @@ export function Topics({
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      const wasActiveAtStart = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
@@ -683,7 +684,12 @@ export function Topics({
         return
       }
 
-      if (topic.id !== activeTopicIdRef.current) return
+      // A mid-delete switch to another topic must win. An empty ('') mirror only reselects
+      // when the deleted topic was active at delete start (#19583 race collapse); deleting
+      // with no selection at all stays a no-op.
+      const currentActiveTopicId = activeTopicIdRef.current
+      if (currentActiveTopicId && currentActiveTopicId !== topic.id) return
+      if (!currentActiveTopicId && !wasActiveAtStart) return
 
       if (replacement) {
         setActiveTopic(replacement)
@@ -981,7 +987,10 @@ export function Topics({
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        if (deletedActiveTopicId && activeTopicIdRef.current === deletedActiveTopicId) {
+        // Reselect while the current selection is dead — empty, or switched mid-delete to
+        // another topic of the same deleted set (it strands otherwise, #19583).
+        const currentActiveTopicId = activeTopicIdRef.current
+        if (deletedActiveTopicId && (!currentActiveTopicId || latestTargetTopicIds.has(currentActiveTopicId))) {
           if (replacement) setActiveTopic(replacement)
           else clearActiveTopic()
         }
@@ -1863,7 +1872,7 @@ const TopicRow = memo(function TopicRow({
           : null
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
-  const showLeadingSlot = displayMode !== 'time' && !topic.pinned
+  const showLeadingSlot = displayMode !== 'time'
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = !topic.pinned
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)

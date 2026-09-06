@@ -68,6 +68,7 @@ describe('useMiniApps', () => {
 
     mocks.request.mockReset()
     mockIpCountry('CN')
+    vi.stubGlobal('__APP_EDITION__', 'global')
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
@@ -162,6 +163,40 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
+    it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+      const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region')).toBe('Global')
+    })
+
+    it('hides Global-only pinned apps from CN edition launcher surfaces', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      const apps = [createGlobalApp('g', { status: 'pinned' }), createCnOnlyApp('c', { status: 'pinned' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.pinned.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+    })
+
+    it('does not detect the IP region in the CN edition', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+
+      renderHook(() => useMiniApps())
+
+      expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
+    })
+
     it('should show all apps when region is CN (default)', () => {
       const { mixedRegion } = appFixtures
       const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
@@ -366,6 +401,36 @@ describe('useMiniApps', () => {
       })
     })
 
+    it('syncs one-off state and tabs opened while the update is pending', async () => {
+      const existing = createMiniApp('custom-app', { url: 'https://old.example.com', presetMiniAppId: null })
+      const updated = { ...existing, name: 'Updated App', url: 'https://new.example.com', logo: 'new-logo' }
+      let resolveUpdate: (value: MiniApp) => void = () => undefined
+      const trigger = vi.fn(
+        () =>
+          new Promise<MiniApp>((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      const { result, rerender } = renderHook(() => useMiniApps())
+
+      let pendingUpdate: Promise<MiniApp>
+      act(() => {
+        pendingUpdate = result.current.updateCustomMiniApp('custom-app', { name: 'Updated App' })
+      })
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      mockTabs.tabs = [{ id: 'late-tab', url: '/app/mini-app/custom-app' }]
+      rerender()
+
+      await act(async () => {
+        resolveUpdate(updated)
+        await pendingUpdate
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('late-tab', { title: 'Updated App', icon: 'new-logo' })
+    })
+
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
       const other = createMiniApp('other-app')
@@ -534,6 +599,43 @@ describe('useMiniApps', () => {
       })
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+    })
+
+    it('hides an app and closes a split pane that was showing it', async () => {
+      const hidden = createMiniApp('app1', { status: 'disabled' })
+      const other = createMiniApp('app2')
+      const mockTrigger = vi.fn().mockResolvedValue(hidden)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [hidden, other])
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app1')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    })
+
+    it('keeps a split pane showing another app when hiding', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue(createMiniApp('app1', { status: 'disabled' }))
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app2')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('app2')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
     })
   })
 

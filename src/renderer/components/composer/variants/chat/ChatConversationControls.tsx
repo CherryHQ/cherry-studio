@@ -1,6 +1,6 @@
 import { Button, EmojiIcon } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
@@ -19,8 +19,6 @@ import {
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
-
-const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 
 export interface ChatConversationControlsProps {
   assistantId: string | null
@@ -72,6 +70,7 @@ export function ChatConversationControls({
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
   const { t } = useTranslation()
+  const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -168,7 +167,7 @@ export function ChatConversationControls({
           onOpenChange={setMentionedModelSelectorOpen}
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
-          filter={CHAT_MODEL_FILTER}
+          filter={chatModelFilter}
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -193,7 +192,7 @@ export function ChatConversationControls({
           multiple={false}
           value={model}
           onSelect={onModelSelect}
-          filter={CHAT_MODEL_FILTER}
+          filter={chatModelFilter}
           shortcut="chat.model.select"
           side={side}
           align="start"

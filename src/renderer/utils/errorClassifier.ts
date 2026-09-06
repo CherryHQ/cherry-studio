@@ -1,4 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
 
 export interface ErrorClassification {
   category:
@@ -75,6 +76,23 @@ export function isProxyErrorMessage(message: string): boolean {
   )
 }
 
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -93,7 +111,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
+  const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody.toLowerCase() : ''
@@ -132,6 +150,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('api key is invalid') ||
     msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
+    msg.includes('not logged in') ||
     msg.includes('unauthorized')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
@@ -248,6 +267,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Proxy / SSL certificate errors
   if (
+    msg.includes('err_ssl_client_auth_cert_needed') ||
     isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
@@ -293,6 +313,26 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
+  }
+
+  // A wrapper carries no status of its own. Prefer any diagnosis over a generic recovery-only fallback.
+  let nestedRecovery: ErrorClassification | null = null
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown') {
+      return nestedClassification
+    }
+    if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
+  }
+  if (nestedRecovery) return nestedRecovery
+
+  // A generic 400 has no safe diagnosis, but its active provider settings remain a valid recovery path.
+  if (numStatus === 400) {
+    return {
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
   }
 
   return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }

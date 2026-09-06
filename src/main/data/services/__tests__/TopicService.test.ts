@@ -531,11 +531,39 @@ describe('TopicService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
-        { endpoint: '/topics/:id', entityIds: ['topic-1'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
         { endpoint: '/topics/latest' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('emits one broadcast-wide by-id effect for batch deletes and a scoped one for single deletes', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: 'Topic 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-2', name: 'Topic 2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+
+      notifyDataApiDataChangeMock.mockClear()
+      topicService.deleteByIds(['topic-1', 'topic-2'])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1', 'topic-2'] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1', 'topic-2'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1', 'topic-2'] },
+        { endpoint: '/topics/latest' }
+      ])
+
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-3', name: 'Topic 3', orderKey: 'a2', createdAt: 1, updatedAt: 1 })
+      notifyDataApiDataChangeMock.mockClear()
+      topicService.deleteByIds(['topic-3'])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/topics', kind: 'membership', entityIds: ['topic-3'] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-3'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-3' }, entityIds: ['topic-3'] },
+        { endpoint: '/topics/latest' }
+      ])
     })
 
     it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {

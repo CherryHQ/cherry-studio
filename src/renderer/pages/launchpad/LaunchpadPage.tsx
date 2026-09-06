@@ -60,12 +60,44 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
+  const {
+    pinned,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp,
+    reorderMiniAppsByStatus
+  } = useMiniApps()
+  const { shortcuts, isPinned, setPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
+  const miniAppFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        shortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [shortcuts]
+  )
+  const openedMiniAppIdSet = useMemo(
+    () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
+    [openedKeepAliveMiniApps]
+  )
+  const toggleMiniApp = useCallback(
+    (appId: string) => {
+      const app = pinned.find((item) => item.appId === appId)
+      const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
+      toggleSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId), fallbackLabel)
+    },
+    [pinned, t, toggleSidebarShortcut]
+  )
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
     suppressClickUntilRef.current = Date.now() + 500
@@ -109,11 +141,14 @@ export default function LaunchpadPage() {
     void navigateToUrl(path)
   }
 
-  const openMiniApp = (app: MiniAppType) => {
-    if (shouldSuppressLaunchClick(app.appId)) return
+  const openMiniApp = useCallback(
+    (appId: string) => {
+      if (shouldSuppressLaunchClick(appId)) return
 
-    void navigateToUrl(`/app/mini-app/${app.appId}`)
-  }
+      void navigateToUrl(`/app/mini-app/${appId}`)
+    },
+    [navigateToUrl, shouldSuppressLaunchClick]
+  )
 
   const openDeepSeekHarness = () => {
     void navigateToUrl(DEEPSEEK_HARNESS_URL)
@@ -238,7 +273,20 @@ export default function LaunchpadPage() {
     <div
       key={app.appId}
       className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
-      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+      <App
+        app={app}
+        size={56}
+        variant="launchpad"
+        onOpen={openMiniApp}
+        onUpdateStatus={updateAppStatus}
+        onHide={hideMiniApp}
+        onRemoveCustom={removeCustomMiniApp}
+        onToggleSidebarFavorite={toggleMiniApp}
+        isPinned
+        isSidebarFavorite={miniAppFavoriteIdSet.has(app.appId)}
+        isOpened={openedMiniAppIdSet.has(app.appId)}
+        isActive={miniAppShow && currentMiniAppId === app.appId}
+      />
     </div>
   )
 

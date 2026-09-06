@@ -80,8 +80,8 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
-  default: ({ app, onOpen }: { app: { appId: string; name: string }; onOpen?: (app: any) => void }) => (
-    <button type="button" onClick={() => onOpen?.(app)}>
+  default: ({ app, onOpen }: { app: { appId: string; name: string }; onOpen?: (appId: string) => void }) => (
+    <button type="button" onClick={() => onOpen?.(app.appId)}>
       {app.name}
     </button>
   )

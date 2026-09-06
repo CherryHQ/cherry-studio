@@ -7,6 +7,17 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
+/** Shaped like `serializeError(RetryError)`: nested attempts keep no `message`/`stack`. */
+function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedError {
+  return makeError({
+    name: 'AI_RetryError',
+    message: 'Failed after 2 attempts. Last error:',
+    cause: null,
+    reason: 'maxRetriesExceeded',
+    ...overrides
+  })
+}
+
 describe('classifyError', () => {
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
@@ -17,6 +28,80 @@ describe('classifyError', () => {
   it('returns unknown for empty error', () => {
     const result = classifyError(makeError({ message: '' }))
     expect(result.category).toBe('unknown')
+  })
+
+  // Wrapped errors — RetryError itself carries no status, the cause does.
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ])('classifies a retry error wrapping %i as %s', (statusCode, category) => {
+    const wrapped = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode },
+        errors: [{ name: 'AI_APICallError', statusCode }]
+      })
+    )
+    expect(wrapped.category).toBe(category)
+  })
+
+  it('diagnoses an earlier attempt when the last one says nothing', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError' },
+        errors: [{ name: 'AI_APICallError', statusCode: 401 }, { name: 'AI_APICallError' }]
+      })
+    )
+    expect(result.category).toBe('auth')
+  })
+
+  it('prefers an earlier specific diagnosis over the last attempt generic recovery', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [
+          { name: 'AI_APICallError', statusCode: 401 },
+          { name: 'AI_APICallError', statusCode: 400 }
+        ]
+      }),
+      'openai'
+    )
+
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('keeps the outer classification when the wrapper itself is diagnosable', () => {
+    const result = classifyError(
+      makeRetryError({
+        message: 'rate limit exceeded',
+        lastError: { name: 'AI_APICallError', statusCode: 401 },
+        errors: [{ name: 'AI_APICallError', statusCode: 401 }]
+      })
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
+  it.each([
+    ['direct', makeError({ statusCode: 400 })],
+    [
+      'retry-wrapped',
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [{ name: 'AI_APICallError', statusCode: 400 }]
+      })
+    ]
+  ])('offers provider settings recovery for a %s HTTP 400', (_kind, error) => {
+    const result = classifyError(error, 'openai')
+
+    expect(result.category).toBe('unknown')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('encodes the provider id in the generic HTTP 400 recovery target', () => {
+    const result = classifyError(makeError({ statusCode: 400 }), 'gateway&fallback#beta')
+
+    expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
   // Auth
@@ -362,6 +447,11 @@ describe('classifyError', () => {
 
   it('still classifies a certificate failure as proxy', () => {
     const result = classifyError(makeError({ message: 'unable to verify the first certificate' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies Chromium ERR_SSL_CLIENT_AUTH_CERT_NEEDED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED' }))
     expect(result.category).toBe('proxy')
   })
 

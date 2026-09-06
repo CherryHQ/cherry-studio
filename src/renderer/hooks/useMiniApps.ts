@@ -9,11 +9,13 @@ import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
+import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,12 +23,12 @@ import { useTranslation } from 'react-i18next'
 /**
  * Data Flow Design:
  *
- * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
+ * PRINCIPLE: Catalog filtering is a VIEW concern, not a DATA concern.
  *
- * - DataApi stores ALL apps (including region-restricted ones) to preserve user preferences
- * - ORIGIN_DEFAULT_MIN_APPS is the preset data source containing region definitions
- * - This hook applies region filtering only when READING for UI display
- * - Mutations target individual apps by appId, never touching region-hidden apps
+ * - DataApi stores ALL apps (including hidden catalog entries) to preserve user preferences
+ * - PRESETS_MINI_APPS is the preset data source containing region definitions
+ * - This hook applies region and edition filtering only when reading for UI display
+ * - Mutations target individual apps by appId, never touching hidden apps
  */
 
 /**
@@ -34,16 +36,9 @@ import { useTranslation } from 'react-i18next'
  *
  * Region-based visibility rules:
  * 1. CN users see everything.
- * 2. Global users:
- *    - Preset apps with supportedRegions including 'Global' → visible.
- *    - Preset apps without supportedRegions → CN-only (preserves the existing
- *      curated catalog semantics: presets that omit the field are intentionally
- *      gated to CN by the catalog author).
- *    - Custom apps (`presetMiniAppId === null`) without supportedRegions →
- *      visible. Custom apps come from migrated v1 data (which had no region
- *      concept) or from the user's own form, neither of which has a curated
- *      region intent. Defaulting them to CN-only would silently hide a user's
- *      own app under Global.
+ * 2. Global users see presets that support Global. Presets without a region
+ *    declaration retain the legacy CN-only default.
+ * 3. User-added sites and installed local apps remain visible everywhere.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   if (app.kind === 'app') return true
@@ -53,6 +48,11 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
     return app.presetMiniAppId === null
   }
   return app.supportedRegions.includes('Global')
+}
+
+const isVisibleForEdition = (app: MiniApp, appEdition: AppEdition): boolean => {
+  if (appEdition === 'global' || app.kind === 'app' || app.presetMiniAppId === null) return true
+  return !app.supportedRegions?.length || app.supportedRegions.includes('CN')
 }
 
 function isVisibleStatus(status: MiniAppStatus): boolean {
@@ -66,6 +66,10 @@ function compareOrderKey(a: MiniApp, b: MiniApp): number {
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
+}
+
+const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => {
+  return apps.filter((app) => isVisibleForEdition(app, appEdition))
 }
 
 // Module-level promise to ensure only one IP detection request is made
@@ -153,6 +157,7 @@ async function settleAndInvalidate(
 
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
+  const appEdition = getAppEdition()
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const { i18n: i18nInstance } = useTranslation()
   const language = i18nInstance.language
@@ -186,15 +191,17 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [detectedRegion, setDetectedRegion] = useCache('mini_app.detected_region')
 
   const effectiveRegion: MiniAppRegion =
-    miniAppRegionSetting === 'auto'
-      ? (detectedRegion ?? 'CN')
-      : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
-        ? miniAppRegionSetting
-        : 'CN'
+    appEdition === 'cn'
+      ? 'CN'
+      : miniAppRegionSetting === 'auto'
+        ? (detectedRegion ?? 'CN')
+        : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
+          ? miniAppRegionSetting
+          : 'CN'
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (!queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (appEdition === 'cn' || !queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -212,7 +219,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     return () => {
       cancelled = true
     }
-  }, [detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
+  }, [appEdition, detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
@@ -220,11 +227,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
-    return regionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
-  }, [enabled, effectiveRegion, pinned])
-  const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
-  // Pinned apps are always visible regardless of region
-  const pinnedApps = pinned
+    const editionFiltered = filterByEdition(regionFiltered, appEdition)
+    return editionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
+  }, [appEdition, enabled, effectiveRegion, pinned])
+  const disabledApps = useMemo(
+    () => filterByEdition(filterByRegion(disabled, effectiveRegion), appEdition),
+    [appEdition, disabled, effectiveRegion]
+  )
+  // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
+  const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
   // === UI State Cache (unchanged) ===
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
@@ -233,12 +244,20 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const currentMiniAppIdRef = useRef(currentMiniAppId)
+  currentMiniAppIdRef.current = currentMiniAppId
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const splitMiniAppIdRef = useRef(splitMiniAppId)
+  splitMiniAppIdRef.current = splitMiniAppId
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
+  openedOneOffMiniAppRef.current = openedOneOffMiniApp
   const { remove: removeSidebarShortcut } = useSidebarShortcuts()
   const tabsContext = useOptionalTabsContext()
+  const tabsContextRef = useRef(tabsContext)
+  tabsContextRef.current = tabsContext
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -301,6 +320,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     [patchAppTrigger]
   )
 
+  const hideMiniApp = useCallback(
+    async (appId: string) => {
+      const updated = await updateAppStatus(appId, 'disabled')
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== appId))
+      if (splitMiniAppIdRef.current === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+      return updated
+    },
+    [setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen, updateAppStatus]
+  )
+
   /**
    * Batch status flip. Each entry is an explicit {appId, status} change.
    * Rows not present in `updates` are not touched — there is no diff against
@@ -341,7 +373,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // so an app opened concurrently during the edit's await is seen here and
       // picks up the new url instead of being missed.
       const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
+      const openedOneOffApp =
+        openedOneOffMiniAppRef.current?.appId === updated.appId ? openedOneOffMiniAppRef.current : null
       const urlChanged =
         (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
         (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
@@ -361,13 +394,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = updated.logoSrc ?? updated.logo
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon })
+          tabsContextRef.current?.updateTab(tab.id, { title, icon })
         }
       }
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
@@ -377,44 +410,40 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // no-op the cache short-circuits via isEqual.
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
 
-      if (openedOneOffMiniApp?.appId === appId) {
+      if (openedOneOffMiniAppRef.current?.appId === appId) {
         setOpenedOneOffMiniApp(null)
       }
 
-      if (currentMiniAppId === appId) {
+      if (currentMiniAppIdRef.current === appId) {
         setCurrentMiniAppId('')
         setMiniAppShow(false)
       }
 
       // The split pane's app is gone; leaving the pane open would replace it
       // with a picker the user never asked for.
-      if (splitMiniAppId === appId) {
+      if (splitMiniAppIdRef.current === appId) {
         setSplitMiniAppId('')
         setSplitOpen(false)
       }
 
       clearWebviewState(appId)
 
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === appId) {
-          tabsContext?.closeTab(tab.id)
+          tabsContextRef.current?.closeTab(tab.id)
         }
       }
 
       removeSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId))
     },
     [
-      currentMiniAppId,
-      splitMiniAppId,
-      openedOneOffMiniApp,
       setCurrentMiniAppId,
       setSplitMiniAppId,
       setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
-      removeSidebarShortcut,
-      tabsContext
+      removeSidebarShortcut
     ]
   )
 
@@ -458,6 +487,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
+        // The row is already gone; a cleanup failure must not report the
+        // delete itself as failed.
         try {
           cleanupOpenedCustomMiniApp(appId)
         } catch (syncError) {
@@ -541,6 +572,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     error,
     refetch,
     updateAppStatus,
+    hideMiniApp,
     setAppStatusBulk,
     createCustomMiniApp,
     updateCustomMiniApp,

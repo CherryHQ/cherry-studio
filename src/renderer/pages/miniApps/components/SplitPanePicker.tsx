@@ -4,9 +4,12 @@ import MiniApp from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { X } from 'lucide-react'
 import type { FC } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Column count follows the pane width: a detached mini app window can be
@@ -32,8 +35,45 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   const { t } = useTranslation()
   // Every available mini app, not just the launchpad's pinned ones: presets seed
   // as `enabled`, so a pinned-only list is empty until the user pins something.
-  const { miniApps } = useMiniApps()
+  const {
+    miniApps,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp
+  } = useMiniApps()
+  const { shortcuts, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
   const { openMiniAppInSplit } = useMiniAppPopup()
+  const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
+  openMiniAppInSplitRef.current = openMiniAppInSplit
+  const miniAppsRef = useRef(miniApps)
+  miniAppsRef.current = miniApps
+  const openMiniApp = useCallback((appId: string) => {
+    const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+    if (app) openMiniAppInSplitRef.current(app)
+  }, [])
+  const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
+  const sidebarFavoriteIds = useMemo(
+    () =>
+      new Set(
+        shortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [shortcuts]
+  )
+  const toggleMiniApp = useCallback(
+    (appId: string) => {
+      const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+      const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
+      toggleSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId), fallbackLabel)
+    },
+    [t, toggleSidebarShortcut]
+  )
 
   const renderMiniApp = (app: MiniAppType) => {
     const isOccupied = app.appId === occupiedAppId
@@ -45,7 +85,21 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
           isOccupied ? 'opacity-40' : 'hover:scale-105 active:scale-95'
         )}
         title={isOccupied ? t('miniApp.split.already_open') : undefined}>
-        <MiniApp app={app} size={56} variant="launchpad" onOpen={openMiniAppInSplit} disabled={isOccupied} />
+        <MiniApp
+          app={app}
+          size={56}
+          variant="launchpad"
+          onOpen={openMiniApp}
+          onUpdateStatus={updateAppStatus}
+          onHide={hideMiniApp}
+          onRemoveCustom={removeCustomMiniApp}
+          onToggleSidebarFavorite={toggleMiniApp}
+          isPinned={app.status === 'pinned'}
+          isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
+          isOpened={openedIds.has(app.appId)}
+          isActive={miniAppShow && currentMiniAppId === app.appId}
+          disabled={isOccupied}
+        />
       </div>
     )
   }

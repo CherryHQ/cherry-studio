@@ -38,26 +38,11 @@ interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
   conversationRoute?: SidebarConversationRoute
 }
 
-function getNormalConversationSearchParamFromUrl(url: string, name: string): string | undefined {
+function getConversationSearchParamFromUrl(url: string, name: string): string | undefined {
   try {
-    const params = new URL(url, 'app://x').searchParams
-    if (params.get('view') === 'message') return undefined
-    return params.get(name) ?? undefined
+    return new URL(url, 'app://x').searchParams.get(name) ?? undefined
   } catch {
     return undefined
-  }
-}
-
-export function isMessageOnlyConversationUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url, 'app://x')
-    if (parsedUrl.searchParams.get('view') !== 'message') return false
-
-    if (parsedUrl.pathname === '/app/chat') return Boolean(parsedUrl.searchParams.get('topicId'))
-    if (parsedUrl.pathname === '/app/agents') return Boolean(parsedUrl.searchParams.get('sessionId'))
-    return false
-  } catch {
-    return false
   }
 }
 
@@ -67,21 +52,21 @@ export function isMessageOnlyConversationUrl(url: string): boolean {
  */
 const SIDEBAR_APP_DEFINITIONS = [
   {
+    id: 'agents',
+    routePrefix: '/app/agents',
+    conversationRoute: {
+      keyFromUrl: (url) => getConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
+    }
+  },
+  {
     id: 'assistants',
     // `routePrefix` must stay a string literal — the knowledge-manifest generator reads it
     // with ts-morph. `conversationRoute` below carries the same path from the shared contract.
     routePrefix: '/app/chat',
     conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
+      keyFromUrl: (url) => getConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
       urlForKey: (key) => conversationRouteUrl({ conversationType: 'assistant', conversationId: key })
-    }
-  },
-  {
-    id: 'agents',
-    routePrefix: '/app/agents',
-    conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
-      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
     }
   },
   {

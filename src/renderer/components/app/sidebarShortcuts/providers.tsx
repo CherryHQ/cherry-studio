@@ -9,7 +9,6 @@ import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import {
   getSidebarApp,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
   isSidebarAppId,
   SIDEBAR_SHORTCUT_PROVIDER_IDS,
   tabBelongsToApp
@@ -135,10 +134,7 @@ const appProvider: SidebarShortcutProvider = {
     gateway.openWorkspace({
       url,
       title: i18n.t(getSidebarIconLabelKey(id)),
-      matchesCurrent: (currentUrl) =>
-        app.conversationRoute
-          ? tabBelongsToApp(app, currentUrl) && !isMessageOnlyConversationUrl(currentUrl)
-          : currentUrl === url
+      matchesCurrent: (currentUrl) => (app.conversationRoute ? tabBelongsToApp(app, currentUrl) : currentUrl === url)
     })
   },
   subscribe: (_targets, invalidate) => languageSubscription(invalidate),
@@ -298,7 +294,6 @@ const topicProvider: SidebarShortcutProvider = {
     })
   },
   isActive: (target, navigation) =>
-    !isMessageOnlyConversationUrl(navigation.url) &&
     isActiveResourceUrl(navigation.url, '/app/chat', 'topicId', target.locator.resourceId)
 }
 
@@ -326,7 +321,6 @@ const agentSessionProvider: SidebarShortcutProvider = {
     })
   },
   isActive: (target, navigation) =>
-    !isMessageOnlyConversationUrl(navigation.url) &&
     isActiveResourceUrl(navigation.url, '/app/agents', 'sessionId', target.locator.resourceId)
 }
 

@@ -1,5 +1,6 @@
 import { useTabs } from '@renderer/hooks/tab'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import type { SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
 import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -227,6 +228,13 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
           return
         }
         if (activeTab && !activeTab.isPinned) {
+          if (miniAppIdFromTabUrl(activeTab.url)) {
+            openTab(destination.url, {
+              title: destination.title,
+              icon: destination.icon
+            })
+            return
+          }
           updateTab(activeTab.id, {
             url: destination.url,
             title: destination.title,

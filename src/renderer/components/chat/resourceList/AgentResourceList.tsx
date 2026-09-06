@@ -44,10 +44,6 @@ const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
-type SessionListItem = AgentSessionEntity & {
-  pinned?: boolean
-}
-
 type AgentResourceListProps = {
   activeAgentId?: string | null
   dataEnabled?: boolean
@@ -91,8 +87,6 @@ export function AgentResourceList({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
     isLoading,
     isLoadingAll,
     isFullyLoaded,
@@ -131,10 +125,6 @@ export function AgentResourceList({
         )
       ),
     [sidebarShortcuts]
-  )
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
   )
   const handleActivationError = useCallback(
     (error: unknown) => {
@@ -183,9 +173,8 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
+    (session: AgentSessionEntity) => onSelectSession(session.id, session),
     [onSelectSession]
   )
   const reorderAgentEntity = useCallback(
@@ -203,8 +192,6 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),

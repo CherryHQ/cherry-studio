@@ -1,7 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
-import type { ResourceType } from '@renderer/types/resourceCatalog'
+import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +25,9 @@ export type ResourceCatalogViewProps = {
   description?: ReactNode
   selectedSkillId?: string
   onSelectedSkillIdChange?: (skillId: string | undefined) => void
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
+  filterResource?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
@@ -36,7 +39,10 @@ export function ResourceCatalogView({
   title,
   description,
   selectedSkillId,
-  onSelectedSkillIdChange
+  onSelectedSkillIdChange,
+  toolbarFooter,
+  allowColumnToggle,
+  filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -106,6 +112,9 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
+            resources={filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources}
+            toolbarFooter={toolbarFooter}
+            allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}

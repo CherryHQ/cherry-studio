@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -50,7 +49,6 @@ const createdTopic: Topic = {
 const homeMocks = vi.hoisted(() => ({
   activeTopicOptions: undefined as
     | {
-        passive?: boolean
         activeTopicId?: string | null
         setActiveTopicId?: (id: string | null) => void
       }
@@ -98,11 +96,6 @@ const homeMocks = vi.hoisted(() => ({
   reuseOrCreateTopic: vi.fn(),
   navigate: vi.fn(),
   routeSearch: {} as Record<string, unknown>,
-  routeTopic: undefined as Topic | undefined,
-  routeTopicLoading: false,
-  // Topics resolvable by id through `useTopicById` (resume-by-last-used reads it); an id
-  // missing from the map behaves like a deleted topic.
-  topicsById: new Map<string, Topic>(),
   setShowSidebar: vi.fn(),
   topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
@@ -162,18 +155,6 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
     }
   }
 })
-
-vi.mock('@renderer/components/chat/shell/ChatAppShell', () => ({
-  ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
-    <div data-testid="message-only-shell">{centerContent}</div>
-  )
-}))
-
-vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
-  ...(await importActual<typeof ChatPrimitives>()),
-  EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
-  LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
-}))
 
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({
@@ -271,11 +252,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       createTopic: homeMocks.createTopic,
       refreshTopics: homeMocks.refreshTopics
     }),
-    useActiveTopic: (options: {
-      activeTopicId: string | null
-      setActiveTopicId: (id: string | null) => void
-      passive?: boolean
-    }) => {
+    useActiveTopic: (options: { activeTopicId: string | null; setActiveTopicId: (id: string | null) => void }) => {
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(homeMocks.entryTopic)
       const commitActiveTopicId = options.setActiveTopicId
       const setActiveTopicId = React.useCallback(
@@ -288,17 +265,15 @@ vi.mock('@renderer/hooks/useTopic', async () => {
         },
         [commitActiveTopicId]
       )
-      const passive = options.passive
       const setActiveTopicValue = React.useCallback(
         (topic: Topic) => {
           homeMocks.activeTopicOverride = topic
           setActiveTopic(topic)
-          if (!passive) commitActiveTopicId(topic.id)
+          commitActiveTopicId(topic.id)
         },
-        [commitActiveTopicId, passive]
+        [commitActiveTopicId]
       )
       homeMocks.activeTopicOptions = {
-        passive: options.passive,
         activeTopicId: options.activeTopicId,
         setActiveTopicId
       }
@@ -315,18 +290,13 @@ vi.mock('@renderer/hooks/useTopic', async () => {
         error: homeMocks.activeTopicError,
         topicSource: homeMocks.activeTopicSource
       }
-    },
-    useTopicById: (topicId?: string) => ({
-      topic: topicId ? (homeMocks.topicsById.get(topicId) ?? homeMocks.routeTopic) : undefined,
-      isLoading: homeMocks.routeTopicLoading,
-      error: undefined
-    })
+    }
   }
 })
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => homeMocks.navigate,
-  useSearch: () => homeMocks.routeSearch
+  getRouteApi: () => ({ useSearch: () => homeMocks.routeSearch })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -336,8 +306,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
       ({
         'chat.home.welcome_title': 'Welcome',
         'chat.topics.title': '对话',
-        'common.loading': 'Loading...',
-        'history.error.topic_not_found': 'Conversation not found'
+        'common.loading': 'Loading...'
       })[key] ?? key
   })
 }))
@@ -722,9 +691,6 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
-    homeMocks.routeTopic = undefined
-    homeMocks.routeTopicLoading = false
-    homeMocks.topicsById.clear()
     // HomePage writes its write-only persist keys (topic expansion, global-search
     // recents) straight through cacheService, bypassing the hook mock below.
     MockCacheUtils.resetMocks()
@@ -1892,55 +1858,6 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('renders a message-only route topic without updating global chat state', () => {
-    homeMocks.entryTopic = undefined
-    homeMocks.preferenceValues.set('topic.tab.show', true)
-    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
-    homeMocks.routeTopic = {
-      ...initialTopic,
-      id: 'topic-message',
-      name: 'Message topic'
-    }
-
-    render(<HomePage />)
-
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-message')
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
-    expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
-    expect(homeMocks.activeTopicOptions).toMatchObject({
-      passive: true,
-      activeTopicId: null
-    })
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
-    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalled()
-  })
-
-  it('shows a loading state for a message-only route topic while it is loading', () => {
-    homeMocks.entryTopic = undefined
-    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
-    homeMocks.routeTopicLoading = true
-
-    render(<HomePage />)
-
-    expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
-    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
-  })
-
-  it('shows a not-found state for a missing message-only route topic', () => {
-    homeMocks.entryTopic = undefined
-    homeMocks.routeSearch = { topicId: 'topic-message', view: 'message' }
-
-    render(<HomePage />)
-
-    expect(screen.getByTestId('message-only-shell')).toBeInTheDocument()
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('Conversation not found')
-    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
-  })
-
   it('creates a new topic from the selected assistant payload', async () => {
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
@@ -2038,7 +1955,6 @@ describe('HomePage', () => {
     })
 
     expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-url')
-    expect(homeMocks.activeTopicOptions?.passive).toBe(false)
   })
 
   it('does not expose the previous topic while the new route topic is loading', async () => {

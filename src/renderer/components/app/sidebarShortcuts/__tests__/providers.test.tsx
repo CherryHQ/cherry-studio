@@ -189,13 +189,4 @@ describe('core sidebar shortcut providers', () => {
 
     expect(shortcutProvider.isActive?.(createSidebarShortcutTarget(providerId, resourceId), { url })).toBe(true)
   })
-
-  it.each([
-    ['core.topic', 'topic-1', '/app/chat?topicId=topic-1&view=message'],
-    ['core.agent-session', 'session-1', '/app/agents?sessionId=session-1&view=message']
-  ])('does not focus %s shortcuts for message-only views', (providerId, resourceId, url) => {
-    const shortcutProvider = provider(providerId)
-
-    expect(shortcutProvider.isActive?.(createSidebarShortcutTarget(providerId, resourceId), { url })).toBe(false)
-  })
 })

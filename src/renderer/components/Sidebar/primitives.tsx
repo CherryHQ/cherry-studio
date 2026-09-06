@@ -31,7 +31,7 @@ export function DefaultLogo({ title }: { title: string }) {
 }
 
 export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 24
+  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 23
   const { miniApp } = tab
 
   if (miniApp.logo) {

@@ -79,6 +79,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'tr-TR'
   | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
@@ -170,6 +171,9 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+/** The canonical reasoning-effort selection — the same type an assistant persists. */
+export type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 /**
  * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
