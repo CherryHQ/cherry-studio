@@ -21,6 +21,16 @@ describe('resolveImageTransport', () => {
     }
   })
 
+  it('routes qwencloud to the shared DashScope transport', () => {
+    expect(hasImageTransport('qwencloud', 'qwen-image-3.0')).toBe(true)
+    const transport = resolveImageTransport('qwencloud', 'qwen-image-3.0', {
+      apiKey: 'k',
+      imageBaseURL: 'https://dashscope-intl.aliyuncs.com'
+    })
+    expect(transport).not.toBeNull()
+    expect(typeof transport?.submit).toBe('function')
+  })
+
   it('resolves a transport for dmxapi bespoke families', () => {
     const settings = { baseURL: 'https://www.dmxapi.cn/v1' }
     for (const modelId of ['doubao-seedream-3', 'wan2.2-t2i', 'qwen-image']) {

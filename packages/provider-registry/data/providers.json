@@ -706,6 +706,53 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "QwenCloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwencloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://home.qwencloud.com/api-keys",
+          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+          "models": "https://www.qwencloud.com/models",
+          "official": "https://www.qwencloud.com/"
+        }
+      },
+      "name": "QwenCloud",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2485,5 +2532,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c81369dcccb6c728"
+  "version": "59131e948f7383f7"
 }

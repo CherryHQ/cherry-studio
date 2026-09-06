@@ -281,3 +281,40 @@ describe('provider reasoning contracts', () => {
     ).toBe(false)
   })
 })
+
+// QwenCloud serves DeepSeek-V4 and GLM-5.2 on both Chat and Responses, each with its own
+// documented effort ladder (docs third-party-models pages + the Responses API reference).
+describe('qwencloud reasoning contracts', () => {
+  // The Responses ladder is endpoint-wide: seven tiers documented to default to `xhigh`.
+  it('carries the endpoint-wide Responses ladder on the dual-endpoint third-party lines', () => {
+    for (const modelId of ['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2']) {
+      const support = override('qwencloud', modelId).reasoningContracts?.['openai-responses']?.support
+      expect(support?.supportedEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+      expect(support?.defaultEffort).toBe('xhigh')
+    }
+  })
+
+  it('keeps DeepSeek-V4 Chat on its five-tier high-default ladder', () => {
+    const support = override('qwencloud', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.support
+    expect(support?.supportedEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+    expect(support?.defaultEffort).toBe('high')
+  })
+
+  it('drops the unsupported max tier from glm-5.1 Chat', () => {
+    const support = override('qwencloud', 'glm-5.1').reasoningContracts?.['openai-chat-completions']?.support
+    expect(support?.supportedEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+  })
+
+  // `enable_thinking` outranks `reasoning_effort`, so the effort tier must pin thinking on
+  // explicitly instead of leaning on the models' thinking-on default.
+  it('pins enable_thinking on the third-party effort wire', () => {
+    const wire = override('qwencloud', 'glm-5.2').reasoningContracts?.['openai-chat-completions']?.wire
+    const targets = wire?.effort?.operations?.map((op) => [op.target, op.value])
+    expect(targets).toEqual(
+      expect.arrayContaining([
+        ['enable_thinking', { source: 'literal', value: true }],
+        ['reasoning_effort', { source: 'effort' }]
+      ])
+    )
+  })
+})

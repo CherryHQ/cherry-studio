@@ -724,6 +724,37 @@ describe('AiService', () => {
     })
   })
 
+  // Assistant-bound image models reach generateImage without an explicit
+  // uniqueModelId — the transport routing must survive that shape (a bare
+  // `request.uniqueModelId` gate dropped them onto the generic image path).
+  describe('generateImage — transport routing via assistant model', () => {
+    it('routes an assistantId-only request for a transport provider through the job path', async () => {
+      const service = createService()
+      mockAssistantGetById.mockReturnValue({ id: 'assistant-1', name: 'Image Assistant', modelId: 'ppio::qwen-image' })
+      mockProviderGetByProviderId.mockReturnValue({ id: 'ppio', name: 'PPIO', presetProviderId: undefined })
+      mockModelGetByKey.mockReturnValue({
+        id: 'ppio::qwen-image',
+        providerId: 'ppio',
+        apiModelId: 'qwen-image',
+        name: 'Qwen Image',
+        capabilities: []
+      })
+      const viaJob = vi.spyOn(service as never, 'generateImageViaJob').mockResolvedValue({ images: [] } as never)
+
+      await service.generateImage({
+        assistantId: 'assistant-1',
+        prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
+        paramValues: {}
+      })
+
+      expect(viaJob).toHaveBeenCalledTimes(1)
+      // The job payload must carry the assistant-resolved model, not undefined.
+      expect(viaJob.mock.calls[0][0]).toMatchObject({ uniqueModelId: 'ppio::qwen-image' })
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+    })
+  })
+
   // `embedMany`'s usage-record write had zero coverage before this: neither the payload
   // shape (modality/token count) nor the failure-must-not-disrupt-the-request
   // contract was tested.

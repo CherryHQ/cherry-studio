@@ -48,6 +48,7 @@ import p_ph8 from './ph8'
 import p_poe from './poe'
 import p_ppio from './ppio'
 import p_qiniu from './qiniu'
+import p_qwencloud from './qwencloud'
 import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
@@ -98,6 +99,7 @@ export const PROVIDERS: Provider[] = [
   p_moonshot,
   p_baichuan,
   p_dashscope,
+  p_qwencloud,
   p_stepfun,
   p_doubao,
   p_minimax,
