@@ -146,6 +146,34 @@ describe('agent right pane projections', () => {
     expect(resolveFlowToolCallId('missing', partsByMessageId)).toBeUndefined()
   })
 
+  // Workflow/local launches identify by taskId; the entry resolution must see them too.
+  it('resolves a taskId-structured send-message entry back to its launch', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the workflow' },
+        { status: 'async_launched', taskId: 'task-77' }
+      ),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'task-77', message: 'Continue' },
+        { success: true, resumedAgentId: 'task-77' }
+      )
+    ]
+    const partsByMessageId = { m1: parts }
+
+    expect(resolveFlowToolCallId('call_resume', partsByMessageId)).toEqual({
+      toolCallId: 'call_launch',
+      description: 'Launch the workflow'
+    })
+  })
+
   // A SendMessage receipt resolving to the selected launch splits its timeline: the prompt of
   // each continuation lands as a user message between the agent's rounds.
   it('interleaves resume prompts between the rounds of a continued agent', () => {
