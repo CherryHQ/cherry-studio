@@ -4061,6 +4061,13 @@
             "effort": {
               "operations": [
                 {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
@@ -4103,6 +4110,13 @@
             "effort": {
               "operations": [
                 {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
@@ -4144,6 +4158,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -4188,6 +4209,13 @@
             "effort": {
               "operations": [
                 {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
@@ -4230,6 +4258,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -4278,6 +4313,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -38787,6 +38829,13 @@
             "effort": {
               "operations": [
                 {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
@@ -38878,6 +38927,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -38975,6 +39031,13 @@
             "effort": {
               "operations": [
                 {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
                   "target": "reasoning_effort",
                   "value": {
                     "source": "effort"
@@ -39015,6 +39078,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -39057,6 +39127,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -39158,6 +39235,13 @@
           "wire": {
             "effort": {
               "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
                 {
                   "target": "reasoning_effort",
                   "value": {
@@ -39535,6 +39619,7 @@
           }
         }
       },
+      "inputModalities": ["text", "image"],
       "modelId": "qwen-image-3-0",
       "providerId": "qwencloud"
     },
@@ -39614,6 +39699,7 @@
           }
         }
       },
+      "inputModalities": ["text", "image"],
       "modelId": "qwen-image-3-0-pro",
       "providerId": "qwencloud"
     },
@@ -39642,6 +39728,7 @@
           }
         }
       },
+      "inputModalities": ["text", "image"],
       "modelId": "qwen-image-edit",
       "providerId": "qwencloud"
     },
@@ -40762,6 +40849,7 @@
           }
         }
       },
+      "inputModalities": ["text"],
       "modelId": "wan2-6-image",
       "providerId": "qwencloud"
     },
@@ -40943,5 +41031,5 @@
       "providerId": "qwencloud"
     }
   ],
-  "version": "f24810fdfc3c246b"
+  "version": "71677df0e055ef7d"
 }
