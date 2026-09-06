@@ -33,15 +33,21 @@ function actionableText(value: unknown): string {
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
 
-function unstructuredPayloadText(value: unknown): string {
+function startsWithEncodedContainer(text: string): boolean {
+  let candidate = text.trimStart()
+  while (candidate.startsWith('"')) candidate = candidate.slice(1).trimStart()
+  return candidate.startsWith('{') || candidate.startsWith('[')
+}
+
+function providerPayloadText(value: unknown): string {
   if (typeof value !== 'string') return ''
   let parsed: unknown = value
   while (typeof parsed === 'string') {
+    const text = parsed
     try {
-      parsed = JSON.parse(parsed)
+      parsed = JSON.parse(text)
     } catch {
-      const text = parsed.trim()
-      if (text.startsWith('{') || text.startsWith('[')) return ''
+      if (startsWithEncodedContainer(text)) return ''
       return actionableText(value)
     }
   }
@@ -67,22 +73,14 @@ function payloadText(value: unknown): string {
     detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : null
 
   return (
-    [
-      error?.message,
-      payload.message,
-      detailError?.message,
-      detail?.message,
-      payload.msg,
-      unstructuredPayloadText(payload.detail),
-      unstructuredPayloadText(payload.error)
-    ]
-      .map(actionableText)
+    [error?.message, payload.message, detailError?.message, detail?.message, payload.msg, payload.detail, payload.error]
+      .map(providerPayloadText)
       .find(Boolean) ?? ''
   )
 }
 
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
-  const text = payloadText(source.responseBody) || payloadText(source.data) || actionableText(source.message)
+  const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
 }
 
