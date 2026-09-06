@@ -25,6 +25,13 @@ import { useScrollRuntimeBoundary, useScrollRuntimeNavigation } from './ScrollOw
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const WHEEL_LINE_HEIGHT_PX = 16
+
+function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
 
 interface Props {
   messages: MessageListItem[]
@@ -73,7 +80,7 @@ const MessageGroup = ({
   const { setTimeoutTimer } = useTimer()
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
-  const { scrollByWheel } = useScrollRuntimeBoundary()
+  const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -255,14 +262,17 @@ const MessageGroup = ({
       }
 
       const groupContainer = event.currentTarget as HTMLDivElement
+      const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
+      const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
+      const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
       const horizontalDelta = event.shiftKey
-        ? event.deltaX || event.deltaY
-        : Math.abs(event.deltaX) > Math.abs(event.deltaY)
-          ? event.deltaX
+        ? horizontalWheelDelta || verticalWheelDelta
+        : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
+          ? horizontalWheelDelta
           : 0
 
       if (horizontalDelta === 0) {
-        if (event.deltaX !== 0 && event.deltaY !== 0 && scrollByWheel(event.deltaY)) {
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
           event.preventDefault()
           event.stopPropagation()
         }
@@ -279,7 +289,7 @@ const MessageGroup = ({
         groupContainer.scrollLeft += horizontalDelta
       }
     },
-    [scrollByWheel]
+    [getScrollContainer, scrollByWheel]
   )
 
   useEffect(() => {

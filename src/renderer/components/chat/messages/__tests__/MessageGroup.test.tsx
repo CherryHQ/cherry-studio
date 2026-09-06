@@ -195,7 +195,7 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
 }))
 
 vi.mock('../list/ScrollOwnershipContext', () => ({
-  useScrollRuntimeBoundary: () => ({ scrollByWheel: mocks.scrollByWheel }),
+  useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
   useScrollRuntimeNavigation: () => () => false
 }))
 
@@ -812,6 +812,29 @@ describe('MessageGroup', () => {
   })
 
   it.each([
+    { name: 'line', deltaMode: WheelEvent.DOM_DELTA_LINE, deltaY: 3, expectedDeltaY: 48 },
+    { name: 'page', deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaY: 1, expectedDeltaY: 300 }
+  ])('normalizes $name-mode vertical wheel input before forwarding it', ({ deltaMode, deltaY, expectedDeltaY }) => {
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientHeight: 300,
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    fireEvent(horizontalGroup, createEvent.wheel(horizontalGroup, { deltaMode, deltaX: 0.1, deltaY }))
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(expectedDeltaY)
+  })
+
+  it.each([
     { name: 'dominant horizontal input', deltaX: 160, deltaY: 4, shiftKey: false },
     { name: 'shifted vertical input', deltaX: 0, deltaY: 160, shiftKey: true }
   ])('supports $name on non-content areas in horizontal layout', ({ deltaX, deltaY, shiftKey }) => {
@@ -840,6 +863,28 @@ describe('MessageGroup', () => {
     expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
     expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it.each([
+    { name: 'line', deltaMode: WheelEvent.DOM_DELTA_LINE, deltaX: 3, expectedScrollLeft: 48 },
+    { name: 'page', deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaX: 1, expectedScrollLeft: 500 }
+  ])('normalizes $name-mode horizontal wheel input before scrolling', ({ deltaMode, deltaX, expectedScrollLeft }) => {
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientHeight: 300,
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    fireEvent(horizontalGroup, createEvent.wheel(horizontalGroup, { deltaMode, deltaX }))
+
+    expect(horizontalGroup.scrollLeft).toBe(expectedScrollLeft)
   })
 
   it('registers horizontal wheel handling as a native non-passive listener', () => {
