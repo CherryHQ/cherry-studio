@@ -18,6 +18,17 @@ describe('getSafeProviderErrorMessage', () => {
     expect(message).not.toMatch(/private user prompt|internal trace/)
   })
 
+  it.each(['detail', 'error'])('ignores twice-encoded JSON objects in a string-valued %s payload field', (field) => {
+    const privatePayload = JSON.stringify(JSON.stringify({ prompt: 'private user prompt', trace: 'internal trace' }))
+    const message = getSafeProviderErrorMessage({
+      message: 'Bad Request',
+      responseBody: JSON.stringify({ [field]: privatePayload })
+    })
+
+    expect(message).toBe('Bad Request')
+    expect(message).not.toMatch(/private user prompt|internal trace/)
+  })
+
   it.each(['"quoted provider message"', '400', 'true'])('keeps a JSON primitive payload message: %s', (detail) => {
     expect(getSafeProviderErrorMessage({ responseBody: JSON.stringify({ detail }) })).toBe(detail)
   })

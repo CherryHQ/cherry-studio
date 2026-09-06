@@ -35,11 +35,13 @@ function actionableText(value: unknown): string {
 
 function unstructuredPayloadText(value: unknown): string {
   if (typeof value !== 'string') return ''
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch {
-    return actionableText(value)
+  let parsed: unknown = value
+  while (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return actionableText(value)
+    }
   }
   if (typeof parsed === 'object' && parsed !== null) return ''
   return actionableText(value)
