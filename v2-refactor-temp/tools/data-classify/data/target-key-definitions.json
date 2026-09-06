@@ -474,6 +474,36 @@
       "description": "Command shortcut: app.window.show (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.chat.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.chat.open (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.work.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.work.open (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.translate.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.translate.open (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.zoom.in",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

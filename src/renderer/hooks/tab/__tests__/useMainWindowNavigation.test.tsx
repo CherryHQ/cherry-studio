@@ -7,7 +7,13 @@ const mocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   attachTab: vi.fn(),
-  tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
+  tabs: [] as Array<{
+    id: string
+    type: 'route' | 'miniapp'
+    url: string
+    title: string
+    lastAccessTime?: number
+  }>,
   initData: null as
     | { kind: 'navigation'; to: string; requestId: number }
     | { kind: 'tab-attach'; tab: { id: string }; requestId: number }
@@ -180,6 +186,63 @@ describe('useMainWindowNavigation', () => {
     mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' })
 
     expect(mocks.openTab).toHaveBeenCalledWith('/knowledge')
+  })
+
+  it.each([
+    ['/app/chat', '/app/chat?topicId=topic-1'],
+    ['/app/agents', '/app/agents?sessionId=session-1'],
+    ['/app/translate', '/app/translate']
+  ] as const)('reuses the most recent %s workspace tab', (route, existingUrl) => {
+    mocks.tabs = [
+      { id: 'older', type: 'route', url: existingUrl, title: 'Older', lastAccessTime: 10 },
+      { id: 'other', type: 'route', url: '/knowledge', title: 'Knowledge', lastAccessTime: 30 },
+      { id: 'newer', type: 'route', url: existingUrl, title: 'Newer', lastAccessTime: 20 }
+    ]
+    render(<MainWindowNavigationHarness />)
+
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: route })
+
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('newer')
+  })
+
+  it('keeps specific workspace routes distinct from top-level shortcut navigation', () => {
+    mocks.tabs = [{ id: 'chat-1', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat', lastAccessTime: 10 }]
+    render(<MainWindowNavigationHarness />)
+
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/app/chat?assistantId=assistant-2' })
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat?assistantId=assistant-2')
+  })
+
+  it.each([
+    ['/app/chat', '/app/chat?topicId=topic-viewer&view=message', '/app/chat?topicId=topic-normal'],
+    ['/app/agents', '/app/agents?sessionId=session-viewer&view=message', '/app/agents?sessionId=session-normal']
+  ] as const)('does not reuse a message-only viewer for the %s workspace', (route, viewerUrl, normalUrl) => {
+    mocks.tabs = [
+      { id: 'normal', type: 'route', url: normalUrl, title: 'Normal', lastAccessTime: 10 },
+      { id: 'viewer', type: 'route', url: viewerUrl, title: 'Viewer', lastAccessTime: 20 }
+    ]
+    render(<MainWindowNavigationHarness />)
+
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: route })
+
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('normal')
+  })
+
+  it.each([
+    ['/app/chat', '/app/chat?topicId=topic-viewer&view=message'],
+    ['/app/agents', '/app/agents?sessionId=session-viewer&view=message']
+  ] as const)('opens a normal %s workspace when only a message-only viewer exists', (route, viewerUrl) => {
+    mocks.tabs = [{ id: 'viewer', type: 'route', url: viewerUrl, title: 'Viewer', lastAccessTime: 20 }]
+    render(<MainWindowNavigationHarness />)
+
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: route })
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith(route)
   })
 
   it('routes a settings path from the open_route_requested event through the settings singleton', () => {
