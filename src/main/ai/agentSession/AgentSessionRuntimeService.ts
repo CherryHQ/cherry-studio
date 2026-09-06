@@ -2063,15 +2063,25 @@ export class AgentSessionRuntimeService extends BaseService {
           ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
           messageId = hostMessageId
           // Chunks buffered across the transient recovery errors flow into the anchor now, ahead
-          // of the chunk that triggered the successful lookup.
+          // of the chunk that triggered the successful lookup. Nested tool calls inside them must
+          // register their own anchors exactly like the normal path below.
           const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
           if (buffered?.length) {
             entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
-            for (const bufferedChunk of buffered) this.enqueueBackgroundFlowChunk(entry, messageId, bufferedChunk)
+            for (const bufferedChunk of buffered) {
+              if (
+                (bufferedChunk.type === 'tool-input-start' || bufferedChunk.type === 'tool-input-available') &&
+                bufferedChunk.toolCallId
+              ) {
+                ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(bufferedChunk.toolCallId, messageId)
+              }
+              this.enqueueBackgroundFlowChunk(entry, messageId, bufferedChunk)
+            }
           }
         } else {
           // Only a successful miss is cached — a transient query error must stay retryable.
           ;(entry.checkedFlowHostMisses ??= new Set()).add(rootToolCallId)
+          entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
         }
       } catch (error) {
         // Keep the chunk that triggered the failed lookup: dropping a text-start would abort the

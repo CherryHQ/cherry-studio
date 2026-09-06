@@ -1441,12 +1441,15 @@ export class ClaudeCodeStreamAdapter {
     try {
       launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
     } catch (error) {
-      // A transient database error must not kill the connection — fall back to the edge id.
+      // A transient database error must not kill the connection — and must not pin the resume
+      // edge id either (first-wins would then block the launch root forever). Skip registration;
+      // the next task event or receipt re-runs this lookup and self-heals.
       logger.warn('Failed to recover launch tool call id for background task', {
         sessionId: this.sessionId,
         taskId,
         error
       })
+      return
     }
     this.backgroundTaskToolCallIds.set(taskId, launchToolCallId ?? toolCallId)
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
