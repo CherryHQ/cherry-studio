@@ -2067,9 +2067,9 @@ export class AgentSessionRuntimeService extends BaseService {
         messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
         if (!messageId) {
           // Only a successful miss is cached with a timestamp — a transient query error must
-          // stay retryable.
+          // stay retryable. Buffered recovery chunks survive the miss: within the re-check
+          // window the row can still be committed, and at teardown they get a final lookup.
           ;(entry.checkedFlowHostMisses ??= new Map()).set(rootToolCallId, Date.now())
-          entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
         }
       } catch (error) {
         // Keep the chunk that triggered the failed lookup: dropping a text-start would abort the
@@ -3358,9 +3358,21 @@ export class AgentSessionRuntimeService extends BaseService {
       // an accumulator (or the pending buffer) and will be drained by the cascade below.
       for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
         try {
-          this.recoverDetachedFlowHost(entry, rootToolCallId)
-        } catch {
-          // Teardown best effort — the buffered chunks are lost with the entry otherwise.
+          if (!this.recoverDetachedFlowHost(entry, rootToolCallId)) {
+            // The host row never committed; the buffered chunks have nowhere to land. Log so a
+            // missing row is diagnosable instead of silently vanishing with the entry.
+            logger.warn('Detached flow recovery buffered chunks lost at teardown', {
+              sessionId: entry.sessionId,
+              rootToolCallId,
+              bufferedChunkCount: entry.pendingRecoveryFlowChunks?.get(rootToolCallId)?.length ?? 0
+            })
+          }
+        } catch (error) {
+          logger.warn('Detached flow recovery lookup failed at teardown', {
+            sessionId: entry.sessionId,
+            rootToolCallId,
+            error
+          })
         }
       }
       // Seed-failed chunks never reached an accumulator: retry once so the cascade persists

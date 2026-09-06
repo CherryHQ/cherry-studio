@@ -2828,6 +2828,59 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    it('keeps recovery-buffered chunks across a successful miss for the re-check window', async () => {
+      // A transient lookup failure buffers the chunk; a later successful miss must not discard
+      // that buffer — the row can still be committed within the re-check window.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        // The first round's chunks all hit the transient error and buffer in full.
+        if (lookupCalls <= 3) throw new Error('db busy')
+        if (lookupCalls === 4) return null
+        return 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+      sendChunk('First findings', 'first-text')
+
+      // The next round's first lookup succeeds as a miss — the buffered chunks must survive it.
+      sendChunk('Second findings', 'second-text')
+      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(3)
+
+      // Simulate the re-check window elapsing with the row now committed.
+      getEntry(service).checkedFlowHostMisses?.set('task-root', Date.now() - 6_000)
+      sendChunk('Third findings', 'third-text')
+
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Third findings')).toBe(true)
+      })
+    })
+
     it('re-queries host rows after a connection reset so a late flush is not lost', async () => {
       // A host row missed at connection time can land via flush at any moment; the miss cache is
       // connection-scoped, so the reset must re-open the lookup for the same root.
