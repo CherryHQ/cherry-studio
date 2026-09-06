@@ -2540,6 +2540,46 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('gives recovery-buffered chunks a last host-row lookup at teardown', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.replaceMessageParts.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'recovered-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The failed lookup buffered the chunk — no anchor, no accumulator.
+      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      await service.closeSession('session-1')
+
+      // closeEntry re-runs the lookup and the replayed chunk lands in the database.
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.arrayContaining([expect.objectContaining({ type: 'text' })])
+      )
+    })
+
     it('folds never-accumulated chunks into the cache overlay at teardown', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -2736,6 +2776,56 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
       expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+    })
+
+    it('re-queries a missed host row once its re-check window elapses', async () => {
+      // A miss cached mid-connection must not stay cached forever — the row can be committed
+      // by a flush at any moment, so the lookup re-opens after FLOW_HOST_MISS_RECHECK_MS.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+      sendChunk('First findings', 'first-text')
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      // Simulate the re-check window elapsing with the row now committed.
+      getEntry(service).checkedFlowHostMisses?.set('task-root', Date.now() - 6_000)
+      sendChunk('Second findings', 'second-text')
+
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() =>
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Second findings' })])
+        )
+      )
     })
 
     it('re-queries host rows after a connection reset so a late flush is not lost', async () => {
