@@ -1,4 +1,4 @@
-import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import {
   buildCitationPartsRegistry,
@@ -116,7 +116,16 @@ function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistr
   }, [messageIds, partsSource])
 }
 
-export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
+export const MessageListProvider = ({
+  value,
+  children,
+  buildLaunchIndex
+}: {
+  value: MessageListProviderValue
+  children: ReactNode
+  /** Agent launch-identity index builder — only agent-hosting pages opt in. */
+  buildLaunchIndex?: (partsByMessageId: Record<string, CherryMessagePart[]> | null) => AgentLaunchIndex
+}) => {
   const { state, actions, meta } = value
   const citationRegistry = useCitationPartsRegistry(state)
 
@@ -192,8 +201,12 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   )
 
   // The launch index is derived once per parts-map version so streaming chunks rebuild it a
-  // single time instead of once per mounted resume-receipt consumer.
-  const launchIndex = useMemo(() => buildAgentLaunchIndex(state.partsByMessageId), [state.partsByMessageId])
+  // single time instead of once per mounted resume-receipt consumer. A page that does not host
+  // agents simply omits the builder and skips the index entirely.
+  const launchIndex = useMemo(
+    () => (buildLaunchIndex ? buildLaunchIndex(state.partsByMessageId) : null),
+    [buildLaunchIndex, state.partsByMessageId]
+  )
 
   return (
     <MessageListDataContext value={data}>
