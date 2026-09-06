@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { DOCTOR_REDACTED, doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -107,5 +107,37 @@ describe('projectDoctorReport', () => {
 
   it('shows everything locally', () => {
     expect(classes('display')).toEqual(['public', 'local_only', 'consent_required'])
+  })
+
+  // `devMessage` names hosts and paths and an errored check's `message` is a raw thrown string;
+  // the assistant tool feeds the upload projection to the model, so neither may survive it.
+  const withDeveloperText: DoctorReport = {
+    ...report,
+    results: [
+      { ...report.results[0], devMessage: 'DNS failed for corp-proxy.internal' },
+      {
+        id: 'network-dns-resolution',
+        status: 'error',
+        message: 'ENOENT /Users/alice/Library/Application Support/CherryStudio/config.json',
+        durationMs: 2,
+        devMessage: 'probe threw'
+      }
+    ],
+    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
+  }
+  const project = (view: Parameters<typeof projectDoctorReport>[1]) =>
+    projectDoctorReport(withDeveloperText, view, { consentToSensitive: true }).results
+
+  it.each(['copy', 'upload'] as const)('drops developer text from the %s view', (view) => {
+    const [warned, errored] = project(view)
+    expect(warned).not.toHaveProperty('devMessage')
+    expect(errored).not.toHaveProperty('devMessage')
+    expect(errored).toMatchObject({ status: 'error', message: DOCTOR_REDACTED })
+  })
+
+  it.each(['display', 'export'] as const)('keeps developer text in the %s view', (view) => {
+    const [warned, errored] = project(view)
+    expect(warned).toMatchObject({ devMessage: 'DNS failed for corp-proxy.internal' })
+    expect(errored).toMatchObject({ devMessage: 'probe threw', message: expect.stringContaining('ENOENT') })
   })
 })
