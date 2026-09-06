@@ -385,10 +385,7 @@ export const mockUseInfiniteQuery = vi.fn(defaultMockUseInfiniteQuery)
 export const mockUseWriteInfiniteCache = vi.fn(
   <TPath extends ApiPath>(path: TPath, options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>) => {
     const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
-    return useMemo(
-      () => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)),
-      [key]
-    )
+    return useMemo(() => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)), [key])
   }
 )
 
