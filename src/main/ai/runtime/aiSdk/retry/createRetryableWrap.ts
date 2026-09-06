@@ -106,6 +106,7 @@ function apiKeyFallbackRetryable(
   const resolvedFallbacks = resolveFallbacks.map((resolveFallback) =>
     lazyFallbackRetryable(resolveFallback, onFallbackActivated, wrapFallbackModel)
   )
+  let nextFallbackIndex = 0
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
     const attemptError = context.current.error
@@ -116,11 +117,13 @@ function apiKeyFallbackRetryable(
     ) {
       return undefined
     }
-    const resolve = resolvedFallbacks[context.attempts.length - 1]
+    const resolve = resolvedFallbacks[nextFallbackIndex]
     if (!resolve) return undefined
-    return Promise.resolve(resolve(context)).then((fallback) =>
-      fallback ? { ...fallback, maxAttempts: resolveFallbacks.length + 1 } : undefined
-    )
+    return Promise.resolve(resolve(context)).then((fallback) => {
+      if (!fallback) return undefined
+      nextFallbackIndex += 1
+      return { ...fallback, maxAttempts: resolveFallbacks.length + 1 }
+    })
   }
 }
 
@@ -212,12 +215,46 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
             }
           })
       : undefined
+    let activeApiKeyModel = primary
+    let activeApiKeyFallback: RetryFallback | undefined
+    const requestApiKeyModel: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      get provider() {
+        return activeApiKeyModel.provider
+      },
+      get modelId() {
+        return activeApiKeyModel.modelId
+      },
+      get supportedUrls() {
+        return activeApiKeyModel.supportedUrls
+      },
+      doGenerate: (callOptions) => {
+        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+        return activeApiKeyModel.doGenerate(callOptions)
+      },
+      doStream: (callOptions) => {
+        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+        return activeApiKeyModel.doStream(callOptions)
+      }
+    }
 
     const keyPoolModel =
       apiKeyFallbacks.length > 0
         ? createRetryableModel({
-            model: primary,
-            retries: [apiKeyFallbackRetryable(apiKeyFallbacks, options.onFallbackActivated, wrapApiKeyFallback)],
+            model: requestApiKeyModel,
+            retries: [
+              apiKeyFallbackRetryable(
+                apiKeyFallbacks,
+                (fallback) => {
+                  activeApiKeyFallback = fallback
+                  options.onFallbackActivated?.(fallback)
+                },
+                (model) => {
+                  activeApiKeyModel = wrapApiKeyFallback?.(model) ?? model
+                  return activeApiKeyModel
+                }
+              )
+            ],
             onRetry: (context) => {
               const event = { ...describeAttempt(context), modelId: base.modelId }
               logger.info('retrying model call with next API key', { ...options.diagnosticContext, ...event })

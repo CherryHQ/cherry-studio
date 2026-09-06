@@ -23,6 +23,20 @@ const okResult = {
   warnings: []
 }
 
+const toolCallResult = {
+  content: [
+    {
+      type: 'tool-call' as const,
+      toolCallId: 'tool-call-1',
+      toolName: 'lookup',
+      input: '{}'
+    }
+  ],
+  finishReason: { unified: 'tool-calls' as const, raw: 'tool-calls' },
+  usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+  warnings: []
+}
+
 function makeFakeLanguageModel(
   modelId: string,
   doGenerate: ReturnType<typeof vi.fn>,
@@ -95,6 +109,44 @@ describe('createRetryableWrap API key failover', () => {
 
     expect(attempts).toEqual(['key-1', 'key-2', 'key-3'])
     expect(result.content).toEqual(okResult.content)
+  })
+
+  it('keeps the active key across tool-loop operations and advances only after another auth failure', async () => {
+    const attempts: string[] = []
+    const secondKeyGenerate = vi
+      .fn<() => Promise<typeof okResult | typeof toolCallResult>>()
+      .mockImplementationOnce(async () => {
+        attempts.push('key-2')
+        return toolCallResult
+      })
+      .mockImplementationOnce(async () => {
+        attempts.push('key-2')
+        throw makeApiError(429)
+      })
+    const thirdKeyGenerate = vi.fn(async () => {
+      attempts.push('key-3')
+      return okResult
+    })
+    const wrap = createRetryableWrap({
+      apiKeyFallbacks: [
+        fallbackOf(makeFakeLanguageModel('same-model', secondKeyGenerate)),
+        fallbackOf(makeFakeLanguageModel('same-model', thirdKeyGenerate))
+      ],
+      fallbacks: [],
+      retryPolicy: policy(false)
+    })
+    const primaryGenerate = vi.fn(async () => {
+      attempts.push('key-1')
+      throw makeApiError(401)
+    })
+    const wrapped = wrap!(makeFakeLanguageModel('same-model', primaryGenerate))
+
+    const firstStep = await wrapped.doGenerate({ prompt: [] } as never)
+    const secondStep = await wrapped.doGenerate({ prompt: [] } as never)
+
+    expect(firstStep.content).toEqual(toolCallResult.content)
+    expect(secondStep.content).toEqual(okResult.content)
+    expect(attempts).toEqual(['key-1', 'key-2', 'key-2', 'key-3'])
   })
 
   it('tries each API key once before cross-model fallback without same-key backoff', async () => {
