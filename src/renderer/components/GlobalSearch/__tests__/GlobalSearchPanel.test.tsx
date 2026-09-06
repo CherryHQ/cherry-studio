@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   keepStaleContentSearchData: false,
+  language: 'en-US',
   recentItems: [] as GlobalSearchRecentEntry[],
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
@@ -370,6 +371,21 @@ vi.mock('@renderer/utils/routeTitle', () => ({
     })[path] ?? path
 }))
 
+vi.mock('@renderer/utils/settingsNavigation', () => ({
+  getSettingsRecentTitle: (url: string) => {
+    const pathname = new URL(url, 'https://www.cherry-ai.com').pathname
+    const settings = mocks.language === 'zh-CN' ? '设置' : 'Settings'
+    if (pathname === '/settings/api-gateway') {
+      return `${settings} / ${mocks.language === 'zh-CN' ? 'API 网关' : 'API Gateway'}`
+    }
+    if (pathname === '/settings/model') {
+      return `${settings} / ${mocks.language === 'zh-CN' ? '默认模型' : 'Default Model'}`
+    }
+    if (pathname === '/settings' || pathname.startsWith('/settings/')) return settings
+    return undefined
+  }
+}))
+
 vi.mock('@data/CacheService', () => ({
   cacheService: { set: mocks.cacheSet }
 }))
@@ -540,7 +556,7 @@ vi.mock('react-i18next', () => ({
 
       return label.replace('{{name}}', options?.name ?? 'Agent').replace('{{count}}', options?.count ?? '0')
     },
-    i18n: { language: 'en-US' }
+    i18n: { language: mocks.language }
   })
 }))
 
@@ -599,6 +615,7 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
+    mocks.language = 'en-US'
     mocks.useQuery.mockImplementation(
       (
         path: string,
@@ -702,6 +719,74 @@ describe('GlobalSearchPanel', () => {
       expect(searchInput).toHaveAttribute('aria-activedescendant', recentOption.id)
       expect(recentOption).toHaveAttribute('id', getGlobalSearchOptionDomId('topic:topic-1'))
     })
+  })
+
+  it('shows distinct Settings recent labels without changing the coarse tab title', async () => {
+    // Regression: two settings recents both stored with the coarse tab title "Settings"
+    // so the empty-query panel could not tell API Gateway from Default Model.
+    const user = userEvent.setup()
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/settings/api-gateway',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 20
+      },
+      {
+        kind: 'route',
+        url: '/settings/model',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 10
+      }
+    ]
+
+    const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const apiGatewayOption = screen.getByRole('option', { name: /Settings \/ API Gateway/ })
+    const defaultModelOption = screen.getByRole('option', { name: /Settings \/ Default Model/ })
+    expect(apiGatewayOption).toBeInTheDocument()
+    expect(defaultModelOption).toBeInTheDocument()
+
+    await user.click(apiGatewayOption)
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/api-gateway', {
+      title: 'Settings',
+      icon: 'settings'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+
+    unmount()
+    mocks.openTab.mockClear()
+    mocks.onClose.mockClear()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByRole('option', { name: /Settings \/ Default Model/ }))
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/model', {
+      title: 'Settings',
+      icon: 'settings'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates Settings recent labels when the active language changes while mounted', () => {
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/settings/model',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 10
+      }
+    ]
+
+    const { rerender } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    expect(screen.getByRole('option', { name: /Settings \/ Default Model/ })).toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    expect(screen.getByRole('option', { name: /设置 \/ 默认模型/ })).toBeInTheDocument()
   })
 
   it('renders recent results before search and search results after typing', async () => {

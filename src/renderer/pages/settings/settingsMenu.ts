@@ -1,5 +1,6 @@
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { SETTINGS_NAVIGATION_LABEL_KEYS } from '@renderer/utils/settingsNavigation'
 import {
   Activity,
   Bell,
@@ -43,125 +44,137 @@ export interface SettingsMenuEntry {
  * title searchable — the settings search baseline is structural, not manual.
  */
 export const settingsMenu: readonly SettingsMenuEntry[] = [
-  { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
-  { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
+  {
+    route: '/settings/provider',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/provider'],
+    icon: createElement(Cloud)
+  },
+  {
+    route: '/settings/model',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/model'],
+    icon: createElement(Package)
+  },
   {
     route: '/settings/local-models',
-    titleKey: 'settings.dependencies.localModels.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/local-models'],
     icon: createElement(FileBox)
   },
-  { route: '/settings/api-gateway', titleKey: 'apiGateway.title', icon: createElement(GatewayIcon) },
+  {
+    route: '/settings/api-gateway',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/api-gateway'],
+    icon: createElement(GatewayIcon)
+  },
   {
     route: '/settings/mcp',
-    titleKey: 'agent.settings.toolsMcp.mcp.tab',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/mcp'],
     icon: createElement(McpLogo, { width: 16, height: 16, className: 'text-foreground' }),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/skills',
-    titleKey: 'settings.skills.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/skills'],
     icon: createElement(ToolCase),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/prompts',
-    titleKey: 'settings.prompts.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/prompts'],
     icon: createElement(Zap),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/websearch',
-    titleKey: 'settings.tool.websearch.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/websearch'],
     icon: createElement(Search),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/file-processing',
-    titleKey: 'settings.tool.file_processing.features.document_to_markdown.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/file-processing'],
     icon: createElement(FileCode),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/ocr',
-    titleKey: 'settings.tool.file_processing.features.image_to_text.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/ocr'],
     icon: createElement(ScanText),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/general',
-    titleKey: 'settings.general.common.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/general'],
     icon: createElement(Settings2),
     groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/appearance',
-    titleKey: 'settings.appearance.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/appearance'],
     icon: createElement(Palette),
     groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/notifications',
-    titleKey: 'settings.notification.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/notifications'],
     icon: createElement(Bell),
     groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/data',
-    titleKey: 'settings.data.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/data'],
     icon: createElement(HardDrive),
     groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/usage',
-    titleKey: 'settings.usage.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/usage'],
     icon: createElement(Activity),
     groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/channels',
-    titleKey: 'settings.channels.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/channels'],
     icon: createElement(Radio),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/scheduled-tasks',
-    titleKey: 'settings.scheduledTasks.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/scheduled-tasks'],
     icon: createElement(CalendarClock),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/shortcut',
-    titleKey: 'settings.shortcuts.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/shortcut'],
     icon: createElement(Command),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/quick-assistant',
-    titleKey: 'settings.quickAssistant.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/quick-assistant'],
     icon: createElement(PictureInPicture2),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/selection-assistant',
-    titleKey: 'selection.name',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/selection-assistant'],
     icon: createElement(TextCursorInput),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/screenshot',
-    titleKey: 'settings.screenshot.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/screenshot'],
     icon: createElement(Crop),
     groupKey: 'settings.menuGroups.automation'
   },
   {
     route: '/settings/dependencies',
-    titleKey: 'settings.dependencies.title',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/dependencies'],
     icon: createElement(Terminal),
     groupKey: 'settings.menuGroups.system'
   },
   {
     route: '/settings/about',
-    titleKey: 'settings.about.label',
+    titleKey: SETTINGS_NAVIGATION_LABEL_KEYS['/settings/about'],
     icon: createElement(Info),
     groupKey: 'settings.menuGroups.system'
   }
