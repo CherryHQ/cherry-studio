@@ -138,7 +138,7 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  getRouteApi: () => ({ useSearch: () => ({ tabSession: TEST_TAB_SESSION }) })
+  useSearch: () => ({ tabSession: TEST_TAB_SESSION })
 }))
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
