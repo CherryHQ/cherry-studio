@@ -957,6 +957,42 @@ describe('useInfiniteQuery integration', () => {
     expect(cache.has(oldSecondPageKey)).toBe(false)
   })
 
+  it('clears infinite metadata and page keys when a functional cache write returns undefined', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const firstPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10 }])
+    const secondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'old-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ _l: 2 })
+    expect(cache.has(firstPageKey)).toBe(true)
+    expect(cache.has(secondPageKey)).toBe(true)
+
+    await act(async () => {
+      await result.current.writeCache(() => undefined)
+    })
+
+    expect(result.current.query.pages).toEqual([])
+    expect(cache.get(infiniteKey)).not.toHaveProperty('_l')
+    expect(cache.has(firstPageKey)).toBe(false)
+    expect(cache.has(secondPageKey)).toBe(false)
+  })
+
   it('does not synchronize page caches from an async write superseded by a newer write', async () => {
     spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
       items: [],

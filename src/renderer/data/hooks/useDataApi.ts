@@ -952,27 +952,6 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
     async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {
       type Page = ResponseForPath<TPath, 'GET'>
 
-      let previousPages: Page[] | undefined
-      const pages = (await mutate(
-        infiniteCacheKey,
-        value as never,
-        {
-          revalidate: false,
-          populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
-            previousPages = currentPages
-            if (Array.isArray(nextPages)) {
-              // SWR Infinite stores its loaded page count beside the aggregate data.
-              const nextState = { ...cache.get(infiniteCacheKey), _l: nextPages.length }
-              cache.set(infiniteCacheKey, nextState)
-            }
-            return nextPages
-          }
-        } as never
-      )) as ResponseForPath<TPath, 'GET'>[] | undefined
-      if (!Array.isArray(pages)) return pages
-      // SWR returns superseded async values without committing them; only mirror the committed aggregate.
-      if (cache.get(infiniteCacheKey)?.data !== pages) return pages
-
       const collectPageEntries = (cachedPages: Page[] | undefined) => {
         const entries: Array<{ key: InfiniteQueryKey; page: Page; serializedKey: string }> = []
         if (!cachedPages) return entries
@@ -988,8 +967,30 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
         return entries
       }
 
+      let didCommit = false
+      let previousPages: Page[] | undefined
+      const pages = (await mutate(
+        infiniteCacheKey,
+        value as never,
+        {
+          revalidate: false,
+          populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
+            didCommit = true
+            previousPages = currentPages
+            const committedPages = nextPages ?? []
+            // SWR Infinite stores its loaded page count beside the aggregate data.
+            const nextState = { ...cache.get(infiniteCacheKey), _l: committedPages.length }
+            cache.set(infiniteCacheKey, nextState)
+            return committedPages
+          }
+        } as never
+      )) as ResponseForPath<TPath, 'GET'>[] | undefined
+      if (!didCommit) return pages
+      // SWR returns superseded async values without committing them; only mirror the committed aggregate.
+      if (Array.isArray(pages) && cache.get(infiniteCacheKey)?.data !== pages) return pages
+
       const previousPageEntries = collectPageEntries(previousPages)
-      const nextPageEntries = collectPageEntries(pages)
+      const nextPageEntries = collectPageEntries(Array.isArray(pages) ? pages : undefined)
       const nextPageKeys = new Set(nextPageEntries.map((entry) => entry.serializedKey))
       const pageMutations: Promise<unknown>[] = []
       for (const { key, page } of nextPageEntries) {
@@ -1004,6 +1005,11 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
         )
       }
       await Promise.all(pageMutations)
+      if (!Array.isArray(pages)) {
+        const aggregateState = { ...cache.get(infiniteCacheKey) }
+        delete (aggregateState as { _l?: number })._l
+        cache.set(infiniteCacheKey, aggregateState)
+      }
       return pages
     },
     [cache, getKey, infiniteCacheKey, mutate]

@@ -16,7 +16,7 @@ type ConversationHistoryQueryOptions<TPath extends ConversationHistoryPath> = Pa
   query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
   limit?: number
   enabled?: boolean
-  swrOptions?: SWRInfiniteConfiguration
+  swrOptions?: Omit<SWRInfiniteConfiguration, 'parallel'>
 }
 
 type UseConversationInfiniteQuery = <TPath extends ConversationHistoryPath>(
