@@ -23,7 +23,7 @@ interface ScrollOwnership {
   requestReadingControl: (anchor: HTMLElement | null) => void
   scrollToElement: (element: HTMLElement, align?: 'start' | 'center') => void
   notifyWheelIntent?: (deltaY: number) => void
-  scrollByWheel?: (deltaY: number) => boolean
+  scrollByWheel?: (deltaY: number, maxDeltaY?: number) => boolean
 }
 
 const ScrollOwnershipContext = createContext<ScrollOwnership | null>(null)
@@ -34,8 +34,8 @@ export const VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE = 'auto|scroll|overlay'
 export const FORWARDED_WHEEL_MAX_DELTA_PX = 200
 const VERTICAL_SCROLLABLE_OVERFLOW_PATTERN = new RegExp(`^(?:${VERTICAL_SCROLLABLE_OVERFLOW_PATTERN_SOURCE})$`)
 
-export function clampForwardedWheelDelta(deltaY: number): number {
-  return Math.max(-FORWARDED_WHEEL_MAX_DELTA_PX, Math.min(FORWARDED_WHEEL_MAX_DELTA_PX, deltaY))
+export function clampForwardedWheelDelta(deltaY: number, maxDeltaY: number = FORWARDED_WHEEL_MAX_DELTA_PX): number {
+  return Math.max(-maxDeltaY, Math.min(maxDeltaY, deltaY))
 }
 
 export const ScrollOwnershipProvider = ({
@@ -51,7 +51,7 @@ export const ScrollOwnershipProvider = ({
   requestReadingControl?: (anchor: HTMLElement | null) => void
   scrollToElement?: (element: HTMLElement, align?: 'start' | 'center') => void
   notifyWheelIntent?: (deltaY: number) => void
-  scrollByWheel?: (deltaY: number) => boolean
+  scrollByWheel?: (deltaY: number, maxDeltaY?: number) => boolean
 }) => {
   const value = useMemo(
     () => ({ notifyWheelIntent, requestReadingControl, scrollByWheel, scrollContainerRef, scrollToElement }),
@@ -125,7 +125,7 @@ export function findScrollParent(element: HTMLElement | null): HTMLElement | nul
 export interface ScrollRuntimeBoundary {
   getScrollContainer(): HTMLElement | null
   notifyWheelIntent(deltaY: number): boolean
-  scrollByWheel(deltaY: number): boolean
+  scrollByWheel(deltaY: number, maxDeltaY?: number): boolean
 }
 
 /** Route embedded or portal scroll input through the owning message-list runtime. */
@@ -140,7 +140,13 @@ export function useScrollRuntimeBoundary(): ScrollRuntimeBoundary {
     },
     [ownership]
   )
-  const scrollByWheel = useCallback((deltaY: number) => ownership?.scrollByWheel?.(deltaY) ?? false, [ownership])
+  const scrollByWheel = useCallback(
+    (deltaY: number, maxDeltaY?: number) => {
+      if (!ownership?.scrollByWheel) return false
+      return maxDeltaY === undefined ? ownership.scrollByWheel(deltaY) : ownership.scrollByWheel(deltaY, maxDeltaY)
+    },
+    [ownership]
+  )
 
   return useMemo(
     () => ({ getScrollContainer, notifyWheelIntent, scrollByWheel }),
