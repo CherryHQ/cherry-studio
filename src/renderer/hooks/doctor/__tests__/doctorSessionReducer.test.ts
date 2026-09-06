@@ -10,6 +10,28 @@ const fixRequest: DoctorFixRequest = {
 }
 
 describe('doctorSessionReducer', () => {
+  it('cancels only an active evidence confirmation', () => {
+    const initial = createDoctorSession({ initialPanel: 'checks' })
+    const confirming = doctorSessionReducer(initial, {
+      type: 'confirm-evidence',
+      checkId: 'runtime-claude-login'
+    })
+
+    expect(doctorSessionReducer(confirming, { type: 'cancel-confirmation' }).interaction).toEqual({ kind: 'idle' })
+    expect(doctorSessionReducer(initial, { type: 'cancel-confirmation' })).toBe(initial)
+  })
+
+  it('reveals consent-required evidence once', () => {
+    const initial = createDoctorSession({ initialPanel: 'checks' })
+    const revealed = doctorSessionReducer(initial, {
+      type: 'reveal-evidence',
+      checkId: 'runtime-claude-login'
+    })
+
+    expect(revealed.revealedEvidence).toEqual(['runtime-claude-login'])
+    expect(doctorSessionReducer(revealed, { type: 'reveal-evidence', checkId: 'runtime-claude-login' })).toBe(revealed)
+  })
+
   it('keeps one report draft while switching panels', () => {
     let state = createDoctorSession({ initialPanel: 'report', initialDescription: 'safe draft' })
 

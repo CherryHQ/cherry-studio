@@ -18,43 +18,18 @@ import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
-import type { DoctorCheckId } from '@shared/types/doctor'
 import { ChevronDown, Copy, Download } from 'lucide-react'
-import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorCheckNotices } from './DoctorCheckNotices'
-import { DoctorCheckResults, DoctorConfirmationView } from './DoctorCheckResults'
+import { DoctorCheckResults } from './DoctorCheckResults'
 
 const logger = loggerService.withContext('DoctorChecksPanel')
 
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
   const { session, viewModel } = controller
-  const interaction = session.interaction
   const dataPath = viewModel.report?.basics.userDataPath
-  const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
-  const restoreExpandedCheckRef = useRef<DoctorCheckId | null>(null)
-
-  useEffect(() => {
-    if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
-    const checkId = restoreActionCheckRef.current
-    restoreActionCheckRef.current = null
-    if (session.revealedEvidence.includes(checkId)) return
-    document
-      .querySelector<HTMLButtonElement>(
-        `[data-doctor-action-check="${checkId}"], [data-doctor-evidence-trigger="${checkId}"]`
-      )
-      ?.focus()
-  }, [interaction.kind, session.revealedEvidence])
-
-  useEffect(() => {
-    if (interaction.kind === 'confirm-evidence') {
-      restoreExpandedCheckRef.current = interaction.checkId
-    } else if (interaction.kind === 'idle') {
-      restoreExpandedCheckRef.current = null
-    }
-  }, [interaction])
 
   const copyResults = async () => {
     if (!viewModel.report) return
@@ -91,17 +66,6 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     }
   }
 
-  if (interaction.kind === 'confirm-evidence') {
-    return (
-      <DoctorConfirmationView
-        controller={controller}
-        onResolve={(checkId) => {
-          restoreActionCheckRef.current = checkId
-        }}
-      />
-    )
-  }
-
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
@@ -110,12 +74,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
 
           <DoctorCheckNotices controller={controller} />
 
-          {viewModel.rows.length > 0 ? (
-            <DoctorCheckResults
-              controller={controller}
-              initialExpandedCheckId={restoreExpandedCheckRef.current ?? restoreActionCheckRef.current ?? undefined}
-            />
-          ) : null}
+          {viewModel.rows.length > 0 ? <DoctorCheckResults controller={controller} /> : null}
 
           <Accordion type="single" collapsible className="rounded-xl border border-border px-4">
             <AccordionItem value="advanced-tools" className="border-0 first:border-t-0">

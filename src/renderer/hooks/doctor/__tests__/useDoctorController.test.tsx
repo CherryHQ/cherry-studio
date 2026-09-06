@@ -216,6 +216,32 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
+  it('requires confirmation before revealing consent-required evidence', () => {
+    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    const { result } = renderHook(() =>
+      useDoctorController({
+        initialPanel: 'checks',
+        onNavigate: vi.fn()
+      })
+    )
+
+    act(() => result.current.requestEvidence('runtime-claude-login'))
+    expect(result.current.session.interaction).toEqual({
+      kind: 'confirm-evidence',
+      checkId: 'runtime-claude-login'
+    })
+    expect(result.current.session.revealedEvidence).toEqual([])
+
+    act(() => result.current.cancelConfirmation())
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.session.revealedEvidence).toEqual([])
+
+    act(() => result.current.requestEvidence('runtime-claude-login'))
+    act(() => result.current.confirmEvidence())
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.session.revealedEvidence).toEqual(['runtime-claude-login'])
+  })
+
   it('runs low-risk fixes directly and keeps the backend result authoritative', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     mocks.request.mockResolvedValue({
