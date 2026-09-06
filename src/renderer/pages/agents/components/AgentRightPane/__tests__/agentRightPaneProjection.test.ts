@@ -755,6 +755,24 @@ describe('agent right pane projections', () => {
     expect(JSON.stringify(projection)).not.toContain('done.')
   })
 
+  // A legacy 'Internal id' receipt with no detached child parts must not surface its task id or
+  // output_file path as assistant content either.
+  it('hides an Internal-id receipt when the launch has no detached child parts', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(JSON.stringify(projection)).not.toContain('task-1')
+    expect(JSON.stringify(projection)).not.toContain('/tmp/task-1.output')
+  })
+
   it.each(['async_launched', 'remote_launched'] as const)(
     'hides a structured %s receipt without borrowing task status',
     (status) => {
