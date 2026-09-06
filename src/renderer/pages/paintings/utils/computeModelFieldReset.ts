@@ -1,9 +1,10 @@
+import { alignRangeValue } from '@cherrystudio/provider-registry'
 import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
-import { controlValue, optionalParamNumber } from '../form/fieldValue'
+import { controlValue, optionalFiniteNumber, optionalParamNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
@@ -21,10 +22,11 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *      falls back to its own default (e.g. the transport omits `size` and the
  *      vendor applies its own).
  *   3. Resets carry-over values the new model can't accept: enum/select
- *      values absent from the new `options` list, and range/slider values
- *      outside the new `[min, max]` window. Transports forward these
- *      unclamped and a controlled Radix slider won't self-correct, so a
- *      stale pick would otherwise reach the vendor verbatim.
+ *      values absent from the new `options` list, range/slider values outside
+ *      the new `[min, max]` window, and in-range slider values off the new
+ *      step grid. Transports forward these unchanged and a controlled Radix
+ *      slider won't self-correct, so a stale pick would otherwise reach the
+ *      vendor verbatim.
  *
  * Apply alongside `{ model: newModelId }` in `usePaintingModelSwitch` so
  * post-switch state contains exactly the fields the new model accepts AND
@@ -41,9 +43,9 @@ export async function computeModelFieldReset(input: {
   oldModelId: string | undefined
   newModelId: string
   mode: ImageGenerationMode | undefined
-  currentValues?: Record<string, unknown>
+  currentValues?: Record<string, unknown> | (() => Record<string, unknown>)
 }): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
+  const { providerId, oldModelId, newModelId, mode } = input
   if (oldModelId && oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
@@ -66,6 +68,7 @@ export async function computeModelFieldReset(input: {
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
   const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
   if (newItems.length === 0) return {}
+  const currentValues = typeof input.currentValues === 'function' ? input.currentValues() : (input.currentValues ?? {})
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
@@ -120,9 +123,18 @@ export async function computeModelFieldReset(input: {
     }
 
     if (item.type === 'slider') {
-      const numeric = optionalParamNumber(item.key, currentValue)
+      const step = typeof item.step === 'number' && item.step > 0 ? item.step : undefined
+      const numeric =
+        step === undefined ? optionalParamNumber(item.key, currentValue) : optionalFiniteNumber(currentValue)
       const outOfRange = numeric === null || numeric < item.min || numeric > item.max
-      if (outOfRange) patch[item.key] = item.initialValue
+      if (outOfRange) {
+        patch[item.key] = item.initialValue
+        continue
+      }
+      if (step !== undefined) {
+        const aligned = alignRangeValue(numeric, item.min, item.max, step)
+        if (aligned !== numeric) patch[item.key] = aligned
+      }
     }
   }
 

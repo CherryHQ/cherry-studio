@@ -218,6 +218,43 @@ describe('computeModelFieldReset', () => {
     expect(patch).toEqual({})
   })
 
+  it('keeps a carried omitted-step float such as Ideogram imageWeight 50.5', async () => {
+    mockSupportPerModel({
+      V_3: generateSupport({
+        imageWeight: { type: 'range', min: 1, max: 100, default: 50 }
+      })
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'ideogram',
+      oldModelId: undefined,
+      newModelId: 'V_3',
+      mode: 'generate',
+      currentValues: { imageWeight: 50.5 }
+    })
+
+    expect(patch).toEqual({})
+  })
+
+  it('snaps a carried fractional numImages onto step 1 and keeps guidanceScale 4.5', async () => {
+    mockSupportPerModel({
+      kolors: generateSupport({
+        numImages: { type: 'range', min: 1, max: 4, default: 1, step: 1 },
+        guidanceScale: { type: 'range', min: 1, max: 20, default: 4.5, step: 0.1 }
+      })
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'silicon',
+      oldModelId: undefined,
+      newModelId: 'kolors',
+      mode: 'generate',
+      currentValues: { numImages: 2.5, guidanceScale: 4.5 }
+    })
+
+    expect(patch).toEqual({ numImages: 3 })
+  })
+
   it('resets a decimal carried into an integer-backed catalog slider', async () => {
     mockSupportPerModel({
       modelA: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } }),
