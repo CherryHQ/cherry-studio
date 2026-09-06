@@ -130,9 +130,10 @@ function buildRuntimeViewModel(
       : undefined
   const totalDurationMs =
     runtime.completedAt !== undefined ? Math.max(0, runtime.completedAt - runtime.startedAt) : undefined
+  const outputTokens = getMessageTokenUsage(stats).outputTokens
   const endToEndTokensPerSecond =
-    totalDurationMs !== undefined && totalDurationMs > 0 && stats.outputTokens !== undefined
-      ? stats.outputTokens / (totalDurationMs / 1000)
+    totalDurationMs !== undefined && totalDurationMs > 0 && outputTokens !== undefined
+      ? outputTokens / (totalDurationMs / 1000)
       : undefined
   const measuredIntervals = [...modelIntervals, ...runtimeIntervals]
 

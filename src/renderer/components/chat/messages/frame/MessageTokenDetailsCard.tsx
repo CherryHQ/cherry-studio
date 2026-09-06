@@ -218,7 +218,9 @@ const MessageTokenDetailsCard = ({
   const createdAtLabel = Number.isFinite(createdAt) ? dateFormatter.format(new Date(createdAt)) : undefined
   const formatTokens = (value: number) =>
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
-  const formatOptionalTokens = (value: number | undefined) => (value === undefined ? '—' : formatTokens(value))
+  const unavailableLabel = t('chat.message.token_details.unavailable')
+  const formatOptionalTokens = (value: number | undefined) =>
+    value === undefined ? unavailableLabel : formatTokens(value)
   const formatMilliseconds = durationFormatter
   const costLabel = stats.costs
     ?.map((cost) =>
@@ -243,7 +245,7 @@ const MessageTokenDetailsCard = ({
         : undefined
   const speedLabel =
     performance.modelTokensPerSecond === undefined
-      ? '—'
+      ? unavailableLabel
       : t('chat.message.token_details.tokens_per_second_value', {
           value: decimalFormatter.format(performance.modelTokensPerSecond)
         })

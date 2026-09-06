@@ -728,6 +728,7 @@
   "chat.message.token_details.tokens": "{{value}} Token",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/秒",
   "chat.message.token_details.total_duration": "端到端持續時間",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "未快取",
   "chat.message.token_details.usage": "Token 使用量",
   "chat.message.token_details.waiting_first_token": "等待",

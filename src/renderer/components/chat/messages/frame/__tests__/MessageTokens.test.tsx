@@ -63,6 +63,7 @@ const translations: Record<string, string> = {
   'chat.message.token_details.tokens_per_second_value': '{{value}} Tokens/s',
   'chat.message.token_details.total_duration': 'End-to-end duration',
   'chat.message.token_details.uncached': 'Uncached',
+  'chat.message.token_details.unavailable': 'Not available',
   'chat.message.token_details.usage': 'Token usage',
   'chat.message.token_details.waiting_first_token': 'Waiting',
   'common.loading': 'Loading...'
@@ -190,7 +191,7 @@ describe('MessageTokens', () => {
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
   })
 
-  it('shows unavailable instead of a false zero when a completed runtime reports empty token counters', () => {
+  it('shows localized unavailable values without false throughput for empty runtime token counters', () => {
     renderWithProvider(
       createMessage('assistant', {
         inputTokens: 0,
@@ -200,8 +201,10 @@ describe('MessageTokens', () => {
       })
     )
 
-    expect(screen.getByRole('button', { name: '— Tokens' })).toHaveClass('message-tokens')
+    expect(screen.getByRole('button', { name: 'Not available Tokens' })).toHaveClass('message-tokens')
     expect(screen.queryByRole('button', { name: '0 Tokens' })).not.toBeInTheDocument()
+    openDetails()
+    expect(getDetailsCard()).not.toHaveTextContent('End-to-end throughput')
   })
 
   it('shows unavailable after reloading an Agent message with cost but no token counts', () => {
@@ -237,9 +240,9 @@ describe('MessageTokens', () => {
 
     openDetails()
 
-    expect(screen.getByRole('button', { name: '— Tokens' })).toHaveClass('message-tokens')
-    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('Input—')
-    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('Output—')
+    expect(screen.getByRole('button', { name: 'Not available Tokens' })).toHaveClass('message-tokens')
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('InputNot available')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('OutputNot available')
     expect(screen.getByTestId('message-cost')).toHaveTextContent('$0.0123')
   })
 
@@ -406,7 +409,7 @@ describe('MessageTokens', () => {
     const trigger = screen.getByRole('button', { name: '12 Tokens' })
     expect(trigger).toHaveClass('message-tokens')
 
-    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPS—')
+    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPSNot available')
     expect(getDetailsCard()).not.toHaveTextContent(/Tokens\/s/)
   })
 

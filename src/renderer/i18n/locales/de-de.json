@@ -728,6 +728,7 @@
   "chat.message.token_details.tokens": "{{value}} Tokens",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/s",
   "chat.message.token_details.total_duration": "Gesamtdauer",
+  "chat.message.token_details.unavailable": "—",
   "chat.message.token_details.uncached": "Nicht zwischengespeichert",
   "chat.message.token_details.usage": "Token-Nutzung",
   "chat.message.token_details.waiting_first_token": "Wartend",

@@ -156,7 +156,8 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
 
   const totalTokens = getMessageTokenUsage(stats).totalTokens
   const tokenLabel = t('chat.message.token_details.tokens', {
-    value: totalTokens === undefined ? '—' : compactFormatter.format(totalTokens)
+    value:
+      totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
   })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
