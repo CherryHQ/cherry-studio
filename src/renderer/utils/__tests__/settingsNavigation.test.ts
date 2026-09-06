@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -27,6 +28,22 @@ describe('getSettingsRecentTitle', () => {
     expect(getSettingsRecentTitle('/settings/model')).toBe('设置 / 默认模型')
     expect(getSettingsRecentTitle('/settings/provider?id=openai')).toBe('设置 / 模型服务')
     expect(getSettingsRecentTitle('/settings/mcp/servers')).toBe('设置 / MCP')
+  })
+
+  it('uses the caller-provided translator for display titles', () => {
+    const translate = vi.fn(
+      (key: string) =>
+        ({
+          'title.settings': 'Settings',
+          'settings.model': 'Default Model'
+        })[key] ?? key
+    )
+
+    expect(getSettingsRecentTitle('/settings/model', translate as unknown as TFunction)).toBe(
+      'Settings / Default Model'
+    )
+    expect(translate).toHaveBeenCalledWith('title.settings')
+    expect(translate).toHaveBeenCalledWith('settings.model')
   })
 
   it('does not apply settings recent titles to non-settings routes', () => {
