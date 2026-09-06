@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Archive de diagnostic exportée",
   "settings.about.diagnostics.unknown": "Inconnu",
   "settings.about.diagnostics.upload.actions.consent_upload": "Signaler un problème",
-  "settings.about.diagnostics.upload.dialog.title": "Signaler un problème",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Impossible d’ouvrir le formulaire de commentaires",
   "settings.about.diagnostics.upload.errors.save_failed": "Impossible d’enregistrer le signalement du problème",
   "settings.about.diagnostics.upload.errors.upload_failed": "Impossible d’envoyer le signalement du problème",

@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Pachet de diagnosticare exportat",
   "settings.about.diagnostics.unknown": "Necunoscut",
   "settings.about.diagnostics.upload.actions.consent_upload": "Raportează o problemă",
-  "settings.about.diagnostics.upload.dialog.title": "Raportează o problemă",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Formularul de feedback nu a putut fi deschis",
   "settings.about.diagnostics.upload.errors.save_failed": "Informațiile despre problemă nu au putut fi salvate",
   "settings.about.diagnostics.upload.errors.upload_failed": "Problema nu a putut fi raportată",

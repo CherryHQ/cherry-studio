@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Diagnostic bundle exported",
   "settings.about.diagnostics.unknown": "Unknown",
   "settings.about.diagnostics.upload.actions.consent_upload": "Send problem report",
-  "settings.about.diagnostics.upload.dialog.title": "Report a problem",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Could not open the feedback form",
   "settings.about.diagnostics.upload.errors.save_failed": "Could not save the problem-report information",
   "settings.about.diagnostics.upload.errors.upload_failed": "Could not send the problem report",

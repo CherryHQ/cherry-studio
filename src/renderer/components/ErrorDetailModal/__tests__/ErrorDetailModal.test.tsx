@@ -291,7 +291,7 @@ describe('ErrorDetailContent diagnostics', () => {
     )
   })
 
-  it('keeps diagnostics mounted while nested error details are open and restores focus when they close', async () => {
+  it('returns from nested error details through the localized header action without unmounting diagnostics', async () => {
     const user = userEvent.setup()
     const pendingDiagnosis = deferredDiagnosis()
     mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
@@ -312,13 +312,20 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(within(outerDialog as HTMLElement).getByText('Basic information')).toBeInTheDocument()
     const detailDialog = screen.getByText('private stack').closest('[role="dialog"]')
     expect(detailDialog).not.toBe(outerDialog)
-    expect(within(detailDialog as HTMLElement).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
+    const detailHeader = detailDialog?.querySelector('[data-slot="dialog-header"]')
+    expect(detailHeader).toBeInTheDocument()
+    const backToOverview = within(detailHeader as HTMLElement).getByRole('button', {
+      name: 'Back to diagnostic overview'
+    })
+    expect(within(detailHeader as HTMLElement).getByRole('heading', { name: 'Error Details' })).toBeInTheDocument()
 
     mocks.doctorState = completedDoctorState([passingVersionResult])
     view.rerender(<PopupHost />)
     await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
-    await user.click(within(detailDialog as HTMLElement).getByRole('button', { name: 'Close' }))
+    await user.click(backToOverview)
 
+    expect(screen.queryByText('private stack')).not.toBeInTheDocument()
+    expect(outerDialog).toBeInTheDocument()
     expect(await screen.findByText(aiDiagnosis.explanation)).toBeInTheDocument()
     await waitFor(() => expect(viewDetails).toHaveFocus())
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())

@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Диагностический пакет экспортирован",
   "settings.about.diagnostics.unknown": "Неизвестно",
   "settings.about.diagnostics.upload.actions.consent_upload": "Сообщить о проблеме",
-  "settings.about.diagnostics.upload.dialog.title": "Сообщить о проблеме",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Не удалось открыть форму обратной связи",
   "settings.about.diagnostics.upload.errors.save_failed": "Не удалось сохранить сведения о проблеме",
   "settings.about.diagnostics.upload.errors.upload_failed": "Не удалось сообщить о проблеме",

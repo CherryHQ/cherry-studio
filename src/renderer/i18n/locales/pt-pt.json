@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Pacote de diagnóstico exportado",
   "settings.about.diagnostics.unknown": "Desconhecido",
   "settings.about.diagnostics.upload.actions.consent_upload": "Comunicar um problema",
-  "settings.about.diagnostics.upload.dialog.title": "Comunicar um problema",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Não foi possível abrir o formulário de feedback",
   "settings.about.diagnostics.upload.errors.save_failed": "Não foi possível guardar as informações do problema",
   "settings.about.diagnostics.upload.errors.upload_failed": "Não foi possível comunicar o problema",

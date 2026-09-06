@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "Tanılama paketi dışa aktarıldı",
   "settings.about.diagnostics.unknown": "Bilinmiyor",
   "settings.about.diagnostics.upload.actions.consent_upload": "Sorun bildirimini gönder",
-  "settings.about.diagnostics.upload.dialog.title": "Sorun bildir",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Geri bildirim formu açılamadı",
   "settings.about.diagnostics.upload.errors.save_failed": "Sorun bildirimi kaydedilemedi",
   "settings.about.diagnostics.upload.errors.upload_failed": "Sorun bildirimi gönderilemedi",

@@ -3429,7 +3429,6 @@
   "settings.about.diagnostics.success.title": "診断バンドルをエクスポートしました",
   "settings.about.diagnostics.unknown": "不明",
   "settings.about.diagnostics.upload.actions.consent_upload": "問題を報告",
-  "settings.about.diagnostics.upload.dialog.title": "問題を報告",
   "settings.about.diagnostics.upload.errors.open_form_failed": "フィードバックフォームを開けませんでした",
   "settings.about.diagnostics.upload.errors.save_failed": "問題報告の情報を保存できませんでした",
   "settings.about.diagnostics.upload.errors.upload_failed": "問題報告を送信できませんでした",

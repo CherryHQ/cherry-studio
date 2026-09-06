@@ -36,7 +36,7 @@ import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/err
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { Copy, FileUp } from 'lucide-react'
+import { ArrowLeft, Copy, FileUp } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -624,7 +624,15 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             event.preventDefault()
             viewDetailsButtonRef.current?.focus()
           }}>
-          <DialogHeader className="pr-8">
+          <DialogHeader className="flex-row items-center gap-2 pr-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnostics.back_to_overview')}
+              onClick={() => setDetailsOpen(false)}>
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
             <DialogTitle>{t('error.detail')}</DialogTitle>
           </DialogHeader>
           <ErrorDetailContainer>
