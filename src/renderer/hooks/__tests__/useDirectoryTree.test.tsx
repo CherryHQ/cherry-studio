@@ -5,8 +5,8 @@ import type {
   TreeMutationEvent,
   TreeMutationPushPayload
 } from '@shared/utils/file'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import { Activity, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDirectoryTree } from '../useDirectoryTree'
@@ -155,7 +155,7 @@ describe('useDirectoryTree', () => {
     expect(result.current.root?.hasChild('renamed.md')).toBe(true)
   })
 
-  it('disposes the tree on unmount', async () => {
+  it('disposes the tree once the unmount grace window elapses', async () => {
     mocks.create.mockResolvedValue({ treeId: 't-3', revision: 0, snapshot: makeSnapshot('/notes', []) })
     const unsub = vi.fn()
     mocks.onMutation.mockReturnValue(unsub)
@@ -166,7 +166,15 @@ describe('useDirectoryTree', () => {
       expect(result.current.root).not.toBeNull()
     })
 
+    // An unmount is indistinguishable from an <Activity> hide, so teardown is
+    // parked rather than immediate — it still happens, just one grace window later.
+    vi.useFakeTimers()
     unmount()
+    expect(mocks.dispose).not.toHaveBeenCalled()
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+    })
     expect(unsub).toHaveBeenCalled()
     expect(mocks.dispose).toHaveBeenCalledWith('t-3')
   })
@@ -617,5 +625,41 @@ describe('useDirectoryTree', () => {
     push(6)
     expect(result.current.error).toBe(firstError)
     expect(mocks.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-adopts the live tree across an <Activity> hide/show instead of rebuilding it', async () => {
+    mocks.create.mockResolvedValue({
+      treeId: 't-activity',
+      revision: 0,
+      snapshot: makeSnapshot('/notes', ['a.md'])
+    })
+    const unsubscribe = vi.fn()
+    mocks.onMutation.mockReturnValue(unsubscribe)
+
+    const Probe = () => {
+      useDirectoryTree('/notes')
+      return null
+    }
+    const tree = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <Probe />
+      </Activity>
+    )
+
+    const { rerender } = render(tree('visible'))
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1)
+    })
+
+    // Activity hide runs the effect cleanup and show re-runs the effect. Without
+    // the grace window that pair costs a full dispose + rescan + mirror rebuild,
+    // which is what froze the app when the right pane was toggled.
+    rerender(tree('hidden'))
+    rerender(tree('visible'))
+    await act(async () => {})
+
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    expect(mocks.dispose).not.toHaveBeenCalled()
+    expect(unsubscribe).not.toHaveBeenCalled()
   })
 })

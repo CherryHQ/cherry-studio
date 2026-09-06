@@ -28,6 +28,27 @@ const logger = loggerService.withContext('useDirectoryTree')
  */
 const MAX_ACTIVATION_ATTEMPTS = 3
 
+/**
+ * How long a released tree stays live before it is really disposed.
+ *
+ * `<Activity mode="hidden">` runs this effect's cleanup and re-runs it on show,
+ * so every right-pane close and tab switch used to pay a fresh main-side scan
+ * plus a full O(N) mirror rebuild — and made the previous mirror garbage on the
+ * way out. On a large workspace under memory pressure that churn is all page
+ * faults and major GC, which reads as the app freezing on each toggle.
+ *
+ * Matches `LAZY_WATCHER_DISPOSE_GRACE_MS` in `useArtifactFileTreeModel`, which
+ * absorbs the same hide/show cycle for the lazily watched subdirectories.
+ */
+const RELEASE_GRACE_MS = 10_000
+
+interface PendingRelease {
+  readonly rootPath: string
+  readonly treeId: string
+  readonly release: () => void
+  readonly timer: ReturnType<typeof setTimeout>
+}
+
 export interface UseDirectoryTreeResult {
   readonly root: TreeDirRoot | null
   readonly isLoading: boolean
@@ -145,8 +166,31 @@ export function useDirectoryTree(
   optionsRef.current = options
   const onMutationRef = useRef(onMutation)
   onMutationRef.current = onMutation
+  const pendingReleaseRef = useRef<PendingRelease | null>(null)
+
+  const scheduleRelease = useCallback((rootPath: string, treeId: string, release: () => void) => {
+    pendingReleaseRef.current = {
+      rootPath,
+      treeId,
+      release,
+      timer: setTimeout(() => {
+        pendingReleaseRef.current = null
+        release()
+      }, RELEASE_GRACE_MS)
+    }
+  }, [])
 
   useEffect(() => {
+    // A previous cleanup may have parked a still-live tree in its grace window.
+    const pending = pendingReleaseRef.current
+    const mirror = mirrorRef.current
+    const adopted = pending && rootPath && pending.rootPath === rootPath && mirror ? pending : null
+    if (pending) {
+      clearTimeout(pending.timer)
+      pendingReleaseRef.current = null
+      if (!adopted) pending.release()
+    }
+
     if (!rootPath) {
       setRoot(null)
       setError(null)
@@ -156,8 +200,20 @@ export function useDirectoryTree(
       return
     }
 
+    if (adopted && mirror) {
+      // The parked mirror kept applying mutations while hidden, so re-adopting it
+      // is a same-value resync — no create round trip, no snapshot, no rebuild.
+      setRoot(mirror.root)
+      setTreeId(adopted.treeId)
+      setIsLoading(false)
+      setError(null)
+      return () => scheduleRelease(rootPath, adopted.treeId, adopted.release)
+    }
+
     let cancelled = false
     let released = false
+    /** Set once the create/activate handshake completes — only then is parking safe. */
+    let established = false
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
@@ -246,6 +302,7 @@ export function useDirectoryTree(
           if (cancelled || released) return
 
           if (activated) {
+            established = true
             setRoot(snapshotRoot)
             setTreeId(result.treeId)
             setIsLoading(false)
@@ -282,6 +339,14 @@ export function useDirectoryTree(
 
     return () => {
       cancelled = true
+      // An <Activity> hide is indistinguishable from an unmount here, so an
+      // established tree is parked rather than torn down; the timer covers both.
+      // Parking before the handshake completes would strand a pending consumer
+      // main-side, buffering mutations until MAX_PENDING_MUTATIONS overflows.
+      if (established && createdTreeId) {
+        scheduleRelease(rootPath, createdTreeId, releaseTree)
+        return
+      }
       releaseTree()
       setTreeId(null)
     }
@@ -289,7 +354,7 @@ export function useDirectoryTree(
     // exactly once per mount (via `optionsRef.current` inside the IIFE
     // above); subsequent renders update `optionsRef` but do NOT trigger a
     // rebuild. Pass a new `rootPath` if you need a different scan.
-  }, [rootPath])
+  }, [rootPath, scheduleRelease])
 
   const currentRoot = root?.path === normalizedRootPath ? root : null
   const getNode = useCallback(
