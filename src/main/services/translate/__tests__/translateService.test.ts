@@ -333,6 +333,38 @@ describe('translateService.open', () => {
     )
   })
 
+  it('uses the Anthropic runtime namespace for a DashScope Anthropic endpoint', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByProviderIdMock.mockReturnValue({
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+        }
+      }
+    })
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-mt-anthropic',
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            anthropic: expect.objectContaining({ translation_options: expect.any(Object) })
+          }
+        })
+      })
+    )
+  })
+
   it.each(['qwen-mt-plus', 'qwen-mt-turbo', 'qwen-mt-plus(free)'])(
     'normalizes cumulative %s chunks before renderer delivery',
     (modelId) => {

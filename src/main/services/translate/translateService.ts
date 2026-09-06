@@ -32,7 +32,6 @@ import { translateLanguageService } from '@main/data/services/TranslateLanguageS
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
   createUniqueModelId,
-  ENDPOINT_TYPE,
   isUniqueModelId,
   type Model,
   parseUniqueModelId,
@@ -435,11 +434,11 @@ export class TranslateService {
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+    const resolvedProviderOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
     const providerOptionsKey =
-      matchesPreset(provider, SystemProviderIds.dashscope) &&
-      resolvedEndpoint.endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES
+      matchesPreset(provider, SystemProviderIds.dashscope) && resolvedProviderOptionsKey === provider.id
         ? SystemProviderIds.dashscope
-        : resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
+        : resolvedProviderOptionsKey
     const content = isQwenMTModel(model)
       ? text
       : preferenceService
