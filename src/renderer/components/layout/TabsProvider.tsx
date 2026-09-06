@@ -56,12 +56,10 @@ const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
 const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
 const CODE_ROUTE_PATH = '/app/code'
 
-const TAB_URL_BASE = 'https://www.cherry-ai.com'
-
 function routePathOfTab(tab: Tab): string | null {
   if (tab.type !== 'route') return null
   try {
-    return new URL(tab.url, TAB_URL_BASE).pathname
+    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
   } catch {
     return null
   }
