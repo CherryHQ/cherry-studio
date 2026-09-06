@@ -47,29 +47,9 @@ interface ModelIdentityReference {
   modelSnapshot: { id: string; provider: string } | null | undefined
 }
 
-/** Resolve related references, using authoritative IDs to disambiguate migrated snapshots. */
+/** Resolve persisted references without inferring provenance from ambiguous snapshot IDs. */
 export function resolveUniqueModelIds(references: readonly ModelIdentityReference[]): Array<UniqueModelId | undefined> {
-  const authoritativeIds = new Set(
-    references.flatMap(({ modelId }) => {
-      const uniqueModelId = asUniqueModelId(modelId)
-      return uniqueModelId ? [uniqueModelId] : []
-    })
-  )
-
-  return references.map(({ modelId, modelSnapshot }) => {
-    const uniqueModelId = asUniqueModelId(modelId)
-    if (uniqueModelId) return uniqueModelId
-
-    const snapshotId = asUniqueModelId(modelSnapshot?.id)
-    if (
-      snapshotId &&
-      authoritativeIds.has(snapshotId) &&
-      parseUniqueModelId(snapshotId).providerId === modelSnapshot?.provider
-    ) {
-      return snapshotId
-    }
-    return resolveUniqueModelId(modelId, modelSnapshot)
-  })
+  return references.map(({ modelId, modelSnapshot }) => resolveUniqueModelId(modelId, modelSnapshot))
 }
 
 /** Return true only when two persisted references identify distinct models. */

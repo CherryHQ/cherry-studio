@@ -74,7 +74,7 @@ describe('useTopicMessagesCache', () => {
     expect(nextBranch).toEqual([{ message: survivingReply }])
   })
 
-  it('does not promote a migrated snapshot for the same model after its foreign key is cleared', () => {
+  it('does not infer snapshot provenance from an authoritative model ID', () => {
     const selectedReply = message(
       'answer-authoritative',
       'assistant',
@@ -96,7 +96,7 @@ describe('useTopicMessagesCache', () => {
 
     const nextBranch = result.current.branchWithoutIds(branch, new Set([selectedReply.id]), selectedReply.id)
 
-    expect(nextBranch).toEqual([])
+    expect(nextBranch).toEqual([{ message: survivingReply }])
   })
 
   it('falls back to the parent while deleting the latest same-model regeneration', async () => {

@@ -64,7 +64,7 @@ describe('shared model capability helpers', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-b::model?invalid' })).toBeUndefined()
     })
 
-    it('matches migrated snapshots to authoritative IDs', () => {
+    it('does not infer snapshot provenance from a related authoritative ID', () => {
       const references = [
         {
           modelId: 'provider-a::model-a',
@@ -76,8 +76,8 @@ describe('shared model capability helpers', () => {
         }
       ] as const
 
-      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::model-a'])
-      expect(areDifferentModelIdentities(references[0], references[1])).toBe(false)
+      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::provider-a::model-a'])
+      expect(areDifferentModelIdentities(references[0], references[1])).toBe(true)
     })
 
     it('preserves authoritative IDs for raw model IDs containing the separator', () => {
