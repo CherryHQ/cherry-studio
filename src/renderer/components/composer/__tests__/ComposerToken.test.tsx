@@ -25,11 +25,6 @@ import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } f
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const imagePreviewShowMock = vi.hoisted(() => vi.fn())
-const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@renderer/components/FilePreview', () => ({
-  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
-}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -222,8 +217,6 @@ beforeEach(() => {
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
   imagePreviewShowMock.mockResolvedValue(undefined)
-  openFilePreviewTabMock.mockReset()
-  openFilePreviewTabMock.mockReturnValue('file-preview-tab')
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -494,6 +487,36 @@ describe('ComposerToken', () => {
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
+  it('activates a sent image preview from the keyboard instead of opening its hover card', () => {
+    const onActivate = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        imageIconPreview
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{ url: 'file:///tmp/avatar-preview.png', mediaType: 'image/png' }}
+        token={{
+          id: 'file:sent-image',
+          kind: 'file',
+          label: 'avatar-preview.png',
+          payload: createFileMetadata({
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
+            path: '/tmp/avatar-preview.png',
+            ext: '.png',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    const trigger = getFileTokenTrigger(container)
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+  })
+
   it('renders read-only image thumbnails through the generic composer token entry', () => {
     const { container } = render(
       <ComposerToken
@@ -636,10 +659,12 @@ describe('ComposerToken', () => {
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
 
-  it('opens an editable Markdown attachment in the file preview tab by pointer or keyboard', async () => {
+  it('opens an editable Markdown attachment with the injected file preview action by pointer or keyboard', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <ComposerToken
+        onFilePreviewActivate={previewInputFile}
         token={{
           id: 'file:markdown',
           kind: 'file',
@@ -658,20 +683,57 @@ describe('ComposerToken', () => {
     const attachment = screen.getByRole('button', { name: 'requirements.md' })
     await user.click(attachment)
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/managed-file.md'
+    })
 
-    openFilePreviewTabMock.mockClear()
+    previewInputFile.mockClear()
     attachment.focus()
     await user.keyboard('{Enter}')
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/managed-file.md'
+    })
   })
 
-  it('opens a sent Markdown attachment from its managed file URL', async () => {
+  it('opens an editable Office attachment with the injected file preview action', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
+    render(
+      <ComposerToken
+        onFilePreviewActivate={previewInputFile}
+        token={{
+          id: 'file:docx',
+          kind: 'file',
+          label: 'report.docx',
+          payload: createFileMetadata({
+            name: 'report.docx',
+            origin_name: 'report.docx',
+            path: '/tmp/report.docx',
+            ext: '.docx',
+            type: FILE_TYPE.DOCUMENT
+          })
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'report.docx' }))
+
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'report.docx',
+      previewPath: '/tmp/report.docx'
+    })
+  })
+
+  it('opens a sent Markdown attachment from its managed file URL with the injected file preview action', async () => {
+    const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <FileComposerToken
         readOnly
+        onFilePreviewActivate={previewInputFile}
         readOnlyFilePreview={{ url: 'file:///tmp/message-files/managed-file.md', mediaType: 'text/markdown' }}
         token={{
           id: 'file:sent-markdown',
@@ -690,7 +752,39 @@ describe('ComposerToken', () => {
 
     await user.click(screen.getByRole('button', { name: 'requirements.md' }))
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/message-files/managed-file.md',
+      mediaType: 'text/markdown'
+    })
+  })
+
+  it('opens a sent Office attachment from its managed file URL with the injected file preview action', async () => {
+    const user = userEvent.setup()
+    const previewInputFile = vi.fn()
+    render(
+      <FileComposerToken
+        readOnly
+        onFilePreviewActivate={previewInputFile}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/message-files/report.docx',
+          mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }}
+        token={{
+          id: 'file:sent-docx',
+          kind: 'file',
+          label: 'report.docx'
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'report.docx' }))
+
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'report.docx',
+      previewPath: '/tmp/message-files/report.docx',
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
   })
 
   it('renders office file tokens with dedicated variants', () => {
@@ -857,6 +951,92 @@ describe('ComposerToken', () => {
 
     fireEvent.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps sent pasted-text hover preview while click opens the external preview target', async () => {
+    const user = userEvent.setup()
+    const onActivate = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/pasted_text.txt',
+          mediaType: 'text/plain',
+          composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+        }}
+        token={{
+          id: 'file:pasted-text',
+          kind: 'file',
+          label: '已粘贴的文本.txt',
+          payload: createFileMetadata({
+            name: 'pasted_text.txt',
+            origin_name: '已粘贴的文本.txt',
+            path: '/tmp/pasted_text.txt',
+            size: 23552,
+            ext: '.txt',
+            type: FILE_TYPE.TEXT,
+            composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+          })
+        }}
+      />
+    )
+
+    const trigger = getFileTokenTrigger(container)
+    await user.hover(trigger)
+    await waitFor(() => expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true'))
+    await waitFor(() =>
+      expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('第一段粘贴文本')
+    )
+
+    fireEvent.click(trigger)
+
+    expect(onActivate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'file:///tmp/pasted_text.txt',
+        mediaType: 'text/plain',
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      }),
+      expect.objectContaining({ id: 'file:pasted-text', label: '已粘贴的文本.txt' })
+    )
+
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onActivate).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('activates sent generic file previews with click and keyboard without adding a hover card', () => {
+    const onActivate = vi.fn()
+
+    render(
+      <FileComposerToken
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/report.pdf',
+          mediaType: 'application/pdf'
+        }}
+        token={{
+          id: 'file:report',
+          kind: 'file',
+          label: 'report.pdf'
+        }}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: 'report.pdf' })
+    expect(screen.queryByTestId('composer-token-popover')).toBeNull()
+
+    fireEvent.click(trigger)
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    fireEvent.keyDown(trigger, { key: ' ' })
+
+    expect(onActivate).toHaveBeenCalledTimes(3)
+    expect(onActivate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ url: 'file:///tmp/report.pdf', mediaType: 'application/pdf' }),
+      expect.objectContaining({ id: 'file:report', label: 'report.pdf' })
+    )
   })
 
   it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', async () => {
