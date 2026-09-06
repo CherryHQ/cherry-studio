@@ -35,11 +35,15 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
+import {
+  AGENT_SESSION_FLOW_PARTS_CACHE_KEY,
+  AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY
+} from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -113,6 +117,10 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/** A host-row miss is re-queried after this long — the row can be committed mid-connection. */
+const FLOW_HOST_MISS_RECHECK_MS = 5_000
+/** Teardown orphaned recovery chunks survive long enough for a reopened session to pick them up. */
+const FLOW_RECOVERY_ORPHAN_TTL_MS = 600_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -233,6 +241,8 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  /** The reader drained the stream; the trailing snapshot is final and successors are safe. */
+  settled: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
@@ -286,6 +296,10 @@ type AgentSessionRuntimeEntry = {
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
+  /** Flow roots whose host row lookup came back empty, with the time it was cached. */
+  checkedFlowHostMisses?: Map<string, number>
+  /** Detached chunks buffered while their host-row recovery is retried (root tool-call id keyed). */
+  pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2045,13 +2059,41 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
-    const messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    // A fresh entry (restart or session reopen) has no in-memory anchor. Recover it from the
+    // persisted host row so resumed chunks land on the launch message. A miss is cached only
+    // briefly — the row can be committed by a flush at any time, so re-query it periodically.
+    if (
+      !messageId &&
+      (entry.checkedFlowHostMisses?.get(rootToolCallId) ?? Number.NEGATIVE_INFINITY) <
+        Date.now() - FLOW_HOST_MISS_RECHECK_MS
+    ) {
+      try {
+        messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
+        if (!messageId) {
+          // Only a successful miss is cached with a timestamp — a transient query error must
+          // stay retryable. Buffered recovery chunks survive the miss: within the re-check
+          // window the row can still be committed, and at teardown they get a final lookup.
+          ;(entry.checkedFlowHostMisses ??= new Map()).set(rootToolCallId, Date.now())
+        }
+      } catch (error) {
+        // Keep the chunk that triggered the failed lookup: dropping a text-start would abort the
+        // whole ai stream pipe for this message.
+        this.bufferRecoveryChunk(entry, rootToolCallId, chunk)
+        logger.warn('Failed to recover flow host row for detached subagent chunk', {
+          sessionId: entry.sessionId,
+          rootToolCallId,
+          chunkType: chunk.type,
+          error
+        })
+        return
+      }
+    }
     if (!messageId) {
-      logger.debug('Ignoring detached subagent flow chunk without a persisted message anchor', {
-        sessionId: entry.sessionId,
-        rootToolCallId,
-        chunkType: chunk.type
-      })
+      // The miss is cached, so the lookup is not re-run for the whole re-check window — chunks
+      // arriving in that window are real output, so buffer them until a re-query can resolve or
+      // reject the root for good (neither lookup failure nor teardown is a reason to drop them).
+      this.bufferRecoveryChunk(entry, rootToolCallId, chunk)
       return
     }
 
@@ -2071,6 +2113,55 @@ export class AgentSessionRuntimeService extends BaseService {
     this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
   }
 
+  /**
+   * Recover the persisted host row for a detached root and replay its buffered chunks. Used by
+   * the chunk path and by teardown, which must give recovery-buffered chunks a last chance.
+   */
+  private recoverDetachedFlowHost(entry: AgentSessionRuntimeEntry, rootToolCallId: string): string | undefined {
+    const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
+    if (!hostMessageId) return undefined
+    ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
+    ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
+    const replay = (chunks: UIMessageChunk[]) => {
+      for (const replayedChunk of chunks) {
+        if (
+          (replayedChunk.type === 'tool-input-start' || replayedChunk.type === 'tool-input-available') &&
+          replayedChunk.toolCallId
+        ) {
+          ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(replayedChunk.toolCallId, hostMessageId)
+        }
+        this.enqueueBackgroundFlowChunk(entry, hostMessageId, replayedChunk)
+      }
+    }
+    // A previous teardown orphaned chunks whose host row had not committed; now that the row is
+    // here, they flow first (they are the oldest content).
+    const cacheService = application.get('CacheService')
+    const orphan = cacheService.getShared(
+      AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY(entry.sessionId, rootToolCallId)
+    ) as UIMessageChunk[] | undefined
+    if (orphan?.length) {
+      cacheService.deleteShared(AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY(entry.sessionId, rootToolCallId))
+      replay(orphan)
+    }
+    // Chunks buffered across the transient recovery errors flow into the anchor next; nested
+    // tool calls inside them register anchors exactly like the normal chunk path below.
+    const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+    if (buffered?.length) {
+      entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
+      replay(buffered)
+    }
+    return hostMessageId
+  }
+
+  /** Buffer an unrecoverable-root chunk so a later successful re-query can deliver it. */
+  private bufferRecoveryChunk(entry: AgentSessionRuntimeEntry, rootToolCallId: string, chunk: UIMessageChunk): void {
+    const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
+    entry.pendingRecoveryFlowChunks = buffered
+    const chunks = buffered.get(rootToolCallId) ?? []
+    chunks.push(chunk)
+    buffered.set(rootToolCallId, chunks)
+  }
+
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
     ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
     const pending = entry.pendingBackgroundFlowChunks?.get(messageId)
@@ -2083,6 +2174,17 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
     const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    if (accumulator === 'hold') {
+      // The predecessor is draining: a successor seeded now would miss its trailing chunks and the
+      // later flush would overwrite the full row. Buffer until the predecessor settles.
+      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
+      entry.pendingBackgroundFlowChunks = pending
+      const chunks = pending.get(messageId) ?? []
+      chunks.push(chunk)
+      pending.set(messageId, chunks)
+      return
+    }
+    if (!accumulator) return
     try {
       accumulator.controller.enqueue(chunk)
     } catch (error) {
@@ -2098,17 +2200,47 @@ export class AgentSessionRuntimeService extends BaseService {
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
     messageId: string
-  ): BackgroundFlowAccumulator {
+  ): BackgroundFlowAccumulator | 'hold' | null {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
     const existing = accumulators.get(messageId)
-    if (existing) return existing
+    // A closed accumulator is mid-drain: reusing it would enqueue into a closed controller and
+    // drop the chunk. Its replacement must be seeded from the predecessor's final overlay — the
+    // persisted row still lags behind it until the pending flush writes, so seeding from the DB
+    // here would drop everything the predecessor drained.
+    if (existing && !existing.closed) return existing
+    if (existing && !existing.settled) return 'hold'
+    const inheritedParts = existing?.latest?.parts as CherryMessagePart[] | undefined
 
-    const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    let persistedParts: CherryMessagePart[] | undefined
+    if (!inheritedParts) {
+      let persisted: { id: string; data: { parts?: CherryMessagePart[] } } | undefined
+      try {
+        persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+      } catch (error) {
+        // A row deleted while its anchors survived a reconnect has nowhere to go; any other
+        // (transient) database error must hold the chunk for retry instead of dropping it.
+        if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+          logger.warn('Detached subagent flow chunk lost its host message', {
+            sessionId: entry.sessionId,
+            messageId,
+            error
+          })
+          return null
+        }
+        logger.warn('Detached subagent flow accumulator seed failed', {
+          sessionId: entry.sessionId,
+          messageId,
+          error
+        })
+        return 'hold'
+      }
+      persistedParts = persisted.data.parts ?? []
+    }
     const seed: CherryUIMessage = {
-      id: persisted.id,
+      id: messageId,
       role: 'assistant',
-      parts: structuredClone(persisted.data.parts ?? [])
+      parts: structuredClone(inheritedParts ?? persistedParts ?? [])
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2120,10 +2252,18 @@ export class AgentSessionRuntimeService extends BaseService {
       messageId,
       controller,
       done: Promise.resolve(),
-      closed: false
+      closed: false,
+      settled: false
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
+    // Chunks held while this message had no usable accumulator (mid-drain hold, seed error) now
+    // flow into it — the buffered ones are older, so they enqueue first.
+    const held = entry.pendingBackgroundFlowChunks?.get(messageId)
+    if (held?.length) {
+      entry.pendingBackgroundFlowChunks?.delete(messageId)
+      for (const heldChunk of held) this.enqueueBackgroundFlowChunk(entry, messageId, heldChunk)
+    }
     return accumulator
   }
 
@@ -2155,6 +2295,9 @@ export class AgentSessionRuntimeService extends BaseService {
         error
       })
     } finally {
+      // Mark the drain settled before any flush reads the snapshot: a successor created from now
+      // on seeds from the final overlay and can no longer miss trailing chunks.
+      accumulator.settled = true
       // The reader is done — flush the trailing snapshot now so `finishBackgroundFlows` (which
       // awaits `accumulator.done`) always sees the final overlay in the cache before its TTL write.
       if (accumulator.publishTimer) {
@@ -2162,6 +2305,14 @@ export class AgentSessionRuntimeService extends BaseService {
         accumulator.publishTimer = undefined
       }
       this.publishBackgroundFlowParts(entry, accumulator)
+      // Chunks held while this accumulator was draining can now flow into a properly seeded
+      // successor; flush them so they do not sit in the buffer until some unrelated turn boundary.
+      const pending = entry.pendingBackgroundFlowChunks?.get(accumulator.messageId)
+      if (pending?.length) {
+        entry.pendingBackgroundFlowChunks?.delete(accumulator.messageId)
+        for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, accumulator.messageId, chunk)
+        void this.finishBackgroundFlows(entry)
+      }
     }
   }
 
@@ -2209,28 +2360,68 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
       .then(() => {
-        const completedMessageIds = new Set<string>()
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
+        // A failed persist keeps its accumulator: its in-memory parts are the only surviving copy
+        // and the next flush (or a successor seed) must be able to retry them.
+        const failedMessageIds = new Set<string>()
         for (const accumulator of accumulators) {
           const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
           if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          try {
+            agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          } catch (error) {
+            // One removed row must not abort the rest of the batch.
+            logger.warn('Failed to persist detached subagent flow parts', {
+              sessionId: entry.sessionId,
+              messageId: accumulator.messageId,
+              error
+            })
+            failedMessageIds.add(accumulator.messageId)
+            continue
+          }
           completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
-        entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+        // Only drop the accumulators this flush closed — one created mid-drain belongs to newer
+        // chunks and must survive, or its content leaks silently.
+        for (const accumulator of accumulators) {
+          if (failedMessageIds.has(accumulator.messageId)) continue
+          if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+            entry.backgroundFlowAccumulators.delete(accumulator.messageId)
+          }
         }
+        // Flow anchors are retained on purpose: a SendMessage resume re-streams under the original
+        // tool-call id after these flows have drained, and must still find its host message.
         if (this.isCurrentEntry(entry)) {
           const cacheService = application.get('CacheService')
           for (const { messageId, parts } of completedFlows) {
+            // A successor created mid-drain publishes fresher overlays for the same row; the stale
+            // handoff must not overwrite them.
+            const successor = entry.backgroundFlowAccumulators?.get(messageId)
+            if (successor && successor.latest) continue
             cacheService.setShared(
               AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
               parts,
               BACKGROUND_FLOW_HANDOFF_TTL_MS
             )
+          }
+        }
+        // Failed persists still hand the final overlay to the cache, outside the current-entry
+        // gate: after teardown there is no retry window, so the renderer keeps the output visible
+        // even though the DB row lags behind (or never lands).
+        for (const accumulator of accumulators) {
+          if (!failedMessageIds.has(accumulator.messageId)) continue
+          const successor = entry.backgroundFlowAccumulators?.get(accumulator.messageId)
+          if (successor && successor.latest) continue
+          const failedParts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          if (failedParts) {
+            application
+              .get('CacheService')
+              .setShared(
+                AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
+                failedParts,
+                BACKGROUND_FLOW_HANDOFF_TTL_MS
+              )
           }
         }
       })
@@ -2239,6 +2430,17 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       .finally(() => {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        // A replacement created mid-drain is not in this batch — drain it too, or its chunks stay
+        // unpersisted until some unrelated turn boundary happens to fire. Runs after the
+        // single-flight field clears so the recursive call is not short-circuited by it.
+        const survivors = [...(entry.backgroundFlowAccumulators?.values() ?? [])].filter((a) => !a.closed)
+        if (
+          this.isCurrentEntry(entry) &&
+          survivors.length > 0 &&
+          !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+        ) {
+          void this.finishBackgroundFlows(entry)
+        }
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
@@ -2389,9 +2591,9 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    entry.flowMessageIdsByToolCallId?.clear()
-    entry.persistedFlowMessageIds?.clear()
-    entry.pendingBackgroundFlowChunks?.clear()
+    // Anchors and chunk buffers survive the reset: anchors are session facts, buffered chunks are
+    // output the DB never received, and a host-row miss is a snapshot a later flush invalidates.
+    entry.checkedFlowHostMisses?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
@@ -3173,7 +3375,110 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
     if (connectionAttempt) closings.push(connectionAttempt)
-    return Promise.allSettled(closings).then(() => undefined)
+    return Promise.allSettled(closings).then(async () => {
+      const cacheService = application.get('CacheService')
+      // Recovery-buffered chunks get their last host-row lookup; any that land now replay into
+      // an accumulator (or the pending buffer) and will be drained by the cascade below.
+      for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
+        try {
+          if (!this.recoverDetachedFlowHost(entry, rootToolCallId)) {
+            // The host row never committed: orphan the buffered chunks to the cache — a reopened
+            // session that later finds the row delivers them instead of dropping the output.
+            const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+            if (orphan?.length) {
+              cacheService.setShared(
+                AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY(entry.sessionId, rootToolCallId),
+                orphan,
+                FLOW_RECOVERY_ORPHAN_TTL_MS
+              )
+            }
+          }
+        } catch (error) {
+          const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+          if (orphan?.length) {
+            cacheService.setShared(
+              AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY(entry.sessionId, rootToolCallId),
+              orphan,
+              FLOW_RECOVERY_ORPHAN_TTL_MS
+            )
+          }
+          logger.warn('Detached flow recovery lookup failed at teardown', {
+            sessionId: entry.sessionId,
+            rootToolCallId,
+            error
+          })
+        }
+      }
+      // Seed-failed chunks never reached an accumulator: retry once so the cascade persists
+      // them; the fold below covers a retry that still fails.
+      for (const messageId of [...(entry.pendingBackgroundFlowChunks?.keys() ?? [])]) {
+        this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+      }
+      // A successor accumulator created by a flushing predecessor's held-chunk replay drains
+      // after the first batch; repeat until no new accumulator appears (converged or stuck).
+      let previousCount = -1
+      while (
+        (entry.backgroundFlowAccumulators?.size ?? 0) > 0 &&
+        (entry.backgroundFlowAccumulators?.size ?? 0) !== previousCount
+      ) {
+        previousCount = entry.backgroundFlowAccumulators?.size ?? 0
+        await this.finishBackgroundFlows(entry)
+      }
+      for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
+        const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+        if (!parts) continue
+        cacheService.setShared(
+          AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
+          parts,
+          BACKGROUND_FLOW_HANDOFF_TTL_MS
+        )
+      }
+      // Everything that still never reached an accumulator gets folded into a final cache
+      // snapshot so teardown does not silently drop subagent output the database never got.
+      const pending = entry.pendingBackgroundFlowChunks
+      if (pending?.size) {
+        for (const [messageId, chunks] of pending) {
+          if (!chunks.length) continue
+          let seedParts: CherryMessagePart[] = []
+          try {
+            const row = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+            seedParts = row.data.parts ?? []
+          } catch {
+            // The row may never have been written; the chunks themselves are the content.
+          }
+          let fallbackParts = seedParts
+          try {
+            const stream = new ReadableStream<UIMessageChunk>({
+              start: (controller) => {
+                for (const chunk of chunks) controller.enqueue(chunk)
+                controller.close()
+              }
+            })
+            let snapshot: CherryUIMessage = {
+              id: messageId,
+              role: 'assistant',
+              parts: structuredClone(seedParts)
+            }
+            for await (const next of readUIMessageStream<CherryUIMessage>({
+              stream,
+              message: snapshot,
+              terminateOnError: false
+            })) {
+              snapshot = next
+            }
+            fallbackParts = snapshot.parts as CherryMessagePart[]
+          } catch {
+            // Best effort — the seed snapshot still preserves the row's prior content.
+          }
+          cacheService.setShared(
+            AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
+            fallbackParts,
+            BACKGROUND_FLOW_HANDOFF_TTL_MS
+          )
+        }
+      }
+      return undefined
+    })
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {

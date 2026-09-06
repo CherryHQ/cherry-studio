@@ -125,6 +125,12 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    `claudeCode/streamAdapter.ts`, `pi/piStreamAdapter.ts`, and
    `dsh/dshStreamAdapter.ts`.
 
+   The adapter may recover runtime-specific session facts the host cannot see
+   (e.g. a task id's launch-root tool-call id) via the data services, but such
+   synchronous calls must be try/catch-guarded — an adapter's event loop must
+   never be torn down by a database error — and must not initialize or mutate
+   runtime lifecycle state.
+
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
    side-effect `register.ts` module — an unimported side-effect module is

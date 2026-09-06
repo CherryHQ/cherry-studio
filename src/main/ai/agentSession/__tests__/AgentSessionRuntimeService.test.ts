@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
+  findFlowHostMessageId: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
+    findFlowHostMessageId: mocks.findFlowHostMessageId,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
@@ -256,6 +259,7 @@ describe('AgentSessionRuntimeService', () => {
         ]
       }
     })
+    mocks.findFlowHostMessageId.mockReturnValue(null)
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
@@ -2206,6 +2210,848 @@ describe('AgentSessionRuntimeService', () => {
         expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Found the regression' })]),
         60_000
       )
+    })
+
+    // A SendMessage resume re-streams under the original tool-call id after the first background
+    // flow has drained — the retained anchor is what lets that second generation still land.
+    it('patches resumed subagent chunks onto the spawning message after the first flow drained', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+
+      const sendFlow = (text: string, textId: string) => {
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      service.markTurnTerminal('session-1', 'success')
+      sendFlow('First round findings', 'first-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'First round findings' })])
+        )
+      })
+      mocks.replaceMessageParts.mockClear()
+
+      // The resume arrives after the drain that used to delete the anchor.
+      sendFlow('Resumed findings', 'resumed-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
+        )
+      })
+    })
+
+    it('recovers the flow host row from the database after the entry was rebuilt', async () => {
+      // A fresh entry (restart / session reopen) has no in-memory anchor; the resumed chunks
+      // stream under the original launch tool-call id and must re-anchor to the persisted row.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'resumed-text' },
+        { type: 'text-delta', id: 'resumed-text', delta: 'Resumed findings' },
+        { type: 'text-end', id: 'resumed-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.findFlowHostMessageId).toHaveBeenCalledWith('session-1', 'task-root')
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Resumed findings' })])
+        )
+      })
+    })
+
+    it('keeps an accumulator whose persistence failed and retries it on the next drain', async () => {
+      let persistCalls = 0
+      mocks.replaceMessageParts.mockImplementation((...args: unknown[]) => {
+        persistCalls += 1
+        if (persistCalls === 1) throw new Error('db locked')
+        return { id: args[1] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      // Register the launch-root anchor like a real launch turn would.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      sendFlow('First findings', 'first-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(1))
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'First findings' })])
+      )
+
+      // The failed accumulator survived the flush; the next round retries with both rounds' content.
+      sendFlow('Second findings', 'second-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledTimes(2))
+      expect(mocks.replaceMessageParts).toHaveBeenLastCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'text', text: 'First findings' }),
+          expect.objectContaining({ type: 'text', text: 'Second findings' })
+        ])
+      )
+    })
+
+    it('replays chunks buffered while the host-row lookup was failing', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'full-text' },
+        { type: 'text-delta', id: 'full-text', delta: 'Complete findings' },
+        { type: 'text-end', id: 'full-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The text-start that hit the transient error is replayed with the rest of the flow.
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Complete findings' })])
+        )
+      })
+    })
+
+    it('holds chunks while the accumulator seed read fails and replays them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        if (seedCalls === 1) throw new Error('db busy')
+        return {
+          id: 'assistant-1',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'tool-Agent', toolCallId: 'task-root', state: 'input-available', input: { prompt: 'Audit' } }
+            ]
+          }
+        }
+      })
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      // The first seed read fails: the round's chunks must be held, not dropped.
+      sendFlow('First findings', 'first-text')
+      sendFlow('Second findings', 'second-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const calls = mocks.replaceMessageParts.mock.calls
+        const last = calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
+    })
+
+    it('drops chunks whose host row is genuinely gone instead of buffering them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Message', 'assistant-1')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'lost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).not.toHaveBeenCalled())
+      expect(getEntry(service).pendingBackgroundFlowChunks).toBeUndefined()
+    })
+
+    it('hands failed-flush parts to the cache overlay so teardown does not lose them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.replaceMessageParts.mockImplementation(() => {
+        throw new Error('db locked')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'final-text' },
+        { type: 'text-delta', id: 'final-text', delta: 'Final findings' },
+        { type: 'text-end', id: 'final-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalled())
+      await vi.waitFor(() => {
+        // Streaming snapshots also hit the cache; the final overlay is the one that carries the text.
+        const call = mocks.cacheSetShared.mock.calls.find(
+          ([key, parts]) =>
+            typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Final findings')
+        )
+        expect(call).toBeDefined()
+      })
+    })
+
+    it('orphans recovery-buffered chunks at teardown and delivers them on a later reopen', async () => {
+      // Teardown's final lookup misses — the chunks are orphaned to the cache instead of lost;
+      // a reopened session that finds the row replays them ahead of its own buffered chunks.
+      const orphanChunk = { type: 'text-start', id: 'orphaned-text' }
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        // The first run buffers the chunk; teardown's final lookup misses.
+        if (lookupCalls === 1) throw new Error('db busy')
+        return null
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: orphanChunk
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await service.closeSession('session-1')
+      const orphanCall = mocks.cacheSetShared.mock.calls.find(
+        ([key]) => typeof key === 'string' && key.includes('flow_recovery_orphan')
+      )
+      expect(orphanCall).toBeDefined()
+
+      // A reopened session recovers the row and replays the orphan first.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      mocks.cacheGetShared.mockImplementation((key) =>
+        typeof key === 'string' && key.includes('flow_recovery_orphan') ? [orphanChunk] : undefined
+      )
+      mocks.replaceMessageParts.mockClear()
+      service.beginTurn(baseTurnInput)
+      const reopenedEntry = getEntry(service)
+      reopenedEntry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(reopenedEntry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(reopenedEntry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'orphaned-text', delta: 'Orphaned findings' }
+      })
+      ;(service as any).handleRuntimeEvent(reopenedEntry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'Orphaned findings')).toBe(true)
+      })
+    })
+
+    it('gives recovery-buffered chunks a last host-row lookup at teardown', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.replaceMessageParts.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'recovered-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The failed lookup buffered the chunk — no anchor, no accumulator.
+      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      await service.closeSession('session-1')
+
+      // closeEntry re-runs the lookup and the replayed chunk lands in the database.
+      expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+        'session-1',
+        'assistant-1',
+        expect.arrayContaining([expect.objectContaining({ type: 'text' })])
+      )
+    })
+
+    it('folds never-accumulated chunks into the cache overlay at teardown', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      // Every seed read fails: the round's chunks stay buffered, never accumulated.
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'orphan-text' },
+        { type: 'text-delta', id: 'orphan-text', delta: 'Orphaned findings' },
+        { type: 'text-end', id: 'orphan-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      await service.closeSession('session-1')
+
+      // closeEntry folded the buffered chunks into the cache overlay so the output survives.
+      const call = mocks.cacheSetShared.mock.calls.find(
+        ([key, parts]) =>
+          typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Orphaned findings')
+      )
+      expect(call).toBeDefined()
+    })
+
+    it('registers nested tool anchors when replaying buffered recovery chunks', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'buffered-text' },
+        { type: 'tool-input-start', toolCallId: 'nested-1', toolName: 'Read', input: {} },
+        { type: 'text-end', id: 'buffered-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(getEntry(service).flowMessageIdsByToolCallId?.get('nested-1')).toBe('assistant-1')
+      })
+      // A nested-root chunk routed after the replay resolves without a second DB lookup.
+      const lookupCount = lookupCalls
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'nested-1',
+        chunk: { type: 'text-start', id: 'nested-text' }
+      })
+      expect(lookupCalls).toBe(lookupCount)
+    })
+
+    it('does not let a mid-drain successor overwrite the drained tail', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      // First drain starts (accumulator closes) — the second generation arrives synchronously
+      // before the drain settles, so it must be held, not seeded into a successor that misses the tail.
+      sendFlow('First round complete', 'first-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      sendFlow('Second round complete', 'second-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const calls = mocks.replaceMessageParts.mock.calls
+        const last = calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First round complete')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second round complete')).toBe(true)
+      })
+    })
+
+    it('retries the host-row lookup after a transient query error', async () => {
+      // A failed lookup must not poison the miss cache: the next chunk re-queries and lands.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (id: string, text: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+
+      sendChunk('first-text', 'First findings')
+      // The first chunk hit the transient error; the retry must both re-query and land.
+      sendChunk('second-text', 'Second findings')
+      await vi.waitFor(() => {
+        expect(lookupCalls).toBeGreaterThanOrEqual(2)
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Second findings' })])
+        )
+      })
+    })
+
+    it('does not re-query the database for flow roots that have no host row', async () => {
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const sendChunk = () => {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk: { type: 'text-start', id: 'orphan-text' }
+        })
+      }
+      sendChunk()
+      sendChunk()
+
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+    })
+
+    it('re-queries a missed host row once its re-check window elapses', async () => {
+      // A miss cached mid-connection must not stay cached forever — the row can be committed
+      // by a flush at any moment, so the lookup re-opens after FLOW_HOST_MISS_RECHECK_MS.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+      sendChunk('First findings', 'first-text')
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      // Simulate the re-check window elapsing with the row now committed.
+      getEntry(service).checkedFlowHostMisses?.set('task-root', Date.now() - 6_000)
+      sendChunk('Second findings', 'second-text')
+
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        // Chunks arriving inside the re-check window were buffered, not discarded.
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
+    })
+
+    it('keeps recovery-buffered chunks across a successful miss for the re-check window', async () => {
+      // A transient lookup failure buffers the chunk; a later successful miss must not discard
+      // that buffer — the row can still be committed within the re-check window.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        // The first round's chunks all hit the transient error and buffer in full.
+        if (lookupCalls <= 3) throw new Error('db busy')
+        if (lookupCalls === 4) return null
+        return 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+      sendChunk('First findings', 'first-text')
+
+      // The next round's first lookup succeeds as a miss — the buffered chunks must survive it,
+      // and the chunks arriving inside the re-check window must buffer too, not be discarded.
+      sendChunk('Second findings', 'second-text')
+      expect(getEntry(service).pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(6)
+
+      // Simulate the re-check window elapsing with the row now committed.
+      getEntry(service).checkedFlowHostMisses?.set('task-root', Date.now() - 6_000)
+      sendChunk('Third findings', 'third-text')
+
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Third findings')).toBe(true)
+      })
+    })
+
+    it('re-queries host rows after a connection reset so a late flush is not lost', async () => {
+      // A host row missed at connection time can land via flush at any moment; the miss cache is
+      // connection-scoped, so the reset must re-open the lookup for the same root.
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        return lookupCalls === 1 ? null : 'assistant-1'
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      const sendChunk = (text: string, id: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+
+      sendChunk('First findings', 'first-text')
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(1)
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      entry.connection = connection
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      sendChunk('Second findings', 'second-text')
+      expect(mocks.findFlowHostMessageId).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() =>
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Second findings' })])
+        )
+      )
+    })
+
+    it('keeps buffered chunks across a connection reset for replay', async () => {
+      // Chunks held after a seed failure are the only copy of the subagent's output — a reset must
+      // not clear them; the next seed retry replays them in order.
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        // Every chunk of the first round hits the failing seed so all three land in the buffer.
+        if (seedCalls <= 3) throw new Error('db busy')
+        return { id: 'assistant-1', role: 'assistant', data: { parts: [] } }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      }
+
+      sendFlow('First findings', 'first-text')
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      entry.connection = connection
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      // The reset must not throw the buffered chunks away.
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      sendFlow('Second findings', 'second-text')
+      await vi.waitFor(() => {
+        const last = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
     })
 
     it('publishes detached flow overlays under independent message keys', () => {
