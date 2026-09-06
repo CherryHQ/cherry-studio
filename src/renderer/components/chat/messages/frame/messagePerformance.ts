@@ -125,7 +125,10 @@ function buildRuntimeViewModel(
   )
   const timeFirstTokenMs = firstTokenRecord?.timeFirstTokenMs ?? undefined
   const modelTokensPerSecond =
-    measuredOutputTokens !== undefined && generationDuration !== undefined && generationDuration > 0
+    measuredOutputTokens !== undefined &&
+    measuredOutputTokens > 0 &&
+    generationDuration !== undefined &&
+    generationDuration > 0
       ? measuredOutputTokens / (generationDuration / 1000)
       : undefined
   const totalDurationMs =
@@ -216,7 +219,7 @@ export function getMessageModelTokensPerSecond(stats: MessageStats): number | un
   if (stats.runtimeTiming) {
     const outputTokens = stats.providerPerformance?.measuredOutputTokens
     const durationMs = stats.providerPerformance?.generationDurationMs
-    return outputTokens !== undefined && durationMs !== undefined && durationMs > 0
+    return outputTokens !== undefined && outputTokens > 0 && durationMs !== undefined && durationMs > 0
       ? outputTokens / (durationMs / 1000)
       : undefined
   }

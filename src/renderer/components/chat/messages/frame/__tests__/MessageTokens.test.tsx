@@ -197,6 +197,7 @@ describe('MessageTokens', () => {
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
+        providerPerformance: { measuredOutputTokens: 0, generationDurationMs: 1_000 },
         runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
       })
     )
@@ -204,6 +205,8 @@ describe('MessageTokens', () => {
     expect(screen.getByRole('button', { name: 'Not available Tokens' })).toHaveClass('message-tokens')
     expect(screen.queryByRole('button', { name: '0 Tokens' })).not.toBeInTheDocument()
     openDetails()
+    expect(getDetailsCard()).not.toHaveTextContent('0 Tokens/s')
+    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPSNot available')
     expect(getDetailsCard()).not.toHaveTextContent('End-to-end throughput')
   })
 
