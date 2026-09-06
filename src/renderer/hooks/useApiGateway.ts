@@ -3,6 +3,7 @@ import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -45,28 +46,31 @@ export const useApiGateway = () => {
     return cacheService.onSharedCacheReady(() => setApiGatewayLoading(false))
   }, [])
 
-  // Resolves `true` only when Main confirms the server is listening (its IPC `start()` succeeds
-  // after the server binds). Returns `false` on the loading no-op, an unsuccessful IPC result, or a
-  // thrown error, so callers that gate on a running gateway (e.g. the code-CLI gateway provider) can
-  // tell a real start from a swallowed failure instead of trusting a stale persisted key.
-  const startApiGateway = useCallback(async (): Promise<boolean> => {
-    if (apiGatewayLoading) return false
+  // Return Main's bound address so callers never infer runtime state from possibly stale
+  // preferences; `null` means startup was skipped or failed.
+  const startApiGateway = useCallback(async (): Promise<ApiGatewayRuntimeAddress | null> => {
+    if (apiGatewayLoading) return null
     setApiGatewayLoading(true)
     try {
       const result = await ipcApi.request('api_gateway.start')
       if (result.success) {
-        toast.success(t('apiGateway.messages.startSuccess'))
-        return true
+        if (!apiGatewayRunning) toast.success(t('apiGateway.messages.startSuccess'))
+        return result.address
       }
       toast.error(t('apiGateway.messages.startError') + result.error)
-      return false
+      return null
     } catch (error: any) {
       toast.error(t('apiGateway.messages.startError') + (error.message || error))
-      return false
+      return null
     } finally {
       setApiGatewayLoading(false)
     }
-  }, [apiGatewayLoading, t])
+  }, [apiGatewayLoading, apiGatewayRunning, t])
+
+  const getApiGatewayRuntimeAddress = useCallback(
+    (): Promise<ApiGatewayRuntimeAddress | null> => ipcApi.request('api_gateway.get_runtime_address'),
+    []
+  )
 
   const stopApiGateway = useCallback(async () => {
     if (apiGatewayLoading) return
@@ -110,6 +114,7 @@ export const useApiGateway = () => {
     apiGatewayConfig,
     apiGatewayRunning,
     apiGatewayLoading,
+    getApiGatewayRuntimeAddress,
     startApiGateway,
     stopApiGateway,
     restartApiGateway,

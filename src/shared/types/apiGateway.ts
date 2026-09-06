@@ -5,8 +5,15 @@ export type ApiGatewayConfig = {
   apiKey: string | null
 }
 
+export type ApiGatewayRuntimeAddress = {
+  host: string
+  port: number
+}
+
 /** Result of an API-gateway start/restart IPC call. */
-export type ApiGatewayStatusResult = { success: true } | { success: false; error: string }
+export type ApiGatewayStatusResult =
+  | { success: true; address: ApiGatewayRuntimeAddress }
+  | { success: false; error: string }
 
 export type ApiGatewayStopOutcome = 'stopped' | 'deferred'
 export type ApiGatewayStopResult = { success: true; outcome: ApiGatewayStopOutcome } | { success: false; error: string }

@@ -22,7 +22,10 @@ export function requiresAgentGateway(providerId: string): boolean {
 export function gatewayCredentialsFingerprint(): string {
   const apiGatewayService = application.get('ApiGatewayService')
   const config = apiGatewayService.getCurrentConfig()
-  const baseUrl = `http://${config.host || '127.0.0.1'}:${config.port || 23333}`
+  const runtimeAddress = apiGatewayService.getRuntimeAddress()
+  const host = runtimeAddress?.host || config.host || '127.0.0.1'
+  const port = runtimeAddress?.port || config.port || 23333
+  const baseUrl = `http://${host}:${port}`
   return createHash('sha256')
     .update(
       JSON.stringify(
@@ -67,14 +70,12 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // Consent already given, so converging is not an implicit start. `ensureRunning()` goes through
   // the same reconciler (serializing behind an in-flight transition) and throws the real bind
   // error; unlike `start()` it cannot re-persist an intent, so it can never re-enable the gateway.
-  if (!apiGatewayService.isRunning()) await apiGatewayService.ensureRunning()
+  const address = await apiGatewayService.ensureRunning()
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
   return {
-    baseUrl: gatewayClientOrigin(host, port),
+    baseUrl: gatewayClientOrigin(address.host, address.port),
     apiKey,
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
     internalRequestToken: apiGatewayService.getInternalRequestToken()
