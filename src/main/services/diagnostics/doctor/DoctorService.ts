@@ -153,7 +153,8 @@ export class DoctorService extends BaseService {
       this.publish({ status: 'completed', report })
       return { status: 'completed', report }
     } catch (error) {
-      this.publish({ status: 'canceled', runId })
+      // `running` was already published; without a terminal state every window spins forever.
+      this.publish({ status: 'idle' })
       throw error
     } finally {
       this.activeRun = null
@@ -178,7 +179,7 @@ export class DoctorService extends BaseService {
    */
   async fix(request: DoctorFixRequest): Promise<DoctorFixResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
-    if (this.activeRun) throw new Error('Doctor is busy')
+    if (this.activeRun) return { status: 'stale', reason: 'run_superseded' }
     const stale = this.validateFix(request)
     if (stale) return stale
     const controller = new AbortController()
