@@ -1,7 +1,7 @@
 /**
  * Icons 模块统一导出
  *
- * Logo icons are compound components:
+ * Provider logo icons from `@cherrystudio/ui/icons/providers` are compound components:
  *   <Anthropic />         — auto light/dark (default, follows the `dark:` Tailwind variant)
  *   <Anthropic variant="light" /> — force light variant
  *   <Anthropic variant="dark" />  — force dark variant
@@ -10,20 +10,19 @@
  *
  * Key-based lookup is two-phase: resolve*Ref() is synchronous (meta catalogs
  * only), the component itself loads asynchronously via useIcon().
- * The full component catalogs are async chunks — never re-export them here.
+ * Ordinary rendering loads one implementation by key; the provider bulk catalog
+ * is exposed only for consumers that intentionally render the complete set.
  */
 
 export * from './general'
-// `ClaudeCode` exists in both ./general and ./providers barrels; the explicit
-// re-export pins the general variant (matching pre-S6a behavior) — star-export
-// ambiguity would otherwise drop the name entirely.
-export { ClaudeCode } from './general'
+// Provider components live behind the explicit `@cherrystudio/ui/icons/providers`
+// entry. Re-exporting that barrel here would evaluate every provider icon when
+// ordinary key-based consumers import useIcon.
 // Deliberately minimal async surface: per-icon loading goes through useIcon;
-// loadIcon/loadModelIcon/loadProviderIcon and the model meta catalog stay
-// package-internal until a real consumer shows up.
+// direct loaders and the model meta catalog stay package-internal until a real
+// consumer shows up.
 export { loadProviderIconCatalog } from './loader'
 export type { ModelIconKey } from './models/meta-catalog'
-export * from './providers'
 export { PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from './providers/meta-catalog'
 export {
   type IconRef,

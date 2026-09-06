@@ -15,21 +15,23 @@ import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
 import { createKbReadToolEntry } from './KnowledgeReadTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
+import { createMcpResourceListToolEntry } from './McpResourceListTool'
+import { createMcpResourceReadToolEntry } from './McpResourceReadTool'
 import { createGenerateImageToolEntry } from './PaintingTool'
 import { createReadFileToolEntry } from './ReadFileTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
-  // fs_read is intentionally always registered (no `applies` gate). Even when truncation
-  // is off it stays reachable, but confined to the request's persisted-output allow-list
-  // (realpath-compared exact paths; empty list ⇒ every read denied). The persisted-output
-  // system-prompt section is keyed on its presence, so it stays available too.
+  // Gated per request (see createFsReadToolEntry), and always confined to the
+  // request's persisted-output allow-list — an empty list denies every read.
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
   reg.register(createKbReadToolEntry())
   reg.register(createKbManageToolEntry())
+  reg.register(createMcpResourceListToolEntry())
+  reg.register(createMcpResourceReadToolEntry())
   reg.register(createReadFileToolEntry())
   reg.register(createGenerateImageToolEntry())
   reg.register(createWebFetchToolEntry())

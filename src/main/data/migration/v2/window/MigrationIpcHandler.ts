@@ -362,6 +362,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
               status: 'completed'
             })),
             warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
+            warningMessages: result.migratorResults.flatMap((migratorResult) => migratorResult.warningMessages ?? []),
             summary: createMigrationSummary(result, currentProgress)
           })
         } else {

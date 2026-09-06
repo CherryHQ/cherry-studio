@@ -151,88 +151,6 @@ const EDIT_ACTION: ResolvedAction<unknown> = {
 }
 
 describe('ResourceEntityRail', () => {
-  it('renders a history button next to add that fires onOpenHistoryRecords', () => {
-    const onOpenHistoryRecords = vi.fn()
-
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onOpenHistoryRecords={onOpenHistoryRecords}
-        onSelect={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
-  })
-
-  it('marks the history button as current while history records are active', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        historyRecordsActive
-        items={ITEMS}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onOpenHistoryRecords={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toHaveAttribute('aria-current', 'page')
-  })
-
-  it('omits the history button when onOpenHistoryRecords is not provided', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
-  })
-
-  it('renders active resource menu items without also selecting entity rows', () => {
-    const onSelectResourceView = vi.fn()
-
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        selectedId="assistant-a"
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'assistant-view',
-            label: 'Assistants',
-            onSelect: onSelectResourceView
-          }
-        ]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    const item = screen.getByRole('button', { name: 'Assistants' })
-
-    expect(item).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByText('Assistant A').closest('[role="option"]')).not.toHaveAttribute('data-selected', 'true')
-    fireEvent.click(item)
-    expect(onSelectResourceView).toHaveBeenCalledTimes(1)
-  })
-
   it('marks the selected entity and wires context-menu actions', () => {
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -397,9 +315,9 @@ describe('ResourceEntityRail', () => {
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants"
-        historyRecordsActive
         items={ITEMS}
         selectedId="assistant-a"
+        selectionSuppressed
         variant="assistant"
         onAdd={vi.fn()}
         onSelect={onSelect}
@@ -416,7 +334,7 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('selects the entity instead of toggling it while a resource menu item is active', () => {
+  it('selects the entity instead of toggling it when repeat-click activation is explicitly disabled', () => {
     const onSelect = vi.fn()
     const onSelectedClick = vi.fn()
 
@@ -426,14 +344,8 @@ describe('ResourceEntityRail', () => {
         ariaLabel="Assistants"
         items={ITEMS}
         selectedId="assistant-a"
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'assistant-view',
-            label: 'Assistants',
-            onSelect: vi.fn()
-          }
-        ]}
+        selectedClickId={null}
+        selectionSuppressed
         variant="assistant"
         onAdd={vi.fn()}
         onSelect={onSelect}
@@ -675,6 +587,34 @@ describe('ResourceEntityRail', () => {
 
     fireEvent.click(workHeader)
     expect(workHeader).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('forwards controlled grouped-assistant collapse state changes', () => {
+    const collapsedGroupId = 'resource-entity-rail:section:["group","group-work"]'
+    const onCollapsedStateChange = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        collapsedState={[collapsedGroupId]}
+        groupByGroup
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onCollapsedStateChange={onCollapsedStateChange}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const workHeader = screen.getByRole('button', { name: 'work' })
+    expect(workHeader).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(workHeader)
+    expect(onCollapsedStateChange).toHaveBeenCalledWith([])
   })
 
   it('maps a grouped-header drop to canonical group ids and an order anchor', () => {

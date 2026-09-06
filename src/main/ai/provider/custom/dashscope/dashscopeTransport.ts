@@ -340,6 +340,8 @@ function buildRequestBody(
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
   switch (descriptor.id) {
     case 'z-image-turbo':
+    case 'qwen-image-3.0':
+    case 'qwen-image-3.0-pro':
     case 'qwen-image-edit':
     case 'qwen-image-edit-plus':
     case 'wan2.6-image':

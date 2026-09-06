@@ -25,6 +25,22 @@ const parse = (content: string): JSONContent[] => make(content).getJSON().conten
 /** Round-trip markdown -> doc -> markdown. */
 const roundTrip = (content: string): string => make(content).getMarkdown().trim()
 
+const copySelectionAsPlainText = (instance: Editor): string => {
+  const clipboard = new Map<string, string>()
+  const clipboardData = {
+    clearData: () => clipboard.clear(),
+    setData: (type: string, value: string) => {
+      clipboard.set(type, value)
+    }
+  } as unknown as DataTransfer
+  const event = new Event('copy', { bubbles: true, cancelable: true }) as ClipboardEvent
+  Object.defineProperty(event, 'clipboardData', { value: clipboardData })
+
+  instance.view.dom.dispatchEvent(event)
+
+  return clipboard.get('text/plain') ?? ''
+}
+
 afterEach(() => {
   editor?.destroy()
   editor = undefined
@@ -160,8 +176,64 @@ describe('native markdown round-trip matrix', () => {
     expect(top?.content?.some((n) => n.type === 'hardBreak')).toBe(true)
   })
 
+  it('keeps single line breaks as soft breaks inside paragraph text nodes', () => {
+    // Single \n stays in the text node (rendered via white-space in production), so the
+    // "line break mode" display toggle can switch it on without touching the file content.
+    const top = parse('line1\nline2')[0]
+    expect(top?.type).toBe('paragraph')
+    const text = top?.content?.find((n) => n.type === 'text') as JSONContent
+    expect(text?.text).toContain('\n')
+    expect(roundTrip('line1\nline2')).toBe('line1\nline2')
+  })
+
   it('serializes an empty document to an empty string', () => {
     expect(roundTrip('')).toBe('')
+  })
+})
+
+describe('plain-text clipboard serialization', () => {
+  it('copies inline and multiline block math as parseable LaTeX', () => {
+    const e = make('')
+    e.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Inline ' },
+            { type: 'inlineMath', attrs: { latex: 'a + b' } },
+            { type: 'text', text: ' math' }
+          ]
+        },
+        { type: 'blockMath', attrs: { latex: 'x = y\ny = z' } },
+        { type: 'paragraph', content: [{ type: 'text', text: 'After' }] }
+      ]
+    })
+    e.commands.selectAll()
+
+    expect(copySelectionAsPlainText(e)).toBe('Inline $a + b$ math\n\n$$\nx = y\ny = z\n$$\n\nAfter')
+  })
+
+  it('does not copy delimiters for math nodes without LaTeX', () => {
+    const e = make('')
+
+    e.commands.setContent({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'inlineMath', attrs: { latex: '' } }] }]
+    })
+    e.commands.selectAll()
+    const inlineText = copySelectionAsPlainText(e)
+    expect(inlineText).not.toContain('$')
+    expect(inlineText.trim()).toBe('')
+
+    e.commands.setContent({
+      type: 'doc',
+      content: [{ type: 'blockMath', attrs: { latex: '' } }]
+    })
+    e.commands.selectAll()
+    const blockText = copySelectionAsPlainText(e)
+    expect(blockText).not.toContain('$')
+    expect(blockText.trim()).toBe('')
   })
 })
 

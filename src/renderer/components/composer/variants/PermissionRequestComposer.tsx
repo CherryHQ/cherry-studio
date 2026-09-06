@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
@@ -11,17 +11,22 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
-export { findLatestPendingPermissionRequest } from './permissionRequestComposerRequest'
+export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+function isHandledElsewhere(event: KeyboardEvent) {
+  return event.defaultPrevented || event.isComposing
+}
 
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
@@ -152,74 +157,31 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
   )
 }
 
-function PermissionOption({
-  index,
-  label,
-  ariaLabel,
-  destructive,
-  disabled,
-  onSelect
-}: {
-  index: number
-  label: string
-  ariaLabel: string
-  destructive?: boolean
-  disabled: boolean
-  onSelect: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={cn(
-        'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
-        'hover:bg-muted focus-visible:bg-muted'
-      )}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onSelect}>
-      <span
-        className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
-        )}>
-        {index}
-      </span>
-
-      <span
-        className={cn(
-          'block min-w-0 flex-1 truncate font-semibold text-foreground text-sm leading-5',
-          destructive && 'text-destructive'
-        )}>
-        {label}
-      </span>
-
-      <ArrowRight
-        className={cn('size-4 shrink-0 text-muted-foreground transition-opacity', 'opacity-0 group-hover:opacity-100')}
-      />
-    </Button>
-  )
-}
-
 export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
+  const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
+  const isSubmitting = submittingApprovalId === request.approvalId
+  const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
+  // A typed reason means the user is denying — Enter must not approve behind their back.
+  const hasRejectionReason = rejectionReason.trim().length > 0
   const subtitle = getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
   const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
-      setIsSubmitting(true)
+      const approvalId = request.approvalId
+      setSubmittingApprovalId(approvalId)
       try {
         await onRespond(input)
       } catch (error) {
         logger.error('Failed to send permission response', error as Error, {
           action,
-          approvalId: request.approvalId
+          approvalId
         })
         toast.error(t('agent.toolPermission.error.sendFailed'))
-        setIsSubmitting(false)
+        setSubmittingApprovalId((current) => (current === approvalId ? null : current))
       }
     },
     [onRespond, request.approvalId, t]
@@ -238,15 +200,24 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
+    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
     await respond(
       {
         match: request.match,
         approved: false,
-        reason: t('agent.toolPermission.defaultDenyMessage')
+        reason
       },
       'deny'
     )
-  }, [isSubmitting, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond, t])
+
+  useHotkeys(
+    'enter',
+    () => void (hasRejectionReason ? deny() : approve()),
+    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [approve, deny, hasRejectionReason]
+  )
+  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
 
   return (
     <div
@@ -257,20 +228,22 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
-        <div className="flex items-center justify-between gap-3 px-1">
-          <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-              <span className="inline-flex shrink-0 text-muted-foreground">
-                <ToolIcon aria-hidden="true" className="size-4" />
-              </span>
-              <span className="truncate">{toolTitle}</span>
-            </h2>
-            {subtitle ? (
-              <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
+        <div className="flex min-w-0 items-center gap-2 px-1">
+          <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
+            <span className="inline-flex shrink-0 text-muted-foreground">
+              <ToolIcon aria-hidden="true" className="size-4" />
+            </span>
+            {toolTitle}
+          </h2>
+          {subtitle ? <span className="min-w-0 truncate text-muted-foreground text-xs">{subtitle}</span> : null}
+          {/* Live region stays mounted while idle so injecting the processing pill is announced */}
+          <div role="status" aria-live="polite" className="ml-auto shrink-0">
+            {isSubmitting ? (
+              <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 font-medium text-[11px] text-muted-foreground">
+                <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+                {t('message.processing')}
+              </div>
             ) : null}
-          </div>
-          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
-            {t('agent.toolPermission.pending')}
           </div>
         </div>
 
@@ -278,22 +251,40 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
-        <div className="mt-2 flex flex-col gap-1.5">
-          <PermissionOption
-            index={1}
-            label={t('agent.toolPermission.button.allow')}
-            ariaLabel={t('agent.toolPermission.button.allow')}
+        <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
+          <span>{t('agent.toolPermission.reasonLabel')}</span>
+          <Textarea.Input
+            value={rejectionReason}
             disabled={isSubmitting}
-            onSelect={() => void approve()}
+            maxLength={500}
+            rows={2}
+            aria-label={t('agent.toolPermission.reasonLabel')}
+            placeholder={t('agent.toolPermission.reasonPlaceholder')}
+            className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+            onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void (hasRejectionReason ? deny() : approve())
+            }}
           />
-          <PermissionOption
-            index={2}
-            label={t('agent.toolPermission.button.deny')}
-            ariaLabel={t('agent.toolPermission.button.deny')}
-            destructive
-            disabled={isSubmitting}
-            onSelect={() => void deny()}
-          />
+        </label>
+
+        <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
+          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
+            {t('agent.toolPermission.button.deny')}
+            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+              {hasRejectionReason ? 'Enter' : 'Esc'}
+            </Kbd>
+          </Button>
+          <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
+            {t('agent.toolPermission.button.allow')}
+            {!hasRejectionReason && (
+              <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                Enter
+              </Kbd>
+            )}
+          </Button>
         </div>
       </div>
     </div>

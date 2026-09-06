@@ -11,7 +11,9 @@ const {
   resolveProcessorConfigByFeatureMock,
   processorRegistryMock,
   capabilityHandlerMock,
-  fsStatMock
+  fsStatMock,
+  getPdfPageCountMock,
+  tMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
@@ -23,7 +25,13 @@ const {
     mode: 'background' as 'background' | 'remote-poll',
     prepare: vi.fn()
   },
-  fsStatMock: vi.fn()
+  fsStatMock: vi.fn(),
+  getPdfPageCountMock: vi.fn(),
+  tMock: vi.fn((key: string, params: Record<string, string | number>) =>
+    key.endsWith('document_size_limit_exceeded')
+      ? `当前文档解析服务要求文件小于 ${params.maxSize}，请压缩或拆分后重新添加。`
+      : `该 PDF 超过当前文档解析服务的 ${params.maxPages} 页上限，请手动拆分 PDF 后重新添加。`
+  )
 }))
 
 vi.mock('@application', () => ({
@@ -54,6 +62,14 @@ vi.mock('@main/utils/file', () => ({
   stat: fsStatMock
 }))
 
+vi.mock('@main/utils/pdf', () => ({
+  getPdfPageCount: getPdfPageCountMock
+}))
+
+vi.mock('@main/i18n', () => ({
+  t: tMock
+}))
+
 const { prepareFileProcessingJob, resolveFileProcessingFileInfo } = await import('../jobExecution')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000203'
@@ -75,6 +91,14 @@ const FAKE_FILE_INFO = {
   type: 'image',
   createdAt: 1,
   modifiedAt: 1
+}
+const FAKE_PDF_FILE_INFO = {
+  ...FAKE_FILE_INFO,
+  path: '/tmp/paper.pdf',
+  name: 'paper',
+  ext: 'pdf',
+  mime: 'application/pdf',
+  type: 'document'
 }
 
 function createCtx(
@@ -107,6 +131,29 @@ function setupCapability(prepared: unknown, mode: 'background' | 'remote-poll' =
   })
 }
 
+function setupDocumentCapability(maxInputPages?: number, maxInputBytes?: number) {
+  const prepared = { mode: 'background' as const, execute: vi.fn() }
+  capabilityHandlerMock.mode = 'background'
+  capabilityHandlerMock.prepare.mockResolvedValue(prepared)
+  processorRegistryMock.doc2x = {
+    capabilities: { document_to_markdown: capabilityHandlerMock },
+    isAvailable: () => true
+  }
+  resolveProcessorConfigByFeatureMock.mockReturnValue({
+    id: 'doc2x',
+    capabilities: [
+      {
+        feature: 'document_to_markdown',
+        inputs: ['document'],
+        ...(maxInputBytes === undefined ? {} : { maxInputBytes }),
+        ...(maxInputPages === undefined ? {} : { maxInputPages })
+      }
+    ]
+  })
+  toFileInfoMock.mockResolvedValue(FAKE_PDF_FILE_INFO)
+  return prepared
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
@@ -128,6 +175,7 @@ beforeEach(() => {
   })
   fileManagerGetByIdMock.mockResolvedValue(FAKE_ENTRY)
   toFileInfoMock.mockResolvedValue(FAKE_FILE_INFO)
+  getPdfPageCountMock.mockResolvedValue(1)
 })
 
 describe('prepareFileProcessingJob', () => {
@@ -159,6 +207,147 @@ describe('prepareFileProcessingJob', () => {
     setupCapability({ mode: 'remote-poll', startRemote: vi.fn() }, 'background')
 
     await expect(prepareFileProcessingJob(createCtx(), 'background')).rejects.toThrow(/mode mismatch/i)
+  })
+
+  it('rejects a PDF over the capability page limit before provider preparation', async () => {
+    setupDocumentCapability(100)
+    getPdfPageCountMock.mockResolvedValue(101)
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).rejects.toThrow(
+      '该 PDF 超过当前文档解析服务的 100 页上限，请手动拆分 PDF 后重新添加。'
+    )
+    expect(getPdfPageCountMock).toHaveBeenCalledWith('/tmp/paper.pdf')
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+  })
+
+  it('rejects a document at the exclusive byte limit before provider preparation', async () => {
+    setupDocumentCapability(undefined, 50 * 1024 * 1024)
+    toFileInfoMock.mockResolvedValue({ ...FAKE_PDF_FILE_INFO, size: 50 * 1024 * 1024 })
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).rejects.toThrow(
+      '当前文档解析服务要求文件小于 50 MB，请压缩或拆分后重新添加。'
+    )
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+  })
+
+  it('allows a document one byte below the capability byte limit', async () => {
+    const prepared = setupDocumentCapability(undefined, 50 * 1024 * 1024)
+    toFileInfoMock.mockResolvedValue({ ...FAKE_PDF_FILE_INFO, size: 50 * 1024 * 1024 - 1 })
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).resolves.toMatchObject({ prepared })
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalled()
+  })
+
+  it('applies the capability byte limit to non-PDF documents', async () => {
+    setupDocumentCapability(100, 200 * 1024 * 1024)
+    toFileInfoMock.mockResolvedValue({
+      ...FAKE_PDF_FILE_INFO,
+      path: '/tmp/report.docx',
+      name: 'report',
+      ext: 'docx',
+      size: 200 * 1024 * 1024,
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).rejects.toThrow(
+      '当前文档解析服务要求文件小于 200 MB，请压缩或拆分后重新添加。'
+    )
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
+  })
+
+  it('does not inspect PDFs for a capability without a page limit', async () => {
+    const prepared = setupDocumentCapability()
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).resolves.toMatchObject({ prepared })
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
+  })
+
+  it('does not inspect non-PDF documents when the capability has a PDF page limit', async () => {
+    const prepared = setupDocumentCapability(100)
+    toFileInfoMock.mockResolvedValue({
+      ...FAKE_PDF_FILE_INFO,
+      path: '/tmp/report.docx',
+      name: 'report',
+      ext: 'docx',
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).resolves.toMatchObject({ prepared })
+    expect(getPdfPageCountMock).not.toHaveBeenCalled()
+  })
+
+  it('allows a PDF with exactly the capability page limit', async () => {
+    const prepared = setupDocumentCapability(100)
+    getPdfPageCountMock.mockResolvedValue(100)
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).resolves.toMatchObject({ prepared })
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalled()
+  })
+
+  it('does not prepare the provider when the PDF page count cannot be read', async () => {
+    setupDocumentCapability(100)
+    getPdfPageCountMock.mockRejectedValue(new Error('cannot read PDF metadata'))
+    const ctx = createCtx({
+      input: {
+        feature: 'document_to_markdown',
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+        processorId: 'doc2x'
+      }
+    })
+
+    await expect(prepareFileProcessingJob(ctx, 'background')).rejects.toThrow('cannot read PDF metadata')
+    expect(capabilityHandlerMock.prepare).not.toHaveBeenCalled()
   })
 })
 

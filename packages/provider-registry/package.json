@@ -13,6 +13,9 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
+    "compat:baseline": "tsx scripts/createCompatibilityBaseline.ts",
+    "compat:check": "tsx scripts/checkCatalogCompatibility.ts",
+    "compat:policy": "tsx scripts/compatibilityPolicy.ts",
     "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts src/patterns/server-tool-models.gen.ts src/patterns/server-tool-constraints.gen.ts",
     "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
@@ -69,6 +72,7 @@
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "json-schema": "^0.4.0",
-    "lucide-react": "^0.563.0"
+    "lucide-react": "^0.563.0",
+    "semver": "^7.7.1"
   }
 }

@@ -33,7 +33,7 @@ describe('chat composer token mapping', () => {
     })
   })
 
-  it('gives a knowledge base a promptText carrying its name and id, and a file none', () => {
+  it('steers attached knowledge base questions through semantic search, and gives a file no promptText', () => {
     // The pick reaches the model only as this sentence — the `data-knowledge-scope` part is dropped
     // before the model sees the message. The id has to be in it: every kb_* tool addresses a base by
     // id, so without it the model must spend a kb_list call to discover one.
@@ -41,10 +41,9 @@ describe('chat composer token mapping', () => {
 
     expect(promptText).toContain('Docs')
     expect(promptText).toContain('kb-1')
-    expect(promptText).toContain('kb_*')
-    // Only the tool family, never one tool: which of kb_search / kb_read / kb_list comes next is the
-    // (separately tuned) tool descriptions' call, and pinning one here would narrow it for no gain.
-    expect(promptText).not.toMatch(/kb_(search|list|read|manage)\b/)
+    expect(promptText).toContain('kb_search')
+    expect(promptText).toContain('baseIds')
+    expect(promptText).toMatch(/kb_list.*not.*evidence/i)
 
     // Files stay zero-width: they travel as real file parts, so a sentence would only duplicate them.
     expect(

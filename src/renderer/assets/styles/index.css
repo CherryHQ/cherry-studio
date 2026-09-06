@@ -4,7 +4,7 @@
  * holding all application-authored and bundled vendor stylesheets, which
  * compete by ordinary specificity/order within it exactly as they did
  * unlayered. Every layer loses to unlayered styles (user custom CSS) for
- * normal declarations — see docs/references/ui-semantic-contract.md. Must be
+ * normal declarations — see docs/references/components/ui-semantic-contract.md. Must be
  * declared before any stylesheet loads; tailwind.css repeats it for windows
  * that skip this file.
  */

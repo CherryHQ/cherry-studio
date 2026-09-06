@@ -4,7 +4,6 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
@@ -16,13 +15,14 @@ import {
 } from '@shared/data/types/knowledge'
 
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
-import { classifyKnowledgeItemSource } from '../items'
+import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
+import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
-/** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
+/** Knowledge base lifecycle: create (with rollback), delete, and restore — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
@@ -31,16 +31,18 @@ export class KnowledgeBaseAdminService {
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
-    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    return await this.knowledgeLockManager.runExclusive(base.id, async () => {
+      const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
-    try {
-      vectorStoreService.getIndexStore(base)
-    } catch (error) {
-      await this.rollbackFailedBaseCreation(base.id)
-      throw error
-    }
+      try {
+        vectorStoreService.getIndexStore(base)
+      } catch (error) {
+        await this.rollbackFailedBaseCreation(base.id)
+        throw error
+      }
 
-    return base
+      return base
+    })
   }
 
   /**
@@ -91,6 +93,21 @@ export class KnowledgeBaseAdminService {
     })
   }
 
+  /** Remove vector artifacts only when the base is still absent while holding its lifecycle lock. */
+  async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
+    return await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      if (knowledgeBaseService.listAllIds().has(baseId)) return false
+
+      const vectorStoreService = application.get('KnowledgeVectorStoreService')
+      await vectorStoreService.deleteStore(baseId)
+      return true
+    })
+  }
+
+  inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
+    return inspectOrphanBaseArtifacts()
+  }
+
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
@@ -117,7 +134,7 @@ export class KnowledgeBaseAdminService {
     // kept, not skipped — like reindex, we never drop a source we could not confirm is gone.
     const restorableRootItems: KnowledgeItem[] = []
     for (const item of rootItems) {
-      if ((await classifyKnowledgeItemSource(sourceBase.id, item)) === 'missing') {
+      if ((await classifyKnowledgeItemRestoreSource(sourceBase.id, item)) === 'missing') {
         logger.warn('Skipping knowledge item with a missing source during restore', {
           sourceBaseId: sourceBase.id,
           itemId: item.id,
@@ -167,11 +184,6 @@ export class KnowledgeBaseAdminService {
     }
 
     return { base: restoredBase, skippedMissingSourceCount }
-  }
-
-  listBases(): KnowledgeBase[] {
-    const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
-    return items
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */

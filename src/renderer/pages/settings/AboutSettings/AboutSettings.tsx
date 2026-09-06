@@ -10,6 +10,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
@@ -22,13 +23,13 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
@@ -46,7 +47,6 @@ import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FeedbackDialog } from '../FeedbackDialog'
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
 const AboutSettings: FC = () => {
@@ -60,7 +60,7 @@ const AboutSettings: FC = () => {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMiniApp } = useMiniAppPopup()
+  const showReleases = useOpenReleaseNotes()
 
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
@@ -109,16 +109,6 @@ const AboutSettings: FC = () => {
 
   const showEnterprise = async () => {
     onOpenWebsite('https://enterprise.cherry-ai.com')
-  }
-
-  const showReleases = async () => {
-    const { appPath } = await ipcApi.request('app.get_info')
-    openSmartMiniApp({
-      appId: 'cherrystudio-releases',
-      name: t('settings.about.releases.title'),
-      url: `file://${appPath}/resources/cherry-studio/releases.html?theme=${theme === ThemeMode.dark ? 'dark' : 'light'}`,
-      logo: AppLogo
-    })
   }
 
   const currentChannelByVersion =
@@ -213,7 +203,7 @@ const AboutSettings: FC = () => {
             aria-label={t('settings.about.repository')}
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
             className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
-            <Github className="size-5" />
+            <Github aria-hidden="true" className="size-5" />
           </button>
         </SettingTitle>
 
@@ -223,22 +213,24 @@ const AboutSettings: FC = () => {
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
-              aria-label="Cherry Studio"
+              aria-label={t('settings.about.repository')}
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
               className="relative cursor-pointer">
-              {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
-                <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
-                  <CircularProgress
-                    value={appUpdateState.downloadProgress}
-                    size={76}
-                    strokeWidth={4}
-                    shape="square"
-                    className="stroke-transparent"
-                    progressClassName="stroke-[#67ad5b]"
-                  />
-                </div>
-              )}
-              <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
+              <span aria-hidden="true">
+                {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
+                  <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
+                    <CircularProgress
+                      value={appUpdateState.downloadProgress}
+                      size={76}
+                      strokeWidth={4}
+                      shape="square"
+                      className="stroke-transparent"
+                      progressClassName="stroke-[#67ad5b]"
+                    />
+                  </div>
+                )}
+                <LogoAvatar logo={AppLogo} size={72} className="rounded-full" alt="" />
+              </span>
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
@@ -282,7 +274,7 @@ const AboutSettings: FC = () => {
         {!isPortable && (
           <>
             <Divider className="my-3" />
-            <SettingRow className="gap-3">
+            <SettingRow id="setting-about-auto-check-update" className="scroll-mt-6 gap-3">
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
@@ -383,6 +375,7 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          id="setting-about-diagnostics"
           icon={<FileArchive className="size-4.5" />}
           title={t('settings.about.diagnostics.entry.title')}
           actionLabel={t('settings.about.diagnostics.entry.button')}
@@ -390,6 +383,7 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          id="setting-about-debug-tools"
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
           actionLabel={t('settings.about.debug.open')}
@@ -409,16 +403,18 @@ const AboutSettings: FC = () => {
 function AboutActionRow({
   actionLabel,
   icon,
+  id,
   onAction,
   title
 }: {
   actionLabel: string
   icon: ReactNode
+  id?: string
   onAction: () => void | Promise<void>
   title: string
 }) {
   return (
-    <SettingRow className="gap-3">
+    <SettingRow id={id} className={id ? 'scroll-mt-6 gap-3' : 'gap-3'}>
       <SettingRowTitle className="gap-2.5">
         {icon}
         {title}

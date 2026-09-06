@@ -133,17 +133,28 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => {
-    const source = hookMocks.useSessions()
-    return {
-      ...source,
-      isLoadingAll: source.isLoadingAll ?? source.isLoading,
-      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+vi.mock('@renderer/hooks/resourceViewSources', async () => {
+  // Resolves to the mocked useTopic module, so rendererTopics uses the same mapper as the test.
+  const { mapApiTopicToRendererTopic } = await import('@renderer/hooks/useTopic')
+  return {
+    useAgentSessionsSource: () => {
+      const source = hookMocks.useSessions()
+      return {
+        ...source,
+        isLoadingAll: source.isLoadingAll ?? source.isLoading,
+        isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+      }
+    },
+    useAssistantTopicsSource: () => {
+      const source = hookMocks.useTopics()
+      return {
+        ...source,
+        rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
+        orderSignature: ''
+      }
     }
-  },
-  useAssistantTopicsSource: () => hookMocks.useTopics()
-}))
+  }
+})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
@@ -180,7 +191,6 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
   },
@@ -323,6 +333,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
+    lastActivityAt: '2026-05-14T08:00:00.000Z',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides,
@@ -396,8 +407,10 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
+let agentHistoryLoaded = false
+
 describe('HistoryRecordsView agent mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
@@ -438,7 +451,27 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
     hookMocks.virtualListRenderRows.length = 0
-  })
+
+    if (!agentHistoryLoaded) {
+      await import('../AgentHistoryRecords')
+      hookMocks.useAgents.mockReturnValue({ agents: [], error: undefined, isLoading: false })
+      hookMocks.useSessions.mockReturnValue({
+        sessions: [],
+        pinIdBySessionId: new Map(),
+        error: undefined,
+        isLoading: false,
+        deleteSession: hookMocks.deleteSession,
+        deleteSessions: hookMocks.deleteSessions,
+        togglePin: hookMocks.togglePin
+      })
+      const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      agentHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('renders sessions from the existing agent session list data', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({
@@ -926,6 +959,12 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
+    let resolveRename!: (session: AgentSessionEntity) => void
+    hookMocks.updateSession.mockReturnValueOnce(
+      new Promise<AgentSessionEntity>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -956,6 +995,14 @@ describe('HistoryRecordsView agent mode', () => {
         { showSuccessToast: false }
       )
     )
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveRename(createSession({ name: 'Renamed session' }))
+    })
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('pins a session from the history row context menu without selecting the row', async () => {

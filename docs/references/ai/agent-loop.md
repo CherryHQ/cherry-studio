@@ -1,3 +1,10 @@
+---
+description: The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics
+sources:
+  - src/main/ai/runtime/aiSdk/Agent.ts
+  - src/main/ai/runtime/aiSdk/params/composeHooks.ts
+---
+
 # Agent Loop
 
 ## What it is
@@ -12,7 +19,8 @@ with a stable id for the first emitted message.
 
 The stream is **single-pass**: `Agent.stream` runs the AI SDK stream exactly
 once and pipes it through. There is no mid-stream message injection — steering
-a chat turn is handled upstream by abort-and-restart (see
+a chat turn is handled upstream by queueing a steer, yielding at a step
+boundary, and chaining a continuation (see
 [Stream Manager](./stream-manager.md#steering)).
 
 `Agent` does not know about topics, IPC, persistence, or multi-model
@@ -38,8 +46,7 @@ const dispose = agent.on('onStepFinish', step => { … })
 ```
 
 `stream()` and `generate()` share the underlying agent — only the AI SDK
-call differs. Future `runToCompletion()` / `toTool()` are placeholders;
-they don't ship in this PR.
+call differs. `runToCompletion()` / `toTool()` are not part of the current API.
 
 ## Hooks model
 
@@ -73,7 +80,7 @@ Composition rules per hook key:
 |---|---|
 | `onStart`, `onFinish`, `onAbort`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
-| `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
+| `onError` | `chainOnError` — every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
 
 All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
 there is no `Promise.allSettled` / parallel path.
@@ -91,12 +98,13 @@ removed and hook signatures stay stable.
 There is no in-loop steering. `Agent.stream` makes a single AI SDK pass and
 never folds a mid-flight follow-up into the running turn — doing so mutated
 in-flight history and had no clean turn boundary. A new chat submission to a
-live topic is handled one level up by the stream manager: the dispatcher
-aborts the running turn, waits for it to persist as `paused`, and starts a
-fresh one — see [Stream Manager → Steering](./stream-manager.md#steering).
+live topic is handled one level up by the stream manager: it persists and
+queues the steer, the current step loop yields cleanly, and a continuation
+answers the queued row — see [Stream Manager → Steering](./stream-manager.md#steering).
 
-Agent-session runtimes are different: they queue their own follow-ups on the
-session's `pendingTurns` and interrupt between turns rather than restarting —
+Agent-session runtimes are different: a driver with `redirect` can inject the
+follow-up at a runtime-native safe point; otherwise the host queues it on
+`pendingTurns` for the next turn —
 see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
@@ -108,7 +116,8 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
   resources and analytics can finalize.
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
-  logs and aborts.
+  logs and aborts. Call-level retry/fallback lives one layer below at the
+  model wrapper — see [Model Retry & Fallback](./model-retry.md).
 - Trusted local tools can return a structured terminal failure (`terminal:
   true`, `retryable: false`). A generic process-local provenance marker
   prevents matching JSON from MCP or provider-executed tools from controlling

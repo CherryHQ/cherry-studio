@@ -1,13 +1,13 @@
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isAgentOnlyProvider } from '@shared/utils/provider'
 import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
@@ -70,6 +70,7 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 
 export function useModelSelectorData({
   enabled = true,
+  includeAgentOnlyModels = false,
   selectedModelIds = [],
   maxSelectedCount,
   searchText,
@@ -97,41 +98,38 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
-  const availableProviders = providers
-  const availableModels = models
 
-  const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
-
-  // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
-  // from general selectors; only agent pickers (whose filter is marked) surface them.
-  const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
-
-  // A provider whose credentials come from an external CLI login carries no API
-  // key and cannot serve a normal chat request — it is agent-only.
-  const agentOnlyProviderIds = useMemo(
-    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
-    [availableProviders]
+  const baseModelFilter = useCallback(
+    (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
+    [filter]
   )
 
+  const agentOnlyProviderIds = useMemo(() => {
+    const edition = getAppEdition()
+    return new Set(
+      providers.filter((provider) => isAgentOnlyProvider(provider, edition)).map((provider) => provider.id)
+    )
+  }, [providers])
+
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
-    [availableProviders, prioritizedProviderIds]
+    () => sortProvidersByPriority(providers, prioritizedProviderIds),
+    [prioritizedProviderIds, providers]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
   // 这里必须剔除孤儿 model，保证每条 model 都能找到对应分组。
   const modelsByProvider = useMemo(() => {
-    const enabledProviderIds = new Set(sortedProviders.map((provider) => provider.id))
+    const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of availableModels) {
-      if (!enabledProviderIds.has(model.providerId) || !baseModelFilter(model)) {
+    for (const model of models) {
+      const provider = providerById.get(model.providerId)
+      if (!provider || !baseModelFilter(model, provider)) {
         continue
       }
 
-      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
+      if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
 
@@ -144,7 +142,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {
@@ -211,12 +209,19 @@ export function useModelSelectorData({
   )
 
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): ModelSelectorModelItem => {
+    (
+      model: Model,
+      provider: Provider,
+      groupKind: ModelSelectorModelItem['groupKind'],
+      isPinned: boolean,
+      showIdentifier: boolean
+    ): ModelSelectorModelItem => {
       const modelId = model.id
 
       return {
-        key: isPinned ? `${modelId}_pinned` : modelId,
+        key: groupKind === 'pinned' ? `${modelId}_pinned` : modelId,
         type: 'model',
+        groupKind,
         model,
         provider,
         modelId,
@@ -232,21 +237,20 @@ export function useModelSelectorData({
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
-    const finalModelFilter = (model: Model) =>
-      (!showTagFilter || tagFilter(model, providerById.get(model.providerId))) && baseModelFilter(model)
+    const finalModelFilter = (model: Model) => {
+      const provider = providerById.get(model.providerId)
+      return (!showTagFilter || tagFilter(model, provider)) && baseModelFilter(model, provider)
+    }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
-    // result so duplicate-name detection and the list below share one pass per provider.
+    // result so provider-local duplicate-name detection and the list below share one pass.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
       sortedProviders.map((provider) => [
         provider.id,
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
-    const duplicateNamesByProvider = new Map<string, Set<string>>(
-      sortedProviders.map((provider) => [
-        provider.id,
-        getDuplicateModelNames(tagFilteredModelsByProvider.get(provider.id) ?? [])
-      ])
+    const duplicateModelNamesByProvider = new Map(
+      [...tagFilteredModelsByProvider].map(([providerId, models]) => [providerId, getDuplicateModelNames(models)])
     )
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
@@ -258,7 +262,13 @@ export function useModelSelectorData({
         }
 
         return [
-          createModelItem(model, provider, true, duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false)
+          createModelItem(
+            model,
+            provider,
+            'pinned',
+            true,
+            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
+          )
         ]
       })
 
@@ -296,8 +306,9 @@ export function useModelSelectorData({
           createModelItem(
             model,
             provider,
+            'provider',
             showPinnedModels && pinnedIdSet.has(model.id),
-            duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false
+            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
           )
         )
       )

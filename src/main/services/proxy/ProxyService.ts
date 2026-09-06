@@ -9,6 +9,7 @@ import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
+import type { ProxyRoutingSnapshot } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -74,6 +75,12 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
+  async getRoutingSnapshot(): Promise<ProxyRoutingSnapshot> {
+    await this.proxyReconciler.flush()
+    return this.getNodeProxyController().getRoutingSnapshot()
   }
 
   /**
@@ -146,7 +153,7 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
-    this.getNodeProxyController().configure({
+    await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
       proxyBypassRules: config.proxyBypassRules
     })
@@ -159,6 +166,8 @@ export class ProxyService extends BaseService {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
+    // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
+    // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
     const sessions = [
       session.defaultSession,
       ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))

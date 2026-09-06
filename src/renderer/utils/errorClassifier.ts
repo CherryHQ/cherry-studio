@@ -1,8 +1,10 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
 
 export interface ErrorClassification {
   category:
     | 'auth'
+    | 'permission'
     | 'region'
     | 'model'
     | 'quota'
@@ -54,6 +56,43 @@ export function isMcpErrorMessage(message: string): boolean {
   )
 }
 
+export function isProxyErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+  // Underscore→space would split ERR_MANDATORY_PROXY_* into "err mandatory proxy".
+  if (/\berr(?:_[a-z0-9]+)*_proxy(?:_[a-z0-9]+)*\b/.test(msg)) {
+    return true
+  }
+
+  const normalized = msg.replace(/_/g, ' ')
+
+  return (
+    normalized.includes('err proxy') ||
+    normalized.includes('proxy connection') ||
+    normalized.includes('proxy response') ||
+    normalized.includes('proxy error') ||
+    normalized.includes('proxy refused') ||
+    normalized.includes('proxy rejected') ||
+    normalized.includes('connection to proxies')
+  )
+}
+
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -72,7 +111,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
+  const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
 
   const messageText = ((error.message as string) || '').toLowerCase()
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody.toLowerCase() : ''
@@ -99,17 +138,20 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('not available in your territory') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
-    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
+    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
   }
 
-  // Auth errors (401/403)
+  // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
+  // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     numStatus === 401 ||
-    numStatus === 403 ||
     msg.includes('invalid_api_key') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api key is invalid') ||
+    msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden')
+    msg.includes('not logged in') ||
+    msg.includes('unauthorized')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
   }
@@ -128,6 +170,16 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Explicit billing signals win over the HTTP 429 rate-limit default.
   if (numStatus === 402 || isQuotaErrorMessage(msg)) {
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
+  }
+
+  // 403 = the request was refused, cause unspecified. Kept below region/model/quota because
+  // those more specific causes also ship as 403.
+  if (numStatus === 403 || msg.includes('forbidden')) {
+    return {
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
   }
 
   // Rate limit (429 / "too many requests")
@@ -205,22 +257,24 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('econnrefused') ||
     msg.includes('etimedout') ||
     msg.includes('timeout') ||
+    msg.includes('timed out') ||
     msg.includes('network') ||
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
   }
 
   // Proxy / SSL certificate errors
   if (
-    msg.includes('proxy') ||
+    msg.includes('err_ssl_client_auth_cert_needed') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }
 
   // Server errors (5xx / overloaded)
@@ -259,6 +313,26 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('malformed json')
   ) {
     return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
+  }
+
+  // A wrapper carries no status of its own. Prefer any diagnosis over a generic recovery-only fallback.
+  let nestedRecovery: ErrorClassification | null = null
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown') {
+      return nestedClassification
+    }
+    if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
+  }
+  if (nestedRecovery) return nestedRecovery
+
+  // A generic 400 has no safe diagnosis, but its active provider settings remain a valid recovery path.
+  if (numStatus === 400) {
+    return {
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
   }
 
   return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }

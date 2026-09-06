@@ -1,13 +1,13 @@
 import { fileURLToPath } from 'node:url'
 
-import {
-  type Options,
-  type Query,
-  query as createClaudeQuery,
-  type SDKAssistantMessage,
-  type SDKPartialAssistantMessage,
-  type SDKResultMessage,
-  type SDKUserMessage
+import type {
+  Options,
+  Query,
+  query,
+  SDKAssistantMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -19,6 +19,11 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import {
+  appendAgentAttachmentPaths,
+  buildAgentUserContent,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -26,6 +31,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -35,10 +41,13 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { archiveExts } from '@shared/utils/file'
+import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
+import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -55,6 +64,8 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -81,17 +92,18 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
   return /^\/fast(?:\s|$)/i.test(text)
 }
 
-/**
- * The CLI reported that the resume target does not exist — deleted by its transcript cleanup, a
- * different CLAUDE_CONFIG_DIR, or a copied database. The SDK carries no typed reason for this, so
- * the discriminator is the CLI's error string, matched against the result's raw `errors` entries.
- */
-function isConversationNotFoundFailure(error: unknown): boolean {
-  return (
-    error instanceof ClaudeCodeResultError &&
-    error.subtype === 'error_during_execution' &&
-    error.errors.some((entry) => /no conversation found with session id/i.test(entry))
-  )
+type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
+
+/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
+function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
+  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
+  if (error.errors.some((entry) => /no conversation found with session id/i.test(entry))) {
+    return 'conversation-not-found'
+  }
+  if (error.errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
+    return 'duplicate-tool-use-id'
+  }
+  return undefined
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -270,42 +282,8 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-class AsyncEventQueue<T> implements AsyncIterable<T> {
-  private readonly items: T[] = []
-  private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiters.shift()
-    if (waiter) {
-      waiter({ value: item, done: false })
-      return
-    }
-    this.items.push(item)
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return {
-      next: () => {
-        const item = this.items.shift()
-        if (item) return Promise.resolve({ value: item, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
-        return new Promise<IteratorResult<T>>((resolve) => {
-          this.waiters.push(resolve)
-        })
-      }
-    }
-  }
-}
+// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
+export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly messages: SDKUserMessage[] = []
@@ -351,10 +329,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
-  /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
+  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
+  private createQuery?: typeof query
+  private closePromise?: Promise<void>
+  /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
   private lastSdkUserMessage?: SDKUserMessage
-  private staleResumeRetried = false
+  private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -373,8 +354,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
-  /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
-   *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
+  /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
+   *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
@@ -389,6 +370,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
+    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -396,7 +379,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds
-    )
+    ).catch((error) => {
+      if (error instanceof ApiGatewayNotRunningError) {
+        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+      }
+      throw error
+    })
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -414,7 +402,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             }
           }
         : {}),
-      abortController: this.abortController
+      abortController: this.abortController,
+      spawnClaudeCodeProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -423,9 +412,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       key: request.key,
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
+      connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
-      knowledgeBaseIds: request.knowledgeBaseIds
+      knowledgeBaseIds: request.knowledgeBaseIds,
+      notificationContext: request.notificationContext
     })
 
     // A matching warm process may have selected a different rotated key when
@@ -433,6 +424,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.spawnOptions = options
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
+    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -506,8 +500,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
     if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
-    // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
-    // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
+    // Stash for the steer hooks to inject as `additionalContext` at the next tool boundary
+    // (PostToolBatch after the running batch, or the next PreToolUse). If the turn ends with no
+    // tool boundary at all, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
     return true
   }
@@ -616,6 +611,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
+   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
+   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   */
+  private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
+    const totalTokens =
+      (usage?.input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0)
+    if (totalTokens <= 0) return
+    const model = this.adapterModelId ?? this.input.modelId
+    const maxTokens = effectiveContextWindowTokens(model)
+    this.eventQueue.push({
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens,
+        maxTokens,
+        percentage: Math.min(100, (totalTokens / maxTokens) * 100),
+        model
+      }
+    })
+  }
+
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
@@ -637,14 +655,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  close(): void {
+  close(): Promise<void> {
+    this.closePromise ??= this.closeQuery()
+    return this.closePromise
+  }
+
+  private async closeQuery(): Promise<void> {
+    const query = this.query
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
     this.teardownSession()
-    this.query?.close()
     this.eventQueue.close()
+    if (!query) return
+    try {
+      query.close()
+    } catch (error) {
+      logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+    }
+    try {
+      await query.return(undefined)
+    } catch (error) {
+      logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+    }
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -663,6 +697,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
+        }
+
+        // A top-level message_start's input usage IS the current context occupancy — forward it so
+        // the ring advances per provider call, not only on the host's post-turn pull.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_start' &&
+          message.parent_tool_use_id == null
+        ) {
+          this.emitLiveContextUsage(message.event.message?.usage)
         }
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
@@ -700,7 +744,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     } catch (error) {
       this.settlePendingInvocations()
-      if (this.tryRecoverFromStaleResume(error)) {
+      if (this.tryRecoverWithoutResume(error)) {
         // `await` is load-bearing: without it the finally below closes the event queue while the
         // recovered loop is still streaming.
         return await this.runQueryLoop()
@@ -710,6 +754,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
@@ -729,26 +774,39 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /**
-   * A stale persisted resume token kills the CLI before it does any work ("No conversation found").
-   * Degrade instead of failing the turn: re-spawn once WITHOUT the resume token on a fresh input
-   * queue (the dead query's iterator still holds the old one), and replay the pending user message
-   * so the turn continues on a new conversation. The recovered init reports a new session id, which
-   * the host persists on the next assistant row — the stale token heals itself after one good turn.
-   * Context from the lost conversation is gone; that is the accepted cost of the degradation.
-   */
-  private tryRecoverFromStaleResume(error: unknown): boolean {
-    if (this.staleResumeRetried || !this.resumeToken || !this.spawnOptions) return false
-    if (!isConversationNotFoundFailure(error) || this.abortController.signal.aborted) return false
-    this.staleResumeRetried = true
+  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
+  private tryRecoverWithoutResume(error: unknown): boolean {
+    const createClaudeQuery = this.createQuery
+    if (
+      this.resumeRecoveryRetried ||
+      !this.resumeToken ||
+      !this.spawnOptions ||
+      !createClaudeQuery ||
+      this.abortController.signal.aborted
+    ) {
+      return false
+    }
+    const reason = getResumeRecoveryReason(error)
+    if (!reason) return false
+    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
+    // failed request actually resumed prior history rather than merely reporting a new session id.
+    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
+    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
+      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
+        sessionId: this.input.sessionId,
+        reason
+      })
+      return false
+    }
+    this.resumeRecoveryRetried = true
 
-    logger.warn('Persisted resume token no longer resolves to a CLI conversation; retrying without it', {
+    logger.warn('Recovering Claude Code conversation without its resume history', {
       sessionId: this.input.sessionId,
-      staleResumeToken: this.resumeToken
+      reason
     })
     this.resumeToken = undefined
-    // Tell the user, in the transcript itself, that the prior conversation could not be found and
-    // the reply below starts fresh. Persisted with the recovered turn like any other data part.
+    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
+    // recovered turn like any other data part.
     this.eventQueue.push({
       type: 'chunk',
       chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
@@ -800,6 +858,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
     this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emitInput = (request) =>
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          dynamic: true
+        }
+      })
   }
 
   /**
@@ -1029,7 +1099,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({
       type: 'usage',
       invocation: {
-        requestId: pending.requestId,
+        requestId: `claude-agent:${pending.requestId}`,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
         ...(usage ? { usage } : {}),
@@ -1101,13 +1171,12 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. When the model supports vision,
- * supported image attachments (png, jpeg, gif, webp) are materialized into native
- * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. First-party archives are always
- * forwarded as tool-readable paths; enabling Assistant attachment handles adds that
- * interface without taking the ordinary Agent path away. External files and images that
- * cannot be materialized fall back to local paths when available.
+ * Build SDK user content from a message entity. Non-image attachments are sent as
+ * current local paths so the Agent decides how to inspect them with its tools. Images
+ * keep the capability-aware path: supported formats become native Anthropic image
+ * blocks, while first-party images use shared OCR/native-fallback routing when vision
+ * is unavailable. Assistant attachment handles remain an additional compatibility
+ * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -1120,42 +1189,41 @@ async function materializeUserContent(
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
-  const firstPartyArchiveParts = firstPartyFileParts.filter(isArchiveFilePart)
-  const firstPartyParts = parts.filter(
+  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
+  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
+  const routedParts = parts.filter(
     (part) =>
       part.type === 'text' ||
-      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && !isArchiveFilePart(part))
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
   )
   const originalFirstPartyFiles = new Map(
-    firstPartyParts
-      .filter((part): part is FileUIPart => part.type === 'file')
+    firstPartyFileParts
       .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
       .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
   )
 
-  let routedParts = firstPartyParts
+  let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
-  const hasRoutableFirstPartyFiles = firstPartyParts.some((part) => part.type === 'file')
-  if (supportsAttachmentReads && (hasRoutableFirstPartyFiles || firstPartyArchiveParts.length > 0)) {
+  if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
+      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
     ])
   }
-  if (hasRoutableFirstPartyFiles) {
-    const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+  if (firstPartyImageParts.length > 0) {
+    const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: supportsAttachmentReads
     })
-    routedParts = prepared.parts
+    preparedParts = prepared.parts
   }
 
-  const text = routedParts
+  const text = preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
@@ -1164,15 +1232,14 @@ async function materializeUserContent(
   const unavailableParts: FileUIPart[] = []
 
   for (const part of [
-    ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
-    ...firstPartyArchiveParts,
+    ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyPathParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    const isArchive = isArchiveFilePart(originalPart)
-    if (isArchive || !supportsImages || !canBeClaudeImage(part)) {
-      const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
+    if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
+      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
     }
@@ -1209,15 +1276,18 @@ async function materializeUserContent(
     }
   }
 
-  const paths = extractAttachmentPaths(fallbackParts)
-  let textContent = appendAttachmentPaths(text, paths)
+  const resolvedPaths = await extractAttachmentPaths(fallbackParts)
+  unavailableParts.push(...resolvedPaths.unavailable)
+  let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
-    const note = `Unavailable attachments: ${names.join(', ')}`
+    const renderedNames = message.delivery ? names.map((name) => JSON.stringify(name)) : names
+    const note = `Unavailable attachments: ${renderedNames.join(', ')}`
     textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
   }
+  textContent = wrapAgentSessionDeliveryContent(message, textContent)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
@@ -1235,27 +1305,52 @@ function appendAttachmentManifest(
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
-function appendAttachmentPaths(text: string, paths: string[]): string {
-  if (paths.length === 0) return text
-
-  const list = paths.map((path) => `- ${path}`).join('\n')
-  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
+interface ResolvedAttachmentPath {
+  filename?: string
+  path: string
 }
 
-/** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */
-function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): string[] {
-  const paths: string[] = []
+/** Resolve current managed paths so userData relocation never leaves a stale path in the prompt. */
+async function extractAttachmentPaths(
+  parts: FileUIPart[]
+): Promise<{ files: ResolvedAttachmentPath[]; unavailable: FileUIPart[] }> {
+  const files: ResolvedAttachmentPath[] = []
+  const unavailable: FileUIPart[] = []
   for (const part of parts) {
-    if (part.type !== 'file' || !part.url?.startsWith('file://')) continue
-    paths.push(fileURLToPath(part.url))
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    try {
+      let resolved: AbsoluteFilePath
+      if (fileEntryId) {
+        resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
+      } else if (part.url?.startsWith('file://')) {
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
+      } else {
+        unavailable.push(part)
+        continue
+      }
+
+      // `getPhysicalPath` is a DB lookup: it resolves an entry whose bytes may already be
+      // gone. Announcing a dead path would send the agent hunting; `unverifiable` (EACCES,
+      // a stalled network volume) still gets announced rather than dropped on a transient.
+      if ((await probeReadable(resolved)) === 'missing') {
+        logger.warn('Attachment path no longer exists', { fileEntryId })
+        unavailable.push(part)
+        continue
+      }
+      files.push({ filename: part.filename, path: resolved })
+    } catch (error) {
+      logger.warn('Failed to resolve an attachment path', error as Error, { fileEntryId })
+      unavailable.push(part)
+    }
   }
-  return paths
+  return { files, unavailable }
 }
 
-function isArchiveFilePart(part: FileUIPart): boolean {
+function isImageFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase().startsWith('image/')) return true
   const filename = part.filename?.toLowerCase()
-  return filename ? archiveExts.some((extension) => filename.endsWith(extension)) : false
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

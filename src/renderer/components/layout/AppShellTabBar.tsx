@@ -3,6 +3,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ArrowLeft, Plus, X } from 'lucide-react'
@@ -68,6 +69,12 @@ interface TabToneProps {
  * shared alias.
  */
 const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
+const DEFAULT_TAB_ICON_SIZE = 14
+const MINI_APP_TAB_ICON_SIZE = 18
+
+function getTabIconSize(tab: Pick<Tab, 'url'>): number {
+  return tab.url.startsWith(MINI_APP_ROUTE_PREFIX) ? MINI_APP_TAB_ICON_SIZE : DEFAULT_TAB_ICON_SIZE
+}
 
 // Pinned/normal zone split — same hairline as the per-tab divider, and it
 // disappears on the same rule, so the two never behave differently side by side.
@@ -85,6 +92,7 @@ const Separator = ({ hidden }: { hidden?: boolean }) => (
 
 type PinnedTabButtonProps = {
   tab: Tab
+  iconSize: number
   isActive: boolean
   onSelect: () => void
   drag: DragItemProps
@@ -93,7 +101,17 @@ type PinnedTabButtonProps = {
   ref?: React.Ref<HTMLButtonElement>
 } & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown'>
 
-const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...rest }: PinnedTabButtonProps) => {
+const PinnedTabButton = ({
+  tab,
+  iconSize,
+  isActive,
+  onSelect,
+  drag,
+  tabRef,
+  tone,
+  ref,
+  ...rest
+}: PinnedTabButtonProps) => {
   return (
     <Tooltip placement="bottom" content={tab.title} delay={600}>
       {/* Spread `rest` (which carries injected ContextMenuTrigger props) first so the */}
@@ -123,13 +141,14 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
         )}>
-        <TabIcon tab={tab} size={14} />
+        <TabIcon tab={tab} size={iconSize} />
       </button>
     </Tooltip>
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
+  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -179,6 +198,7 @@ const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTa
 
 type NormalTabButtonProps = {
   tab: Tab
+  iconSize: number
   isActive: boolean
   onSelect: () => void
   /** Mouse-initiated closes pass the tab's current width so the bar can freeze layout (Chrome-style). */
@@ -202,6 +222,7 @@ type NormalTabButtonProps = {
 
 const NormalTabButton = ({
   tab,
+  iconSize,
   isActive,
   onSelect,
   onClose,
@@ -338,7 +359,7 @@ const NormalTabButton = ({
           showDivider ? 'opacity-100' : 'opacity-0'
         )}
       />
-      <TabIcon tab={tab} size={14} className="shrink-0" />
+      <TabIcon tab={tab} size={iconSize} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
         style={{
@@ -410,16 +431,18 @@ interface TabCapabilities {
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
- * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
- * can be closed via the context menu (no inline X), and the batch close actions
- * only ever clear the normal zone — pinned tabs are exempt as close *targets*,
- * matching browser convention. Reordering is per-zone. `normalIndex` is the
- * tab's position within the normal zone — required to offer "close tabs to the
- * right"; for a pinned tab every normal tab counts as being to its right.
+ * tab counts. Normal tabs can always be closed/detached; restorable tabs can also
+ * be pinned. Transient mini-app tabs cannot be restored from the persistent pinned
+ * store, so pinning is deliberately unavailable for them. If the last tab closes,
+ * TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs can be
+ * closed via the context menu (no inline X), and the batch close actions only ever
+ * clear the normal zone — pinned tabs are exempt as close *targets*, matching
+ * browser convention. Reordering is per-zone. `normalIndex` is the tab's position
+ * within the normal zone — required to offer "close tabs to the right"; for a
+ * pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'id' | 'isPinned'>,
+  tab: Pick<Tab, 'id' | 'isPinned' | 'metadata'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex?: number }
 ): TabCapabilities {
   const detach = ctx.canDetach
@@ -439,7 +462,7 @@ export function getTabCapabilities(
   return {
     menu: true,
     reorder: hasSiblings,
-    togglePin: true,
+    togglePin: tab.metadata?.transientMiniApp !== true,
     detach,
     close: true,
     closeOthers: hasSiblings,
@@ -586,7 +609,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
@@ -622,7 +645,6 @@ export const AppShellTabBar = ({
   const animationFrameIdsRef = useRef(new Set<number>())
   const closeTimersRef = useRef<number[]>([])
   const thawTimerRef = useRef<number | null>(null)
-  const stripRef = useRef<HTMLDivElement | null>(null)
   const stripPointerInsideRef = useRef(false)
   const thawAfterCollapseRef = useRef(false)
   const handleStripMouseLeaveRef = useRef<() => void>(() => undefined)
@@ -742,16 +764,26 @@ export const AppShellTabBar = ({
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({
-      pinnedTabs,
-      normalTabs,
-      normalReorderStartIndex,
-      canDetach: !!detachTab,
-      reorderTabs,
-      closeTab,
-      setActiveTab
-    })
+  const {
+    tabBarRef,
+    tabListRef: stripRef,
+    rightInsetRef,
+    tabRefs,
+    noTransition,
+    getTranslateX,
+    handlePointerDown,
+    handleTabClick,
+    isDragging,
+    isGhost
+  } = useTabDrag({
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach: !!detachTab,
+    reorderTabs,
+    closeTab,
+    setActiveTab
+  })
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
@@ -892,7 +924,11 @@ export const AppShellTabBar = ({
           data-testid="app-shell-tab-strip"
           style={
             isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+              ? {
+                  paddingLeft: isFocusedTab
+                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                }
               : undefined
           }
           onMouseEnter={() => {
@@ -922,6 +958,7 @@ export const AppShellTabBar = ({
                     }>
                     <PinnedTabButton
                       tab={tab}
+                      iconSize={getTabIconSize(tab)}
                       isActive={tab.id === activeTabId}
                       onSelect={() => handleSelectTab(tab)}
                       tone={tabTone}
@@ -1020,6 +1057,7 @@ export const AppShellTabBar = ({
                 }>
                 <NormalTabButton
                   tab={tab}
+                  iconSize={getTabIconSize(tab)}
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
                   onClose={(freezeWidth) => {
@@ -1121,6 +1159,7 @@ export const AppShellTabBar = ({
           {!isFocusedTab && (
             <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
               <button
+                ref={rightInsetRef}
                 type="button"
                 data-launchpad-button
                 aria-label={t('title.launchpad')}

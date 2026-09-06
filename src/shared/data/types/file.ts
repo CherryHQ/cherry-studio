@@ -5,7 +5,8 @@
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
  * - **FileRef** — the association linking a business entity (chat message,
- *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
+ *   painting, job, translate history, provider logo, mini-app logo) to a
+ *   `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *
@@ -475,6 +476,25 @@ export const chatMessageRefFields = {
 
 export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
+// ─── agent_session_message variant ───
+//
+// Agent uploads are internal FileEntries referenced from an agent-session user
+// message's FileUIParts. The ref keeps those bytes alive for exactly as long as
+// the message; runtime delivery (managed path, native image, etc.) is a projection.
+
+export const agentSessionMessageSourceType = 'agent_session_message' as const
+
+export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
+
+export const agentSessionMessageRefFields = {
+  sourceType: z.literal(agentSessionMessageSourceType),
+  sourceId: MessageIdSchema,
+  role: agentSessionMessageRoleSchema
+}
+
+export const agentSessionMessageFileRefSchema = createRefSchema(agentSessionMessageRefFields)
+
 // ─── painting variant ───
 //
 // Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
@@ -538,6 +558,40 @@ export const jobRefFields = {
 
 export const jobFileRefSchema = createRefSchema(jobRefFields)
 
+// ─── translate_history variant ───
+//
+// Links a FileEntry to a `translate_history` row whose `kind` is `'file'`. A
+// layout-preserving PDF translation always persists the generated translation
+// (`role='target'`, an internal `delete_when_unreferenced` entry Cherry owns)
+// and, best effort, references the user's original (`role='source'`, an external
+// entry — Cherry never copies it, and `permanentDelete` never touches the file
+// itself). The association table has an
+// FK to `translate_history`, so deleting a history row — individually or via
+// "clear all" — cascades its refs, which is what releases the translated PDF
+// for reclaim.
+//
+// Roles are `source` / `target` because the owning row already describes that
+// axis as `sourceText` / `targetText` / `sourceLanguage` / `targetLanguage`; a
+// second vocabulary would only invite mismapping.
+//
+// `translate_history.id` is `uuidPrimaryKeyOrdered()` — UUID v7 for rows created
+// in v2 — but v1-migrated rows keep their original ids verbatim, so `sourceId`
+// uses version-agnostic `z.uuid()`, matching the chat_message / job stance.
+
+export const translateHistorySourceType = 'translate_history' as const
+
+export const translateHistoryRoles = ['source', 'target'] as const
+export const translateHistoryRoleSchema = z.enum(translateHistoryRoles)
+export type TranslateHistoryFileRole = z.infer<typeof translateHistoryRoleSchema>
+
+export const translateHistoryRefFields = {
+  sourceType: z.literal(translateHistorySourceType),
+  sourceId: z.uuid(),
+  role: translateHistoryRoleSchema
+}
+
+export const translateHistoryFileRefSchema = createRefSchema(translateHistoryRefFields)
+
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a
@@ -563,6 +617,13 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
 
 export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
+
+/**
+ * Mini-app sandbox files. Roleless like the logo slots, but a **collection**:
+ * one app holds many files, keyed by the ref row's `logicalName`. It therefore
+ * stays out of `singleFileRefTablesBySourceType` (the set-replace slot registry).
+ */
+export const miniAppFileRef = defineSingleFileRef('mini_app_file')
 
 /**
  * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
@@ -598,10 +659,13 @@ export function tagStoredFileRef(id: string): string {
  */
 export const allSourceTypes = [
   chatMessageSourceType,
+  agentSessionMessageSourceType,
   paintingSourceType,
   jobSourceType,
+  translateHistorySourceType,
   providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType
+  miniAppLogoRef.sourceType,
+  miniAppFileRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -623,9 +687,12 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   chatMessageFileRefSchema,
+  agentSessionMessageFileRefSchema,
   paintingFileRefSchema,
   jobFileRefSchema,
+  translateHistoryFileRefSchema,
   providerLogoRef.schema,
-  miniAppLogoRef.schema
+  miniAppLogoRef.schema,
+  miniAppFileRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>

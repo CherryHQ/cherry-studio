@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { WebviewAnnotationTarget } from '@shared/types/webview'
+import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -24,6 +24,7 @@ const ALLOWED_PROTOCOLS = new Set(['file:', 'http:', 'https:'])
 
 interface Props {
   webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   initialUrl: string
   currentUrl?: string | null
   isWebviewReady: boolean
@@ -63,6 +64,7 @@ function isExternalUrl(value: string): boolean {
 
 export function WebviewNavigation({
   webviewRef,
+  webviewRevision,
   initialUrl,
   currentUrl,
   isWebviewReady,
@@ -357,6 +359,7 @@ export function WebviewNavigation({
       <div className="flex shrink-0 items-center gap-0.5">
         <WebviewAnnotationControls
           webviewRef={webviewRef}
+          webviewRevision={webviewRevision}
           isWebviewReady={isWebviewReady}
           isHostActive={isHostActive}
           target={target}

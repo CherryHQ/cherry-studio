@@ -1,20 +1,25 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'
 
-/** The global layer: the four `chat.context_settings.*` preferences. Shared
+/** The global layer: the `chat.context_settings.*` preferences. Shared
  *  with the persist-time trimmer so both lanes resolve identically. */
 export function resolveGlobalContextSettings(): EffectiveContextSettings {
   const prefs = application.get('PreferenceService')
   return {
     enabled: prefs.get('chat.context_settings.enabled'),
     truncateThreshold: prefs.get('chat.context_settings.truncate_threshold'),
+    maxMessages: prefs.get('chat.context_settings.max_messages'),
     compress: {
       enabled: prefs.get('chat.context_settings.compress.enabled'),
-      modelId: prefs.get('chat.context_settings.compress.model_id')
+      modelId: prefs.get('chat.context_settings.compress.model_id'),
+      // The generated preference schema carries no min/max, so a hand-edited
+      // config could park the trigger at 0 and compact on every step.
+      thresholdPercent: clampThresholdPercent(prefs.get('chat.context_settings.compress.threshold_percent'))
     }
   }
 }
@@ -22,8 +27,8 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
 /**
  * Resolve effective context settings + compression model for a request.
  * Shared by the agent-params pipeline (in-flight middleware) and dispatch-time
- * durable compaction (PersistentChatContextProvider). Layers: globals +
- * the assistant override (P2-D); the topic layer is not wired yet.
+ * durable compaction (PersistentChatContextProvider). Two layers: the globals
+ * below, overridden per assistant.
  */
 export async function resolveRequestContextSettings(
   model: Model,

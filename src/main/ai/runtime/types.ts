@@ -10,7 +10,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { MessageSnapshot } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
@@ -31,6 +31,7 @@ export type AgentSessionUsageCapture =
       source: SourceSnapshot | null
       frozenModels: ReadonlyArray<{
         modelId: string
+        apiModelId: string
         modelName: string | null
         aliases: readonly string[]
         pricingSnapshot: AiUsagePricingSnapshot | null
@@ -58,6 +59,8 @@ export interface AgentRuntimeConnectInput {
   modelId: UniqueModelId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
+  /** Canonical provider request tier frozen for this connection's turn. */
+  serviceTier?: ServiceTierSelection
   /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
   knowledgeBaseIds?: readonly string[]
   /** Whether this connection's turn requests Fast processing. */
@@ -103,6 +106,7 @@ export type AgentRuntimeEvent =
   | {
       type: 'usage'
       invocation: {
+        /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
@@ -111,6 +115,7 @@ export type AgentRuntimeEvent =
           inputTokens: number
           outputTokens: number
           totalTokens: number
+          reasoningTokens?: number
           noCacheTokens: number
           cacheReadTokens: number
           cacheWriteTokens: number
@@ -127,7 +132,7 @@ export type AgentRuntimeEvent =
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
-  /** A steer was injected mid-turn (PreToolUse hook) and the model is about to emit its post-steer
+  /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
@@ -203,6 +208,7 @@ export interface AgentRuntimeConnection {
   reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult>

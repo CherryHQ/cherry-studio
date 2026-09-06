@@ -33,6 +33,8 @@ import {
 } from '@main/ai/constants'
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -65,10 +67,15 @@ const MIN_MESSAGES_KEPT = 2
  *
  * Exported for tests.
  */
-export function resolveInFlightTruncateThreshold(configuredChars: number, contextWindow: number | undefined): number {
+export function resolveInFlightTruncateThreshold(
+  configuredChars: number,
+  contextWindow: number | undefined,
+  outputReservation?: number
+): number {
   const window = resolveContextWindow(contextWindow)
   if (window === null) return configuredChars
-  const windowBudget = Math.floor(window * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
+  const inputRoom = resolveInputRoom(window, outputReservation)
+  const windowBudget = Math.floor(inputRoom * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
   return Math.max(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD, Math.min(configuredChars, windowBudget))
 }
 
@@ -95,7 +102,17 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     },
 
     truncate: {
-      threshold: resolveInFlightTruncateThreshold(settings.truncateThreshold, scope.model.contextWindow),
+      threshold: resolveInFlightTruncateThreshold(
+        settings.truncateThreshold,
+        scope.model.contextWindow,
+        resolveRequestedMaxOutputTokens(
+          scope.request.callOverrides?.maxOutputTokens,
+          undefined,
+          scope.assistant,
+          scope.model,
+          scope.endpointType
+        )
+      ),
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),
@@ -131,27 +148,40 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
 }
 
 /**
- * Storage for the truncate layer, decided per request. Anchored = the
- * request's id maps to a real `message` row (the chat path's assistant
- * placeholder, committed before dispatch) that a provisional `tool_output`
- * ref can target. Temporary chats carry a synthetic uuid with no row and
- * one-shot `streamPrompt` calls (translate / naming / probes) carry a random
- * one — for those, no storage: the truncator falls back to plain inline
- * head/tail truncation (these paths practically never produce oversized tool
- * outputs, and there is nothing to own a durable blob's lifetime).
+ * Whether the request's id maps to a real `message` row — the chat path's
+ * assistant placeholder, committed before dispatch, that a provisional
+ * `tool_output` ref can target. Temporary chats carry a synthetic uuid with no
+ * row and one-shot `streamPrompt` calls (translate / naming / probes) carry a
+ * random one; for those the truncator falls back to plain inline head/tail
+ * truncation, so no `<persisted-output>` marker can ever be produced.
+ *
+ * Resolved ONCE per request at param-build time and carried on the scope
+ * (`canOffloadToolOutputs`), because it gates two things: the storage adapter
+ * below and fs_read's admission (a request that cannot mint a marker has no
+ * use for the tool that reads one back).
  */
-function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefined {
-  const anchorId = scope.requestContext.requestId
+export function hasAnchorRow(messageId: string | undefined): boolean {
+  if (messageId === undefined) return false
   try {
-    messageService.getById(anchorId)
+    messageService.getById(messageId)
+    return true
   } catch (error) {
     // getById throws NOT_FOUND for missing rows (it never returns null) —
     // that's the expected non-anchored case. Anything else is a real failure.
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return false
     throw error
   }
+}
+
+/**
+ * Storage for the truncate layer. `canOffloadToolOutputs` already folds in the
+ * anchor lookup (plus the enablement and context-owner checks this function's
+ * caller has re-verified), so this never re-queries the row.
+ */
+function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefined {
+  if (!scope.canOffloadToolOutputs) return undefined
   return createFileManagerStorageAdapter({
-    messageId: anchorId,
+    messageId: scope.requestContext.requestId,
     persistedOutputPaths: scope.requestContext.persistedOutputPaths
   })
 }

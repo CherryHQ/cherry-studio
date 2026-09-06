@@ -25,7 +25,8 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
     // direct main-process fetches must bind the connection to validated DNS results.
     const html = await fetchRemoteText(url, {
       headers: buildHeaders(httpOptions.headers),
-      signal: httpOptions.signal ?? undefined
+      signal: httpOptions.signal ?? undefined,
+      maxRedirects: 5
     })
 
     const article = await readableContentService.extractReadableMarkdown(html, {

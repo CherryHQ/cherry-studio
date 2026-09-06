@@ -1,4 +1,23 @@
 import type { JobType } from '@main/core/job/jobRegistry'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
+
+export type KnowledgeBaseDiscoveryScope =
+  | { kind: 'unrestricted' }
+  | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
+
+export interface KnowledgeBaseDiscoveryOptions {
+  limit: number
+  cursor?: string
+  query?: string
+  groupId?: string
+  scope: KnowledgeBaseDiscoveryScope
+}
+
+export interface KnowledgeBaseDiscoveryPage {
+  items: KnowledgeBase[]
+  total: number
+  nextCursor?: string
+}
 
 type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [

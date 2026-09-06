@@ -42,6 +42,8 @@ export interface MigrationProgress {
   error?: string
   /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
   warnings?: string[]
+  /** Non-fatal diagnostics translated by the migration renderer */
+  warningMessages?: I18nMessage[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
   /**
@@ -60,6 +62,7 @@ export interface PrepareResult {
   /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
   error?: string
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Execute phase result
@@ -69,6 +72,7 @@ export interface ExecuteResult {
   error?: string
   /** Non-fatal diagnostics recorded during execute (e.g. files kept but not reindexable) */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Validation error detail
@@ -103,6 +107,7 @@ export interface MigratorResult {
   error?: string
   /** Non-fatal diagnostics from prepare + execute, surfaced in the migration report */
   warnings?: string[]
+  warningMessages?: I18nMessage[]
 }
 
 // Overall migration result

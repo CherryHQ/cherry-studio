@@ -4,7 +4,7 @@ import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
-import TurndownService from 'turndown'
+import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
@@ -20,7 +20,7 @@ export class CdpBrowserController {
   private windows: Map<string, WindowInfo> = new Map()
   private readonly maxWindows: number
   private readonly idleTimeoutMs: number
-  private readonly turndownService: TurndownService
+  private turndownServicePromise?: Promise<TurndownService>
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
   // nativeTheme is app-global, and one controller is created per MCP connection.
@@ -38,9 +38,14 @@ export class CdpBrowserController {
   constructor(options?: { maxWindows?: number; idleTimeoutMs?: number }) {
     this.maxWindows = options?.maxWindows ?? 5
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
-    this.turndownService = new TurndownService()
 
     nativeTheme.on('updated', this.handleThemeUpdated)
+  }
+
+  private getTurndownService(): Promise<TurndownService> {
+    return (this.turndownServicePromise ??= import('turndown').then(
+      ({ default: TurndownService }) => new TurndownService()
+    ))
   }
 
   /**
@@ -266,7 +271,7 @@ export class CdpBrowserController {
       (function() {
         window.addEventListener('message', function(e) {
           if (e.data && e.data.channel === 'tabbar-action') {
-            // Tab bar action received
+            console.log(JSON.stringify(e.data));
           }
         });
       })();
@@ -838,7 +843,7 @@ export class CdpBrowserController {
 
       let content: string | object
       if (format === 'markdown') {
-        content = this.turndownService.turndown(rawContent)
+        content = (await this.getTurndownService()).turndown(rawContent)
       } else if (format === 'json') {
         try {
           content = JSON.parse(rawContent)

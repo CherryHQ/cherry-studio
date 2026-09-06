@@ -1,6 +1,7 @@
 import type { Citation } from '@renderer/types/message'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Element } from 'hast'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +28,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@renderer/utils/markdown', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
+vi.mock('@renderer/utils/markdownLight', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
 vi.mock('../CitationTooltip', () => ({ default: mocks.CitationTooltip }))
 vi.mock('../Hyperlink', () => ({ default: mocks.Hyperlink }))
@@ -44,14 +45,50 @@ const citation: Citation = {
   title: 'Example'
 }
 
+const imageLinkNode = {
+  type: 'element',
+  tagName: 'a',
+  properties: { href: 'https://domain.com' },
+  children: [
+    {
+      type: 'element',
+      tagName: 'img',
+      properties: { alt: 'Badge', src: 'https://domain.com/badge.svg' },
+      children: []
+    }
+  ]
+} as Element
+
+const bareUrlNode = {
+  type: 'element',
+  tagName: 'a',
+  properties: { href: 'https://domain.com/a/very/long/path' },
+  children: [{ type: 'text', value: 'https://domain.com/a/very/long/path' }]
+} as Element
+
 describe('Link', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('should render internal anchor as span.link and no <a>', () => {
-    const { container } = render(<Link href="#section-1">Go to section</Link>)
-    expect(container.querySelector('span.link')).not.toBeNull()
-    expect(container.querySelector('a')).toBeNull()
-    expect(screen.getByText('Go to section')).toBeInTheDocument()
+  it('keeps internal anchors clickable without opening a new window', () => {
+    const scrollIntoView = vi.fn()
+    render(
+      <div className="markdown">
+        <Link href="#section-1">Go to section</Link>
+        <h2
+          id="heading-message--section-1"
+          ref={(element) => {
+            if (element) element.scrollIntoView = scrollIntoView
+          }}>
+          Section 1
+        </h2>
+      </div>
+    )
+
+    const anchor = screen.getByRole('link', { name: 'Go to section' })
+    expect(anchor).toHaveAttribute('href', '#section-1')
+    expect(anchor).not.toHaveAttribute('target')
+    fireEvent.click(anchor)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
   })
 
   it('renders a Cherry Studio route link as an in-app navigation entry', async () => {
@@ -147,5 +184,78 @@ describe('Link', () => {
     )
 
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
+  })
+
+  it('keeps image links free of orphaned favicons', () => {
+    render(
+      <Link href="https://domain.com" node={imageLinkNode}>
+        <img alt="Badge" src="https://domain.com/badge.svg" />
+      </Link>
+    )
+
+    expect(screen.getByRole('link', { name: 'Badge' })).toBeInTheDocument()
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+  })
+
+  it('lets a bare URL wrap without a leading favicon', () => {
+    render(
+      <Link href="https://domain.com/a/very/long/path" node={bareUrlNode}>
+        https://domain.com/a/very/long/path
+      </Link>
+    )
+
+    expect(screen.getByRole('link', { name: 'https://domain.com/a/very/long/path' })).toBeInTheDocument()
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+  })
+})
+
+describe('Link file-path opener', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.findCitationInChildren.mockReturnValue(undefined)
+  })
+
+  it('routes a schemeless file-path link to the opener without navigating', () => {
+    const openFilePath = vi.fn()
+    const onParentClick = vi.fn()
+    const { container } = render(
+      <div onClick={onParentClick}>
+        <Link href="./DESIGN.md" openFilePath={openFilePath}>
+          Design
+        </Link>
+      </div>
+    )
+
+    // Not a web link: no Hyperlink wrapper, no new-window target.
+    expect(screen.queryByTestId('hyperlink')).toBeNull()
+    const anchor = container.querySelector('a') as HTMLAnchorElement
+    expect(anchor.getAttribute('target')).toBeNull()
+    expect(anchor).toHaveClass('text-link')
+
+    const clickEvent = createEvent.click(anchor)
+    fireEvent(anchor, clickEvent)
+
+    expect(clickEvent.defaultPrevented).toBe(true)
+    expect(onParentClick).not.toHaveBeenCalled()
+    expect(openFilePath).toHaveBeenCalledWith('./DESIGN.md')
+  })
+
+  it('does not intercept web links even when an opener is provided', () => {
+    const openFilePath = vi.fn()
+    render(
+      <Link href="https://domain.com/path" openFilePath={openFilePath}>
+        Open
+      </Link>
+    )
+
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
+    expect(openFilePath).not.toHaveBeenCalled()
+  })
+
+  it('treats a file-path href as a normal link when no opener is provided', () => {
+    render(<Link href="docs/guide.md">Guide</Link>)
+
+    // No opener → the existing Hyperlink behavior is preserved (no regression).
+    expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
   })
 })

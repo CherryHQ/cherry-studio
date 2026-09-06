@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { type IconRef, useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
@@ -10,9 +11,9 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
-import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
+import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
+import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
@@ -32,17 +33,39 @@ const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
   'openai-minimal-reasoning': 'chat.web_search.warning.openai'
 }
 
+const WebSearchProviderIcon: FC<{ iconRef?: IconRef }> = ({ iconRef }) => {
+  const Icon = useIcon(iconRef)
+  return Icon ? <Icon width={18} height={18} /> : <Globe />
+}
+
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
-  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
-  const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    isLoading: isLoadingWebSearchProviders,
+    providers
+  } = useWebSearchProviders()
+  const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const clientSearchAvailable = isWebSearchProviderReady(defaultSearchKeywordsProvider, 'searchKeywords')
-  const clientFetchAvailable = isWebSearchProviderReady(defaultFetchUrlsProvider, 'fetchUrls')
+  const effectiveSearchProvider = resolveReadyWebSearchProvider(
+    providers,
+    defaultSearchKeywordsProvider,
+    'searchKeywords'
+  )
+  const effectiveFetchProvider = resolveReadyWebSearchProvider(providers, defaultFetchUrlsProvider, 'fetchUrls')
+  const fallbackSearchProvider = defaultSearchKeywordsProvider
+    ? providers.find(
+        (provider) =>
+          provider.id === getWebSearchFallbackProviderIds(defaultSearchKeywordsProvider.id, 'searchKeywords')[0]
+      )
+    : undefined
+  const clientSearchAvailable = Boolean(effectiveSearchProvider)
+  const clientFetchAvailable = Boolean(effectiveFetchProvider)
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
   const { webSearch: webSearchRoute, reasons } =
@@ -51,20 +74,22 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           webSearchEnabled: true,
           clientSearchAvailable,
           clientFetchAvailable,
-          clientToolsPreferred,
+          modelToolsPreferred,
           endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })
       : { webSearch: 'none' as const, reasons: undefined }
   const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
-  const activeProviderId = clientSearchAvailable ? defaultSearchKeywordsProvider?.id : undefined
+  const activeProviderId = effectiveSearchProvider?.id
 
-  const providerLogo =
-    webSearchRoute === 'client' && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
+  const providerIconRef =
+    enableWebSearch && webSearchRoute === 'client' && activeProviderId
+      ? getWebSearchProviderIconRef(activeProviderId)
+      : undefined
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
-  const isDisabled = Boolean(disabledReason)
+  const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
   const onClick = useCallback(
     async (restoreFocus?: () => void) => {
@@ -117,13 +142,22 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const routeHint =
     webSearchRoute === 'server'
       ? t('chat.input.web_search.route.builtin')
-      : webSearchRoute === 'client' && defaultSearchKeywordsProvider
-        ? t('chat.input.web_search.route.client', { provider: defaultSearchKeywordsProvider.name })
+      : webSearchRoute === 'client' && effectiveSearchProvider
+        ? defaultSearchKeywordsProvider && effectiveSearchProvider.id !== defaultSearchKeywordsProvider.id
+          ? t('chat.input.web_search.route.client_fallback_active', {
+              fallbackProvider: effectiveSearchProvider.name,
+              provider: defaultSearchKeywordsProvider.name
+            })
+          : fallbackSearchProvider
+            ? t('chat.input.web_search.route.client_with_fallback', {
+                fallbackProvider: fallbackSearchProvider.name,
+                provider: effectiveSearchProvider.name
+              })
+            : t('chat.input.web_search.route.client', { provider: effectiveSearchProvider.name })
         : undefined
   const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
-  const ProviderIcon = enableWebSearch ? providerLogo : undefined
-  const icon = useMemo(() => (ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />), [ProviderIcon])
+  const icon = useMemo(() => <WebSearchProviderIcon iconRef={providerIconRef} />, [providerIconRef])
 
   useEffect(() => {
     return launcher.registerLaunchers([

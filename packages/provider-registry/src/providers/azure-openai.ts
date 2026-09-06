@@ -1,4 +1,5 @@
 import { defineProvider } from './types'
+import { openaiResponsesSummaryWire } from './wires'
 
 const claudeWebToolModels = [
   'claude-opus-4',
@@ -13,13 +14,15 @@ const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 export default defineProvider({
   id: 'azure-openai',
   name: 'Azure OpenAI',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'azure'
     },
     'openai-responses': {
-      adapterFamily: 'azure-responses'
+      adapterFamily: 'azure-responses',
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
   serverTools: [

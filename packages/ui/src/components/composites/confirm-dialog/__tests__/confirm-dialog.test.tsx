@@ -2,7 +2,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfirmDialog } from '../index'
 
@@ -31,5 +32,30 @@ describe('ConfirmDialog', () => {
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:slide-out-to-bottom-4'
     )
+  })
+
+  it('stays open when confirmation resolves false', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onConfirm = vi.fn().mockResolvedValue(false)
+    render(<ConfirmDialog open title="Confirm action" onOpenChange={onOpenChange} onConfirm={onConfirm} />)
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(onConfirm).toHaveBeenCalledOnce()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it.each([
+    ['void', () => undefined],
+    ['true', () => true]
+  ])('closes when confirmation returns %s', async (_label, onConfirm) => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<ConfirmDialog open title="Confirm action" onOpenChange={onOpenChange} onConfirm={onConfirm} />)
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

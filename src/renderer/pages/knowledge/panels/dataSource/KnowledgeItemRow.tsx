@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
-import { toKnowledgeItemRowViewModel } from './utils/selectors'
+import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
   item: KnowledgeItem
@@ -118,7 +118,7 @@ const KnowledgeItemRow = ({
   // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
   // be migrated); surface it as the badge tooltip.
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
-  const canReindex = item.status === 'completed' || item.status === 'failed'
+  const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
   // Every row's primary click views its original content in-app: files/URLs delegate
   // preview/fallback/error handling to `previewSource`, directories drill into their children, and

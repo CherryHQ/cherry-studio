@@ -28,11 +28,19 @@ import { defineRoute } from '../define'
 /** The account a provider associates with the session (Codex's ChatGPT id), or null. */
 const oauthAccountSchema = z.object({ accountId: z.string().nullable() })
 
+const signInAttachResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('not-found') }),
+  z.object({ status: z.literal('completed'), account: oauthAccountSchema })
+])
+
 /** Every route targets one provider, named by its runtime id. */
 const providerInput = z.object({ providerId: z.string() })
+const signInObservationInput = providerInput.extend({ requestId: z.string().min(1) })
 
 export const oauthRequestSchemas = {
-  'oauth.sign_in': defineRoute({ input: providerInput, output: oauthAccountSchema }),
+  'oauth.sign_in': defineRoute({ input: signInObservationInput, output: oauthAccountSchema }),
+  'oauth.sign_in.attach': defineRoute({ input: signInObservationInput, output: signInAttachResultSchema }),
+  'oauth.cancel_sign_in': defineRoute({ input: signInObservationInput, output: z.void() }),
   'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),
   'oauth.get_account': defineRoute({ input: providerInput, output: oauthAccountSchema }),
   'oauth.logout': defineRoute({ input: providerInput, output: z.void() }),

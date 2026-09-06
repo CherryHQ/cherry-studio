@@ -274,6 +274,27 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.name.length).toBeGreaterThan(0)
       expect(entry.contentHash).toBe(hashContent(bytes))
     })
+
+    it('accepts base64 data: URIs with media type parameters', async () => {
+      const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0])
+      const base64 = Buffer.from(bytes).toString('base64')
+      const dataUri = `data:image/jpeg;name=foo;base64,${base64}` as `data:${string};base64,${string}`
+      const entry = await createInternal(deps, {
+        source: 'base64',
+        data: dataUri,
+        name: 'jpeg-with-params',
+        cleanupPolicy: 'manual'
+      })
+
+      expect(entry.origin).toBe('internal')
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.name).toBe('jpeg-with-params')
+      expect(entry.ext).toBe('jpg')
+      expect(entry.size).toBe(bytes.length)
+      const physical = path.join(filesDir, `${entry.id}.jpg`)
+      const onDisk = await readFile(physical)
+      expect(Buffer.from(onDisk).equals(Buffer.from(bytes))).toBe(true)
+    })
   })
 
   describe('source: path', () => {

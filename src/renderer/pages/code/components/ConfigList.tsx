@@ -16,6 +16,7 @@ export interface ConfigListProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
@@ -33,6 +34,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveMeta,
   onConfigure,
   onToggleCurrent,
@@ -54,7 +56,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
 
   const handleMoveToTop = (provider: Provider) => {
-    if (providers[0]?.id === provider.id) return
+    if (providerActionsDisabled || providers[0]?.id === provider.id) return
     const nextProviders = [provider, ...providers.filter((candidate) => candidate.id !== provider.id)]
     void Promise.resolve(onReorder(nextProviders)).catch(() => undefined)
   }
@@ -79,10 +81,11 @@ export const ConfigList: FC<ConfigListProps> = ({
       visibleItems={displayedProviders}
       getId={(p) => p.id}
       onReorder={onReorder}
+      disabled={providerActionsDisabled}
       gap="0.5rem"
       itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
-        const onMoveToTop = providers[0]?.id === provider.id ? undefined : handleMoveToTop
+        const onMoveToTop = providerActionsDisabled || providers[0]?.id === provider.id ? undefined : handleMoveToTop
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (
             <OwnLoginCard
@@ -108,6 +111,7 @@ export const ConfigList: FC<ConfigListProps> = ({
             modelName={modelName}
             description={isApiGatewayProviderId(provider.id) ? t('code.api_gateway.description') : undefined}
             isCurrent={currentProviderId === provider.id}
+            actionsDisabled={providerActionsDisabled}
             dragging={dragging}
             onMoveToTop={onMoveToTop}
             onConfigure={onConfigure}

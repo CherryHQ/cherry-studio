@@ -13,8 +13,19 @@ const mockSave = vi.fn()
 const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+// FileProcessingSection probes the local OCR model and Open MinerU's host on mount;
+// answering both here keeps those calls out of the embedMany spy the embedding
+// assertions read.
+const FILE_PROCESSING_PROBES: Record<string, unknown> = {
+  'local_model.get_status': { status: 'ready' },
+  'file_processing.open_mineru.check_connectivity': true
+}
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route in FILE_PROCESSING_PROBES ? Promise.resolve(FILE_PROCESSING_PROBES[route]) : mockEmbedMany(input)
+  },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
@@ -415,15 +426,20 @@ describe('RagConfigPanel', () => {
 
     const thresholdSlider = screen.getByRole('slider', { name: '相似度阈值' })
     expect(thresholdSlider).toHaveValue('0')
+    // The threshold is a 0.01-granularity knob, so 0.65 must stay reachable and
+    // be shown as typed instead of being rounded to a tenth.
+    expect(thresholdSlider).toHaveAttribute('step', '0.01')
 
-    fireEvent.change(thresholdSlider, { target: { value: '0.7' } })
+    fireEvent.change(thresholdSlider, { target: { value: '0.65' } })
+    expect(screen.getByText('0.65')).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
         expect.objectContaining({
           rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-          threshold: 0.7
+          threshold: 0.65
         })
       )
     })

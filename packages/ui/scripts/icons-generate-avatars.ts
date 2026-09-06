@@ -23,6 +23,7 @@ import {
   generateBarrelIndex as codegenBarrelIndex,
   generateCatalog as codegenCatalog,
   generateIconIndex as codegenIconIndex,
+  generateIconLoaders as codegenIconLoaders,
   generateMetaCatalog as codegenMetaCatalog
 } from './codegen'
 import {
@@ -324,9 +325,10 @@ export function generateAvatars(options: { iconType?: LogoType; only?: Set<strin
 
   generateBarrelIndex(baseDir, iconDirs)
 
-  // Generate metaCatalog.ts (sync meta lookup) + catalog.ts (async component lookup)
-  const catalogName = iconType === 'models' ? 'MODEL_ICON_CATALOG' : 'PROVIDER_ICON_CATALOG'
+  // Generate meta-catalog.ts (sync metadata) and loaders.ts (per-icon async lookup).
+  // Providers additionally keep catalog.ts for the logo picker that renders the full set.
   const metaCatalogName = iconType === 'models' ? 'MODEL_ICON_META_CATALOG' : 'PROVIDER_ICON_META_CATALOG'
+  const loadersName = iconType === 'models' ? 'MODEL_ICON_LOADERS' : 'PROVIDER_ICON_LOADERS'
   const keyTypeName = iconType === 'models' ? 'ModelIconKey' : 'ProviderIconKey'
   const catalogEntries = iconDirs.map((dirName) => ({
     dirName,
@@ -339,13 +341,23 @@ export function generateAvatars(options: { iconType?: LogoType; only?: Set<strin
     keyTypeName
   })
   console.log(`Generated meta-catalog.ts (${metaCatalogName}) with ${catalogEntries.length} entries`)
-  codegenCatalog({
-    outPath: path.join(baseDir, 'catalog.ts'),
+  codegenIconLoaders({
+    outPath: path.join(baseDir, 'loaders.ts'),
     entries: catalogEntries,
-    catalogName,
+    loadersName,
     keyTypeName
   })
-  console.log(`Generated catalog.ts (${catalogName}) with ${catalogEntries.length} entries`)
+  console.log(`Generated loaders.ts (${loadersName}) with ${catalogEntries.length} entries`)
+  if (iconType === 'providers') {
+    const catalogName = 'PROVIDER_ICON_CATALOG'
+    codegenCatalog({
+      outPath: path.join(baseDir, 'catalog.ts'),
+      entries: catalogEntries,
+      catalogName,
+      keyTypeName
+    })
+    console.log(`Generated catalog.ts (${catalogName}) with ${catalogEntries.length} entries`)
+  }
 
   console.log(
     `\nDone! Generated ${fullBleedCount + neutralBackgroundCount} avatar components (${fullBleedCount} full-bleed, ${neutralBackgroundCount} neutral-background)`

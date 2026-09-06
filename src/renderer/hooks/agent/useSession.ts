@@ -7,7 +7,9 @@
  * with `session.agentId`.
  */
 
+import { loggerService } from '@logger'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -16,7 +18,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
@@ -35,6 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const logger = loggerService.withContext('useSession')
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
@@ -89,26 +92,35 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  useDataChange('/agent-sessions/:sessionId', (effects) => {
+    if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+
   return { session, error, isLoading, mutate }
 }
 
 /**
- * The globally most-recently-updated session, for first-entry restore.
+ * The globally most-recently-active session, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
- * last-touched session without waiting for the full session history to paginate
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
+ * last-active session without waiting for the full session history to paginate
  * in and without depending on the pinned-first `/agent-sessions` list order.
  *
- * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
- * cache coherent would mean every updatedAt-bumping write invalidating it (an
- * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
- * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
- * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * Activity-bearing writes publish a scalar data-change signal so a mounted
+ * first-entry surface cannot keep a stale winner from another window. Folding
+ * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
+ * revalidation rather than trust a stale cache.
  * `latestSession` is `undefined` while loading and when there are no sessions.
  */
 export function useLatestSession(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
     enabled: opts?.enabled
+  })
+
+  useDataChange('/agent-sessions/latest', () => {
+    void refetch()
   })
 
   return {
@@ -206,6 +218,7 @@ export const useSessions = (
 ) => {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
+  const invalidate = useInvalidateCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
@@ -235,8 +248,12 @@ export const useSessions = (
   const {
     data: pinList,
     isLoading: isPinsLoading,
-    isRefreshing: isPinsRefreshing
+    isRefreshing: isPinsRefreshing,
+    refetch: refetchPins
   } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
+  useDataChange('/pins', () => {
+    if (enabled !== false) void refetchPins()
+  })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
@@ -260,6 +277,10 @@ export const useSessions = (
   }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
+  const refreshFromDataChange = useCallback(() => {
+    if (enabled !== false) void refresh()
+  }, [enabled, refresh])
+  useDataChange('/agent-sessions', refreshFromDataChange)
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
@@ -300,38 +321,44 @@ export const useSessions = (
     [agentId, createTrigger, refresh, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions']
-  })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        await deleteTrigger({ params: { sessionId: id } })
-        closeConversationTabs('agents', [id])
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
+        closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
+        }
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return false
       }
     },
-    [closeConversationTabs, deleteTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
         closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
+            sessionIds: result.deletedIds
+          })
+        }
         return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
       }
     },
-    [closeConversationTabs, deleteManyTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const reorderSessions = useCallback(

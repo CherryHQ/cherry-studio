@@ -30,9 +30,13 @@ import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/fil
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE,
+  BACKUP_NEWER_VERSION_ERROR_CODE,
+  BACKUP_OPERATION_BUSY_ERROR_CODE,
   type LocalBackupConfig,
   type S3Config,
   type WebDavConfig
@@ -42,6 +46,7 @@ import { ZipArchive } from 'archiver'
 import { Mutex, tryAcquire } from 'async-mutex'
 import Database from 'better-sqlite3'
 import dayjs from 'dayjs'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -59,6 +64,19 @@ const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
 const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
+const WINDOWS_UV_EBUSY_ERRNO = -4082
+// Backup archives hold every stored credential; the shared-OS-temp staging tree
+// must not be readable by other local users (S8 hardening).
+const BACKUP_ARCHIVE_FILE_MODE = 0o600
+const BACKUP_TEMP_DIR_MODE = 0o700
+
+const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
+  const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
+  const isLevelDbDirectory = parentDirectory === 'leveldb' || parentDirectory.endsWith('.leveldb')
+  if (path.basename(sourcePath) !== 'LOCK' || !isLevelDbDirectory || !(error instanceof Error)) return false
+  const nodeError = error as NodeJS.ErrnoException
+  return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
+}
 
 interface DirectBackupMetadata {
   version: number
@@ -111,7 +129,7 @@ type BackupInvocationEvent = Electron.IpcMainInvokeEvent | null
 
 export class BackupOperationBusyError extends Error {
   constructor() {
-    super('Another backup operation is already in progress.')
+    super(`${BACKUP_OPERATION_BUSY_ERROR_CODE}: Another backup operation is already in progress.`)
     this.name = 'BackupOperationBusyError'
   }
 }
@@ -138,6 +156,7 @@ class BackupManager {
     webdavUser?: string
     webdavPass?: string
     webdavPath?: string
+    allowSelfSignedTls?: boolean
   } | null = null
 
   private get backupDir(): string {
@@ -146,6 +165,14 @@ class BackupManager {
 
   async cleanupStaleTempArtifacts(): Promise<void> {
     const cutoff = Date.now() - STALE_TEMP_ARTIFACT_AGE_MS
+
+    // Best-effort boot hardening: pre-existing 0755 roots are fixed even with
+    // no operation running; ENOENT (never used yet) is expected and silent.
+    // The restore-staging root seals crash-recovered trees too — 0700 on the
+    // root blocks traversal into any pre-existing subtree.
+    await this.hardenStagingRootBestEffort(this.backupDir)
+    await this.hardenStagingRootBestEffort(application.getPath('feature.lan_transfer.temp'))
+    await this.hardenStagingRootBestEffort(application.getPath('feature.backup.restore.staging'))
 
     try {
       const entries = await fs.readdir(this.backupDir, { withFileTypes: true })
@@ -315,16 +342,19 @@ class BackupManager {
 
         const aiStreamManager = application.get('AiStreamManager')
         const agentSessionRuntime = application.get('AgentSessionRuntimeService')
+        const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
           writerHolds.push(agentSessionRuntime.pause(quiesceReason))
+          writerHolds.push(agentSessionDelivery.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
           signal?.throwIfAborted()
@@ -422,7 +452,9 @@ class BackupManager {
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
       signal?.throwIfAborted()
 
-      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath))
+      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath), {
+        mode: BACKUP_ARCHIVE_FILE_MODE
+      })
       output = atomicOutput
       const archive = new ZipArchive({
         zlib: { level: 1 },
@@ -472,7 +504,8 @@ class BackupManager {
       if (output && !output.destroyed) {
         await output.abort()
       }
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, output ? outputDirectory : workDir)
+      throw reportedError
     } finally {
       await fs.remove(workDir).catch(() => {})
     }
@@ -550,7 +583,14 @@ class BackupManager {
 
       // Create output file stream
       const backupedFilePath = path.join(destinationPath, fileName)
-      const output = fs.createWriteStream(backupedFilePath)
+      // createWriteStream's mode only applies at file creation; pre-tighten an
+      // existing target so an overwrite cannot keep a looser mode (S8).
+      await fs.chmod(backupedFilePath, BACKUP_ARCHIVE_FILE_MODE).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw new Error(`Failed to restrict backup archive permissions (${backupedFilePath}): ${String(error)}`)
+        }
+      })
+      const output = fs.createWriteStream(backupedFilePath, { mode: BACKUP_ARCHIVE_FILE_MODE })
 
       // Create archiver instance, enable ZIP64 support
       const archive = new ZipArchive({
@@ -859,6 +899,7 @@ class BackupManager {
       const zip = new StreamZip.async({ file: backupPath })
       try {
         onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        assertZipEntriesWithin(Object.keys(await zip.entries()), extractionDir)
         await zip.extract(null, extractionDir)
       } finally {
         await zip.close()
@@ -874,7 +915,8 @@ class BackupManager {
       await this.restoreDirect(extractionDir)
     } catch (error) {
       logger.error('Restore failed:', error as Error)
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, extractionDir)
+      throw reportedError
     } finally {
       await fs.remove(extractionDir).catch(() => {})
     }
@@ -908,7 +950,10 @@ class BackupManager {
     // staging tree, and any remaining directory is an orphan from a crash
     // before the durable journal commit.
     await fs.remove(stagingRoot)
-    await fs.ensureDir(restoreDir)
+    // Staging holds the full pre-boot user-data snapshot (S8); same fail-closed
+    // hardening as every other staging path.
+    await this.ensurePrivateDir(stagingRoot)
+    await this.ensurePrivateDir(restoreDir)
 
     try {
       const metadata = await this.readDirectBackupMetadata(extractionDir)
@@ -986,6 +1031,11 @@ class BackupManager {
       }
 
       const chain = this.validateStagedDatabase(workDatabase)
+      if (!this.isChainBundledPrefix(chain)) {
+        throw new Error(
+          `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
+        )
+      }
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
 
       const fileResources: RestoreJournal['fileResources'] = []
@@ -1083,6 +1133,11 @@ class BackupManager {
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
       throw new Error('This backup file is not from Cherry Studio and cannot be restored')
     }
+    if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
+      throw new Error(
+        `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (backup version ${String(raw.version)}) and cannot be restored on this version (supports ${DIRECT_BACKUP_VERSION}). Please update Cherry Studio and try again.`
+      )
+    }
     if (raw.version !== DIRECT_BACKUP_VERSION) {
       throw new Error(
         `Unsupported backup version ${String(raw.version)}. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
@@ -1164,6 +1219,25 @@ class BackupManager {
       throw new Error('Backup SQLite database could not be sealed without WAL sidecars')
     }
     return chain
+  }
+
+  private isChainBundledPrefix(chain: RestoreJournal['db']['chain']): boolean {
+    let bundled: ReturnType<typeof readMigrationFiles>
+    try {
+      bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+    } catch (error) {
+      logger.warn(
+        '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
+        error as Error
+      )
+      return true
+    }
+    if (chain.length > bundled.length) {
+      return false
+    }
+    return chain.every(
+      (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
+    )
   }
 
   private async createJournalResource(input: {
@@ -1370,7 +1444,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('Failed to restore from WebDAV:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1401,7 +1476,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('[BackupManager] Failed to restore from S3:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1413,10 +1489,56 @@ class BackupManager {
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
 
+  /** Staging dirs hold full-backup content (S8); a chmod failure aborts the
+   * backup rather than writing payloads under looser permissions. */
+  private async ensurePrivateDir(dir: string): Promise<void> {
+    // 0700 at creation closes the ensureDir→chmod exposure window; 0700 has no
+    // group/other bits, so umask cannot loosen it.
+    await fs.ensureDir(dir, { mode: BACKUP_TEMP_DIR_MODE })
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      throw new Error(`Failed to restrict backup staging dir permissions (${dir}): ${String(error)}`)
+    })
+  }
+
+  /** Boot-time variant: opportunistic, must never block startup (ENOENT silent). */
+  private async hardenStagingRootBestEffort(dir: string): Promise<void> {
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions', { dir, error })
+      }
+    })
+  }
+
   private async createOperationDir(prefix: string): Promise<string> {
+    // Every sensitive flow (create/extract/webdav-download/...) passes through here, so the
+    // staging root is hardened at the same choke point; chmod also fixes pre-existing 0755 dirs.
+    await this.ensurePrivateDir(this.backupDir)
     const operationDir = path.join(this.backupDir, `${prefix}-${randomUUID()}`)
-    await fs.ensureDir(operationDir)
+    try {
+      await this.ensurePrivateDir(operationDir)
+    } catch (error) {
+      const reportedError = await this.withAvailableDiskSpace(error, this.backupDir)
+      throw reportedError
+    }
     return operationDir
+  }
+
+  private async withAvailableDiskSpace(error: unknown, fallbackDirectory: string): Promise<unknown> {
+    if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOSPC') {
+      return error
+    }
+
+    const fileError = error as NodeJS.ErrnoException & { dest?: string }
+    const failedPath = fileError.dest ?? fileError.path
+    const probePath = failedPath ? path.dirname(failedPath) : fallbackDirectory
+
+    try {
+      const stats = await fs.promises.statfs(probePath)
+      return new Error(`${BACKUP_DISK_FULL_ERROR_CODE}:${stats.bsize * stats.bavail}`)
+    } catch (statError) {
+      logger.warn('Failed to read available disk space after ENOSPC', { probePath, statError })
+      return error
+    }
   }
 
   private async assertJobsDrained(jobManager: {
@@ -1435,7 +1557,8 @@ class BackupManager {
   private assertNoActiveDataWriters(): void {
     if (
       application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions()
+      application.get('AgentSessionRuntimeService').hasBusySessions() ||
+      application.get('AgentSessionDeliveryService').listActiveWork().length > 0
     ) {
       throw new Error(
         `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
@@ -1602,7 +1725,8 @@ class BackupManager {
       cachedConfig.webdavHost === config.webdavHost &&
       cachedConfig.webdavUser === config.webdavUser &&
       cachedConfig.webdavPass === config.webdavPass &&
-      cachedConfig.webdavPath === config.webdavPath
+      cachedConfig.webdavPath === config.webdavPath &&
+      (cachedConfig.allowSelfSignedTls ?? false) === (config.allowSelfSignedTls ?? false)
     )
   }
 
@@ -1624,7 +1748,8 @@ class BackupManager {
         webdavHost: config.webdavHost,
         webdavUser: config.webdavUser,
         webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath
+        webdavPath: config.webdavPath,
+        allowSelfSignedTls: config.allowSelfSignedTls
       }
       logger.debug('[BackupManager] Created new WebDav instance')
     } else {
@@ -1729,13 +1854,32 @@ class BackupManager {
                 })
                 await fs.chmod(destPath, entry.stats.mode)
               } catch (error) {
-                await fs.remove(destPath).catch(() => {})
+                try {
+                  await fs.remove(destPath)
+                } catch {
+                  throw error
+                }
+                if (isSkippableLevelDbLockError(sourcePath, error)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
                 throw error
               }
             } else if (entry.isSymlink) {
               await fs.copy(sourcePath, destPath, { dereference: true })
             } else {
-              await fs.copy(sourcePath, destPath)
+              try {
+                await fs.copy(sourcePath, destPath)
+              } catch (copyError) {
+                // Skip files that are locked by another process (e.g., LevelDB LOCK file
+                // in Local Storage held by the renderer). These files are not needed for
+                // backup integrity and will be recreated on restore if needed.
+                if (isSkippableLevelDbLockError(sourcePath, copyError)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
+                throw copyError
+              }
             }
             onProgress(entry.stats.size)
           } else if (entry.isSymlink) {
@@ -1943,8 +2087,13 @@ class BackupManager {
     const tempPath = application.getPath('feature.lan_transfer.temp')
     const targetPath = destinationPath || tempPath
 
-    // Ensure temp directory exists
-    await fs.ensureDir(targetPath)
+    // The LAN staging dir sits in the shared OS temp tree; keep it owner-only
+    // when using the default (user-chosen destinations keep their own perms).
+    if (targetPath === tempPath) {
+      await this.ensurePrivateDir(targetPath)
+    } else {
+      await fs.ensureDir(targetPath)
+    }
 
     // Create backup with skipBackupFile=true (no Data folder)
     const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)

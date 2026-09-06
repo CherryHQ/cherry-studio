@@ -1,4 +1,15 @@
-import { mkdir, mkdtemp, open, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rm,
+  stat as fsStatPromise,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -12,6 +23,7 @@ import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
+  copyNew as fsCopyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download as fsDownload,
@@ -107,7 +119,8 @@ describe('probeReadable', () => {
     expect(await probeReadable(path.join(tmp, 'nope') as AbsoluteFilePath)).toBe('missing')
   })
 
-  it("returns 'unverifiable' for a non-ENOENT failure", async () => {
+  // Windows reports ENOENT for this, so there is no non-ENOENT failure to provoke.
+  it.skipIf(process.platform === 'win32')("returns 'unverifiable' for a non-ENOENT failure", async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'x')
     // Treating a regular file as a directory parent yields ENOTDIR, not ENOENT, so the probe must
@@ -706,6 +719,25 @@ describe('copy', () => {
     expect(out.equals(bytes)).toBe(true)
   })
 
+  it('copyNew copies content to a fresh destination', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+
+  it('copyNew refuses an existing destination (EEXIST) and leaves it untouched', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'new')
+    await writeFile(dest, 'old')
+    await expect(fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)).rejects.toMatchObject({
+      code: 'EEXIST'
+    })
+    expect(await readFile(dest, 'utf-8')).toBe('old')
+  })
+
   it('rejects with an AbortError when the signal is already aborted', async () => {
     const src = path.join(tmp, 'src.txt')
     const dest = path.join(tmp, 'dest.txt')
@@ -920,5 +952,74 @@ describe('createAtomicWriteStream', () => {
     expect(await exists(target)).toBe(false)
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('applies options.mode from tmp creation (stream path)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'secret.zip') as AbsoluteFilePath
+    const stream = createAtomicWriteStream(target, { mode: 0o600 })
+    stream.write('backup-bytes')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('backup-bytes')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('applies options.mode to the tmp file at open time (prepared pause point)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'paused.zip') as AbsoluteFilePath
+    let observedTmpMode: number | undefined
+    const stream = createPreparedAtomicWriteStream(
+      target,
+      async () => {
+        // The tmp file is alive at this pause point; exactly one exists, so
+        // a post-commit chmod implementation would be caught here.
+        const [entry] = (await readdir(tmp)).filter((e) => e.includes('.tmp-'))
+        observedTmpMode = (await fsStatPromise(path.join(tmp, entry))).mode & 0o777
+      },
+      { mode: 0o600 }
+    )
+    stream.write('secret')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(observedTmpMode).toBe(0o600)
+  })
+
+  it('tightens an existing loose-mode target when stream-overwriting with options.mode', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'existing.zip') as AbsoluteFilePath
+    await writeFile(target, 'loose-bytes')
+    await chmod(target, 0o644)
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o644)
+    const stream = createAtomicWriteStream(target, { mode: 0o600 })
+    stream.write('tightened')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('tightened')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('keeps the default (umask) mode on the stream path when options.mode is omitted', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'plain.zip') as AbsoluteFilePath
+    const reference = path.join(tmp, 'reference.txt')
+    const stream = createAtomicWriteStream(target)
+    stream.write('hello')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    await writeFile(reference, 'hello')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe((await fsStatPromise(reference)).mode & 0o777)
   })
 })

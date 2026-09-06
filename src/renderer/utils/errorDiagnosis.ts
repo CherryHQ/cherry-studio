@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
+import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
@@ -58,14 +58,9 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\n${provider} is blocking the request because the user's IP region is not supported. This is NOT an API-key issue. Suggest configuring an HTTP/SOCKS proxy in system settings, or switching to a provider available in the user's region. DO NOT suggest changing the API key.\n`
   }
 
-  // Auth / API key issues
-  if (
-    status === 401 ||
-    status === 403 ||
-    msg.includes('api_key') ||
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden')
-  ) {
+  // Auth / API key issues (401). 403 is handled below — mirrors `classifyError`, which keeps
+  // a refused request out of the invalid-key bucket.
+  if (status === 401 || msg.includes('api_key') || msg.includes('unauthorized')) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
@@ -74,6 +69,12 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
   if (status === 402 || isQuotaErrorMessage(msg)) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
+  }
+
+  // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
+  if (status === 403 || msg.includes('forbidden')) {
+    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    return `## Context\n${provider} refused this request with HTTP 403. The API key was NOT rejected as invalid, so this is usually an account plan, key permission, or resource-access restriction rather than a wrong key. Read the provider's own error text in the error data before concluding. DO NOT tell the user their API key is invalid or suggest regenerating it unless the provider's error text says so.\n`
   }
 
   if (status === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('too many requests')) {
@@ -119,7 +120,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('econnrefused') ||
     msg.includes('timeout') ||
     msg.includes('fetch failed') ||
-    msg.includes('proxy') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('certificate')
   ) {
     return `## Context\nNetwork or proxy error. Cherry Studio supports HTTP/SOCKS proxy configuration in system settings. The user may be behind a firewall or using a custom API endpoint.\n`
@@ -227,13 +228,15 @@ Analyze the error and return a JSON diagnosis in ${language}.
 ${contextHint}
 ## Output
 Return ONLY valid JSON (no markdown, no code blocks):
-{"summary":"one-line","category":"auth|region|quota|rate_limit|model|network|proxy|content|server|context_length|payload|stream|parse|mcp|knowledge|ocr|deprecated|unknown","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
+{"summary":"one-line","category":"short error category","explanation":"2-3 sentences why this happened","steps":[{"text":"step 1"},{"text":"step 2"}]}
 
 ## Rules
+- Write all values for summary, category, explanation, and steps[].text in ${language}, the user's language selected in settings
 - 2-4 concrete steps, reference actual provider/model name from error
 - No URLs, no links, no restart suggestion, plain text only
 - Distinguish rate_limit (too many requests, transient, retry soon) from quota (billing/balance exhausted, not transient, must top up)
 - Distinguish region (geo-block, fix by proxy/switching provider) from auth (API key issue)
+- Distinguish permission (HTTP 403, request refused - plan/entitlement/resource access) from auth (key itself rejected)
 - For content (safety filter), suggest rephrasing, never billing/auth fixes
 
 ## Examples
@@ -244,7 +247,9 @@ Input: {"name":"APICallError","message":"Rate limit exceeded","status":429,"prov
 Output: {"summary":"OpenAI rate limit hit due to too many requests","category":"rate_limit","explanation":"The OpenAI server is throttling because the request rate exceeded the allowed limit for this model. This is not a billing issue.","steps":[{"text":"Wait a few seconds before sending the next request"},{"text":"Slow down concurrent or repeated requests to gpt-4"},{"text":"Switch to a model with a higher rate limit if this happens often"}]}
 
 Input: {"name":"APICallError","message":"insufficient_quota: You exceeded your current quota","status":429,"provider":"openai"}
-Output: {"summary":"OpenAI account balance is exhausted","category":"quota","explanation":"The OpenAI account has run out of available credit or quota, so further requests are rejected until the balance is topped up.","steps":[{"text":"Check the billing page of your OpenAI account and top up credit"},{"text":"Switch to another provider with available quota in provider settings"}]}`
+Output: {"summary":"OpenAI account balance is exhausted","category":"quota","explanation":"The OpenAI account has run out of available credit or quota, so further requests are rejected until the balance is topped up.","steps":[{"text":"Check the billing page of your OpenAI account and top up credit"},{"text":"Switch to another provider with available quota in provider settings"}]}
+
+The examples above demonstrate structure only. Write all four diagnosis fields in ${language}.`
 
   const content = JSON.stringify(errorInfo)
 

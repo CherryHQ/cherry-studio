@@ -15,6 +15,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
 const {
+  mockGetProviderById,
+  mockResolveEffectiveEndpoint,
   mockGetPathToNode,
   mockSetCompactionSummary,
   mockResolveRequestContextSettings,
@@ -23,6 +25,8 @@ const {
   mockGetAssistantById,
   mockFindFileEntryById
 } = vi.hoisted(() => ({
+  mockGetProviderById: vi.fn(),
+  mockResolveEffectiveEndpoint: vi.fn(),
   mockGetPathToNode: vi.fn(),
   mockSetCompactionSummary: vi.fn(),
   mockResolveRequestContextSettings: vi.fn(),
@@ -43,6 +47,15 @@ vi.mock('@data/services/AssistantService', () => ({
 // blob's entry is an owned tool-output blob before serving its path — otherwise it
 // skips the path. Default to a valid owned tool-output blob entry so persisted
 // outputs reach the allow-list; foreign/missing cases aren't exercised here.
+// The output reservation resolves the endpoint per model — only the Anthropic
+// endpoint puts max_tokens on the wire, so only it shrinks the input room.
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mockGetProviderById }
+}))
+vi.mock('@main/ai/provider/endpoint', () => ({
+  resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
+}))
+
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
 }))
@@ -55,6 +68,7 @@ vi.mock('@main/data/services/MessageService', () => ({
     getPathToNode: mockGetPathToNode,
     setCompactionSummary: mockSetCompactionSummary,
     getById: vi.fn(),
+    isAwaitingInputLeaf: vi.fn(() => false),
     create: vi.fn(),
     update: vi.fn(),
     createUserMessageWithPlaceholders: vi.fn(),
@@ -103,6 +117,7 @@ function makeModel(id: UniqueModelId, contextWindow = 4000) {
     id,
     name: id,
     providerId: 'openai',
+    maxOutputTokens: undefined as number | undefined,
     apiModelId: 'gpt-4o',
     contextWindow,
     capabilities: [] as never[],
@@ -192,10 +207,23 @@ function fakeMsgWithContextTokens(
   return { ...fakeMsg(id, role, text), stats: { contextTokens } }
 }
 
-function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
+function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }, thresholdPercent = 80) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, compress: { enabled: true } },
+    contextSettings: {
+      enabled: true,
+      truncateThreshold: 0.9,
+      maxMessages: null,
+      compress: { enabled: true, thresholdPercent }
+    },
     compressionModel
+  })
+}
+
+/** Bounded scope: maxMessages set → serve the last-N window, skip folding. */
+function maxMessagesOn(maxMessages: number, enabled = true) {
+  mockResolveRequestContextSettings.mockResolvedValue({
+    contextSettings: { enabled, truncateThreshold: 0.9, maxMessages, compress: { enabled: true } },
+    compressionModel: { languageModel: {}, contextWindow: null }
   })
 }
 
@@ -248,6 +276,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     vi.clearAllMocks()
     capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
+    // Default: an endpoint that sends no max_tokens, so the input room is the
+    // whole window and every pre-existing trigger arithmetic below still holds.
+    mockGetProviderById.mockReturnValue({ id: 'openai' })
+    mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'openai-chat-completions' })
     // Default: no assistant reachable (matches assistantId=undefined in most tests).
     mockGetAssistantById.mockImplementation(() => {
       throw new Error('NOT_FOUND')
@@ -274,6 +306,231 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u1')
     expect(ids).toContain('a1')
     expect(ids).toContain('u2')
+  })
+
+  it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {
+    // Same over-budget shape as test 2 — without maxMessages this WOULD fold.
+    const BIG = 'token '.repeat(700)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(3)
+
+    const { messages } = await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+  })
+
+  it('1c. maxMessages=1 serves only the current user message (stateless assistant)', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('1d. maxMessages still bounds the window when the context-management master switch is off', async () => {
+    // The master switch owns the overflow policy, so it must not silently
+    // serve full history to someone who asked for "last 1 message".
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1, false)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('1e. a maxMessages window revokes read_file/fs_read access to what slid out', async () => {
+    // Leaving the raw-path context in place let the model pull the excluded
+    // attachment back in through read_file, defeating the setting.
+    const attachedMsg = fakeMsg('u1', 'user', 'here is the doc')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([attachedMsg, fakeMsg('a1', 'assistant', 'ok'), fakeMsg('u2', 'user', '现在呢')])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
+  })
+
+  it('1f. a maxMessages window keeps attachments that are still inside it', async () => {
+    const attachedMsg = fakeMsg('u2', 'user', 'read this')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'older'), fakeMsg('a1', 'assistant', 'ok'), attachedMsg])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-1', handle: 'doc.txt', displayName: 'doc.txt' }
+    ])
+  })
+
+  it('1g. a window ignores an older summary entirely and serves raw rows', async () => {
+    // A summary covers everything up to its boundary, so serving one would
+    // carry pre-window content back in and re-authorize the folded prefix.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-folded' } }
+    })
+    const boundary = fakeMsg('a1', 'assistant', 'old answer')
+    boundary.compactionSummary = 'PRIOR_SUMMARY'
+    mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    // Everything before the window is gone — no synthetic summary row, and the
+    // folded message's attachment leaves the read_file allow-list with it.
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
+  })
+
+  it('1h. a window whose boundary row is inside it still serves raw, not the summary', async () => {
+    // Even a boundary INSIDE the window is not served: its text still reaches
+    // past the window. The raw rows go instead.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-folded' } }
+    })
+    const boundary = fakeMsg('a1', 'assistant', 'old answer')
+    boundary.compactionSummary = 'PRIOR_SUMMARY'
+    mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    // Last 2 = [a1, u2] opens on an assistant row, so the window extends back to u1.
+    maxMessagesOn(2)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+    expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
+    ])
+  })
+
+  // Providers bill `input + max_tokens`, so a request that declares max_tokens
+  // has that much less room for history. 4000 window − 2000 reserved = 2000 of
+  // room, tripping at 1600 where the raw window would have waited until 3200.
+  it('2a. an Anthropic-endpoint request folds against the room left after max_tokens', async () => {
+    mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'anthropic-messages' })
+    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 3200, over 1600
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The trigger is configurable, and this lane must honour it — the in-loop hook
+  // going green on its own would hide a regression here.
+  it('2c. folds at a configured trigger the default would not have reached', async () => {
+    const MID = 'token '.repeat(300) // 5 x 300 = 1500: under the default 3200, over 40%'s 1600... just under
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn(undefined, 30) // trigger = 30% of 4000 = 1200 < ~1500
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The mirror of 2c: the same history under the default 80% trigger (3200)
+  // stays untouched, so 2c is proving the setting and not just the history size.
+  it('2c-bis. leaves that same history alone at the default trigger', async () => {
+    const MID = 'token '.repeat(300)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  // The keep budget is a fraction of the TRIGGER (0.375x), not of the window
+  // (the old 0.3x). Sized against the window it OVERSHOOTS a low trigger, and a
+  // history that is over the trigger but still fits the budget leaves nothing to
+  // snap: `planKeepBoundary` returns null and this lane silently stops folding
+  // while the in-loop hook carries on alone.
+  //
+  // 5 x ~200 = ~1000 tokens at a 20% trigger on a 4000 window:
+  //   trigger      = 800   → over budget, must fold
+  //   keep (0.375x)= 300   → snaps a boundary, folds the head
+  //   keep (old .3x window) = 1200 → whole history fits, boundary null, no fold
+  it('2d. still snaps a keep boundary at a trigger below the old window-relative budget', async () => {
+    const SMALL = 'token '.repeat(200)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', SMALL))
+    )
+    compressionOn(undefined, 20)
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+  })
+
+  // The same history on the same model, but an endpoint that puts no max_tokens
+  // on the wire: nothing is billed, so the whole window stays available and the
+  // fold that fires above must not fire here.
+  it('2a-bis. an endpoint that sends no max_tokens keeps the whole window for history', async () => {
+    const MID = 'token '.repeat(400)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {
@@ -462,7 +719,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(anchors.every((c) => c.data.phase === 'turn-start')).toBe(true)
   })
 
-  it('2i. settles the anchor when the summarizer returns nothing', async () => {
+  const fiveBigTurns = () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
       fakeMsg('u1', 'user', BIG),
@@ -471,12 +728,26 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a2', 'assistant', BIG),
       fakeMsg('u3', 'user', BIG)
     ])
+  }
+
+  it('2i. settles the anchor as skipped when the summarizer returns nothing (no false marker)', async () => {
+    fiveBigTurns()
     compressionOn()
     mockSummarizeModelMessages.mockResolvedValueOnce('')
 
     await makeHistory('u3')
     const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
+  })
+
+  it('2i2. settles the anchor as skipped when the summarizer throws', async () => {
+    fiveBigTurns()
+    compressionOn()
+    mockSummarizeModelMessages.mockRejectedValueOnce(new Error('summarizer failed'))
+
+    await makeHistory('u3')
+    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {
@@ -513,9 +784,69 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const { messages, prepared } = await makeHistory('u2')
 
     expect(messages.map((m) => m.id)).not.toContain('a1')
-    expect([...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]).toEqual([
-      '/blobs/fe-blob.txt'
+    const paths = [...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]
+    expect(paths).toEqual(['/blobs/fe-blob.txt'])
+    // …and the summary NAMES it. Without that the model held fs_read with no
+    // legal argument — the marker carrying the path is gone from the view.
+    expect(messages[0].parts?.[0]).toMatchObject({
+      text: expect.stringContaining('/blobs/fe-blob.txt')
+    })
+  })
+
+  // Scoping both manifests to the folded prefix keeps the row a pure function
+  // of the boundary, so provider prefix caches survive.
+  it('2d-bis. summary text is byte-identical when nothing is folded behind the boundary', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'old question'),
+      fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'latest question')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages } = await makeHistory('u2')
+
+    const text = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
+    expect(text).toContain('PRIOR SUMMARY')
+    expect(text).not.toContain('read_file tool')
+    expect(text).not.toContain('fs_read tool')
+  })
+
+  // The invariant both review findings add up to: everything fs_read is allowed
+  // to read must be nameable from the served prompt.
+  it('2d-ter. every allow-listed persisted path is visible in the served prompt', async () => {
+    const toolMsg = fakeMsg('a1', 'assistant', 'ran a tool')
+    ;(toolMsg.data as { parts: unknown[] }).parts.push({
+      type: 'tool-run_cmd',
+      toolCallId: 'call-1',
+      state: 'output-available',
+      input: {},
+      output: {
+        $persistedToolOutput: {
+          fileEntryId: 'fe-blob',
+          vfsFilename: 'vfs_0123456789abcdef.txt',
+          head: 'head',
+          tail: 'tail',
+          totalChars: 100_000,
+          totalLines: 2_000,
+          shape: 'text'
+        }
+      }
+    })
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', 'old question'),
+      toolMsg,
+      fakeMsg('a2', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'latest question')
     ])
+    compressionOn()
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    const served = JSON.stringify(messages)
+    for (const p of prepared.models[0].request.retainedContext?.persistedOutputPaths ?? []) {
+      expect(served).toContain(p)
+    }
   })
 
   it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {
@@ -772,7 +1103,9 @@ function inLoopScope(contextWindow: number) {
   return {
     request: { chatId: 'topic-1' },
     model: { id: 'openai::gpt-4o', contextWindow },
-    contextSettings: { enabled: true, compress: { enabled: true } },
+    // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
+    provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
+    contextSettings: { enabled: true, compress: { enabled: true, thresholdPercent: 80 } },
     compressionModel: { id: 'compression-model' }
   } as any
 }

@@ -9,6 +9,7 @@ import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
 import { CircleSlash, Pin, Settings2 } from 'lucide-react'
@@ -27,6 +28,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
+import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -41,6 +43,7 @@ const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
+const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
@@ -152,6 +155,7 @@ function modelsFromSelectedIds(
 
 function ModelRow({
   item,
+  disabled,
   isFocused,
   onPin,
   onSelect,
@@ -163,6 +167,7 @@ function ModelRow({
   t
 }: {
   item: ModelSelectorModelItem
+  disabled: boolean
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
@@ -176,6 +181,13 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
+  const disambiguationLabel = item.showIdentifier
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
+      ? providerName
+      : undefined
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -227,6 +239,7 @@ function ModelRow({
   return (
     <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
       <ModelSelectorRow
+        disabled={disabled}
         selected={isSelected}
         focused={isFocused}
         showSelectedIndicator={!showCheckbox && isSelected}
@@ -240,13 +253,81 @@ function ModelRow({
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
-        {item.isPinned && (
-          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
-            | {providerName}
+        {disambiguationLabel && (
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
+            | {disambiguationLabel}
           </span>
         )}
       </ModelSelectorRow>
     </ModelSelectorDetailCard>
+  )
+}
+
+function ModelSelectorFilterTags({
+  tags,
+  tagSelection,
+  onToggleTag
+}: {
+  tags: readonly ModelSelectorTag[]
+  tagSelection: Record<ModelSelectorTag, boolean>
+  onToggleTag: (tag: ModelSelectorTag) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fadeState, setFadeState] = useState({ left: false, right: false })
+
+  const updateFadeState = useCallback(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    // 容差 1px:缩放下 scrollWidth/clientWidth 有亚像素误差,精确等式会让右侧渐隐永不消失
+    const left = element.scrollLeft > 0
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+    setFadeState((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+  }, [])
+
+  useLayoutEffect(() => {
+    updateFadeState()
+  })
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+
+    const observer = new ResizeObserver(updateFadeState)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [updateFadeState])
+
+  const maskImage =
+    fadeState.left && fadeState.right
+      ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+      : fadeState.right
+        ? `linear-gradient(to right, black calc(100% - ${FILTER_TAG_FADE_WIDTH_PX}px), transparent)`
+        : fadeState.left
+          ? `linear-gradient(to right, transparent, black ${FILTER_TAG_FADE_WIDTH_PX}px)`
+          : undefined
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={updateFadeState}
+      style={maskImage ? { maskImage } : undefined}
+      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      data-testid="model-selector-filter-tags">
+      {tags.map((tag) => (
+        <ModelTag
+          key={`filter-${tag}`}
+          tag={tag}
+          size={FILTER_TAG_SIZE}
+          showLabel
+          inactive={!tagSelection[tag]}
+          onClick={() => onToggleTag(tag)}
+          className="h-5 shrink-0 items-center transition-colors"
+        />
+      ))}
+    </div>
   )
 }
 
@@ -259,6 +340,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     showTagFilter = true,
     showPinnedModels = true,
     showPinActions = true,
+    isModelDisabled,
+    includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -327,6 +410,10 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+  const isSelectionDisabled = useCallback(
+    (model: Model, provider?: Provider) => Boolean(isModelDisabled?.(model, provider)),
+    [isModelDisabled]
+  )
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
   // rendering the open->closed transition unmounts it in that same commit, so the closed-state
@@ -403,6 +490,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     visibleSelectedModelIdSet
   } = useModelSelectorData({
     enabled: dataEnabled,
+    includeAgentOnlyModels,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -490,6 +578,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
+      if (isSelectionDisabled(item.model, item.provider)) return
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -508,7 +597,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -752,6 +841,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           }}>
           <ModelRow
             item={item}
+            disabled={isSelectionDisabled(item.model, item.provider)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
@@ -771,6 +861,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleSelectItem,
       handleTogglePin,
       isPinActionDisabled,
+      isSelectionDisabled,
       multiple,
       multiSelectMode,
       setFocusedItemKey,
@@ -803,23 +894,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       return undefined
     }
 
-    return (
-      <div
-        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        data-testid="model-selector-filter-tags">
-        {availableTags.map((tag) => (
-          <ModelTag
-            key={`filter-${tag}`}
-            tag={tag}
-            size={FILTER_TAG_SIZE}
-            showLabel
-            inactive={!tagSelection[tag]}
-            onClick={() => toggleTag(tag)}
-            className="h-5 shrink-0 items-center transition-colors"
-          />
-        ))}
-      </div>
-    )
+    return <ModelSelectorFilterTags tags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(

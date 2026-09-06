@@ -1,7 +1,13 @@
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { isMac, isWin } from '@renderer/utils/platform'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
+import {
+  formatShortcutDisplay,
+  getShortcutBindingFromKeyboardEvent,
+  isShortcutBinding,
+  type KeyboardEventLike
+} from '@shared/utils/shortcut'
 
 const logger = loggerService.withContext('Utils:Input')
 
@@ -67,46 +73,69 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
   }
 }
 
-// convert send message shortcut to human readable label
-export const getSendMessageShortcutLabel = (shortcut: SendMessageShortcut) => {
-  switch (shortcut) {
-    case 'Enter':
-      return 'Enter'
-    case 'Ctrl+Enter':
-      return 'Ctrl + Enter'
-    case 'Alt+Enter':
-      return `${isMac ? '⌥' : 'Alt'} + Enter`
-    case 'Command+Enter':
-      return `${isMac ? '⌘' : isWin ? 'Win' : 'Super'} + Enter`
-    case 'Shift+Enter':
-      return 'Shift + Enter'
-    default:
-      return shortcut
-  }
+const shortcutPlatform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
+
+/** Stable identity of a binding — comparison, dedup, and select values all go through it. */
+export const composerShortcutId = (shortcut: ComposerShortcut): string => shortcut.join('+')
+
+/**
+ * The Enter combinations the composer offers. `CommandOrControl` is Command on macOS and
+ * Control elsewhere, so plain Control is only a separate combination on macOS.
+ */
+export const COMPOSER_SHORTCUTS: readonly ComposerShortcut[] = [
+  ['Enter'],
+  ['Shift', 'Enter'],
+  ['CommandOrControl', 'Enter'],
+  ['Alt', 'Enter'],
+  ...(isMac ? [['Ctrl', 'Enter'] as ComposerShortcut] : [])
+]
+
+// v1 (and pre-2.0 v2) stored one of five fixed strings instead of a binding.
+const LEGACY_COMPOSER_SHORTCUTS: Record<string, ComposerShortcut> = {
+  Enter: ['Enter'],
+  'Shift+Enter': ['Shift', 'Enter'],
+  'Alt+Enter': ['Alt', 'Enter'],
+  // Command+Enter was matched against the Meta key, i.e. the OS-reserved Win/Super key
+  // off macOS, where it could never fire.
+  'Command+Enter': ['CommandOrControl', 'Enter'],
+  'Ctrl+Enter': isMac ? ['Ctrl', 'Enter'] : ['CommandOrControl', 'Enter']
 }
 
-// check if the send message key is pressed in textarea
-export const isSendMessageKeyPressed = (
-  event: React.KeyboardEvent<HTMLTextAreaElement>,
-  shortcut: SendMessageShortcut
-) => {
-  let isSendMessageKeyPressed = false
-  switch (shortcut) {
-    case 'Enter':
-      if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
-      break
-    case 'Ctrl+Enter':
-      if (event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
-      break
-    case 'Command+Enter':
-      if (event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey) isSendMessageKeyPressed = true
-      break
-    case 'Alt+Enter':
-      if (event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) isSendMessageKeyPressed = true
-      break
-    case 'Shift+Enter':
-      if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
-      break
-  }
-  return isSendMessageKeyPressed
+const normalizeComposerShortcut = (stored: unknown): ComposerShortcut | null => {
+  if (typeof stored === 'string') return LEGACY_COMPOSER_SHORTCUTS[stored] ?? null
+  if (!isShortcutBinding(stored) || !stored.length) return null
+  if (isMac) return stored
+  // Off macOS the two tokens are the same physical key; keep one spelling so they compare equal.
+  return stored.map((token) => (token === 'Ctrl' ? 'CommandOrControl' : token))
 }
+
+// Send / newline / steer must stay distinct: a stored value another role already took falls
+// back to the first free combination.
+const resolveComposerShortcut = (
+  stored: unknown,
+  taken: readonly ComposerShortcut[],
+  preferred: ComposerShortcut
+): ComposerShortcut => {
+  const takenIds = taken.map(composerShortcutId)
+  const shortcut = normalizeComposerShortcut(stored)
+  if (shortcut && !takenIds.includes(composerShortcutId(shortcut))) return shortcut
+  if (!takenIds.includes(composerShortcutId(preferred))) return preferred
+  return COMPOSER_SHORTCUTS.find((candidate) => !takenIds.includes(composerShortcutId(candidate))) ?? preferred
+}
+
+export const resolveSendShortcut = (stored: unknown): ComposerShortcut => resolveComposerShortcut(stored, [], ['Enter'])
+
+export const resolveNewlineShortcut = (stored: unknown, send: ComposerShortcut): ComposerShortcut =>
+  resolveComposerShortcut(stored, [send], ['Shift', 'Enter'])
+
+export const resolveSteerShortcut = (
+  stored: unknown,
+  send: ComposerShortcut,
+  newline: ComposerShortcut
+): ComposerShortcut => resolveComposerShortcut(stored, [send, newline], ['CommandOrControl', 'Enter'])
+
+/** Whether the pressed key combination is `shortcut`. Callers own the IME-composition check. */
+export const matchesComposerShortcut = (event: KeyboardEventLike, shortcut: ComposerShortcut): boolean =>
+  composerShortcutId(getShortcutBindingFromKeyboardEvent(event, shortcutPlatform)) === composerShortcutId(shortcut)
+
+export const getComposerShortcutLabel = (shortcut: ComposerShortcut): string => formatShortcutDisplay(shortcut, isMac)

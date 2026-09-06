@@ -1,8 +1,13 @@
-import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
+import type {
+  ComposerToolFooterAction,
+  ComposerToolLauncher,
+  ComposerToolLauncherKind
+} from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
@@ -61,7 +66,7 @@ export interface ToolContext {
     sessionId?: string
     agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
-    accessiblePaths?: string[]
+    accessiblePaths?: readonly AbsoluteFilePath[]
     slashCommands?: SlashCommand[]
     /** Knowledge bases statically bound to the Agent. */
     knowledgeBaseIds?: readonly string[]
@@ -69,7 +74,7 @@ export interface ToolContext {
 }
 
 export interface ToolLauncherApi {
-  registerLaunchers: (entries: ComposerToolLauncher[]) => () => void
+  registerLaunchers: (entries: ComposerToolLauncher[], footerActions?: ComposerToolFooterAction[]) => () => void
 }
 
 /**

@@ -65,7 +65,7 @@ describe('dashscope (Bailian) endpoint matrix', () => {
 })
 
 describe('deepseek endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the official Responses endpoint', () => {
+  it('serves the official Responses endpoint through the OpenAI adapter', () => {
     expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
       adapterFamily: 'openai',
       baseUrl: 'https://api.deepseek.com',
@@ -78,17 +78,9 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-v4-flash'],
+        modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
-    ])
-  })
-
-  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual([
-      'openai-responses',
-      'openai-chat-completions',
-      'anthropic-messages'
     ])
   })
 
@@ -97,17 +89,33 @@ describe('deepseek endpoint matrix', () => {
    * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
    * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
    * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
-   * different model than the one selected. It trails Chat Completions on both V4 SKUs because
+   * different model than the one selected. It trails the other two on every V4 SKU because
    * `endpointTypes[0]` is what routes in-app chat.
    */
-  it('exposes the Anthropic-compatible endpoint on V4 Pro without displacing its Chat default', () => {
-    expect(endpointsOf('deepseek', 'deepseek-v4-pro')).toEqual(['openai-chat-completions', 'anthropic-messages'])
-  })
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+    'prefers Responses for %s while keeping Chat Completions selectable',
+    (modelId) => {
+      expect(endpointsOf('deepseek', modelId)).toEqual([
+        'openai-responses',
+        'openai-chat-completions',
+        'anthropic-messages'
+      ])
+    }
+  )
 
   it.each(['deepseek-chat', 'deepseek-reasoner'])(
     'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
+    }
+  )
+})
+
+describe('MiniMax endpoint matrix', () => {
+  it.each(['minimax', 'minimax-global'])(
+    '%s keeps Chat Completions first while exposing Anthropic Messages for Agent sessions',
+    (providerId) => {
+      expect(endpointsOf(providerId, 'minimax-m3')).toEqual(['openai-chat-completions', 'anthropic-messages'])
     }
   )
 })
@@ -120,11 +128,17 @@ describe('deepseek endpoint matrix', () => {
  * prints chat/completions for Grok 4.5, months after models.dev moved it to the OpenAI SDK (#17860).
  */
 describe('opencode (Zen Go) endpoint matrix', () => {
-  it('uses the native OpenAI adapter for the Responses endpoint', () => {
-    expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
+  it('serves the Responses endpoint through the OpenAI adapter', () => {
+    const endpoint = provider('opencode').endpointConfigs?.['openai-responses']
+
+    expect(endpoint).toMatchObject({
       adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
       reasoningFormat: { type: 'openai-responses' }
+    })
+    expect(endpoint?.reasoningFormat?.wire?.effort?.operations).toContainEqual({
+      target: 'reasoningSummary',
+      value: { source: 'assistant-summary' }
     })
   })
 
@@ -136,11 +150,14 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
   })
 
-  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
-    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
-  })
+  it.each(['qwen3-8-flash', 'qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])(
+    'pins %s to the Anthropic-compatible endpoint',
+    (modelId) => {
+      expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+    }
+  )
 
-  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+  it.each(['hy4-preview', 'hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
     expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
   })
 })
@@ -161,5 +178,29 @@ describe('doubao (Ark) endpoint matrix', () => {
     'doubao-1-5-thinking-pro' // pre-250615, not served by /responses at all
   ])('pins %s to Chat Completions, which is the only endpoint Ark serves for it', (modelId) => {
     expect(endpointsOf('doubao', modelId)).toEqual(['openai-chat-completions'])
+  })
+})
+
+/**
+ * A self-hosted relay has ONE user-supplied host. `getBaseUrl` only falls back to the default
+ * chat endpoint when the requested endpoint has no `baseUrl`, so a placeholder host on a
+ * secondary endpoint silently sends that protocol's traffic to localhost:3000.
+ */
+describe('new-api single-host endpoints', () => {
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
+  })
+
+  /**
+   * An override is also a catalog row, so any entry here advertises a model to every New API user
+   * regardless of what their relay serves. The wire such an entry would carry is unknowable too:
+   * the thinking field depends on the channel behind the model, which is why New API solves this
+   * with server-side 参数覆盖.
+   */
+  it('declares no per-model overrides', () => {
+    expect(provider('new-api').overrides ?? []).toEqual([])
   })
 })

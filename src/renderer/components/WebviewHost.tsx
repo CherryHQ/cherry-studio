@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
+import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
 import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 import type {
@@ -8,6 +9,7 @@ import type {
   DidNavigateEvent,
   DidNavigateInPageEvent,
   DidStartNavigationEvent,
+  IpcMessageEvent,
   WebviewTag
 } from 'electron'
 import type { CSSProperties } from 'react'
@@ -124,6 +126,20 @@ export function WebviewHost({
     }
     const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => onDidNavigate?.(event)
 
+    // Replay the guest's keydown on the host window so the normal keybinding
+    // resolution (find-in-page and friends) sees it; `target` identifies the webview.
+    const handleGuestKeydown = (event: IpcMessageEvent) => {
+      if (event.channel !== MINI_APP_KEYDOWN_CHANNEL) return
+
+      const payload = event.args[0] as MiniAppKeyPayload | undefined
+      if (!payload?.isTrusted || document.activeElement !== webview) return
+
+      const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
+      Object.defineProperty(replayed, 'target', { get: () => webview })
+      window.dispatchEvent(replayed)
+    }
+
+    webview.addEventListener('ipc-message', handleGuestKeydown)
     webview.addEventListener('dom-ready', handleDomReady)
     webview.addEventListener('did-start-loading', handleStartLoading)
     webview.addEventListener('did-start-navigation', onDidStartNavigation ?? noop)
@@ -134,6 +150,7 @@ export function WebviewHost({
     webview.addEventListener('did-fail-load', onDidFailLoad ?? noop)
 
     return () => {
+      webview.removeEventListener('ipc-message', handleGuestKeydown)
       webview.removeEventListener('dom-ready', handleDomReady)
       webview.removeEventListener('did-start-loading', handleStartLoading)
       webview.removeEventListener('did-start-navigation', onDidStartNavigation ?? noop)

@@ -1,6 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -113,6 +114,7 @@ it('watches an allowed missing workspace without limiting discovery depth', () =
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
+  treeActivate: vi.fn(),
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
   ipcRequest: vi.fn(),
@@ -132,6 +134,9 @@ const mocks = vi.hoisted(() => ({
     tags: string[]
     path: string
   }>,
+  openTargetsError: null as Error | null,
+  openTargetsGate: null as (() => Promise<void>) | null,
+  openTargetListCalls: [] as Array<{ pathKind: string; targetPath: string }>,
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   filePreviewProps: [] as Array<{
@@ -150,7 +155,7 @@ const mocks = vi.hoisted(() => ({
 /**
  * Convert the flat-path fixtures the tests still use into a
  * `SerializedTreeNode` snapshot — the wire shape `useDirectoryTree`
- * receives from the main-side `File_TreeCreate` IPC. Absolute paths outside
+ * receives from the main-side `file.tree.create` route. Absolute paths outside
  * the workspace are silently dropped (matching what the watcher would
  * surface in practice: nothing).
  */
@@ -232,7 +237,7 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.nextTreeId += 1
   const treeId = `tree-${mocks.nextTreeId}`
   const snapshot = pathsToSnapshot(workspacePath, paths)
-  mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
+  mocks.treeCreate.mockResolvedValueOnce({ treeId, revision: 0, snapshot })
 }
 
 function binaryReadResult(content: Uint8Array) {
@@ -244,7 +249,8 @@ function binaryReadResult(content: Uint8Array) {
 }
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@cherrystudio/ui', async (importActual) => {
@@ -277,6 +283,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
         <textarea
           data-testid="code-editor"
           data-font-size={props.fontSize}
+          data-wrapped={String(props.wrapped)}
           readOnly={props.editable === false}
           value={props.value}
           onChange={(event) => props.onChange?.(event.currentTarget.value)}
@@ -386,6 +393,16 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
+// ArtifactPane renders markdown files through the shared StaticMarkdown renderer;
+// stub it so this unit test doesn't pull in the full Streamdown component graph.
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ id, children }: { id: string; children: string }) => (
+    <div data-testid="markdown" data-md-id={id}>
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
   motion: {
@@ -459,11 +476,7 @@ vi.mock('@renderer/components/FileTree', () => ({
     onExpandedChange?: (ids: ReadonlySet<string>) => void
     selectedId?: string | null
     onSelectedChange?: (id: string | null) => void
-    getMenuItems?: (
-      node: MockFileTreeNode
-    ) => ReadonlyArray<
-      { type: 'item'; id: string; label: string; icon?: React.ReactNode; onSelect: () => void } | { type: 'separator' }
-    >
+    getMenuItems?: (node: MockFileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
     searchToolbar?: React.ReactNode
     searchClearLabel?: string
     searchKeyword?: string
@@ -471,6 +484,7 @@ vi.mock('@renderer/components/FileTree', () => ({
     truncateLabels?: boolean
   }) => {
     const [menuNode, setMenuNode] = useState<MockFileTreeNode | null>(null)
+    const [menuItems, setMenuItems] = useState<readonly CommandContextMenuExtraItem[]>([])
     const renderNode = (node: MockFileTreeNode) => (
       <div key={node.id}>
         <button
@@ -481,7 +495,12 @@ vi.mock('@renderer/components/FileTree', () => ({
           data-selected={String(selectedId === node.id)}
           onContextMenu={(event) => {
             event.preventDefault()
-            setMenuNode(node)
+            setMenuNode(null)
+            setMenuItems([])
+            void Promise.resolve(getMenuItems?.(node) ?? []).then((items) => {
+              setMenuItems(items)
+              setMenuNode(node)
+            })
           }}
           onClick={() => {
             if (node.kind === 'folder') {
@@ -513,7 +532,7 @@ vi.mock('@renderer/components/FileTree', () => ({
         {nodes.map(renderNode)}
         {menuNode ? (
           <div role="menu" data-testid="file-tree-context-menu">
-            {getMenuItems?.(menuNode).map((item, index) =>
+            {menuItems.map((item, index) =>
               item.type === 'item' ? (
                 <button key={item.id} type="button" role="menuitem" onClick={item.onSelect}>
                   {item.icon ? <span data-testid={`menuitem-icon-${item.id}`}>{item.icon}</span> : null}
@@ -550,12 +569,77 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
   isMac: true,
   isWin: false
 }))
 
-vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: () => ({ data: mocks.externalApps })
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => (
+    <button
+      type="button"
+      aria-label="Open in Finder"
+      onClick={() => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))}
+    />
+  ),
+  loadOpenTargetMenuItems: async ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => {
+    mocks.openTargetListCalls.push({ pathKind, targetPath })
+    if (mocks.openTargetsError) throw mocks.openTargetsError
+    if (mocks.openTargetsGate) await mocks.openTargetsGate()
+    return [
+      ...(pathKind === 'file'
+        ? [
+            {
+              type: 'item' as const,
+              id: 'system-default',
+              label: 'agent.preview_pane.default_app',
+              onSelect: () => mocks.openPath(targetPath)
+            }
+          ]
+        : []),
+      {
+        type: 'item' as const,
+        id: 'file-manager',
+        label: 'Finder',
+        icon: <svg aria-hidden="true" data-testid="finder-icon" />,
+        onSelect: () => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))
+      },
+      ...mocks.externalApps.map((app) => ({
+        type: 'item' as const,
+        id: `app-${app.id}`,
+        label: app.name,
+        onSelect: () => mocks.windowOpen(`editor://${app.id}${targetPath}`)
+      }))
+    ]
+  }
+}))
+
+const commandMenuMocks = vi.hoisted(() => ({
+  calls: [] as Array<{
+    disabled?: boolean
+    location?: string
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
+    getExtraItems?: (event: unknown) => MaybePromise<readonly CommandContextMenuExtraItem[]>
+  }>
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({
+    children,
+    disabled,
+    location,
+    pendingExtraItems,
+    getExtraItems
+  }: {
+    children?: React.ReactNode
+    disabled?: boolean
+    location?: string
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
+    getExtraItems?: (event: unknown) => MaybePromise<readonly CommandContextMenuExtraItem[]>
+  }) => {
+    commandMenuMocks.calls.push({ disabled, location, pendingExtraItems, getExtraItems })
+    return <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -563,22 +647,21 @@ vi.mock('@renderer/ipc', () => ({
     // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
     // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
     // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
-    request: (route: string, input: unknown) =>
-      route === 'file.get_metadata' ? mocks.getMetadata(input) : mocks.ipcRequest(route, input)
+    // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
+    request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
+      if (route === 'file.get_metadata') return mocks.getMetadata(input)
+      if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
+      if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
+      if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
+      return mocks.ipcRequest(route, input)
+    },
+    on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
   }
-}))
-
-vi.mock('@renderer/utils/editor', () => ({
-  buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
-  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
-}))
-
-vi.mock('@renderer/components/icons/EditorIcon', () => ({
-  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'en' },
     t: (key: string, options?: { count?: number; extension?: string; name?: string }) => {
       if (key === 'agent.preview_pane.items') return `${options?.count ?? 0} localized items`
       if (key === 'agent.preview_pane.office.title') return `unsupported ${options?.extension ?? ''}`
@@ -601,8 +684,10 @@ describe('ArtifactPane', () => {
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
       treeId: 'tree-default',
+      revision: 0,
       snapshot: pathsToSnapshot('/tmp/workspace', [])
     })
+    mocks.treeActivate.mockResolvedValue(true)
     // `restoreAllMocks` in afterEach wipes out custom implementations, so
     // re-bind via `mockImplementation` (more robust than `mockResolvedValue`
     // for callers that don't await the returned promise — the hook does
@@ -614,6 +699,10 @@ describe('ArtifactPane', () => {
     mocks.openPath.mockResolvedValue(undefined)
     mocks.showInFolder.mockResolvedValue(undefined)
     mocks.externalApps = []
+    mocks.openTargetsError = null
+    mocks.openTargetsGate = null
+    mocks.openTargetListCalls = []
+    commandMenuMocks.calls = []
     mocks.isDirectory.mockResolvedValue(false)
     // Default: tiny text files. `getMetadata().type` drives text detection
     // (via useIsTextFile) and `.size` drives the size gate — override per-test
@@ -632,11 +721,6 @@ describe('ArtifactPane', () => {
         },
         fs: {
           readText: mocks.fsReadText
-        },
-        tree: {
-          create: mocks.treeCreate,
-          dispose: mocks.treeDispose,
-          onMutation: mocks.treeOnMutation
         }
       }
     })
@@ -971,7 +1055,9 @@ describe('ArtifactPane', () => {
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Overlay')
-    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    let pushMutation:
+      | ((payload: { treeId: string; revision: number; event: { type: 'removed'; path: string } }) => void)
+      | undefined
     mocks.treeOnMutation.mockImplementation((cb) => {
       pushMutation = cb as typeof pushMutation
       return () => {
@@ -987,7 +1073,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
-      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+      pushMutation?.({ treeId: 'tree-1', revision: 1, event: { type: 'removed', path: '/tmp/workspace/README.md' } })
     })
 
     await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
@@ -1071,19 +1157,19 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-__workspace_root__'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Finder' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Finder' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-src'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'VS Code' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'VS Code' }))
     expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace/src')
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.preview_pane.default_app' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.default_app' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Finder' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Finder' }))
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
   })
 
@@ -1095,10 +1181,135 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-__workspace_root__'))
-    expect(within(screen.getByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')).toBeInTheDocument()
+    expect(
+      within(await screen.findByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')
+    ).toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
-    expect(within(screen.getByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')).toBeInTheDocument()
+    expect(
+      within(await screen.findByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')
+    ).toBeInTheDocument()
+  })
+
+  it('configures the opened file header context menu with tab actions and open targets', async () => {
+    mocks.externalApps = [
+      {
+        id: 'vscode',
+        name: 'VS Code',
+        protocol: 'vscode://',
+        tags: ['code-editor'],
+        path: '/Applications/Visual Studio Code.app'
+      }
+    ]
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(headerMenuCall).toBeDefined()
+    expect(
+      headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.refresh')
+    ).toBe(true)
+    expect(
+      headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.close')
+    ).toBe(true)
+
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'system-default')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'file-manager')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'app-vscode')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')).toBe(true)
+
+    // Triggering refresh bumps the preview key
+    const refreshItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')
+    if (refreshItem?.type === 'item') refreshItem.onSelect?.()
+    await waitFor(() => expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1'))
+
+    // Triggering close closes the preview
+    const closeItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')
+    if (closeItem?.type === 'item') closeItem.onSelect?.()
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
+  })
+
+  it('keeps the tab actions when resolving open targets fails', async () => {
+    mocks.openTargetsError = new Error('unresolvable path')
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('artifact-file-preview-overlay')
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(headerMenuCall).toBeDefined()
+
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'file-manager')).toBe(false)
+  })
+
+  it('offers the tab context menu from the pane header title and stays disabled without an opened file', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    // No active file -> menu is disabled
+    const disabledCall = commandMenuMocks.calls.find((c) => c.disabled === true)
+    expect(disabledCall).toBeDefined()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md'))
+
+    const enabledCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    expect(enabledCall).toBeDefined()
+  })
+
+  it('includes the edit/preview toggle in the header context menu for editable files', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    expect(await within(overlay).findByTestId('code-editor')).toBeInTheDocument()
+
+    const headerMenuCall = commandMenuMocks.calls.find(
+      (c) => c.disabled === false && c.pendingExtraItems && c.pendingExtraItems.length > 0
+    )
+    const extraItems = await headerMenuCall?.getExtraItems?.(null)
+    const toggleItem = extraItems?.find((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.toggle-edit-mode')
+    expect(toggleItem).toBeDefined()
+    expect(toggleItem?.type === 'item' && toggleItem.label).toBe('common.preview')
+  })
+
+  it('shows the full-path tooltip on the overlay header title', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(within(overlay).getByText('README.md')).toHaveAttribute('title', '/tmp/workspace/README.md')
   })
 
   it('keeps the selected lazy file while expanded directories are refreshing', async () => {
@@ -1141,6 +1352,7 @@ describe('ArtifactPane', () => {
     let pushMutation:
       | ((payload: {
           treeId: string
+          revision: number
           event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
         }) => void)
       | undefined
@@ -1167,6 +1379,7 @@ describe('ArtifactPane', () => {
     act(() => {
       pushMutation?.({
         treeId: 'tree-default',
+        revision: 1,
         event: {
           type: 'updated',
           path: '/tmp/workspace/src/old.md',
@@ -1179,10 +1392,84 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
+  it('activates a lazy directory watcher so buffered mutations are released', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    // Queued after the workspace tree, so this is the lazy watcher's create.
+    mocks.treeCreate.mockResolvedValueOnce({
+      treeId: 'lazy-tree',
+      revision: 4,
+      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+    })
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() =>
+      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace/src', expect.objectContaining({ maxDepth: 1 }))
+    )
+
+    // A created consumer is pending main-side; without activate every mutation for
+    // this subtree queues forever and the expanded folder never refreshes.
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-tree', 4))
+  })
+
+  it('retakes a lazy directory watcher that main refuses to activate', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.treeCreate
+      .mockResolvedValueOnce({
+        treeId: 'lazy-refused',
+        revision: 0,
+        snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+      })
+      .mockResolvedValueOnce({ treeId: 'lazy-live', revision: 0, snapshot: pathsToSnapshot('/tmp/workspace/src', []) })
+    // Workspace tree activates; the lazy watcher is refused once, then succeeds.
+    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValueOnce(false).mockResolvedValue(true)
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    // Nothing else re-runs this effect, so without a retry the expanded directory
+    // would stay frozen with no live watcher behind it.
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-live', 0))
+    expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-refused')
+  })
+
+  it('drops a lazy directory watcher after its retries are exhausted', async () => {
+    const unsubscribe = vi.fn()
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.treeCreate.mockResolvedValue({
+      treeId: 'lazy-tree',
+      revision: 0,
+      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
+    })
+    // Workspace tree activates; every lazy attempt is refused.
+    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValue(false)
+    mocks.treeOnMutation.mockImplementation(() => unsubscribe)
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+    const workspaceCreates = mocks.treeCreate.mock.calls.length
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    // Bounded: three attempts, then give up. Each attempt already attached both a
+    // subscription and a main-side tree, so all of them must be released.
+    await waitFor(() => expect(mocks.treeCreate.mock.calls.length).toBe(workspaceCreates + 3))
+    await waitFor(() => expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-tree'))
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
   it('ignores older lazy directory requests when a newer reload wins', async () => {
     let pushMutation:
       | ((payload: {
           treeId: string
+          revision: number
           event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
         }) => void)
       | undefined
@@ -1212,6 +1499,7 @@ describe('ArtifactPane', () => {
     act(() => {
       pushMutation?.({
         treeId: 'tree-default',
+        revision: 1,
         event: {
           type: 'updated',
           path: '/tmp/workspace/src/new.md',
@@ -1240,7 +1528,13 @@ describe('ArtifactPane', () => {
     await waitFor(() =>
       expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace',
-        expect.objectContaining({ recursive: true, searchPattern: 'deep', maxEntries: 200 })
+        expect.objectContaining({
+          recursive: true,
+          includeFiles: true,
+          includeDirectories: false,
+          searchPattern: 'deep',
+          maxEntries: 200
+        })
       )
     )
     await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
@@ -1474,6 +1768,23 @@ describe('ArtifactPane', () => {
     )
   })
 
+  it('wraps long lines in the artifact preview editor', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+
+    const editor = await within(overlay).findByTestId('code-editor')
+    // wrapped={false} is the bug: long lines stay on one row and need a bottom-only scrollbar.
+    expect(editor).not.toHaveAttribute('data-wrapped', 'false')
+  })
+
   it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
     const encoded = new TextEncoder().encode('first\r\nsecond\r\n')
     const source = new Uint8Array(encoded.length + 3)
@@ -1578,7 +1889,9 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     // Capture the live mutation listener so the test can push a `removed`
     // event the way the main-side builder would.
-    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    let pushMutation:
+      | ((payload: { treeId: string; revision: number; event: { type: 'removed'; path: string } }) => void)
+      | undefined
     mocks.treeOnMutation.mockImplementation((cb) => {
       pushMutation = cb as typeof pushMutation
       return () => {
@@ -1594,7 +1907,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
-      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+      pushMutation?.({ treeId: 'tree-1', revision: 1, event: { type: 'removed', path: '/tmp/workspace/README.md' } })
     })
 
     await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())

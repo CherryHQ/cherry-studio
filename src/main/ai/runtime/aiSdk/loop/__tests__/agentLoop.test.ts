@@ -1,5 +1,5 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { APICallError, tool, type UIMessageChunk } from 'ai'
+import { APICallError, type ModelMessage, tool, type UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -52,6 +52,33 @@ function mockStream(
 describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('forwards provider-native URL sources to the UI stream', async () => {
+    const source = {
+      type: 'source-url' as const,
+      sourceId: 'citation-0',
+      url: 'https://example.com/source',
+      title: 'Example source'
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: ({ sendSources }: { sendSources?: boolean }) =>
+          new ReadableStream({
+            start(controller) {
+              if (sendSources) controller.enqueue(source)
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const agent = await makeAgent()
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toEqual({ value: source, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
   })
 
   describe('generate', () => {
@@ -638,6 +665,49 @@ describe('Agent', () => {
       value: '[Image: image/png, delivered to user]'
     })
     expect(JSON.stringify(modelMessages)).not.toContain(imageData)
+  })
+
+  it('relocates a new in-loop tool-result image before the next OpenAI-wire step', async () => {
+    mockStream([])
+    const agent = await makeAgent({
+      mediaCapabilities: { image: true, video: false, audio: false },
+      toolResultMediaCapabilities: { image: false, video: false, audio: false }
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+    while (!(await reader.read()).done) {
+      /* drain to completion */
+    }
+
+    const prepareStep = mockCreateAgent.mock.calls[0][0].agentSettings.prepareStep as (options: {
+      messages: ModelMessage[]
+    }) => Promise<{ messages?: ModelMessage[] } | undefined>
+    const result = await prepareStep({
+      messages: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'mcp_resource_read',
+              output: {
+                type: 'content',
+                value: [{ type: 'image-data', data: 'BASE64', mediaType: 'image/png' }]
+              }
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(result?.messages?.map((message) => message.role)).toEqual(['tool', 'user'])
+    expect(result?.messages?.[1]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: '[tool-result attachment call_id="call-1" image=1]' },
+        { type: 'image', image: 'BASE64', mediaType: 'image/png' }
+      ]
+    })
   })
 
   // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──

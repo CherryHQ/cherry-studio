@@ -1,27 +1,45 @@
 /**
  * Read-side service for agent scheduled tasks: list / get / run logs plus the
  * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
- * All task mutations go through `AgentJobsService` (IpcApi `ai.agent.task.*`)
- * — this service must not reach JobManager / SchedulerService / ChannelManager.
+ * User-driven task mutations go through `AgentJobsService` (IpcApi
+ * `ai.agent.task.*`); the workspace cleanup methods below are DB-only
+ * transaction primitives used by workspace deletion.
  */
 
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
+import type {
+  ScheduledTaskEntity,
+  ScheduledTaskListItem,
+  TaskRunLogEntity,
+  TaskRunSummary
+} from '@shared/data/api/schemas/agents'
 import {
+  AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
-  AgentSessionWorkspaceSourceSchema
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-const HEARTBEAT_TASK_NAME = 'heartbeat'
+
+/**
+ * Reserved prompt marking a schedule as an agent heartbeat rather than a
+ * user-authored task. It is the only heartbeat marker that survives the v1→v2
+ * migration intact — the schedule name does not, because `job_schedule` is
+ * UNIQUE on (type, name) while v1 gave every agent its own `heartbeat` row, so
+ * all but the first are renamed to `task_<v1Id>`.
+ */
+export const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -63,6 +81,24 @@ const TASK_REUSE_METADATA_KEY = 'reuse'
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
+  if (!isPlainRecord(value)) return false
+  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(value.workspace)
+  return (
+    workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER && workspace.data.workspaceId === workspaceId
+  )
+}
+
+function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], workspaceId: string) {
+  const references: Array<{ schedule: JobScheduleSnapshot; template: Record<string, unknown> }> = []
+  for (const schedule of schedules) {
+    if (referencesWorkspace(schedule.jobInputTemplate, workspaceId)) {
+      references.push({ schedule, template: schedule.jobInputTemplate })
+    }
+  }
+  return references
 }
 
 export function normalizeTaskSessionReuseRevision(value: unknown): number {
@@ -108,6 +144,39 @@ export class AgentTaskService {
     ])
   }
 
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    ).map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
+  /**
+   * This cleanup changes only the template used when the task creates a new
+   * session. A reused session keeps its own workspace, and any reused session
+   * bound to this workspace is deleted by the same outer transaction. The
+   * trigger is unchanged and JobManager re-reads the schedule before each run,
+   * so this path does not bump the reuse revision, clear the schedule, or re-arm
+   * its timer.
+   */
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    )
+
+    for (const { schedule, template } of references) {
+      jobScheduleService.updateTx(tx, schedule.id, {
+        jobInputTemplate: {
+          ...template,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    }
+
+    return references.map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
@@ -136,10 +205,15 @@ export class AgentTaskService {
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
   listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
-    tasks: ScheduledTaskEntity[]
+    tasks: ScheduledTaskListItem[]
     total: number
   } {
-    return this.queryTasks(options)
+    const result = this.queryTasks(options)
+    const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
+    return {
+      tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),
+      total: result.total
+    }
   }
 
   private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
@@ -153,7 +227,7 @@ export class AgentTaskService {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
       if (!template) return false
       if (agentId !== undefined && template.agentId !== agentId) return false
-      if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
+      if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
     })
 
@@ -170,6 +244,18 @@ export class AgentTaskService {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
+  }
+
+  private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
+    return new Map(
+      [...jobService.getRunStatesByScheduleIds(AGENT_TASK_TYPE, scheduleIds)].map(
+        ([scheduleId, runState]): [string, TaskRunSummary] => {
+          if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
+          if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
+          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+        }
+      )
+    )
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
@@ -225,25 +311,34 @@ export class AgentTaskService {
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
     const output = job.output as { sessionId?: string; result?: string } | null
     const startedAt = job.startedAt ?? job.scheduledAt
-    // jobTable stores ISO strings on these columns — use Date.parse so
-    // a NaN result (corrupt row) flows through as durationMs = 0 instead
-    // of `NaN`.
-    const startedMs = Date.parse(startedAt)
-    const finishedMs = job.finishedAt ? Date.parse(job.finishedAt) : NaN
-    const durationMs = Number.isFinite(finishedMs - startedMs) ? finishedMs - startedMs : 0
+    // A cancel-requested row's fate is sealed (live cancel and startup recovery
+    // both end it as cancelled) — show the outcome before the row settles.
+    const provisionalCancel = job.cancelRequested && !job.finishedAt
 
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status: TaskRunLogEntity['status'] =
-      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
+    const status: TaskRunLogEntity['status'] = provisionalCancel
+      ? 'cancelled'
+      : job.status === 'pending' || job.status === 'delayed'
+        ? 'running'
+        : job.status
+
+    // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
+    // at sweep time, up to a process lifetime after the run actually stopped.
+    const endIso = status === 'cancelled' ? (job.cancelRequestedAt ?? job.finishedAt) : job.finishedAt
+    // NaN (never started / unfinished / corrupt row) flows through the
+    // isFinite check as durationMs = null — no duration, not queue-wait time.
+    const startedMs = job.startedAt ? Date.parse(job.startedAt) : NaN
+    const endMs = endIso ? Date.parse(endIso) : NaN
+    const durationMs = Number.isFinite(endMs - startedMs) ? Math.max(0, endMs - startedMs) : null
 
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
       sessionId: output?.sessionId ?? null,
       startedAt,
-      durationMs: Math.max(0, durationMs),
+      durationMs,
       status,
       result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
       error: job.error?.message ?? null

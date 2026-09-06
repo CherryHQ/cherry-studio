@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
+const broadcastMock = vi.hoisted(() => vi.fn())
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -101,6 +102,7 @@ vi.mock('@application', () => ({
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -138,9 +140,13 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 
-vi.mock('@main/utils/processRunner', () => ({
-  crossPlatformSpawn: crossPlatformSpawnMock
-}))
+vi.mock('@main/utils/processRunner', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    crossPlatformSpawn: crossPlatformSpawnMock
+  }
+})
 
 vi.mock('@shared/utils', () => ({
   hasApiVersion: vi.fn(() => false),
@@ -170,14 +176,7 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
     defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
     authType: 'api-key',
-    apiFeatures: {
-      arrayContent: true,
-      streamOptions: true,
-      developerRole: false,
-      serviceTier: false,
-      verbosity: false,
-      reportsActualCost: false
-    },
+    reportsActualCost: false,
     settings: {},
     isEnabled: true,
     ...overrides
@@ -381,7 +380,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(sanitized).not.toContain('bearer-sensitive-value')
       expect(sanitized).not.toContain(basicSecret)
       expect(sanitized).not.toContain(customSecret)
-      expect(sanitized).toContain('[REDACTED]')
+      expect(sanitized).toContain('<redacted>')
       expect(sanitized.length).toBeLessThanOrEqual(2000)
     })
 
@@ -713,6 +712,20 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ status: 'error', port: 18790 })
     })
+
+    it('discards a probe that resolves after a transition completed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const pending = service.getStatus()
+      ;(service as any).setGatewayStatus('starting') // startGateway began while the probe was pending
+      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+
+      // Returns the newer authoritative state instead of reviving 'running' from the stale probe.
+      await expect(pending).resolves.toEqual({ status: 'starting', port: 18790 })
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
+    })
   })
 
   // ─── startGateway ────────────────────────────────────────────
@@ -883,6 +896,46 @@ describe('OpenClawService gateway status state machine', () => {
       expect(child.unref).toHaveBeenCalledOnce()
     })
 
+    it('strips proxy variables from the gateway spawn env without mutating the source shellEnv', async () => {
+      const child = createSpawnChild()
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const shellEnv = {
+        PATH: '/usr/local/bin:/usr/bin',
+        HTTP_PROXY: 'socks5://127.0.0.1:1080',
+        HTTPS_PROXY: 'http://127.0.0.1:7897',
+        http_proxy: 'socks5://127.0.0.1:1080',
+        ALL_PROXY: 'socks5://127.0.0.1:1080',
+        SOCKS_PROXY: 'socks5://127.0.0.1:1080',
+        NO_PROXY: 'localhost',
+        GRPC_PROXY: 'http://proxy.example',
+        CHERRY_STUDIO_NODE_PROXY_RULES: 'socks5://127.0.0.1:1080',
+        CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'localhost',
+        USER_DEFINED_TOKEN: 'keep-me',
+        MISE_DATA_DIR: '/user/mise'
+      }
+      const sourceSnapshot = { ...shellEnv }
+
+      const started = (service as any).startAndWaitForGateway('/usr/local/bin/openclaw', shellEnv)
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(started).resolves.toBeUndefined()
+
+      expect(crossPlatformSpawnMock.mock.calls[0][2].env).toEqual({
+        PATH: '/usr/local/bin:/usr/bin',
+        USER_DEFINED_TOKEN: 'keep-me',
+        MISE_DATA_DIR: '/user/mise',
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+        OPENCLAW_NO_AUTO_UPDATE: '1'
+      })
+      expect(shellEnv).toEqual(sourceSnapshot)
+    })
+
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {
       // First call: port occupied; after stop: port free
       checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
@@ -992,6 +1045,221 @@ describe('OpenClawService gateway status state machine', () => {
       expect((service as any).gatewayStatus).toBe('error')
       expect(checkPortOpenSpy).toHaveBeenCalledTimes(3)
       expect(checkHealthSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── status broadcasts + periodic probe ─────────────────────
+
+  describe('gateway status broadcasts', () => {
+    const statusPayloads = () =>
+      broadcastMock.mock.calls.filter((call) => call[0] === 'openclaw.status_changed').map((call) => call[1])
+
+    it('broadcasts starting then running on a successful start', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+      expect(statusPayloads()).toEqual([{ status: 'starting' }, { status: 'running' }])
+    })
+
+    it('broadcasts error when the start fails', async () => {
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
+
+      await expect(service.startGateway()).resolves.toMatchObject({ success: false })
+
+      expect(statusPayloads().at(-1)).toEqual({ status: 'error' })
+    })
+
+    it('announces stopped when a stop completes', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkPortOpenSpy.mockResolvedValue(false)
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      expect(statusPayloads().at(-1)).toEqual({ status: 'stopped' })
+    })
+
+    it('confirms stopped on a no-op stop so a stale renderer is corrected', async () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      checkPortOpenSpy.mockResolvedValue(false)
+      broadcastMock.mockClear()
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      // No transition happened, but the request still announces the terminal state.
+      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+    })
+
+    it('keeps the current custom port when startGateway is called without one', async () => {
+      ;(service as any).gatewayPort = 18888
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+  })
+
+  describe('gateway port preference sync', () => {
+    it('adopts the persisted custom gateway port at readiness', () => {
+      vi.mocked(application.get).mockImplementationOnce(
+        () =>
+          ({
+            get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 18888 : undefined)
+          }) as never
+      )
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('keeps the default port when the preference value is not a positive integer', () => {
+      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 'en-US' }) as never)
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18790)
+    })
+
+    it('keeps the current port when the preference value exceeds the valid range', () => {
+      ;(service as any).gatewayPort = 18888
+      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 70000 }) as never)
+
+      ;(service as any).syncGatewayPortFromPreference()
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('adopts a changed custom port while the gateway is idle', () => {
+      ;(service as any).gatewayStatus = 'stopped'
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
+
+      ;(service as any).onGatewayPortPreferenceChanged()
+
+      expect((service as any).gatewayPort).toBe(19999)
+    })
+
+    it('keeps the running gateway port when the preference changes mid-run', () => {
+      ;(service as any).gatewayStatus = 'running'
+      ;(service as any).gatewayPort = 18888
+      // A valid changed preference: without the running guard this would be adopted.
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
+
+      ;(service as any).onGatewayPortPreferenceChanged()
+
+      expect((service as any).gatewayPort).toBe(18888)
+    })
+
+    it('adopts a port change deferred during a run once the gateway becomes idle', () => {
+      ;(service as any).gatewayStatus = 'running'
+      ;(service as any).gatewayPort = 18888
+      // Preference changed to 19999 mid-run (deferred), then the gateway stopped.
+      vi.mocked(application.get).mockImplementationOnce(
+        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      )
+
+      ;(service as any).setGatewayStatus('stopped')
+
+      expect((service as any).gatewayPort).toBe(19999)
+    })
+  })
+
+  describe('probeGatewayTick (liveness of a running gateway)', () => {
+    it('marks a dead gateway stopped when the probe goes unhealthy', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
+
+      await (service as any).probeGatewayTick()
+
+      expect((service as any).gatewayStatus).toBe('stopped')
+      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+    })
+
+    // The tick only watches what this service believes it owns. Discovering a gateway
+    // started outside the app is getStatus()'s read-time job, so an idle service does
+    // no background IO at all — the interval must not probe on behalf of every user.
+    it.each(['stopped', 'error', 'starting'] as const)('does no IO while %s', async (status) => {
+      ;(service as any).gatewayStatus = status
+
+      await (service as any).probeGatewayTick()
+
+      expect(checkHealthSpy).not.toHaveBeenCalled()
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
+
+    it('broadcasts nothing while the gateway stays healthy', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+
+      await (service as any).probeGatewayTick()
+
+      expect(broadcastMock).not.toHaveBeenCalled()
+    })
+
+    it('swallows a probe failure instead of throwing', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      checkHealthSpy.mockRejectedValue(new Error('ECONNREFUSED'))
+
+      await expect((service as any).probeGatewayTick()).resolves.toBeUndefined()
+    })
+
+    // A probe result is only valid for the transition/port generation it started against.
+    it('discards a healthy probe that resolves after a stop completed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const tick = (service as any).probeGatewayTick()
+      ;(service as any).setGatewayStatus('stopped') // stopGateway completed while the probe was pending
+      resolveProbe({ status: 'healthy', gatewayPort: 18790 })
+      await tick
+
+      expect((service as any).gatewayStatus).toBe('stopped')
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
+    })
+
+    it('discards an unhealthy probe when the gateway port changed mid-flight', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const tick = (service as any).probeGatewayTick()
+      ;(service as any).gatewayPort = 18888 // syncConfig-style port change during the probe
+      resolveProbe({ status: 'unhealthy', gatewayPort: 18790 }) // result belongs to the old port
+      await tick
+
+      expect((service as any).gatewayStatus).toBe('running')
+      expect((service as any).gatewayPort).toBe(18888)
+      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+    })
+
+    it('discards an unhealthy probe after a restart returned to the same status and port', async () => {
+      ;(service as any).gatewayStatus = 'running'
+      let resolveProbe!: (value: { status: string; gatewayPort: number }) => void
+      checkHealthSpy.mockImplementationOnce(() => new Promise((resolve) => (resolveProbe = resolve)))
+
+      const tick = (service as any).probeGatewayTick()
+      // A full restart completes inside the probe window: same terminal values, newer generation.
+      ;(service as any).setGatewayStatus('stopped')
+      ;(service as any).setGatewayStatus('running')
+      resolveProbe({ status: 'unhealthy', gatewayPort: 18790 }) // stale result from the dying old gateway
+      await tick
+
+      expect((service as any).gatewayStatus).toBe('running')
+      // Exactly the two simulated transitions — the stale probe contributed nothing.
+      const payloads = broadcastMock.mock.calls.filter((c) => c[0] === 'openclaw.status_changed').map((c) => c[1])
+      expect(payloads).toEqual([{ status: 'stopped' }, { status: 'running' }])
     })
   })
 

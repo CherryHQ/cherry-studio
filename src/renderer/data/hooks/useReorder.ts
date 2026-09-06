@@ -19,12 +19,12 @@
  * See `docs/references/data/data-ordering-guide.md` for the end-to-end flow.
  */
 
-import { useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
+import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { TemplateApiPaths } from '@shared/data/api/paths'
+import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { useCallback, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useReorder')
@@ -132,6 +132,14 @@ export interface UseReorderResult {
   isPending: boolean
 }
 
+type ReorderParamsOption<TCollection extends TemplateApiPaths> = ParamsOption<TCollection, 'GET'> extends infer TParams
+  ? TParams extends { params: infer TPathParams }
+    ? 'id' extends keyof TPathParams
+      ? never
+      : TParams
+    : TParams
+  : never
+
 /**
  * Build optimistic drag-and-drop reorder handlers on top of `useMutation`.
  *
@@ -191,9 +199,17 @@ export interface UseReorderResult {
  *   }
  * })
  */
+export function useReorder<TCollection extends TemplateApiPaths>(
+  collectionUrl: TCollection,
+  options: UseReorderOptions & ReorderParamsOption<TCollection>
+): UseReorderResult
 export function useReorder<TCollection extends ConcreteApiPaths>(
   collectionUrl: TCollection,
   options?: UseReorderOptions
+): UseReorderResult
+export function useReorder(
+  collectionUrl: ApiPath,
+  options?: UseReorderOptions & { params?: unknown }
 ): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
@@ -218,6 +234,11 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const revalidate = options?.revalidateOnSuccess !== false
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
+  const mutationParams = options?.params as Record<string, string | number> | undefined
+  if (mutationParams && Object.hasOwn(mutationParams, 'id')) {
+    throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
+  }
+  const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
 
   // Template path `${collectionUrl}/:id/order` is not yet registered in
   // ApiSchemas for arbitrary resources, so we widen via `TemplateApiPaths`.
@@ -226,13 +247,13 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
   const { trigger: patchOrder } = useMutation(
     'PATCH',
     `${collectionUrl}/:id/order` as TemplateApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
   const { trigger: patchBatch } = useMutation(
     'PATCH',
-    `${collectionUrl}/order:batch` as ConcreteApiPaths,
-    revalidate ? { refresh: [collectionUrl] } : undefined
+    `${collectionUrl}/order:batch` as ApiPath,
+    revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
   /**
@@ -240,7 +261,10 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
    * Returns `undefined` when the collection has not been fetched yet — the
    * caller distinguishes this from an unrecognized shape.
    */
-  const readCurrent = useCallback((): unknown => readCache<unknown>(collectionUrl), [readCache, collectionUrl])
+  const readCurrent = useCallback(
+    (): unknown => readCache<unknown>(resolvedCollectionUrl),
+    [readCache, resolvedCollectionUrl]
+  )
 
   const warnUnrecognizedShape = useCallback(
     (source: string) => {
@@ -270,14 +294,14 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
 
       try {
         if (optimistic !== undefined) {
-          await writeCache(collectionUrl, optimistic)
+          await writeCache(resolvedCollectionUrl, optimistic)
         }
-        await patchOrder({ params: { id }, body: anchor } as Parameters<typeof patchOrder>[0])
+        await patchOrder({ params: { ...mutationParams, id }, body: anchor } as Parameters<typeof patchOrder>[0])
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic
         // overlay must never outlive a rejected server write.
-        await invalidateCache(collectionUrl)
+        await invalidateCache(resolvedCollectionUrl)
         throw err
       } finally {
         setIsPending(false)
@@ -292,7 +316,9 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
       writeCache,
       invalidateCache,
       collectionUrl,
+      mutationParams,
       patchOrder,
+      resolvedCollectionUrl,
       warnUnrecognizedShape
     ]
   )
@@ -309,17 +335,27 @@ export function useReorder<TCollection extends ConcreteApiPaths>(
       const optimistic = updateItems(current, next)
 
       try {
-        await writeCache(collectionUrl, optimistic)
-        await patchBatch({ body: { moves } } as Parameters<typeof patchBatch>[0])
+        await writeCache(resolvedCollectionUrl, optimistic)
+        await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
-        await invalidateCache(collectionUrl)
+        await invalidateCache(resolvedCollectionUrl)
         throw err
       } finally {
         setIsPending(false)
       }
     },
-    [updateItems, computeOptimistic, idKey, writeCache, invalidateCache, collectionUrl, patchBatch]
+    [
+      updateItems,
+      computeOptimistic,
+      idKey,
+      writeCache,
+      invalidateCache,
+      collectionUrl,
+      mutationParams,
+      patchBatch,
+      resolvedCollectionUrl
+    ]
   )
 
   const applyReorderedList = useCallback(

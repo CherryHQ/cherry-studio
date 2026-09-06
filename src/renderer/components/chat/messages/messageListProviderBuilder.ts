@@ -1,6 +1,6 @@
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 
-type MessageLeafStateCapabilities = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved' | 'externalCodeEditors'>
+type MessageLeafStateCapabilities = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 type MessageLeafActionCapabilities = Pick<
   MessageListActions,
@@ -8,7 +8,6 @@ type MessageLeafActionCapabilities = Pick<
   | 'openFile'
   | 'subscribeToolProgress'
   | 'openExternalUrl'
-  | 'openInExternalApp'
   | 'copyText'
   | 'copyRichContent'
   | 'copyImage'
@@ -34,10 +33,6 @@ export function pickMessageLeafState(
     state.isToolAutoApproved = capabilities.isToolAutoApproved
   }
 
-  if (capabilities.externalCodeEditors !== undefined) {
-    state.externalCodeEditors = capabilities.externalCodeEditors
-  }
-
   return state
 }
 
@@ -50,7 +45,6 @@ export function pickMessageLeafActions(
   if (capabilities.openFile) actions.openFile = capabilities.openFile
   if (capabilities.subscribeToolProgress) actions.subscribeToolProgress = capabilities.subscribeToolProgress
   if (capabilities.openExternalUrl) actions.openExternalUrl = capabilities.openExternalUrl
-  if (capabilities.openInExternalApp) actions.openInExternalApp = capabilities.openInExternalApp
   if (capabilities.copyText) actions.copyText = capabilities.copyText
   if (capabilities.copyRichContent) actions.copyRichContent = capabilities.copyRichContent
   if (capabilities.copyImage) actions.copyImage = capabilities.copyImage

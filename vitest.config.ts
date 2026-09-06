@@ -16,7 +16,6 @@ process.stdout.setMaxListeners(64)
 process.stderr.setMaxListeners(64)
 
 const mainConfig = (electronViteConfig as any).main
-const preloadConfig = (electronViteConfig as any).preload
 const rendererConfig = (electronViteConfig as any).renderer
 
 export default defineConfig({
@@ -73,20 +72,6 @@ export default defineConfig({
           }
         }
       },
-      // Isolated webview preload DOM tests. Keep Electron out of this project:
-      // controller tests exercise the pure DOM runtime under jsdom.
-      {
-        extends: true,
-        plugins: preloadConfig.plugins,
-        resolve: {
-          alias: preloadConfig.resolve.alias
-        },
-        test: {
-          name: 'preload',
-          environment: 'jsdom',
-          include: ['src/preload/**/*.{test,spec}.{ts,tsx}', 'src/preload/**/__tests__/**/*.{test,spec}.{ts,tsx}']
-        }
-      },
       // 脚本单元测试配置
       {
         extends: true,
@@ -134,6 +119,24 @@ export default defineConfig({
           benchmark: {
             include: ['src/shared/**/*.bench.{ts,tsx}', 'src/shared/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          // vitest shards per (groupOrder, pool) bucket and rejects buckets smaller
+          // than the shard count; preload's single test file must share main's forks
+          // pool (CI always runs it alongside main) instead of crashing --shard=i/3.
+          pool: 'forks',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
         }
       },
       // provider-registry 包单元测试配置

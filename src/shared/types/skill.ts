@@ -10,7 +10,7 @@ import * as z from 'zod'
 // Search source registries
 // ============================================================================
 
-export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai'])
+export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai', 'github'])
 export type SkillSearchSource = z.infer<typeof SkillSearchSourceSchema>
 
 // ============================================================================
@@ -150,6 +150,7 @@ export const InstalledSkillSchema = z.object({
   version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
+  isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -224,3 +225,6 @@ export interface SystemSkillCandidate {
   status: SystemSkillStatus
   registeredSkillId?: string
 }
+
+/** Installed catalog entry enriched by the filesystem-owned skill workflow. */
+export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }

@@ -1,6 +1,7 @@
 import type * as FsUtils from '@main/utils/file'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -133,12 +134,12 @@ function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
       source: sourcePath ?? `/tmp/sample${ext}`,
-      relativePath: `sample${ext}`
+      relativePath: `sample${ext}` as PosixRelativeFilePath
     }
   }
 }
 
-function createNoteItem(content: string, relativePath = 'note-1.md'): KnowledgeItemOf<'note'> {
+function createNoteItem(content: string, relativePath = 'note-1.md' as PosixRelativeFilePath): KnowledgeItemOf<'note'> {
   return {
     id: 'note-1',
     baseId: 'base-1',
@@ -169,7 +170,7 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
     data: {
       source: 'https://example.com',
       url: 'https://example.com',
-      relativePath: 'example-page.md'
+      relativePath: 'example-page.md' as PosixRelativeFilePath
     }
   }
 }
@@ -236,8 +237,8 @@ describe('loadKnowledgeItemDocuments', () => {
       ...createFileItem('.pdf', '/tmp/source.pdf'),
       data: {
         source: '/tmp/source.pdf',
-        relativePath: 'source.pdf',
-        indexedRelativePath: 'source.md'
+        relativePath: 'source.pdf' as PosixRelativeFilePath,
+        indexedRelativePath: 'source.md' as PosixRelativeFilePath
       }
     }
 
@@ -254,11 +255,7 @@ describe('loadKnowledgeItemDocuments', () => {
   it.each([
     ['.doc', fallbackReaderSpies.doc],
     ['.docx', fallbackReaderSpies.docx],
-    ['.epub', fallbackReaderSpies.epub],
-    ['.ppt', fallbackReaderSpies.text],
-    ['.pptx', fallbackReaderSpies.text],
-    ['.xls', fallbackReaderSpies.text],
-    ['.xlsx', fallbackReaderSpies.text]
+    ['.epub', fallbackReaderSpies.epub]
   ])('routes %s files through anydoc with the intended fallback reader', async (ext, expectedFallback) => {
     const content = new Uint8Array([1, 2, 3])
     const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
@@ -267,6 +264,19 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(expectedFallback).toHaveBeenCalledWith(content, `sample${ext}`)
   })
+
+  it.each(['.ppt', '.pptx', '.xls', '.xlsx'])(
+    'throws instead of falling back to TextFileReader for %s when anydoc conversion fails',
+    async (ext) => {
+      const failure = new Error('anydoc conversion failed')
+      toMarkdownBytesMock.mockRejectedValueOnce(failure)
+      const content = new Uint8Array([1, 2, 3])
+      const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
+
+      await expect(reader.loadDataAsContent(content, `sample${ext}`)).rejects.toBe(failure)
+      expect(fallbackReaderSpies.text).not.toHaveBeenCalled()
+    }
+  )
 
   it('uses the EPUB fallback when anydoc produces no text', async () => {
     toMarkdownBytesMock.mockResolvedValue('')
@@ -295,7 +305,7 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('creates a note reader that returns a single Document from its snapshot', async () => {
     readFileMock.mockResolvedValueOnce('hello world')
-    const item = createNoteItem('hello world', 'my-note.md')
+    const item = createNoteItem('hello world', 'my-note.md' as PosixRelativeFilePath)
     const docs = await loadKnowledgeItemDocuments(item)
 
     expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/my-note.md')

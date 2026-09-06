@@ -21,10 +21,19 @@ const ImportMenuOptions: FC = () => {
         <SettingTitle>{t('settings.data.import_settings.title')}</SettingTitle>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-import-chatgpt" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={() => ImportPopup.show()} variant="outline">
+          <Button onClick={() => ImportPopup.show({ source: 'chatgpt' })} variant="outline">
+            {t('settings.data.import_settings.button')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow id="setting-data-import-claude" className="scroll-mt-6">
+        <SettingRowTitle>{t('settings.data.import_settings.claude')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button onClick={() => ImportPopup.show({ source: 'claude' })} variant="outline">
             {t('settings.data.import_settings.button')}
           </Button>
         </RowFlex>

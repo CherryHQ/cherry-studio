@@ -27,27 +27,21 @@ const EMPTY_STATS_BUCKETS: AiUsageRecordStatsBucket[] = []
 interface UseUsageDataOptions {
   windowRange: BoundedTimeRange
   previousWindowRange: BoundedTimeRange
-  activeRange: BoundedTimeRange
   groupBy: GroupByKey
   chartMetric: UsageMetricKey
   rollup: UsageRollupKey
   topCount: number
   selectedCurrency?: Currency
-  entrySortBy: AiUsageRecordListSortBy
-  entrySortOrder: AiUsageRecordSortOrder
 }
 
 export function useUsageData({
   windowRange,
   previousWindowRange,
-  activeRange,
   groupBy,
   chartMetric,
   rollup,
   topCount,
-  selectedCurrency,
-  entrySortBy,
-  entrySortOrder
+  selectedCurrency
 }: UseUsageDataOptions) {
   const timelineQuery = useMemo(
     () => ({ metric: 'tokens' as const, limit: 1, ...toQueryRange(windowRange) }),
@@ -57,7 +51,7 @@ export function useUsageData({
   const costTotals = useMemo(() => timelineQueryResult.data?.costTotals ?? [], [timelineQueryResult.data?.costTotals])
   const activeCostTotal = selectCostTotal(costTotals, selectedCurrency)
   const costCurrency = activeCostTotal?.currency
-  const queryCurrency = costCurrency ?? CURRENCY.USD
+  const queryCurrency = costCurrency ?? selectedCurrency ?? CURRENCY.USD
 
   const overviewStatsQuery = useMemo(
     () => ({
@@ -85,20 +79,10 @@ export function useUsageData({
       metric: chartMetric,
       currency: queryCurrency,
       limit: topCount,
-      ...toQueryRange(activeRange)
+      ...toQueryRange(windowRange)
     }),
-    [activeRange, chartMetric, groupBy, queryCurrency, topCount]
+    [chartMetric, groupBy, queryCurrency, topCount, windowRange]
   )
-  const entriesQuery = useMemo(
-    () => ({
-      sortBy: entrySortBy,
-      sortOrder: entrySortOrder,
-      ...(entrySortBy === 'cost' ? { costCurrency: queryCurrency } : {}),
-      ...toQueryRange(activeRange)
-    }),
-    [activeRange, entrySortBy, entrySortOrder, queryCurrency]
-  )
-
   const overviewStatsResult = useQuery('/ai-usage-records/stats', { query: overviewStatsQuery })
   const previousOverviewStatsResult = useQuery('/ai-usage-records/stats', { query: previousOverviewStatsQuery })
   const exploreStatsResult = useQuery('/ai-usage-records/stats', { query: exploreQuery })
@@ -111,53 +95,18 @@ export function useUsageData({
   const refetchPreviousOverviewStats = previousOverviewStatsResult.refetch
   const refetchExploreStats = exploreStatsResult.refetch
   const refetchExploreTimeline = exploreTimelineResult.refetch
-  const {
-    pages: entryPages,
-    isLoading: entriesLoading,
-    isRefreshing: entriesRefreshing,
-    hasNext: hasNextEntryPage,
-    loadNext: loadNextEntryPage,
-    refresh: refreshEntryPages,
-    reset: resetEntryPages
-  } = useInfiniteQuery('/ai-usage-records', {
-    query: entriesQuery,
-    limit: ENTRY_PAGE_SIZE,
-    swrOptions: { keepPreviousData: false }
-  })
-  const entries = useInfiniteFlatItems(entryPages)
-  const entryTotal = entryPages[0]?.total ?? 0
-
-  const resetEntryPagesRef = useRef(resetEntryPages)
-  resetEntryPagesRef.current = resetEntryPages
-  useEffect(() => {
-    resetEntryPagesRef.current()
-  }, [activeRange.from, activeRange.to, entrySortBy, entrySortOrder, queryCurrency])
-
   const refreshUsageReadModels = useMemo(
     () =>
       debounce(() => {
-        const refreshEntries = () => {
-          resetEntryPages()
-          return refreshEntryPages()
-        }
         void Promise.all([
           refetchTimeline(),
           refetchOverviewStats(),
           refetchPreviousOverviewStats(),
           refetchExploreStats(),
-          refetchExploreTimeline(),
-          refreshEntries()
+          refetchExploreTimeline()
         ])
       }, USAGE_REFRESH_DEBOUNCE_MS),
-    [
-      refetchExploreStats,
-      refetchExploreTimeline,
-      refetchOverviewStats,
-      refetchPreviousOverviewStats,
-      refetchTimeline,
-      refreshEntryPages,
-      resetEntryPages
-    ]
+    [refetchExploreStats, refetchExploreTimeline, refetchOverviewStats, refetchPreviousOverviewStats, refetchTimeline]
   )
   useDataChange(['/ai-usage-records', '/ai-usage-records/stats', '/ai-usage-records/timeline'], refreshUsageReadModels)
   useEffect(() => () => refreshUsageReadModels.cancel(), [refreshUsageReadModels])
@@ -183,15 +132,62 @@ export function useUsageData({
     previousOverviewTotals: previousOverviewStatsResult.data?.totals ?? EMPTY_STATS_METRICS,
     exploreTotals: exploreStatsResult.data?.totals ?? EMPTY_STATS_METRICS,
     exploreOther: exploreStatsResult.data?.other ?? EMPTY_STATS_METRICS,
-    timelineLoading: timelineQueryResult.isLoading,
-    overviewLoading: overviewStatsResult.isLoading,
-    exploreStatsLoading: exploreStatsResult.isLoading,
-    exploreTimelineLoading: exploreTimelineResult.isLoading,
+    timelineLoading: timelineQueryResult.isLoading && timelineQueryResult.data === undefined,
+    overviewLoading: overviewStatsResult.isLoading && overviewStatsResult.data === undefined,
+    exploreStatsLoading: exploreStatsResult.isLoading && exploreStatsResult.data === undefined,
+    exploreTimelineLoading: exploreTimelineResult.isLoading && exploreTimelineResult.data === undefined
+  }
+}
+
+interface UseUsageEntriesDataOptions {
+  windowRange: BoundedTimeRange
+  currency: Currency | undefined
+  sortBy: AiUsageRecordListSortBy
+  sortOrder: AiUsageRecordSortOrder
+}
+
+export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }: UseUsageEntriesDataOptions) {
+  const queryCurrency = currency ?? CURRENCY.USD
+  const entriesQuery = useMemo(
+    () => ({
+      sortBy,
+      sortOrder,
+      ...(sortBy === 'cost' ? { costCurrency: queryCurrency } : {}),
+      ...toQueryRange(windowRange)
+    }),
+    [queryCurrency, sortBy, sortOrder, windowRange]
+  )
+  const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
+    query: entriesQuery,
+    limit: ENTRY_PAGE_SIZE,
+    swrOptions: { keepPreviousData: true }
+  })
+  const entries = useInfiniteFlatItems(pages)
+  const total = pages[0]?.total ?? 0
+
+  const resetRef = useRef(reset)
+  resetRef.current = reset
+  useEffect(() => {
+    resetRef.current()
+  }, [queryCurrency, sortBy, sortOrder, windowRange.from, windowRange.to])
+
+  const refreshEntries = useMemo(
+    () =>
+      debounce(() => {
+        reset()
+        void refresh()
+      }, USAGE_REFRESH_DEBOUNCE_MS),
+    [refresh, reset]
+  )
+  useDataChange(['/ai-usage-records'], refreshEntries)
+  useEffect(() => () => refreshEntries.cancel(), [refreshEntries])
+
+  return {
     entries,
-    entryTotal,
-    entriesLoading,
-    entriesRefreshing,
-    hasNextEntryPage,
-    loadNextEntryPage
+    total,
+    isLoading,
+    isRefreshing,
+    hasNext,
+    loadNext
   }
 }

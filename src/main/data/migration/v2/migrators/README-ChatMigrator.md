@@ -32,12 +32,13 @@ Redux deliberately clears `messages[]` to reduce storage size. The migrator merg
    - New: Tree via `parentId` + `siblingsGroupId`
 
 2. **Multi-model Responses**
-   - Old: `askId` links responses to user message, `foldSelected` marks active
+   - Old: `askId` links responses to user message, `useful` selects context, and `foldSelected` selects the visible tab
    - New: Shared `parentId` + non-zero `siblingsGroupId` groups siblings
 
 3. **Block Inlining**
    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+   - Migration indexing decodes one legacy block at a time, then batches serialized rows by count and character budget before writing them to the file-backed temporary SQLite table. This prevents large inline image/tool payloads from accumulating in a record-count-only in-memory batch.
 
 4. **Citation Migration**
    - Old: Separate `CitationMessageBlock` with `response`, `knowledge`, `memories`
@@ -64,7 +65,7 @@ The migrator handles potential data inconsistencies from the old system:
 | **Legacy `'default'` assistantId** | `topic.assistantId === 'default'` (or topic lived under `state.defaultAssistant.topics[]`) | Rewrite via `sharedData.legacyAssistantIdRemap` (`'default' → UUID` produced by `AssistantMigrator`). Resolves under the migrated user assistant — v2 has no `'default'` sentinel row. |
 | **Missing assistantId** | Topic not in any `assistant.topics[]`, or empty/null `assistantId` after remap | Set `assistantId = NULL`. v2's `topic.assistantId` is nullable (FK `ON DELETE SET NULL`); the renderer composes a runtime default from `Preference.defaultModelId` when no specific assistant is attached. `orphanedAssistantTopics` counter increments. |
 | **Orphan assistantId** | `topic.assistantId` (post-remap) not in `validAssistantIds` | Same NULL fallback as above; `orphanedAssistantTopics` counter increments and a warning is logged. |
-| **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Use fallback "Unnamed Topic" |
+| **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Leave the name empty, like a natively-created v2 topic — the UI renders the localized placeholder at display time |
 | **Missing topic timestamps** | Both Dexie and Redux miss `createdAt` / `updatedAt` | Derive from messages: `createdAt = min(message.createdAt)`, `updatedAt = max(message.createdAt)`. If no message has a parseable `createdAt`, falls through to `parseTimestamp()`'s `Date.now()` fallback (logged as a warning). |
 | **Message with no blocks** | `blocks` array is empty after resolution | Keep legacy `type: 'clear'` messages as context boundaries, store them as hidden `data-clear` parts, and skip/re-link other empty messages |
 | **Topic where all messages are skipped** | All messages dropped (no blocks) | Keep topic, set `activeNodeId` to null. Distinct from the "empty source topic" case above (which is dropped). |
@@ -83,12 +84,13 @@ Topic data is merged from Dexie + Redux before transformation:
 | Redux: (parent assistant.id) | `assistantId` | From `topicAssistantLookup` mapping |
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
-| (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
+| (computed) | `activeNodeId` | Last migrated message; a terminal response group uses its first `useful` response, or its first response when none is marked |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
 | (none) | `pinnedOrder` | 0 (new field) |
 | `createdAt` | `createdAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `min(message.createdAt)` |
 | `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
+| (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
 
 **Dropped fields**: `type` ('chat' | 'session')
 
@@ -111,7 +113,9 @@ Topic data is merged from Dexie + Redux before transformation:
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: `type` after converting `clear` to `data-clear`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Consumed but not stored**: `useful` selects the migrated context branch; `askId` becomes `parentId` + `siblingsGroupId`.
+
+**Dropped fields**: `type` after converting `clear` to `data-clear`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `foldSelected`
 
 ### Block Type Mapping
 

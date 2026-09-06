@@ -26,10 +26,10 @@ const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
  * @example
  * ```typescript
  * // Basic usage - managing theme preference with optimistic updates (default)
- * const [theme, setTheme] = usePreference('app.theme.mode')
+ * const [theme, setTheme] = usePreference('ui.theme_mode')
  *
  * // Pessimistic updates for critical settings
- * const [apiKey, setApiKey] = usePreference('api.key', { optimistic: false })
+ * const [webdavPassword, setWebdavPassword] = usePreference('data.backup.webdav.pass', { optimistic: false })
  *
  * // Simple optimistic updates
  * const [fontSize, setFontSize] = usePreference('chat.message.font_size', {
@@ -47,9 +47,9 @@ const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }
  *
  * return (
  *   <select value={theme} onChange={(e) => handleThemeChange(e.target.value)}>
- *     <option value="ThemeMode.light">Light</option>
- *     <option value="ThemeMode.dark">Dark</option>
- *     <option value="ThemeMode.system">System</option>
+ *     <option value="light">Light</option>
+ *     <option value="dark">Dark</option>
+ *     <option value="system">System</option>
  *   </select>
  * )
  * ```
@@ -135,26 +135,26 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
  * ```typescript
  * // Basic usage - managing related UI preferences with optimistic updates
  * const [uiSettings, setUISettings] = useMultiplePreferences({
- *   theme: 'app.theme.mode',
+ *   theme: 'ui.theme_mode',
  *   fontSize: 'chat.message.font_size',
  *   showLineNumbers: 'chat.code.show_line_numbers'
  * })
  *
  * // Pessimistic updates for critical settings
- * const [apiSettings, setApiSettings] = useMultiplePreferences({
- *   apiKey: 'api.key',
- *   endpoint: 'api.endpoint'
+ * const [webdavSettings, setWebdavSettings] = useMultiplePreferences({
+ *   password: 'data.backup.webdav.pass',
+ *   host: 'data.backup.webdav.host'
  * }, { optimistic: false })
  *
  * // Accessing individual values with type safety (defaults applied automatically)
- * const currentTheme = uiSettings.theme // string (never undefined)
+ * const currentTheme = uiSettings.theme // ThemeMode (never undefined)
  * const currentFontSize = uiSettings.fontSize // number (never undefined)
  * const showLines = uiSettings.showLineNumbers // boolean (never undefined)
  *
  * // Batch updating multiple preferences
  * const resetToDefaults = async () => {
  *   await setUISettings({
- *     theme: 'ThemeMode.light',
+ *     theme: 'light',
  *     fontSize: 14,
  *     showLineNumbers: true
  *   })
@@ -163,7 +163,7 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
  * // Partial updates (only specified keys will be updated)
  * const toggleTheme = async () => {
  *   await setUISettings({
- *     theme: currentTheme === 'ThemeMode.light' ? 'ThemeMode.dark' : 'ThemeMode.light'
+ *     theme: currentTheme === 'light' ? 'dark' : 'light'
  *   })
  * }
  * ```

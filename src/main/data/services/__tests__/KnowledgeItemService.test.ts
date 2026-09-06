@@ -6,6 +6,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -91,7 +92,7 @@ describe('KnowledgeItemService', () => {
     const slug = id.slice(0, 8)
     return {
       source: `/docs/${slug}.md`,
-      relativePath: `${slug}.md`
+      relativePath: `${slug}.md` as PosixRelativeFilePath
     }
   }
 
@@ -669,7 +670,7 @@ describe('KnowledgeItemService', () => {
         type: 'file',
         data: {
           source: '/docs/a.md',
-          relativePath: 'a.md'
+          relativePath: 'a.md' as PosixRelativeFilePath
         }
       })
 
@@ -677,7 +678,7 @@ describe('KnowledgeItemService', () => {
         type: 'file',
         data: {
           source: '/docs/a.md',
-          relativePath: 'a.md'
+          relativePath: 'a.md' as PosixRelativeFilePath
         }
       })
     })
@@ -1269,7 +1270,7 @@ describe('KnowledgeItemService', () => {
         data: {
           source: `/docs/${FILE_A_ID.slice(0, 8)}.md`,
           relativePath: `${FILE_A_ID.slice(0, 8)}.md`,
-          indexedRelativePath: 'processed.md'
+          indexedRelativePath: 'processed.md' as PosixRelativeFilePath
         }
       })
     })
@@ -1305,6 +1306,27 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('clearIndexedRelativePath', () => {
+    it('removes the key instead of storing a sentinel, so the item indexes its own bytes again', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_A_ID)
+      })
+      service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
+
+      const result = service.clearIndexedRelativePath(FILE_A_ID)
+
+      // `toMaterialRelativePath` resolves the material with `indexedRelativePath ?? relativePath`,
+      // so anything left under the key — including null — would keep pointing at the stale artifact.
+      expect('indexedRelativePath' in result.data).toBe(false)
+      expect(service.getById(FILE_A_ID).data).toEqual({
+        source: `/docs/${FILE_A_ID.slice(0, 8)}.md`,
+        relativePath: `${FILE_A_ID.slice(0, 8)}.md`
+      })
+    })
+  })
+
   describe('updateSnapshotRelativePath', () => {
     it('stores the captured snapshot path on url item data, preserving source/url', async () => {
       await seedItem({
@@ -1321,7 +1343,7 @@ describe('KnowledgeItemService', () => {
         data: {
           source: 'https://example.com',
           url: 'https://example.com',
-          relativePath: 'example.md'
+          relativePath: 'example.md' as PosixRelativeFilePath
         }
       })
     })
@@ -1341,7 +1363,7 @@ describe('KnowledgeItemService', () => {
         data: {
           source: 'Meeting notes',
           content: '# Meeting\n\nbody',
-          relativePath: 'Meeting notes.md'
+          relativePath: 'Meeting notes.md' as PosixRelativeFilePath
         }
       })
     })
@@ -1410,7 +1432,7 @@ describe('KnowledgeItemService', () => {
         type: 'directory',
         data: {
           source: '/docs',
-          relativePath: 'docs'
+          relativePath: 'docs' as PosixRelativeFilePath
         }
       })
     })

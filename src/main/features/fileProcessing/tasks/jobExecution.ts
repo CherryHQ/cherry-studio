@@ -2,12 +2,15 @@ import path from 'node:path'
 
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
+import { t } from '@main/i18n'
 import { toFileInfo } from '@main/services/file'
 import { stat as fsStat } from '@main/utils/file'
+import { getPdfPageCount } from '@main/utils/pdf'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
 import { type AbsoluteFilePath, type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { GB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
@@ -62,6 +65,7 @@ export async function prepareFileProcessingJob(
   assertModeMatches(handler, expectedMode)
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
+  await assertDocumentInputLimits(ctx, expectedMode, fileInfo, config)
 
   const prepared = await handler.prepare(fileInfo, config, ctx.signal, {
     ...(input.context?.dataId ? { dataId: input.context.dataId } : {})
@@ -75,6 +79,61 @@ export async function prepareFileProcessingJob(
     config,
     prepared
   })
+}
+
+async function assertDocumentInputLimits(
+  ctx: JobContext<FileProcessingJobPayload>,
+  mode: FileProcessingJobMode,
+  file: FileInfo,
+  config: FileProcessorMerged
+): Promise<void> {
+  if (
+    ctx.input.feature !== 'document_to_markdown' ||
+    (mode === 'remote-poll' && hasPersistedProviderTask(ctx.metadata.remoteState))
+  ) {
+    return
+  }
+
+  const capability = config.capabilities.find((item) => item.feature === 'document_to_markdown')
+  if (capability?.maxInputBytes !== undefined && file.size >= capability.maxInputBytes) {
+    throw new Error(
+      t('file_processing.errors.document_size_limit_exceeded', {
+        maxSize: formatByteLimit(capability.maxInputBytes)
+      })
+    )
+  }
+
+  if (file.ext?.toLowerCase() !== 'pdf') {
+    return
+  }
+
+  if (capability?.maxInputPages === undefined) {
+    return
+  }
+
+  const pageCount = await getPdfPageCount(file.path)
+  if (pageCount > capability.maxInputPages) {
+    throw new Error(t('file_processing.errors.pdf_page_limit_exceeded', { maxPages: capability.maxInputPages }))
+  }
+}
+
+function formatByteLimit(bytes: number): string {
+  if (bytes % GB === 0) {
+    return `${bytes / GB} GB`
+  }
+  if (bytes % MB === 0) {
+    return `${bytes / MB} MB`
+  }
+  return `${bytes} bytes`
+}
+
+function hasPersistedProviderTask(remoteState: unknown): boolean {
+  return (
+    typeof remoteState === 'object' &&
+    remoteState !== null &&
+    typeof (remoteState as { providerTaskId?: unknown }).providerTaskId === 'string' &&
+    (remoteState as { providerTaskId: string }).providerTaskId.length > 0
+  )
 }
 
 function createPreparedFileProcessingJobResult<Mode extends FileProcessingJobMode>(

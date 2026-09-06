@@ -1,7 +1,8 @@
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
- * about-to-send prompt in place when it crosses 80% of the model's context
- * window. The aiCore context module does the work via
+ * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
+ * the input room (window minus this request's output reservation). The aiCore
+ * context module does the work via
  * `compactModelMessages` — it splits only on turn boundaries (never orphans a
  * tool result), preserves `system` verbatim, and returns
  * `[...system, <summary>, ...recent turns]`.
@@ -25,33 +26,45 @@ import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
+import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
+import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
-import { estimateTokenCount } from 'tokenx'
 
 import type { RequestFeature } from '../feature'
 
 const logger = loggerService.withContext('inLoopCompaction')
 
-/** tokenx estimate of one ModelMessage (text/reasoning dominate; other parts stringified). */
-function estimateMessageTokens(message: ModelMessage): number {
-  const { content } = message
-  if (typeof content === 'string') return estimateTokenCount(content)
-  const text = content
-    .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : JSON.stringify(part)))
-    .join('\n')
-  return estimateTokenCount(text)
+/**
+ * Estimate for one ModelMessage / a whole prompt, via the shared token walker.
+ *
+ * Deliberately measurement-free: `prepareStep` runs before EVERY step and
+ * `computeKeepRecentTurns` re-walks the tail turn by turn, so this path must stay
+ * synchronous and must never decode a payload. Images and audio/video therefore resolve to
+ * their per-dialect constants — which is the whole point of #17837, where stringifying a
+ * file part fed 18 M base64 characters to tokenx and scored a 13 MB MP3 at 3.7 M tokens
+ * against the provider's real 20 k, firing compaction on a first turn with nothing to fold.
+ *
+ * Precision is not needed here: from step 1 onward `estimatePromptTokens` anchors on the
+ * provider's real `usage.totalTokens` and only estimates the trailing delta.
+ *
+ * `tokenxTokenizer` rather than `getTextTokenizer(dialect)` — the latter lazy-loads a ~2.2 MB
+ * BPE for the openai dialect and is async, which this path cannot await.
+ */
+function estimateModelMessages(messages: ModelMessage[], dialect: TokenDialect): number {
+  return estimateModelMessagesSync(messages, { dialect, tokenizer: tokenxTokenizer })
 }
 
-/** tokenx estimate of a ModelMessage[]. */
-function estimateModelMessages(messages: ModelMessage[]): number {
-  return messages.reduce((acc, m) => acc + estimateMessageTokens(m), 0)
+function estimateMessageTokens(message: ModelMessage, dialect: TokenDialect): number {
+  return estimateModelMessages([message], dialect)
 }
 
 /**
@@ -69,7 +82,8 @@ function estimateModelMessages(messages: ModelMessage[]): number {
  */
 function estimatePromptTokens(
   messages: ModelMessage[],
-  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined
+  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined,
+  dialect: TokenDialect
 ): number {
   const usage = steps?.at(-1)?.usage
   // Trust totalTokens only when inputTokens is also reported — otherwise totalTokens
@@ -78,7 +92,7 @@ function estimatePromptTokens(
     usage && typeof usage.inputTokens === 'number' && typeof usage.totalTokens === 'number'
       ? usage.totalTokens
       : undefined
-  if (anchor === undefined) return estimateModelMessages(messages)
+  if (anchor === undefined) return estimateModelMessages(messages, dialect)
   // Delta = messages appended after the last assistant output (this step's tool results).
   let lastAssistant = -1
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -87,9 +101,8 @@ function estimatePromptTokens(
       break
     }
   }
-  if (lastAssistant === -1) return estimateModelMessages(messages)
-  const delta = messages.slice(lastAssistant + 1).reduce((acc, m) => acc + estimateMessageTokens(m), 0)
-  return anchor + delta
+  if (lastAssistant === -1) return estimateModelMessages(messages, dialect)
+  return anchor + estimateModelMessages(messages.slice(lastAssistant + 1), dialect)
 }
 
 /**
@@ -99,7 +112,7 @@ function estimatePromptTokens(
  * following `tool` messages (one atomic turn). Leading `system` is not a turn.
  * Always keeps at least one turn so the tail is never emptied.
  */
-export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: number): number {
+export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: number, dialect: TokenDialect): number {
   let acc = 0
   let turns = 0
   let i = messages.length - 1
@@ -108,11 +121,11 @@ export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: num
     // Pull the trailing tool messages of this turn together with its assistant.
     let turnTokens = 0
     while (i >= 0 && messages[i].role === 'tool') {
-      turnTokens += estimateMessageTokens(messages[i])
+      turnTokens += estimateMessageTokens(messages[i], dialect)
       i--
     }
     if (i >= 0 && messages[i].role !== 'system') {
-      turnTokens += estimateMessageTokens(messages[i])
+      turnTokens += estimateMessageTokens(messages[i], dialect)
       i--
     }
     acc += turnTokens
@@ -149,14 +162,29 @@ export const inLoopCompactionFeature: RequestFeature = {
       })
       return {}
     }
-    const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    // Against the room the PROMPT actually has, not the whole window: whatever
+    // this request declares as max_tokens is billed alongside the input.
+    const inputRoom = resolveInputRoom(
+      contextWindow,
+      resolveRequestedMaxOutputTokens(
+        scope.request.callOverrides?.maxOutputTokens,
+        undefined,
+        scope.assistant,
+        scope.model,
+        scope.endpointType
+      )
+    )
+    const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
+    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.
     // With an 8k compressor on a 128k chat, sizing by the chat window overflows
     // the summarize request outright.
     const compressionWindow = compressor.contextWindow ?? contextWindow
+    // Resolved once per request: it only selects the per-modality cost table (image/audio/
+    // video constants), so it can't change between steps of the same request.
+    const dialect = resolveModelTokenDialect(scope.provider, scope.model)
     // Per-request incremental-fold cache. The loop rebuilds `messages` each
     // step as [...initialMessages, ...responseMessages] — append-only, with
     // settled entries never changing — so "the first N messages" is a stable
@@ -181,12 +209,14 @@ export const inLoopCompactionFeature: RequestFeature = {
         // turn-start comparison so the two paths never disagree at estimate === trigger.
         // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
         // overstate the compacted candidate, so estimate the candidate directly then.
-        const estimate = foldCache ? estimateModelMessages(candidate) : estimatePromptTokens(messages, steps)
+        const estimate = foldCache
+          ? estimateModelMessages(candidate, dialect)
+          : estimatePromptTokens(messages, steps, dialect)
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined
         }
-        const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget)
+        const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget, dialect)
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
@@ -222,9 +252,24 @@ export const inLoopCompactionFeature: RequestFeature = {
             error: error instanceof Error ? error.message : String(error)
           })
           // Clear the spinner: the turn continues (un-compacted), so leaving a
-          // permanent "compacting…" on screen would misreport the state.
+          // permanent "compacting…" on screen would misreport the state. Nothing was
+          // folded, so this settles as `skipped` rather than claiming a compaction.
           scope.compactionSink?.(anchorId, {
-            status: 'done',
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
+          return foldCache ? { messages: candidate } : undefined
+        }
+        // `compactModelMessages` returns the SAME reference when there was nothing old
+        // enough to summarize or the summarizer produced no text. Settling that as `done`
+        // is what made a no-op read as a completed compaction in the UI — preTokens ===
+        // postTokens, foldedCount 0, yet "context compacted" (#17837). Check BEFORE
+        // emitting, and report the no-op as `skipped` with no before/after metrics.
+        if (compacted === candidate) {
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
             phase: 'in-loop',
             startedAt,
             completedAt: new Date().toISOString()
@@ -239,12 +284,9 @@ export const inLoopCompactionFeature: RequestFeature = {
           completedAt,
           durationMs: Date.parse(completedAt) - Date.parse(startedAt),
           preTokens: estimate,
-          postTokens: estimateModelMessages(compacted),
+          postTokens: estimateModelMessages(compacted, dialect),
           foldedCount: Math.max(0, candidate.length - compacted.length)
         })
-        if (compacted === candidate) {
-          return foldCache ? { messages: candidate } : undefined
-        }
         foldCache = { consumedCount: messages.length, compactedPrefix: compacted }
         return { messages: compacted }
       }

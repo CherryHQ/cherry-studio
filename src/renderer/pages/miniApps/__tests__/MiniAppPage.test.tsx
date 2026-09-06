@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { MiniApp } from '@shared/data/types/miniApp'
+import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MiniAppPage from '../MiniAppPage'
 
-const stubApp = (overrides: Partial<MiniApp> & Pick<MiniApp, 'appId' | 'name' | 'url'>): MiniApp => ({
+const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | 'name' | 'url'>): MiniApp => ({
+  kind: 'site',
   appId: overrides.appId,
   presetMiniAppId: overrides.presetMiniAppId ?? overrides.appId,
   status: overrides.status ?? 'enabled',
@@ -29,9 +30,15 @@ const mocks = vi.hoisted(() => ({
   allApps: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
   openMiniAppKeepAlive: vi.fn(),
+  openSplit: vi.fn(),
+  closeSplit: vi.fn(),
+  splitOpen: false,
+  splitMiniAppId: '',
   updateTab: vi.fn(),
   setWebviewLoaded: vi.fn(),
   webviewLoaded: true,
+  webviewElements: new Map<string, Electron.WebviewTag>(),
+  webviewElementListeners: new Map<string, Set<() => void>>(),
   webviewStateListeners: new Set<(loaded: boolean) => void>(),
   isActiveTab: true,
   currentTab: {
@@ -52,15 +59,44 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
-  default: ({ onReload }: { onReload: () => void }) => (
-    <button data-testid="minimal-toolbar" onClick={onReload} type="button">
-      Reload
-    </button>
+  default: ({
+    onReload,
+    onSplit,
+    splitMode,
+    splitActive
+  }: {
+    onReload: () => void
+    onSplit: () => void
+    splitMode: string
+    splitActive?: boolean
+  }) => (
+    <>
+      <button data-testid="minimal-toolbar" onClick={onReload} type="button">
+        Reload
+      </button>
+      <button
+        data-testid={`split-control-${splitMode}`}
+        data-split-active={String(Boolean(splitActive))}
+        onClick={onSplit}
+        type="button">
+        split
+      </button>
+    </>
   )
 }))
 
+// Stubbed out: this suite covers the page's own split wiring, not the picker's
+// contents, which have their own tests.
+vi.mock('@renderer/pages/miniApps/components/SplitPanePicker', () => ({
+  default: () => <div data-testid="split-picker" />
+}))
+
 vi.mock('@renderer/components/WebviewSearch', () => ({
-  default: () => <div data-testid="webview-search" />
+  // Surfaces which pane owns the host Find shortcut: the listener behind this
+  // is a global window handler, so only one mounted instance may answer it.
+  default: ({ targetId, hostShortcutEnabled }: { targetId: string; hostShortcutEnabled?: boolean }) => (
+    <div data-testid="webview-search" data-app-id={targetId} data-host-shortcut={String(hostShortcutEnabled ?? true)} />
+  )
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -75,7 +111,9 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({
-    openMiniAppKeepAlive: mocks.openMiniAppKeepAlive
+    openMiniAppKeepAlive: mocks.openMiniAppKeepAlive,
+    openSplit: mocks.openSplit,
+    closeSplit: mocks.closeSplit
   }),
   // Mirrors the real converter's transient-app convention.
   toTransientMiniApp: (input: Record<string, unknown>) => ({
@@ -90,13 +128,22 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     allApps: mocks.allApps,
     openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
+    splitOpen: mocks.splitOpen,
+    splitMiniAppId: mocks.splitMiniAppId,
     isLoading: false,
     error: null
   })
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
+  getWebviewElement: (appId: string) => mocks.webviewElements.get(appId) ?? null,
   getWebviewLoaded: () => mocks.webviewLoaded,
+  onWebviewElementChange: (appId: string, listener: () => void) => {
+    const listeners = mocks.webviewElementListeners.get(appId) ?? new Set<() => void>()
+    listeners.add(listener)
+    mocks.webviewElementListeners.set(appId, listeners)
+    return () => listeners.delete(listener)
+  },
   onWebviewStateChange: (_appId: string, listener: (loaded: boolean) => void) => {
     mocks.webviewStateListeners.add(listener)
     return () => mocks.webviewStateListeners.delete(listener)
@@ -137,7 +184,11 @@ describe('MiniAppPage', () => {
       })
     ]
     mocks.openedKeepAliveMiniApps = []
+    mocks.splitOpen = false
+    mocks.splitMiniAppId = ''
     mocks.webviewLoaded = true
+    mocks.webviewElements.clear()
+    mocks.webviewElementListeners.clear()
     mocks.webviewStateListeners.clear()
     mocks.isActiveTab = true
     mocks.currentTab = {
@@ -303,7 +354,7 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -321,7 +372,7 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -347,15 +398,14 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    let currentWebview: typeof staleWebview | typeof replacementWebview | null = staleWebview
-    vi.spyOn(document, 'querySelector').mockImplementation(() => currentWebview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', staleWebview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
 
     act(() => {
       mocks.webviewLoaded = false
       staleWebview.isConnected = false
-      currentWebview = null
+      mocks.webviewElements.delete('chatgpt')
       mocks.webviewStateListeners.forEach((listener) => listener(false))
     })
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -363,7 +413,7 @@ describe('MiniAppPage', () => {
     expect(staleReload).not.toHaveBeenCalled()
     expect(replacementReload).not.toHaveBeenCalled()
 
-    currentWebview = replacementWebview
+    mocks.webviewElements.set('chatgpt', replacementWebview as unknown as Electron.WebviewTag)
     act(() => {
       mocks.webviewLoaded = true
       mocks.webviewStateListeners.forEach((listener) => listener(true))
@@ -373,5 +423,51 @@ describe('MiniAppPage', () => {
 
     expect(staleReload).not.toHaveBeenCalled()
     expect(replacementReload).toHaveBeenCalledOnce()
+  })
+
+  it('gives the host Find shortcut to exactly one pane while split', async () => {
+    mocks.appId = 'deepseek'
+    mocks.currentTab = { ...mocks.currentTab, url: '/app/mini-app/deepseek' }
+    mocks.allApps = [
+      stubApp({ appId: 'deepseek', name: 'DeepSeek', url: 'https://chat.deepseek.com' }),
+      stubApp({ appId: 'kimi', name: 'Kimi', url: 'https://kimi.moonshot.cn' })
+    ]
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'kimi'
+
+    render(<MiniAppPage />)
+
+    const searches = await screen.findAllByTestId('webview-search')
+    expect(searches).toHaveLength(2)
+
+    // Both panes mount a search overlay behind a *global* window keydown
+    // listener, so leaving both enabled makes one Ctrl/Cmd+F open both.
+    const owners = searches.filter((el) => el.dataset.hostShortcut === 'true')
+    expect(owners).toHaveLength(1)
+    expect(owners[0].dataset.appId).toBe('deepseek')
+  })
+
+  it('turns the primary split control into a way back out once split', async () => {
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = ''
+
+    render(<MiniAppPage />)
+
+    // Left as a plain "open the split" action it does nothing on a second
+    // press — the split is already open — so the button looks broken.
+    const control = (await screen.findAllByTestId('split-control-open'))[0]
+    expect(control.dataset.splitActive).toBe('true')
+
+    fireEvent.click(control)
+    expect(mocks.closeSplit).toHaveBeenCalled()
+    expect(mocks.openSplit).not.toHaveBeenCalled()
+  })
+
+  it('keeps the single pane owning the host Find shortcut when not split', async () => {
+    render(<MiniAppPage />)
+
+    const searches = await screen.findAllByTestId('webview-search')
+    expect(searches).toHaveLength(1)
+    expect(searches[0].dataset.hostShortcut).toBe('true')
   })
 })

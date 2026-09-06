@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   closeTabs: vi.fn(),
   detachTab: vi.fn(),
   setActiveTab: vi.fn(),
-  commandHandlers: new Map<string, () => void>(),
+  commandHandlers: new Map<string, { handler: () => void; options?: { enabled?: boolean } }>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
   activeTabId: 'home',
@@ -40,8 +42,8 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void) => {
-    mocks.commandHandlers.set(command, handler)
+  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
+    mocks.commandHandlers.set(command, { handler, options })
   }
 }))
 
@@ -113,6 +115,7 @@ import { AppShell } from '../AppShell'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  MockUseCacheUtils.resetMocks()
   mocks.commandHandlers.clear()
   mocks.ipcHandlers.clear()
   mocks.ipcRequest.mockResolvedValue(false)
@@ -142,10 +145,52 @@ describe('AppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
   })
 
+  it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'agents',
+        isDormant: false,
+        title: 'Agents',
+        type: 'route',
+        url: '/app/agents'
+      },
+      {
+        id: 'files',
+        isDormant: false,
+        title: 'Files',
+        type: 'route',
+        url: '/app/files'
+      }
+    ]
+
+    const { rerender } = render(<AppShell />)
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.reset_minimum_size')
+
+    // Switching between two compact tabs must not re-issue the IPC pair.
+    mocks.ipcRequest.mockClear()
+    mocks.activeTabId = 'agents'
+    rerender(<AppShell />)
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.set_minimum_size', expect.anything())
+
+    mocks.activeTabId = 'files'
+    rerender(<AppShell />)
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.reset_minimum_size')
+    })
+  })
+
   it('opens global search from the shell-level shortcut', () => {
     render(<AppShell />)
 
-    mocks.commandHandlers.get('app.search')?.()
+    mocks.commandHandlers.get('app.search')?.handler()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
@@ -283,7 +328,7 @@ describe('AppShell', () => {
     mocks.activeTabId = 'settings'
 
     render(<AppShell />)
-    mocks.commandHandlers.get('app.search')?.()
+    mocks.commandHandlers.get('app.search')?.handler()
 
     expect(mocks.showSearchPopup).not.toHaveBeenCalled()
     expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
@@ -398,5 +443,158 @@ describe('AppShell', () => {
     expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
     expect(screen.getByTestId('macos-traffic-light-drag-region')).toBeInTheDocument()
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+  })
+
+  it('clears the split state when the last mini-app tab closes', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
+    ]
+
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('mini-left')
+
+    // A surviving split would reopen the next mini app straight into the stale
+    // pane and keep `right-app` pinned in the keep-alive pool.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+    expect(mocks.closeTab).toHaveBeenCalledWith('mini-left')
+  })
+
+  it('keeps the split state while another mini-app tab is still open', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
+      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
+    ]
+
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('mini-left')
+
+    // The remaining mini-app tab still renders the split, so collapsing it here
+    // would drop the pane out from under the user.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
+  it('leaves non mini-app tab closes untouched', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('home')
+
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
+  it('clears the split state when the last mini-app tab detaches', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
+    ]
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('mini-left')
+
+    // Split state does not follow the tab to the new window, so leaving it set
+    // here reopens the next mini app straight into a split nobody asked for.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+    expect(mocks.detachTab).toHaveBeenCalledWith('mini-left')
+  })
+
+  it('keeps the split state when detaching leaves another mini-app tab behind', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
+      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
+    ]
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('mini-left')
+
+    // The mini-app tab still in this window keeps rendering the split.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
+  it('leaves non mini-app tab detaches untouched', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('home')
+
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
+  it('cycles tabs via command handlers', () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' },
+      { id: 'tab3', isDormant: false, title: 'Tab 3', type: 'route', url: '/app/agents' }
+    ]
+
+    // home -> next -> tab2
+    const { rerender } = render(<AppShell />)
+    mocks.commandHandlers.get('tab.next')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab2')
+
+    // tab3 -> next -> home
+    mocks.activeTabId = 'tab3'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.next')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+
+    // tab2 -> prev -> home
+    mocks.activeTabId = 'tab2'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+
+    // home -> prev -> tab3
+    mocks.activeTabId = 'home'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.handler()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab3')
+  })
+
+  it('disables tab cycling commands when there is no reachable next tab', () => {
+    const { rerender } = render(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+
+    mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
+    mocks.activeTabId = 'missing'
+    rerender(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+
+    mocks.activeTabId = 'home'
+    rerender(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
+    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
   })
 })

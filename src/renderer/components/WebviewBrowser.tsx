@@ -1,4 +1,4 @@
-import type { WebviewAnnotationTarget } from '@shared/types/webview'
+import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { DidFailLoadEvent, WebviewTag } from 'electron'
 import { LoaderCircle } from 'lucide-react'
@@ -33,6 +33,7 @@ export function WebviewBrowser({
 }: Props) {
   const { t } = useTranslation()
   const webviewRef = useRef<WebviewTag | null>(null)
+  const [webviewRevision, setWebviewRevision] = useState(0)
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -40,6 +41,7 @@ export function WebviewBrowser({
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview
+    setWebviewRevision((revision) => revision + 1)
     if (!webview) setIsReady(false)
   }, [])
 
@@ -68,6 +70,7 @@ export function WebviewBrowser({
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <WebviewNavigation
         webviewRef={webviewRef}
+        webviewRevision={webviewRevision}
         initialUrl={initialUrl}
         isWebviewReady={isReady}
         isHostActive={isHostActive}

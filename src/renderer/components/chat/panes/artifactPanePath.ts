@@ -1,6 +1,6 @@
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
@@ -16,9 +16,20 @@ export interface ArtifactPaneFileSelection {
   filePath: string
 }
 
-/** The canonical absolute path a selection edits — the `useFileEditSession` key. */
+/** The normalized absolute path a selection edits — the `useFileEditSession` key. */
 export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
-  canonicalizeFilePath(`${selection.workspacePath}/${selection.filePath}`)
+  normalizeFilePreviewPath(`${selection.workspacePath}/${selection.filePath}`)
+
+/**
+ * Clipboard form of an absolute path: on Windows fold `/` to the native `\`
+ * (covers drive paths and both UNC spellings); on POSIX return verbatim, where
+ * `\` is an ordinary filename character. Separator swap only — never resolves
+ * `.`/`..` (lexical collapse can change the target across symlinks) and never
+ * alters roots, unlike `canonicalizeFilePath`, whose persistence-key contract
+ * collapses a `//server/share` root and rejects `\\server\share`.
+ */
+export const getCopyableAbsolutePath = (path: string, isWindows: boolean): string =>
+  isWindows ? path.replace(/\//g, '\\') : path
 
 export const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')
@@ -67,10 +78,31 @@ export const resolveArtifactPaneFileSelection = (
   workspacePath: string | undefined,
   rawPath: string
 ): ArtifactPaneFileSelection | null => {
-  const normalized = normalizeTreePath(rawPath)
-  if (!normalized) return null
+  const normalizedRawPath = normalizeTreePath(rawPath)
+  if (!normalizedRawPath) return null
 
   const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  const normalizedWorkspacePath = parsedWorkspacePath?.success ? normalizeTreePath(parsedWorkspacePath.data) : null
+  const windowsWorkspaceMatch = normalizedWorkspacePath?.match(/^([A-Za-z]):\/(.+)$/)
+  const malformedWorkspacePrefix = windowsWorkspaceMatch
+    ? `${windowsWorkspaceMatch[1]}:${windowsWorkspaceMatch[2]}`.toLowerCase()
+    : null
+  const normalizedRawPathKey = normalizedRawPath.toLowerCase()
+  const isMalformedWorkspacePath =
+    malformedWorkspacePrefix !== null &&
+    (normalizedRawPathKey === malformedWorkspacePrefix ||
+      normalizedRawPathKey.startsWith(`${malformedWorkspacePrefix}/`))
+  if (
+    normalizedWorkspacePath &&
+    /^[A-Za-z]:\//.test(normalizedWorkspacePath) &&
+    /^[A-Za-z]:(?=[^/])/.test(normalizedRawPath) &&
+    !isMalformedWorkspacePath
+  ) {
+    return null
+  }
+  const normalized = isMalformedWorkspacePath
+    ? normalizedRawPath.replace(/^([A-Za-z]:)(?=[^/])/, '$1/')
+    : normalizedRawPath
   if (parsedWorkspacePath?.success) {
     const validWorkspacePath = parsedWorkspacePath.data
     const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)

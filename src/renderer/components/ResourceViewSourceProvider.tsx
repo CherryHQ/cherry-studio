@@ -3,21 +3,20 @@ import {
   AgentSessionsSourceContext,
   type AssistantTopicsSource,
   AssistantTopicsSourceContext,
+  type AssistantTopicsView,
+  deriveAssistantTopicsView,
   useRawAgentSessionsSource,
   useRawAssistantTopicsSource
 } from '@renderer/hooks/resourceViewSources'
 import { useTabs } from '@renderer/hooks/tab'
-import {
-  getSidebarApp,
-  isMessageOnlyConversationUrl,
-  type SidebarAppId,
-  tabBelongsToApp
-} from '@renderer/utils/sidebar'
+import { getSidebarApp, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
+const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = []
+const EMPTY_ASSISTANT_TOPICS_VIEW: AssistantTopicsView = { rendererTopics: [], orderSignature: '' }
 
 type AssistantTopicsSnapshot = Pick<ReturnType<typeof useRawAssistantTopicsSource>, 'pages' | 'topics'>
 type AgentSessionsSnapshot = Pick<ReturnType<typeof useRawAgentSessionsSource>, 'pinIdBySessionId' | 'sessions'>
@@ -31,15 +30,10 @@ export function shouldLoadResourceViewSource(
   if (!app) return false
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
-  return Boolean(
-    activeTab?.type === 'route' &&
-      !activeTab.isDormant &&
-      tabBelongsToApp(app, activeTab.url) &&
-      !isMessageOnlyConversationUrl(activeTab.url)
-  )
+  return Boolean(activeTab?.type === 'route' && !activeTab.isDormant && tabBelongsToApp(app, activeTab.url))
 }
 
-function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSource {
+function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: boolean): AssistantTopicsSource {
   const rawSource = useRawAssistantTopicsSource({ enabled })
   const [snapshot, setSnapshot] = useState<AssistantTopicsSnapshot | null>(null)
   const rawSourceReady = enabled && rawSource.isFullyLoaded && !rawSource.isRefreshing && !rawSource.error
@@ -70,24 +64,37 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
     (rawSource.isRefreshing ||
       (!rawSource.error && (!rawSource.isFullyLoaded || (rawSourceReady && !snapshotIsCurrent))))
 
+  const topics = snapshot?.topics ?? (enabled ? rawSource.topics : EMPTY_TOPICS)
+  // Derived once per window here — kept-alive tabs consume this shared view
+  // instead of each remapping the full list (see AssistantTopicsView).
+  const topicsView = useMemo(
+    () => (retainDerivedView ? deriveAssistantTopicsView(topics) : EMPTY_ASSISTANT_TOPICS_VIEW),
+    [retainDerivedView, topics]
+  )
+
   return useMemo(
     () => ({
-      topics: snapshot?.topics ?? (enabled ? rawSource.topics : []),
+      topics,
+      ...topicsView,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isFullyLoaded: snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
       error: snapshot ? undefined : rawSource.error,
       refreshError: snapshot ? rawSource.error : undefined,
-      refetch: rawSource.refetch
+      refetch: rawSource.refetch,
+      loadLatestTopic: rawSource.loadLatestTopic,
+      reuseOrCreateTopic: rawSource.reuseOrCreateTopic
     }),
     [
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.error,
       rawSource.isLoadingAll,
+      rawSource.loadLatestTopic,
+      rawSource.reuseOrCreateTopic,
       rawSource.refetch,
-      rawSource.topics,
-      enabled,
+      topics,
+      topicsView,
       snapshot
     ]
   )
@@ -150,6 +157,8 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       deleteSessions: rawSource.deleteSessions,
       reorderSession: rawSource.reorderSession,
       togglePin: rawSource.togglePin,
+      loadLatestSession: rawSource.loadLatestSession,
+      reuseOrCreateSession: rawSource.reuseOrCreateSession,
       isFullyLoaded: snapshot !== null,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isPinsLoading: isColdLoading && rawSource.isPinsLoading
@@ -167,6 +176,8 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       rawSource.isLoadingMore,
       rawSource.isPinsLoading,
       rawSource.isValidating,
+      rawSource.loadLatestSession,
+      rawSource.reuseOrCreateSession,
       rawSource.pinIdBySessionId,
       rawSource.reload,
       rawSource.reorderSession,
@@ -183,11 +194,16 @@ export function ResourceViewSourceProvider({ children }: { children: ReactNode }
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'assistants'),
     [activeTabId, tabs]
   )
+  const retainAssistantTopicsView = useMemo(() => {
+    const app = getSidebarApp('assistants')
+    if (!app) return false
+    return tabs.some((tab) => tab.type === 'route' && !tab.isDormant && tabBelongsToApp(app, tab.url))
+  }, [tabs])
   const agentSessionsEnabled = useMemo(
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'agents'),
     [activeTabId, tabs]
   )
-  const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled)
+  const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled, retainAssistantTopicsView)
   const agentSessionsSource = useCommittedAgentSessionsSource(agentSessionsEnabled)
 
   return (

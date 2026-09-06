@@ -9,12 +9,14 @@ on:
     branches:
       - main
       - v2
+      - "release/v*"
   pull_request:
     branches:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened]
+      - "release/v*"
+    types: [ready_for_review, synchronize, opened, reopened]
 
 jobs:
   changes:
@@ -24,9 +26,15 @@ jobs:
       main: ${{ steps.filter.outputs.main }}
       renderer: ${{ steps.filter.outputs.renderer }}
       shared: ${{ steps.filter.outputs.shared }}
+      ai-core: ${{ steps.filter.outputs.ai-core }}
+      ui: ${{ steps.filter.outputs.ui }}
+      provider-registry: ${{ steps.filter.outputs.provider-registry }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+      extension-table-plus: ${{ steps.filter.outputs.extension-table-plus }}
+      test-infra: ${{ steps.filter.outputs.test-infra }}
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Detect code changes
         id: filter
@@ -36,12 +44,40 @@ jobs:
             main:
               - 'src/main/**'
               - 'src/preload/**'
-              - 'scripts/**'
+              - 'tests/helpers/**'
+              - 'tests/main.setup.ts'
+              - 'tests/__mocks__/main/**'
+              - 'tests/__mocks__/MainLoggerService.ts'
+              - 'migrations/**'
             renderer:
               - 'src/renderer/**'
+              - 'src/preload/**'
+              - 'tests/renderer.setup.ts'
+              - 'tests/__mocks__/renderer/**'
+              - 'tests/__mocks__/RendererLoggerService.ts'
+              - 'tests/__mocks__/requestAnimationFrame.ts'
             shared:
-              - 'packages/**'
-              - 'tests/**'
+              - 'src/shared/**'
+            ai-core:
+              - 'packages/aiCore/**'
+              - 'packages/ai-sdk-provider/**'
+            ui:
+              - 'packages/ui/**'
+            provider-registry:
+              - 'packages/provider-registry/**'
+            scripts:
+              - 'scripts/**'
+              - '.github/workflows/auto-release-build.yml'
+              - '.github/workflows/backport-release-fixes.yml'
+              - '.github/workflows/post-release.yml'
+              - '.github/workflows/prepare-release.yml'
+              - '.github/workflows/preview-release.yml'
+              - '.github/workflows/publish-release.yml'
+              - '.github/workflows/release.yml'
+            extension-table-plus:
+              - 'packages/extension-table-plus/**'
+            test-infra:
+              - '.github/workflows/ci.yml'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -57,9 +93,23 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
-          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          # The PR merge commit and its parents are enough for changeset comparison.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '2' || '1' }}
+
+      - name: Lint GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.12
+        env:
+          SHELLCHECK_OPTS: --severity=error
+        with:
+          args: -color
+
+      - name: Prepare base reference
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: git update-ref "refs/remotes/origin/$BASE_REF" "$(git rev-parse HEAD^1)"
 
       # provider-registry data/*.json are generated from src/creators + src/providers.
       # The daily catalog workflow regenerates data without source changes, so exempt only
@@ -95,7 +145,17 @@ jobs:
         shell: bash
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
+      - name: Restore pnpm dependencies
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Cache pnpm dependencies
+        if: github.event_name != 'pull_request'
         uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -106,20 +166,45 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check provider-registry compatibility baseline policy
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
+
       - name: Check changesets
         if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
 
-      - name: Lint Check
-        run: pnpm test:lint
+      - name: I18N Translation Check
+        env:
+          TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+        run: |
+          pnpm i18n:sync
+          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then
+            echo "::error::Translations are out of sync. Run pnpm i18n:sync, translate every pending value, and commit the result."
+            git --no-pager status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n
+            git --no-pager diff -- src/renderer/i18n src/main/i18n
+            exit 1
+          fi
+          pnpm i18n:check
+          pnpm i18n:unused:check
 
-      - name: Format Check
-        run: pnpm format:check
-
-      - name: Type Check
-        run: pnpm typecheck
+      - name: Read-only Checks
+        run: |
+          # Share one checkout/install while keeping independent checks parallel.
+          # Do not kill sibling checks on failure so every failure is reported.
+          # `--max-processes 1` lands on the typecheck script's trailing concurrently call and
+          # serializes it: eslint plus two concurrent tsgo runs OOM the runner mid-job.
+          pnpm exec concurrently \
+            --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
+            --prefix-colors "blue,yellow,cyan,green" \
+            "pnpm test:lint" \
+            "pnpm typecheck --max-processes 1 && pnpm i18n:hardcoded:strict" \
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
+            "pnpm docs:check"
 
       - name: DB Migrations Check
         run: |
@@ -146,133 +231,158 @@ jobs:
             exit 1
           fi
 
-      - name: Builtin Knowledge Check
-        run: pnpm build:builtin-knowledge:check
-
-      - name: i18n Check
-        run: pnpm i18n:check
-
-      - name: Hardcoded Strings Check
-        run: pnpm i18n:hardcoded:strict
-
-      - name: Skills Check
-        run: pnpm skills:check
-
-  general-test:
-    runs-on: ubuntu-latest
+  main-test-shard:
+    name: main-test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    runs-on: ${{ matrix.os }}
     needs: changes
     if: >-
       needs.changes.outputs.main == 'true' ||
       needs.changes.outputs.shared == 'true' ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
-    env:
-      CI: true
-
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Main Process Test
-        run: pnpm test:main
-
-      - name: AI Core Test
-        run: pnpm test:aicore
-
-      - name: Shared Package Test
-        run: pnpm test:shared
-
-      - name: Provider Registry Package Test
-        run: pnpm test:provider-registry
-
-      - name: Scripts Test
-        run: pnpm test:scripts
-
-  ui-test:
-    runs-on: ubuntu-latest
-    needs: changes
-    if: >-
-      needs.changes.outputs.renderer == 'true' ||
-      needs.changes.outputs.shared == 'true' ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
-    env:
-      CI: true
-
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: UI Package Test
-        run: pnpm test:pkg:ui
-
-  renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
-    needs: changes
-    if: >-
-      needs.changes.outputs.renderer == 'true' ||
-      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.ai-core == 'true' ||
+      needs.changes.outputs.provider-registry == 'true' ||
+      needs.changes.outputs.test-infra == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         shard: [1, 2, 3]
+        include:
+          - os: ubuntu-latest
+            shards: 3
+          # macOS/Windows run only the platform-gated files (see the test step) —
+          # a small enough set that sharding it would just add runner overhead.
+          - os: macos-latest
+            shard: 1
+            shards: 1
+          - os: windows-2022
+            shard: 1
+            shards: 1
     env:
       CI: true
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm dependencies
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Main and Package Tests
+        shell: bash
+        env:
+          AI_CORE_CHANGED: ${{ needs.changes.outputs.ai-core }}
+          UI_CHANGED: ${{ needs.changes.outputs.ui }}
+          SHARED_CHANGED: ${{ needs.changes.outputs.shared }}
+          PROVIDER_REGISTRY_CHANGED: ${{ needs.changes.outputs.provider-registry }}
+          SCRIPTS_CHANGED: ${{ needs.changes.outputs.scripts }}
+          TEST_INFRA_CHANGED: ${{ needs.changes.outputs.test-infra }}
+        run: |
+          # Non-Linux runners exist to execute the `process.platform` branches that Linux
+          # skips (symlinks, path casing, Windows command resolution). The rest of the
+          # suite hardcodes POSIX paths in its fixtures and carries no per-OS signal, so
+          # only the gated files run there.
+          if [[ "$RUNNER_OS" != "Linux" ]]; then
+            gated=$(grep -rl 'process\.platform' src/main src/shared --include='*.test.ts')
+            if [[ -z "$gated" ]]; then
+              echo "::error::No platform-gated test files found — refusing to run the whole suite."
+              exit 1
+            fi
+            pnpm rebuild:node
+            pnpm exec vitest run --project main --project shared $gated
+            exit 0
+          fi
+
+          # `preload` rides with `main`: the two share one paths-filter (`src/preload/**` is
+          # listed under `main:`), so a preload change triggers this job and must run its tests.
+          projects=(--project main --project preload)
+
+          if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project aiCore)
+          fi
+          if [[ "$UI_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project ui)
+          fi
+          if [[ "$SHARED_CHANGED" == "true" || "$PROVIDER_REGISTRY_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project shared)
+          fi
+          if [[ "$PROVIDER_REGISTRY_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project provider-registry)
+          fi
+          if [[ "$SCRIPTS_CHANGED" == "true" || "$PROVIDER_REGISTRY_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project scripts)
+          fi
+
+          pnpm rebuild:node
+          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/${{ matrix.shards }}
+
+  general-test:
+    runs-on: ubuntu-latest
+    needs: [changes, main-test-shard, package-test]
+    if: >-
+      always() &&
+      (needs.changes.outputs.main == 'true' ||
+      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.ai-core == 'true' ||
+      needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.provider-registry == 'true' ||
+      needs.changes.outputs.scripts == 'true' ||
+      needs.changes.outputs.test-infra == 'true' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Verify main and package tests
+        env:
+          MAIN_RESULT: ${{ needs.main-test-shard.result }}
+          PACKAGE_RESULT: ${{ needs.package-test.result }}
+        run: |
+          test "$MAIN_RESULT" = "success" || test "$MAIN_RESULT" = "skipped"
+          test "$PACKAGE_RESULT" = "success" || test "$PACKAGE_RESULT" = "skipped"
+
+  package-test:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      (needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.scripts == 'true') &&
+      needs.changes.outputs.main != 'true' &&
+      needs.changes.outputs.shared != 'true' &&
+      needs.changes.outputs.ai-core != 'true' &&
+      needs.changes.outputs.provider-registry != 'true' &&
+      needs.changes.outputs.test-infra != 'true' &&
+      github.event_name == 'pull_request'
+    env:
+      CI: true
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -287,8 +397,77 @@ jobs:
         shell: bash
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+      - name: Restore pnpm dependencies
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: AI Core Test
+        if: needs.changes.outputs.ai-core == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:aicore
+
+      - name: UI Package Test
+        if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:pkg:ui
+
+      - name: Shared Package Test
+        if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.provider-registry == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:shared
+
+      - name: Provider Registry Package Test
+        if: needs.changes.outputs.provider-registry == 'true' || needs.changes.outputs.shared == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:provider-registry
+
+      - name: Scripts Test
+        if: needs.changes.outputs.scripts == 'true' || needs.changes.outputs.provider-registry == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: pnpm test:scripts
+
+  renderer-test-shard:
+    name: renderer-test (${{ matrix.shard }}/5)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.renderer == 'true' ||
+      needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.ai-core == 'true' ||
+      needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.provider-registry == 'true' ||
+      needs.changes.outputs.extension-table-plus == 'true' ||
+      needs.changes.outputs.test-infra == 'true' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    env:
+      CI: true
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm dependencies
+        uses: actions/cache/restore@v5
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -299,7 +478,7 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer --shard=${{ matrix.shard }}/3
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/5
 
   render-test:
     runs-on: ubuntu-latest
@@ -308,6 +487,11 @@ jobs:
       always() &&
       (needs.changes.outputs.renderer == 'true' ||
       needs.changes.outputs.shared == 'true' ||
+      needs.changes.outputs.ai-core == 'true' ||
+      needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.provider-registry == 'true' ||
+      needs.changes.outputs.extension-table-plus == 'true' ||
+      needs.changes.outputs.test-infra == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch')
     steps:
@@ -318,11 +502,11 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [basic-checks, general-test, ui-test, render-test]
-    if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.ui-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [basic-checks, general-test, package-test, render-test]
+    if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.package-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6

@@ -5,8 +5,16 @@
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { isAbortError } from '@main/utils/error'
-import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import {
+  InvalidResponseDataError,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type ToolSet,
+  type UIMessage,
+  type UIMessageChunk
+} from 'ai'
 
+import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
@@ -16,6 +24,28 @@ import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
+
+const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
+
+class MissingFinishReasonError extends Error {
+  readonly i18nKey = 'missing_finish_reason'
+
+  constructor(
+    cause: Error,
+    readonly providerId: string,
+    readonly modelId: string
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MissingFinishReasonError'
+  }
+}
+
+function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
+  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+    return new MissingFinishReasonError(error, providerId, modelId)
+  }
+  return error
+}
 
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>
@@ -63,11 +93,31 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const params = this.params
     const opts = params.options ?? {}
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
+    const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
+    const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
+      const routedMessages = routeToolResultMedia(
+        options.messages,
+        params.mediaCapabilities ?? ALL_MEDIA,
+        params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
+      )
+      const prepared = await forwardedPrepareStep?.({ ...options, messages: routedMessages })
+      const preparedMessages = prepared?.messages
+        ? routeToolResultMedia(
+            prepared.messages,
+            params.mediaCapabilities ?? ALL_MEDIA,
+            params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
+          )
+        : routedMessages
+
+      if (!prepared && preparedMessages === options.messages) return undefined
+      return { ...prepared, ...(preparedMessages !== options.messages && { messages: preparedMessages }) }
+    }
     return createAgent<AppProviderSettingsMap, T, ToolSet>({
       providerId: params.providerId,
       providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
+      wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
         tools: toolsWithHooks as ToolSet,
@@ -96,7 +146,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         experimental_context: opts.context,
         experimental_repairToolCall: opts.repairToolCall,
         experimental_download: opts.download,
-        prepareStep: wrapForwardedHook('prepareStep', hooks.prepareStep),
+        prepareStep,
         onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
       }
     })
@@ -114,7 +164,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
-          : { messages: input.messages, ...(signal && { abortSignal: signal }) }
+          : {
+              // Same wire-media gate `stream()` applies: without it, structured tool-result
+              // media (images/audio) rides as JSON/base64 or is rejected on OpenAI/Ollama.
+              messages: routeToolResultMedia(
+                input.messages,
+                this.params.mediaCapabilities ?? ALL_MEDIA,
+                this.params.toolResultMediaCapabilities ?? this.params.mediaCapabilities ?? ALL_MEDIA
+              ),
+              ...(signal && { abortSignal: signal })
+            }
       const result = await aiAgent.generate(generateInput)
       signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({
@@ -235,7 +294,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for the
       // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
-      const modelMessages = await toModelMessages(initialMessages, params.mediaCapabilities, params.tools)
+      const modelMessages = await toModelMessages(
+        initialMessages,
+        params.mediaCapabilities,
+        params.tools,
+        params.toolResultMediaCapabilities
+      )
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({
@@ -249,6 +313,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)
@@ -340,15 +405,20 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return
         }
 
-        const action = await invokeOnError(err)
+        const streamError = normalizeStreamError(
+          err,
+          params.errorContext?.providerId ?? params.providerId,
+          params.errorContext?.modelId ?? params.modelId
+        )
+        const action = await invokeOnError(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
-          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', streamError as Error)
         } else {
-          logger.error('agentLoop error', err)
+          logger.error('agentLoop error', streamError as Error)
         }
-        await settleWriter({ error: err })
+        await settleWriter({ error: streamError })
       })
 
     return readable

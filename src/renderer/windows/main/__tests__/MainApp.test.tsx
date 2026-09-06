@@ -5,16 +5,24 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../onboarding/OnboardingPage', () => ({
-  default: () => <div data-testid="onboarding-page">onboarding</div>
-}))
+const onboardingModule = vi.hoisted(() => ({ evaluations: 0 }))
+
+vi.mock('../onboarding/OnboardingPage', () => {
+  onboardingModule.evaluations += 1
+  return { default: () => <div data-testid="onboarding-page">onboarding</div> }
+})
 
 vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
   PrivacyPolicyUpdateGate: () => <div data-testid="privacy-policy-gate">privacy-policy-gate</div>
 }))
 
+const tabsProviderMock = vi.hoisted(() => ({ lastInitialDefaultTab: null as unknown }))
+
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
-  TabsProvider: ({ children }: { children: ReactNode }) => <div data-testid="tabs-provider">{children}</div>
+  TabsProvider: ({ children, initialDefaultTab }: { children: ReactNode; initialDefaultTab?: unknown }) => {
+    tabsProviderMock.lastInitialDefaultTab = initialDefaultTab
+    return <div data-testid="tabs-provider">{children}</div>
+  }
 }))
 
 vi.mock('@renderer/components/layout/AppShell', () => ({
@@ -24,6 +32,9 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useMainWindowNavigation: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
+vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({
+  ConversationNotificationRuntime: () => null
+}))
 vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
@@ -52,27 +63,55 @@ describe('MainWindowContent', () => {
     vi.clearAllMocks()
   })
 
-  it('renders onboarding before the user completes first-run setup', () => {
+  it('does not load onboarding after first-run setup is completed or skipped', () => {
+    for (const status of ['completed', 'skipped'] as const) {
+      MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
+
+      const view = render(<MainWindowContent />)
+
+      expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
+      expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+      expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
+      expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
+      expect(onboardingModule.evaluations).toBe(0)
+      view.unmount()
+    }
+  })
+
+  it('loads and renders onboarding before the user completes first-run setup', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
     appendBootSpinner()
 
     render(<MainWindowContent />)
 
-    expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
+    expect(await screen.findByTestId('onboarding-page')).toBeInTheDocument()
+    expect(onboardingModule.evaluations).toBe(1)
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
     expect(document.getElementById('spinner')).toBeNull()
   })
 
-  it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
+  it('passes the first visible sidebar app as the startup landing tab', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'translate' }
+    ])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
 
     render(<MainWindowContent />)
 
-    expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
-    expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
-    expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/agents' })
+  })
+
+  it('falls back to launchpad when no sidebar app is visible', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
   })
 })
 

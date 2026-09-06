@@ -1,3 +1,10 @@
+---
+description: Synchronous file-based BootConfig system for process-level settings loaded before the app lifecycle starts
+sources:
+  - src/main/data/bootConfig
+  - src/shared/data/bootConfig
+---
+
 # Boot Config System Overview
 
 The Boot Config system provides synchronous, file-based configuration for settings that must be available **before** the application lifecycle takes over — before the database, before PreferenceService, before any lifecycle phase runs.
@@ -146,7 +153,7 @@ Restoring a stale `temp.*` entry (via backup, sync, or a different machine) can 
 | Availability      | From process start                       | After DB initialization                                         |
 | Use case          | Process-level flags, Chromium switches   | User-modifiable app settings                                    |
 | Cross-window sync | Via PreferenceService delegation         | Native                                                          |
-| Key count         | Minimal (process-level only)             | 158+ keys                                                       |
+| Key set           | Minimal (process-level only)             | Generated fixed schema                                         |
 
 ## PreferenceService Integration
 

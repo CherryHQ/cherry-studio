@@ -1,0 +1,292 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 23c5e35..3a73d98 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+  *
+  * @returns A result object that contains the generated images.
+  */
+-declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, }: {
++declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download: download, }: {
+     /**
+      * The image model to use.
+      */
+@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+      * Only applicable for HTTP-based providers.
+      */
+     headers?: Record<string, string>;
++    /**
++     * Custom download function to use for URLs.
++     *
++     * By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+ 
+ /**
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 23c5e35..3a73d98 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+  *
+  * @returns A result object that contains the generated images.
+  */
+-declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, }: {
++declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download: download, }: {
+     /**
+      * The image model to use.
+      */
+@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+      * Only applicable for HTTP-based providers.
+      */
+     headers?: Record<string, string>;
++    /**
++     * Custom download function to use for URLs.
++     *
++     * By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+ 
+ /**
+diff --git a/dist/index.js b/dist/index.js
+index 5774837..a06b785 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -8468,6 +8468,16 @@ function createUIMessageStream({
+ }
+ 
+ // src/ui-message-stream/read-ui-message-stream.ts
++// PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — structuredClone here
++// was O(message bytes) per chunk, melting the renderer on long fast streams (vercel/ai#18624).
++function cherrySnapshotUIMessage(message) {
++  const snapshot = { ...message, parts: message.parts.map((part) => ({ ...part })) };
++  if ("metadata" in message) {
++    const metadata = message.metadata;
++    snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++  }
++  return snapshot;
++}
+ function readUIMessageStream({
+   message,
+   stream,
+@@ -8500,7 +8510,7 @@ function readUIMessageStream({
+         return job({
+           state,
+           write: () => {
+-            controller == null ? void 0 : controller.enqueue(structuredClone(state.message));
++            controller == null ? void 0 : controller.enqueue(cherrySnapshotUIMessage(state.message));
+           }
+         });
+       },
+@@ -9636,6 +9646,14 @@ var DefaultEmbedManyResult = class {
+ 
+ // src/generate-image/generate-image.ts
+ var import_provider_utils25 = require("@ai-sdk/provider-utils");
++function toDownloadableImageUrl(value) {
++  try {
++    const url = new URL(value);
++    return url.protocol === "http:" || url.protocol === "https:" ? url : void 0;
++  } catch (invalidUrl) {
++    return void 0;
++  }
++}
+ async function generateImage({
+   model: modelArg,
+   prompt: promptArg,
+@@ -9647,7 +9665,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a21, _b;
+   const model = resolveImageModel(modelArg);
+@@ -9696,11 +9715,36 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a22;
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
++        }
++        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
++        if (imageUrl != null) {
++          let downloadedData = null;
++          try {
++            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++          } catch (downloadError) {
++            downloadedData = null;
++          }
++          if (downloadedData != null) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++            });
++          }
++          // A url we failed to fetch is not image data — dropping it beats persisting the
++          // url string as if it were the base64 bytes.
++          return null;
++        }
++        try {
+           return new DefaultGeneratedFile({
+             data: image,
+             mediaType: (_a22 = detectMediaType({
+@@ -9708,9 +9752,22 @@ async function generateImage({
+               signatures: imageMediaTypeSignatures
+             })) != null ? _a22 : "image/png"
+           });
++        } catch (invalidImageData) {
++          // Neither a fetchable url nor decodable base64 — drop it instead of letting one
++          // malformed entry reject the whole batch.
++          return null;
+         }
+-      )
++      })
+     );
++    const downloadedImages = processedImages.filter((file) => file != null);
++    const droppedImageCount = processedImages.length - downloadedImages.length;
++    if (droppedImageCount > 0) {
++      warnings.push({
++        type: "other",
++        message: `${droppedImageCount} of ${processedImages.length} generated images could not be downloaded and were dropped`
++      });
++    }
++    images.push(...downloadedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6862f01..ccdb020 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -8392,6 +8392,16 @@ function createUIMessageStream({
+ }
+ 
+ // src/ui-message-stream/read-ui-message-stream.ts
++// PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — structuredClone here
++// was O(message bytes) per chunk, melting the renderer on long fast streams (vercel/ai#18624).
++function cherrySnapshotUIMessage(message) {
++  const snapshot = { ...message, parts: message.parts.map((part) => ({ ...part })) };
++  if ("metadata" in message) {
++    const metadata = message.metadata;
++    snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++  }
++  return snapshot;
++}
+ function readUIMessageStream({
+   message,
+   stream,
+@@ -8424,7 +8434,7 @@ function readUIMessageStream({
+         return job({
+           state,
+           write: () => {
+-            controller == null ? void 0 : controller.enqueue(structuredClone(state.message));
++            controller == null ? void 0 : controller.enqueue(cherrySnapshotUIMessage(state.message));
+           }
+         });
+       },
+@@ -9575,6 +9585,14 @@ import {
+   convertBase64ToUint8Array as convertBase64ToUint8Array4,
+   withUserAgentSuffix as withUserAgentSuffix5
+ } from "@ai-sdk/provider-utils";
++function toDownloadableImageUrl(value) {
++  try {
++    const url = new URL(value);
++    return url.protocol === "http:" || url.protocol === "https:" ? url : void 0;
++  } catch (invalidUrl) {
++    return void 0;
++  }
++}
+ async function generateImage({
+   model: modelArg,
+   prompt: promptArg,
+@@ -9586,7 +9604,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a21, _b;
+   const model = resolveImageModel(modelArg);
+@@ -9635,11 +9654,36 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a22;
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
++        }
++        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
++        if (imageUrl != null) {
++          let downloadedData = null;
++          try {
++            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++          } catch (downloadError) {
++            downloadedData = null;
++          }
++          if (downloadedData != null) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++            });
++          }
++          // A url we failed to fetch is not image data — dropping it beats persisting the
++          // url string as if it were the base64 bytes.
++          return null;
++        }
++        try {
+           return new DefaultGeneratedFile({
+             data: image,
+             mediaType: (_a22 = detectMediaType({
+@@ -9647,9 +9691,22 @@ async function generateImage({
+               signatures: imageMediaTypeSignatures
+             })) != null ? _a22 : "image/png"
+           });
++        } catch (invalidImageData) {
++          // Neither a fetchable url nor decodable base64 — drop it instead of letting one
++          // malformed entry reject the whole batch.
++          return null;
+         }
+-      )
++      })
+     );
++    const downloadedImages = processedImages.filter((file) => file != null);
++    const droppedImageCount = processedImages.length - downloadedImages.length;
++    if (droppedImageCount > 0) {
++      warnings.push({
++        type: "other",
++        message: `${droppedImageCount} of ${processedImages.length} generated images could not be downloaded and were dropped`
++      });
++    }
++    images.push(...downloadedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);

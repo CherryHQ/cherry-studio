@@ -162,8 +162,7 @@ describe('userDataRelocation validation', () => {
   })
 
   it('allows an app-specific directory below the Linux config root while protecting the root', async () => {
-    const root = fs.mkdtempSync(path.join('/tmp', 'cherry-relocation-linux-'))
-    roots.push(root)
+    const root = makeRoot()
     const source = path.join(root, 'source')
     const systemHome = path.join(root, 'home', 'alice')
     const appData = path.join(systemHome, '.config')
@@ -271,49 +270,53 @@ describe('userDataRelocation validation', () => {
     })
   })
 
-  it('allows writable descendants of protected Linux top-level directories but not the directories themselves', async () => {
-    vi.resetModules()
-    const entries: string[] = []
-    const existing = new Set(['/home/alice/cherry', '/var', '/var/cherry', '/', String(relocationState.installPath)])
-    const realpathSync = vi.fn((value: string) => value)
-    ;(realpathSync as typeof realpathSync & { native?: typeof realpathSync }).native = realpathSync
-    vi.doMock('node:fs', () => {
-      const mock = {
-        constants: { R_OK: 4, W_OK: 2, X_OK: 1 },
-        accessSync: vi.fn(),
-        lstatSync: vi.fn((value: string) => {
-          if (existing.has(value)) return { isDirectory: () => true }
-          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-        }),
-        statSync: vi.fn((value: string) => {
-          if (existing.has(value)) return { isDirectory: () => true, isFile: () => false, size: 0 }
-          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-        }),
-        readdirSync: vi.fn((value: string) => (value === '/var/cherry' ? entries : [])),
-        readFileSync: vi.fn(() => {
-          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-        }),
-        realpathSync
-      }
-      return { ...mock, default: mock }
-    })
-    platformState.isLinux = true
-    relocationState['app.userdata'] = '/home/alice/cherry'
+  // The mocked fs is keyed by POSIX literals, which win32 `path` never reproduces.
+  it.skipIf(process.platform === 'win32')(
+    'allows writable descendants of protected Linux top-level directories but not the directories themselves',
+    async () => {
+      vi.resetModules()
+      const entries: string[] = []
+      const existing = new Set(['/home/alice/cherry', '/var', '/var/cherry', '/', String(relocationState.installPath)])
+      const realpathSync = vi.fn((value: string) => value)
+      ;(realpathSync as typeof realpathSync & { native?: typeof realpathSync }).native = realpathSync
+      vi.doMock('node:fs', () => {
+        const mock = {
+          constants: { R_OK: 4, W_OK: 2, X_OK: 1 },
+          accessSync: vi.fn(),
+          lstatSync: vi.fn((value: string) => {
+            if (existing.has(value)) return { isDirectory: () => true }
+            throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+          }),
+          statSync: vi.fn((value: string) => {
+            if (existing.has(value)) return { isDirectory: () => true, isFile: () => false, size: 0 }
+            throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+          }),
+          readdirSync: vi.fn((value: string) => (value === '/var/cherry' ? entries : [])),
+          readFileSync: vi.fn(() => {
+            throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+          }),
+          realpathSync
+        }
+        return { ...mock, default: mock }
+      })
+      platformState.isLinux = true
+      relocationState['app.userdata'] = '/home/alice/cherry'
 
-    const { inspectUserDataRelocationTarget } = await loadDomain()
+      const { inspectUserDataRelocationTarget } = await loadDomain()
 
-    expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
-      valid: true,
-      targetEmpty: true
-    })
-    expect(inspectUserDataRelocationTarget('/var')).toEqual({
-      valid: false,
-      reason: 'target_protected'
-    })
-    entries.push('unrelated.txt')
-    expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
-      valid: true,
-      targetEmpty: false
-    })
-  })
+      expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
+        valid: true,
+        targetEmpty: true
+      })
+      expect(inspectUserDataRelocationTarget('/var')).toEqual({
+        valid: false,
+        reason: 'target_protected'
+      })
+      entries.push('unrelated.txt')
+      expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
+        valid: true,
+        targetEmpty: false
+      })
+    }
+  )
 })

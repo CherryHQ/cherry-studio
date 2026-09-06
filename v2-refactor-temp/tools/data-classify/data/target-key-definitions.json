@@ -6,11 +6,32 @@
   },
   "definitions": [
     {
+      "targetKey": "app.fetch.allow_private_network",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.power.prevent_sleep_when_busy",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.mini_app.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show system notifications from installed mini apps that hold the notification grant (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.onboarding.provider_setup.status",
@@ -62,6 +83,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": "exa-mcp",
@@ -76,11 +104,11 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
-      "targetKey": "chat.web_search.client_tools_preferred",
+      "targetKey": "chat.web_search.model_tools_preferred",
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
-      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+      "description": "Prefer model-native web search and URL fetching over configured services when both are available"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",
@@ -113,7 +141,7 @@
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-session", "skills"],
+      "defaultValue": ["composer:new-session", "skills", "permission-mode"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
@@ -142,8 +170,8 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "assistants", "type": "app" },
         { "id": "agents", "type": "app" },
+        { "id": "assistants", "type": "app" },
         { "id": "translate", "type": "app" },
         { "id": "paintings", "type": "app" },
         { "id": "knowledge", "type": "app" }
@@ -173,6 +201,34 @@
       "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "chat.retry.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.fallback_model_ids",
+      "type": "PreferenceTypes.RetryFallbackModelId[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.max_attempts",
+      "type": "number",
+      "defaultValue": 3,
+      "status": "classified",
+      "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.backoff_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -185,6 +241,13 @@
       "defaultValue": 50000,
       "status": "classified",
       "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
+    },
+    {
+      "targetKey": "chat.context_settings.max_messages",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
     },
     {
       "targetKey": "chat.context_settings.compress.enabled",
@@ -201,11 +264,11 @@
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
     },
     {
-      "targetKey": "topic.naming.model_id",
-      "type": "string",
-      "defaultValue": null,
+      "targetKey": "chat.context_settings.compress.threshold_percent",
+      "type": "number",
+      "defaultValue": 80,
       "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+      "description": "Percent of the model input room at which history is compacted (v2 新增，非迁移)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -518,7 +581,7 @@
       "description": "Command shortcut: chat.model.select (unified command system)"
     },
     {
-      "targetKey": "shortcut.chat.topic.clear",
+      "targetKey": "shortcut.topic.clear_messages",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
@@ -527,8 +590,8 @@
         ],
         "enabled": true
       },
-      "status": "deleted",
-      "description": "Deleted: command removed (feature not implemented in v2)."
+      "status": "classified",
+      "description": "Command shortcut: topic.clear_messages (unified command system)"
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",
@@ -603,11 +666,132 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "Tab"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.prev (unified command system)"
+    },
+    {
       "targetKey": "menu.presentation_mode",
       "type": "PreferenceTypes.MenuPresentationMode",
       "defaultValue": "cherry",
       "status": "classified",
       "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "targetKey": "feature.notes.line_breaks",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "feature.screenshot.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether interactive screen capture is enabled"
+    },
+    {
+      "targetKey": "feature.screenshot.auto_ocr",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether OCR runs automatically after a selection is made"
+    },
+    {
+      "targetKey": "shortcut.screenshot.capture",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "feature.mini_app.check_updates_on_open",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.webdav.allow_self_signed_tls",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow self-signed/unverifiable TLS certificates for WebDAV backup transport (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.enable_temperature",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the translate request sends a temperature (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.temperature",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Sampling temperature for the translate model, sent only when enable_temperature is on (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.enable_top_p",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the translate request sends a topP (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.top_p",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Nucleus sampling topP for the translate model, sent only when enable_top_p is on (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.translate.reasoning_effort",
+      "type": "PreferenceTypes.ReasoningEffortOption",
+      "defaultValue": "none",
+      "status": "classified",
+      "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
     }
   ]
 }

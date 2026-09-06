@@ -1,183 +1,291 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n/resolver'
-import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth'
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import {
+  ModelCheckCredentialsSaveError,
+  type ModelCheckCredentialsState
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useModelCheckCredentials'
+import { useProviderEndpoints } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useProviderEndpoints'
+import type {
+  ModelCheckCredential,
+  ModelCheckKeySelection,
+  ModelWithStatus
+} from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import {
+  getModelHealthCheckSkipReason,
+  ModelCheckCredentialsError,
+  summarizeHealthResults
+} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
-import { splitApiKeyString } from '@renderer/utils/api'
-import { isEmpty } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Model } from '@shared/data/types/model'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
+import { checkModelsHealth } from './checkModelsHealth'
+import { clearModelHealthStatus, writeModelHealthStatus } from './modelHealthStatusCache'
 
-const logger = loggerService.withContext('ProviderSettings:ModelHealthCheck')
+const logger = loggerService.withContext('ProviderSettings:ModelCheck')
 
-export const useHealthCheck = (providerId: string) => {
-  const { provider } = useProvider(providerId)
+function createModelCheckFingerprint(model: Model) {
+  return JSON.stringify({
+    providerId: model.providerId,
+    apiModelId: model.apiModelId ?? '',
+    capabilities: model.capabilities.toSorted(),
+    inputModalities: model.inputModalities?.toSorted() ?? [],
+    outputModalities: model.outputModalities?.toSorted() ?? [],
+    endpointTypes: model.endpointTypes ?? []
+  })
+}
+
+function reconcileModelStatuses(statuses: ModelWithStatus[], models: readonly Model[]) {
+  let changed = false
+  const currentModels = new Map(models.map((model) => [model.id, model]))
+  const next: ModelWithStatus[] = []
+
+  for (const status of statuses) {
+    const currentModel = currentModels.get(status.model.id)
+    if (!currentModel || createModelCheckFingerprint(currentModel) !== createModelCheckFingerprint(status.model)) {
+      changed = true
+      continue
+    }
+
+    if (currentModel.name !== status.model.name) {
+      changed = true
+      next.push({ ...status, model: currentModel })
+    } else {
+      next.push(status)
+    }
+  }
+
+  return changed ? next : statuses
+}
+
+function createInitialStatuses(models: readonly Model[]) {
+  return models.map<ModelWithStatus>((model) => {
+    const skipReason = getModelHealthCheckSkipReason(model)
+    return skipReason
+      ? {
+          kind: 'skipped',
+          model,
+          checking: false,
+          status: HealthStatus.NOT_CHECKED,
+          keyResults: [],
+          skipReason
+        }
+      : {
+          kind: 'checking',
+          model,
+          checking: true,
+          status: HealthStatus.NOT_CHECKED,
+          keyResults: []
+        }
+  })
+}
+
+/** Runs a provider-wide model check in the background and streams row results. */
+export function useHealthCheck(providerId: string, credentialsState: ModelCheckCredentialsState) {
+  const { provider } = useProviderById(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
-  const { data: apiKeysData } = useProviderApiKeys(providerId)
-  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
+  const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
+  const { credentialChangeVersion, prepareCredentials } = credentialsState
   const [isChecking, setIsChecking] = useState(false)
-  const [healthCheckOpen, setHealthCheckOpen] = useState(false)
+  const isCheckingRef = useRef(false)
+  const modelsRef = useRef(models)
+  const statusesRef = useRef<ModelWithStatus[]>([])
   const runIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-    runIdRef.current += 1
-    setModelStatuses([])
-    setIsChecking(false)
-    setHealthCheckOpen(false)
+  useLayoutEffect(() => {
+    modelsRef.current = models
+  }, [models])
 
-    return () => {
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
+  /**
+   * Publishes the run's rows and drops every other row's result — including results a
+   * previous mount left in the cache. The cache itself skips writes whose value is unchanged.
+   */
+  const publishStatuses = useCallback((statuses: ModelWithStatus[]) => {
+    const nextIds = new Set(statuses.map((status) => status.model.id))
+    const staleIds = [...statusesRef.current.map((status) => status.model.id), ...modelsRef.current.map((m) => m.id)]
+    for (const modelId of staleIds) {
+      if (!nextIds.has(modelId)) clearModelHealthStatus(modelId)
     }
-  }, [providerId])
-
-  const enabledApiKeys = useMemo(
-    () =>
-      splitApiKeyString(
-        apiKeysData?.keys
-          ?.filter((item) => item.isEnabled)
-          .map((item) => item.key)
-          .join(',') ?? ''
-      ),
-    [apiKeysData?.keys]
-  )
-
-  const openHealthCheck = useCallback(() => {
-    setHealthCheckOpen(true)
+    statusesRef.current = statuses
+    statuses.forEach(writeModelHealthStatus)
   }, [])
 
-  const closeHealthCheck = useCallback(() => {
+  const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     runIdRef.current += 1
-    setIsChecking(false)
-    setHealthCheckOpen(false)
-  }, [])
-
-  const resetHealthCheckRun = useCallback(() => {
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
-    runIdRef.current += 1
-    setModelStatuses([])
+    isCheckingRef.current = false
     setIsChecking(false)
   }, [])
 
-  const startHealthCheck = useCallback(
-    async ({ apiKeys, isConcurrent, timeout }: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => {
-      if (!provider) return
-
-      const modelCheckEntries = models.map((model, index) => ({
-        model,
-        index,
-        skipReason: getModelHealthCheckSkipReason(model)
-      }))
-
-      if (isEmpty(modelCheckEntries)) {
-        toast.error({
-          timeout: 5000,
-          title: i18n.t('settings.provider.no_models_for_check')
-        })
-        setHealthCheckOpen(false)
-        return
-      }
-
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = null
-      const runId = runIdRef.current + 1
-      runIdRef.current = runId
-
-      const initialStatuses: ModelWithStatus[] = modelCheckEntries.map(({ model, skipReason }) =>
-        skipReason
-          ? {
-              kind: 'skipped',
-              model,
-              checking: false,
-              status: HealthStatus.NOT_CHECKED,
-              keyResults: [],
-              skipReason
-            }
-          : {
-              kind: 'checking',
-              model,
-              checking: true,
-              status: HealthStatus.NOT_CHECKED,
-              keyResults: []
-            }
-      )
-      setModelStatuses(initialStatuses)
-
-      const checkableEntries = modelCheckEntries.filter((entry) => entry.skipReason == null)
-      if (isEmpty(checkableEntries)) {
-        setIsChecking(false)
-        return
-      }
-
-      const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
-      const abortController = new AbortController()
-      abortControllerRef.current = abortController
-      setIsChecking(true)
+  const runHealthCheck = useCallback(
+    async ({
+      runId,
+      controller,
+      initialStatuses,
+      checkableModels,
+      originalIndexes,
+      credentials,
+      isConcurrent,
+      timeout
+    }: {
+      runId: number
+      controller: AbortController
+      initialStatuses: ModelWithStatus[]
+      checkableModels: Model[]
+      originalIndexes: number[]
+      credentials: ModelCheckCredential[]
+      isConcurrent: boolean
+      timeout: number
+    }) => {
+      let finalStatuses = initialStatuses
 
       try {
-        await checkModelsHealth(
+        const checkedResults = await checkModelsHealth(
           {
-            models: checkableEntries.map((entry) => entry.model),
-            apiKeys: keys,
+            models: checkableModels,
+            credentials,
             isConcurrent,
             timeout,
-            signal: abortController.signal
+            signal: controller.signal
           },
           (checkResult, index) => {
-            if (runIdRef.current !== runId) {
-              return
-            }
-            const originalIndex = checkableEntries[index]?.index
-            if (originalIndex == null) {
-              return
-            }
-            setModelStatuses((current) => {
-              const updated = [...current]
-              if (updated[originalIndex]) {
-                updated[originalIndex] = checkResult
-              }
-              return updated
-            })
+            if (runIdRef.current !== runId || controller.signal.aborted) return
+            const originalIndex = originalIndexes[index]
+            if (originalIndex == null) return
+
+            statusesRef.current = statusesRef.current.with(originalIndex, checkResult)
+            writeModelHealthStatus(checkResult)
           }
         )
-      } catch (error) {
-        if (abortController.signal.aborted) {
-          return
-        }
+        if (runIdRef.current !== runId || controller.signal.aborted) return
 
-        if (runIdRef.current === runId) {
-          logger.error('Model health check run failed', { providerId: provider.id, runId, error })
-          toast.error(i18n.t('settings.models.check.failed_to_start'))
-        }
+        finalStatuses = [...initialStatuses]
+        checkedResults.forEach((result, index) => {
+          const originalIndex = originalIndexes[index]
+          if (originalIndex != null) finalStatuses[originalIndex] = result
+        })
+        finalStatuses = reconcileModelStatuses(finalStatuses, modelsRef.current)
+        publishStatuses(finalStatuses)
+        toast.success(summarizeHealthResults(finalStatuses, provider?.name))
+      } catch (error) {
+        if (runIdRef.current !== runId || controller.signal.aborted) return
+        logger.error('All-model check failed', { providerId, runId, error })
+        toast.error(i18n.t('settings.models.check.failed_to_start'))
       } finally {
         if (runIdRef.current === runId) {
           abortControllerRef.current = null
+          isCheckingRef.current = false
           setIsChecking(false)
         }
       }
     },
-    [models, provider]
+    [provider?.name, providerId, publishStatuses]
   )
+
+  const startHealthCheck = useCallback(
+    async ({
+      keySelection,
+      isConcurrent,
+      timeout
+    }: {
+      keySelection: ModelCheckKeySelection
+      isConcurrent: boolean
+      timeout: number
+    }) => {
+      if (!provider || isCheckingRef.current) return false
+
+      abortInFlightCheck()
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+      const runId = ++runIdRef.current
+      isCheckingRef.current = true
+      setIsChecking(true)
+      let backgroundStarted = false
+
+      try {
+        const credentials = await prepareCredentials(keySelection, controller.signal)
+        if (runIdRef.current !== runId || controller.signal.aborted) return false
+
+        const runModels = modelsRef.current
+
+        if (runModels.length === 0) {
+          toast.error({ timeout: 5000, title: i18n.t('settings.provider.no_models_for_check') })
+          return false
+        }
+
+        const initialStatuses = createInitialStatuses(runModels)
+        const originalIndexes = initialStatuses.flatMap((status, index) => (status.kind === 'skipped' ? [] : [index]))
+        const checkableModels = originalIndexes
+          .map((index) => runModels[index])
+          .filter((model): model is Model => !!model)
+        publishStatuses(initialStatuses)
+
+        if (checkableModels.length === 0) {
+          abortControllerRef.current = null
+          isCheckingRef.current = false
+          setIsChecking(false)
+          toast.success(summarizeHealthResults(initialStatuses, provider.name))
+          return true
+        }
+
+        backgroundStarted = true
+        void runHealthCheck({
+          runId,
+          controller,
+          initialStatuses,
+          checkableModels,
+          originalIndexes,
+          credentials,
+          isConcurrent,
+          timeout
+        })
+        return true
+      } catch (error) {
+        if (runIdRef.current !== runId || controller.signal.aborted) return false
+        if (error instanceof ModelCheckCredentialsSaveError) {
+          logger.error('Failed to save API keys before all-model check', { providerId, error: error.cause })
+        } else if (error instanceof ModelCheckCredentialsError) {
+          toast.error(i18n.t('message.error.enter.api.label'))
+        } else {
+          logger.error('Failed to prepare all-model check', { providerId, error })
+          toast.error(i18n.t('settings.models.check.failed_to_start'))
+        }
+        return false
+      } finally {
+        if (!backgroundStarted && runIdRef.current === runId) {
+          abortControllerRef.current = null
+          isCheckingRef.current = false
+          setIsChecking(false)
+        }
+      }
+    },
+    [abortInFlightCheck, prepareCredentials, provider, providerId, publishStatuses, runHealthCheck]
+  )
+
+  // Any change to what is being checked (provider, endpoint, credentials) invalidates the run and
+  // its results; the cleanup also covers unmount.
+  useEffect(() => {
+    publishStatuses([])
+    return () => {
+      abortInFlightCheck()
+      publishStatuses([])
+    }
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, credentialChangeVersion, providerId, publishStatuses])
+
+  useEffect(() => {
+    if (isChecking) return
+    const nextStatuses = reconcileModelStatuses(statusesRef.current, models)
+    if (nextStatuses !== statusesRef.current) publishStatuses(nextStatuses)
+  }, [isChecking, models, publishStatuses])
 
   return {
     isChecking,
-    modelStatuses,
-    availableApiKeys: enabledApiKeys,
-    healthCheckOpen,
-    openHealthCheck,
-    closeHealthCheck,
-    resetHealthCheckRun,
     startHealthCheck
   }
 }

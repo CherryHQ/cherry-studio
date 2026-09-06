@@ -6,7 +6,7 @@ import HtmlPreviewFrame, {
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
-import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
+import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import FileCode from 'lucide-react/dist/esm/icons/file-code'

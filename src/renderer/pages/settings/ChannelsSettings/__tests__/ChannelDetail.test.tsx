@@ -86,8 +86,18 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+    ({
+      children,
+      closeOnOverlayClick,
+      closeLabel,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+    }) => {
       void closeOnOverlayClick
+      void closeLabel
       return React.createElement(tag, props, children)
     }
 
@@ -119,6 +129,7 @@ vi.mock('@cherrystudio/ui', () => {
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: passthrough('label'),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
@@ -184,6 +195,14 @@ describe('ChannelDetail', () => {
       domain: 'feishu'
     }
   }
+  const wechatChannelDef: AvailableChannel = {
+    type: 'wechat',
+    name: 'WeChat',
+    titleKey: 'agent.channels.wechat.title',
+    description: 'agent.channels.wechat.description',
+    available: true,
+    defaultConfig: { token_path: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -194,7 +213,6 @@ describe('ChannelDetail', () => {
         type: 'telegram',
         name: 'Telegram channel',
         agentId: 'agent-1',
-        sessionId: null,
         workspace: { type: 'system' },
         config: { bot_token: 'token', allowed_chat_ids: [] },
         isActive: true,
@@ -271,6 +289,30 @@ describe('ChannelDetail', () => {
         expect.objectContaining({
           type: 'feishu',
           config: feishuChannelDef.defaultConfig,
+          isActive: true
+        })
+      )
+    })
+  })
+
+  it('creates WeChat channels active so binding an agent can start QR login', async () => {
+    channelMocks.channels = []
+    channelMocks.createChannel.mockResolvedValue({
+      id: 'new-wechat-channel',
+      type: 'wechat',
+      name: 'WeChat',
+      config: wechatChannelDef.defaultConfig,
+      isActive: true
+    })
+    render(<ChannelDetail channelDef={wechatChannelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'wechat',
+          config: wechatChannelDef.defaultConfig,
           isActive: true
         })
       )

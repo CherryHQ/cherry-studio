@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
-const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, executionIds: [] }))
+const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -19,15 +20,14 @@ vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: getByKeyMock }
 }))
 
+const getByProviderIdMock = vi.fn()
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: getByProviderIdMock }
+}))
+
 const getByLangCodeMock = vi.fn()
 vi.mock('@main/data/services/TranslateLanguageService', () => ({
   translateLanguageService: { getByLangCode: getByLangCodeMock }
-}))
-
-const messageGetByIdMock = vi.fn()
-const messageUpdateMock = vi.fn()
-vi.mock('@main/data/services/MessageService', () => ({
-  messageService: { getById: messageGetByIdMock, update: messageUpdateMock }
 }))
 
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
@@ -41,6 +41,7 @@ vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
   }))
 }))
 
+const { makeModel } = await import('../../../ai/__tests__/fixtures')
 const { translateService } = await import('../translateService')
 
 const TARGET: TranslateLanguage = {
@@ -56,11 +57,10 @@ const fakeSender = { id: 1 } as unknown as Electron.WebContents
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   getByKeyMock.mockReset()
+  getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
   getByLangCodeMock.mockReset()
-  messageGetByIdMock.mockReset()
-  messageUpdateMock.mockReset()
   streamPromptMock.mockReset()
-  streamPromptMock.mockReturnValue({ mode: 'started' as const, executionIds: [] })
+  streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
 })
 
 describe('translateService.resolveTranslatePayload', () => {
@@ -77,6 +77,24 @@ describe('translateService.resolveTranslatePayload', () => {
     expect(payload.uniqueModelId).toBe('openai::gpt-4o')
     expect(payload.content).toBe('Translate to English: hello')
     expect(getByKeyMock).toHaveBeenCalledWith('openai', 'gpt-4o')
+  })
+
+  it('interpolates replacement tokens and placeholder-shaped values literally', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'A {{target_language}} B {{text}} C {{target_language}} D {{text}}'
+    )
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    const sourceText = "$$E=mc^2$$ | $& | $` | $' | {{target_language}}"
+    const targetLanguage = {
+      ...TARGET,
+      value: "$$English$$ | $& | $` | $' | {{text}}"
+    }
+
+    const payload = translateService.resolveTranslatePayload(sourceText, targetLanguage)
+
+    expect(payload.content).toBe(`A ${targetLanguage.value} B ${sourceText} C ${targetLanguage.value} D ${sourceText}`)
   })
 
   it('skips interpolation for Qwen MT models — passes raw source text', async () => {
@@ -113,6 +131,15 @@ describe('translateService.resolveTranslatePayload', () => {
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
   })
+
+  it('treats a model rejected by the provider service as not configured', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'global-only::model')
+    getByProviderIdMock.mockImplementationOnce(() => {
+      throw new Error('provider not found')
+    })
+
+    expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
+  })
 })
 
 describe('translateService.open', () => {
@@ -124,6 +151,10 @@ describe('translateService.open', () => {
     )
     getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
     getByLangCodeMock.mockReturnValue(TARGET)
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'feature.translate.enable_temperature': true,
+      'feature.translate.temperature': 0.3
+    })
   })
 
   it('uses the renderer-supplied streamId, resolves the DTO, and dispatches via streamManager.streamPrompt', async () => {
@@ -145,6 +176,7 @@ describe('translateService.open', () => {
             uniqueModelId: string
             prompt: string
             reasoningEffort?: string
+            callOverrides?: Record<string, unknown>
             listener: { id: string } | Array<{ id: string }>
           }
         ]
@@ -153,58 +185,14 @@ describe('translateService.open', () => {
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
-    // Translation always requests thinking off; unsupported models degrade to omit downstream.
+    // Ships the stored effort — 'none' by default; unsupported values degrade downstream.
     expect(arg.reasoningEffort).toBe('none')
+    // The whole feature hangs off this one argument: drop it and every other
+    // assertion in this file still passes while nothing reaches the model.
+    expect(arg.callOverrides).toEqual({ temperature: 0.3 })
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
-  })
-
-  it('stacks a PersistenceListener when the request carries a messageId', async () => {
-    const streamId = 'translate:msg-bound'
-    translateService.open(fakeSender, {
-      streamId,
-      text: 'hello',
-      targetLangCode: 'en-us',
-      messageId: 'msg-42'
-    })
-
-    expect(streamPromptMock).toHaveBeenCalledTimes(1)
-    const arg = (
-      streamPromptMock.mock.calls as unknown as Array<[{ listener: { id: string } | Array<{ id: string }> }]>
-    )[0][0]
-    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
-    expect(listeners).toHaveLength(2)
-    // Persistence listener is registered FIRST so terminal-event dispatch
-    // (which awaits each listener serially in the manager) finishes the DB
-    // write before `WebContentsListener.onDone` sends `Ai_StreamDone`. The
-    // renderer can then trust the standard done IPC as "safe to refresh".
-    expect(listeners[0].id).toContain('persistence:translation')
-    expect(listeners[1].id).toBe(`wc:test:${streamId}`)
-  })
-
-  it('surfaces a persist failure to the renderer via WebContentsListener.onError (C1)', async () => {
-    // TranslationBackend has no markTerminalError, so the only live-renderer signal on a
-    // persist failure is onPersistFailed → wcListener.onError. Force the persist to throw.
-    messageGetByIdMock.mockImplementation(() => {
-      throw new Error('db down')
-    })
-
-    const streamId = 'translate:persist-fail'
-    translateService.open(fakeSender, { streamId, text: 'hello', targetLangCode: 'en-us', messageId: 'm1' })
-
-    const arg = (streamPromptMock.mock.calls as unknown as Array<[{ listener: any }]>)[0][0]
-    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
-    const persistence = listeners.find((l: { id: string }) => l.id.includes('persistence'))
-    const wc = listeners.find((l: { id: string }) => l.id.startsWith('wc:'))
-
-    await persistence.onDone({
-      finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
-      status: 'success'
-    })
-
-    expect(wc.onError).toHaveBeenCalledTimes(1)
-    expect(wc.onError).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', isTopicDone: true }))
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {
@@ -240,5 +228,115 @@ describe('translateService.open', () => {
       })
     ).toThrow('Invalid target language: unknown')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('translateService.resolveRequestParameters', () => {
+  const enableAll = () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'feature.translate.enable_temperature': true,
+      'feature.translate.temperature': 0.3,
+      'feature.translate.enable_top_p': true,
+      'feature.translate.top_p': 0.8
+    })
+  }
+
+  it('sends nothing while every parameter is off, leaving the model at its own defaults', () => {
+    const params = translateService.resolveRequestParameters(makeModel())
+
+    expect(params.reasoningEffort).toBe('none')
+    expect(params.callOverrides).toEqual({})
+  })
+
+  it('sends each enabled parameter', () => {
+    enableAll()
+
+    const params = translateService.resolveRequestParameters(makeModel())
+
+    expect(params.callOverrides).toEqual({ temperature: 0.3, topP: 0.8 })
+  })
+
+  it('drops a sampling parameter the model rejects and keeps the rest', () => {
+    enableAll()
+    // Claude 4.5 accepts temperature or topP, never both.
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-5-20250101', providerId: 'anthropic' })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.callOverrides).toEqual({ temperature: 0.3 })
+  })
+
+  it('drops temperature once the stored effort turns Claude thinking on', () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }], selectableEfforts: ['low', 'high'] }
+    })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.reasoningEffort).toBe('high')
+    expect(params.callOverrides.temperature).toBeUndefined()
+  })
+
+  it('keeps temperature when the model declares no effort the stored selection can reach', () => {
+    // claude-sonnet-4-5 and four siblings declare only none/auto, so a stored 'high'
+    // resolves to nothing and no thinking is sent — the temperature must survive it.
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
+  })
+
+  it('keeps temperature when a stored auto reaches a model whose vocabulary cannot offer it', () => {
+    // 'auto' is synthesized per model: a toggle model offers it, a budget model never does.
+    // Carried onto the latter, Main degrades it to 'default' and Anthropic declares no default
+    // mode, so nothing is sent — the temperature must not be spent on that.
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'auto')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'budget', min: 1024, max: 8192 }], selectableEfforts: ['low', 'medium', 'high'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
+  })
+
+  it('drops temperature when the stored effort resolves to a neighbour the model does declare', () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium'] }], selectableEfforts: ['low', 'medium'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBeUndefined()
+  })
+
+  it("keeps temperature on the same model when the effort is left at the provider's default", () => {
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'default')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250101',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const params = translateService.resolveRequestParameters(model)
+
+    expect(params.callOverrides.temperature).toBe(0.3)
   })
 })

@@ -6,14 +6,14 @@ import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { useOptionalRightPanelState } from '../panes/Shell'
+import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   CHAT_SHELL_TRANSITION,
-  type ChatPanePosition
+  type ChatPanePosition,
+  getRightPaneWidthPolicy,
+  type RightPaneWidthPolicy
 } from './paneLayout'
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
@@ -57,8 +57,8 @@ export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterConten
 
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
-function clampPaneStoredWidth(width: number): number {
-  return Math.min(ARTIFACT_RIGHT_PANE_MAX_WIDTH, Math.max(ARTIFACT_RIGHT_PANE_MIN_WIDTH, Math.round(width)))
+function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthPolicy): number {
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
 
 /**
@@ -91,7 +91,10 @@ function useResourceListAutoCollapse({
 }) {
   const rightPanelState = useOptionalRightPanelState()
   const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
-  const [storedPaneWidth] = usePersistCache('ui.chat.artifact_pane.width')
+  // The prediction must size the pane that is actually presented; a list and an artifact
+  // have different widths, and reading the wrong one strands the list collapsed.
+  const paneProfile = rightPanelState?.activePaneWidth ?? getRightPaneWidthPolicy()
+  const [storedPaneWidth] = usePersistCache(paneProfile.cacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
   // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
@@ -120,14 +123,15 @@ function useResourceListAutoCollapse({
   const leftPaneOpenRef = useRef(leftPaneOpen)
   const frozenRef = useRef(frozen)
   const dockedPaneOpenRef = useRef(dockedPaneOpen)
-  const widthsRef = useRef({ listWidth: 0, paneWidth: 0 })
+  const widthsRef = useRef({ listWidth: 0, paneWidth: 0, paneMin: 0 })
   const onChangeRef = useRef(onPaneAutoCollapseChange)
   leftPaneOpenRef.current = leftPaneOpen
   frozenRef.current = frozen
   dockedPaneOpenRef.current = dockedPaneOpen
   widthsRef.current = {
     listWidth: clampResourceListPaneWidth(storedListWidth ?? 0),
-    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0)
+    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0, paneProfile),
+    paneMin: paneProfile.minWidth
   }
   useEffect(() => {
     onChangeRef.current = onPaneAutoCollapseChange
@@ -153,7 +157,8 @@ function useResourceListAutoCollapse({
         shellWidth,
         listWidth: widthsRef.current.listWidth,
         paneOpen: dockedPaneOpenRef.current,
-        paneWidth: widthsRef.current.paneWidth
+        paneWidth: widthsRef.current.paneWidth,
+        paneMin: widthsRef.current.paneMin
       })
       let next = evaluateAutoCollapse(predictedCenter, collapsedRef.current)
       // Never newly collapse a list the user is not showing; releasing stays allowed.
@@ -208,10 +213,11 @@ function useResourceListAutoCollapse({
   }, [evaluate, userOpenSeq])
 
   // Persisted widths are live inputs (either side can be dragged); drag exemption
-  // rides on `frozen`, so mid-drag updates defer to the release evaluation.
+  // rides on `frozen`, so mid-drag updates defer to the release evaluation. The pane's floor
+  // is an input too: presets can hold equal widths, and then only the floor moves the verdict.
   useLayoutEffect(() => {
     evaluate()
-  }, [evaluate, storedListWidth, storedPaneWidth])
+  }, [evaluate, storedListWidth, storedPaneWidth, paneProfile.minWidth])
 
   // Unfreeze → evaluate once (hard-blocked by suppression like every deferred pass).
   useLayoutEffect(() => {
@@ -284,6 +290,7 @@ export function ChatAppShell({
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rightPanelState = useOptionalRightPanelState()
+  const composerElevated = useRightPanelComposerElevated()
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
   // covering surface; a FLIP layout animation would smear that snap across the
   // wipe as visible scale distortion, so the center reflows instantly instead.
@@ -307,7 +314,7 @@ export function ChatAppShell({
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse} onResizingChange={setListResizing}>
-          {pane}
+          {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
         <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
@@ -324,7 +331,7 @@ export function ChatAppShell({
                 centerClassName,
                 // Let the elevated composer escape the center stacking context and paint
                 // above the full-height maximized panel without replacing its editor DOM.
-                rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
+                composerElevated && '!transform-none !will-change-auto'
               )}>
               {topBar && (
                 <div className="relative z-10 shrink-0">

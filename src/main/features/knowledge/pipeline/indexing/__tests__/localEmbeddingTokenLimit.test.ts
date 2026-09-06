@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  currentModelSourceMock: vi.fn(),
   countTokensMock: vi.fn()
 }))
 
@@ -11,13 +10,7 @@ vi.mock('@application', () => ({
   application: { get: mocks.appGetMock }
 }))
 
-vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({
-  currentModelSource: mocks.currentModelSourceMock
-}))
-
 const { refineLocalEmbeddingChunks } = await import('../localEmbeddingTokenLimit')
-const { LOCAL_MODELS } = await import('@main/ai/inference/localModelCatalog')
-
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
@@ -41,12 +34,6 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
 
 describe('refineLocalEmbeddingChunks', () => {
   it('counts tokens via the inference worker (never imports @huggingface/transformers on the main process) and enforces the effective token cap', async () => {
-    const source = {
-      remoteHost: 'https://www.modelscope.cn',
-      remotePathTemplate: 'models/{model}/resolve/{revision}',
-      revision: 'master'
-    }
-    mocks.currentModelSourceMock.mockReturnValue(source)
     mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
@@ -60,13 +47,7 @@ describe('refineLocalEmbeddingChunks', () => {
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 10, text: 'abcdefghij' }]
     })
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(
-      expect.any(Array),
-      source,
-      LOCAL_MODELS.embedding.repo,
-      LOCAL_MODELS.embedding.dtype,
-      undefined
-    )
+    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), undefined)
     expect(refined.chunks.length).toBeGreaterThan(1)
     for (const chunk of refined.chunks) {
       expect(chunk.text.length).toBeLessThanOrEqual(4)
@@ -75,11 +56,6 @@ describe('refineLocalEmbeddingChunks', () => {
   })
 
   it('threads the caller-provided AbortSignal through to the worker call', async () => {
-    mocks.currentModelSourceMock.mockReturnValue({
-      remoteHost: 'https://www.modelscope.cn',
-      remotePathTemplate: 'models/{model}/resolve/{revision}',
-      revision: 'master'
-    })
     mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
@@ -95,12 +71,6 @@ describe('refineLocalEmbeddingChunks', () => {
       controller.signal
     )
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.anything(),
-      expect.any(String),
-      expect.any(String),
-      controller.signal
-    )
+    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), controller.signal)
   })
 })

@@ -1,5 +1,6 @@
 import type { KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import { resolveKnowledgeAddConflicts } from '../addConflicts'
@@ -21,13 +22,19 @@ const fileInput = (source: string): KnowledgeAddItemInput => ({
   data: { source, path: source as AbsoluteFilePath }
 })
 const urlInput = (url: string): KnowledgeAddItemInput => ({ type: 'url', data: { source: url, url } })
-const noteInput = (content: string): KnowledgeAddItemInput => ({ type: 'note', data: { source: 'note', content } })
+const titledNoteInput = (title: string, content: string): KnowledgeAddItemInput => ({
+  type: 'note',
+  data: { source: title, content }
+})
 
 describe('resolveKnowledgeAddConflicts', () => {
   it('reports no conflicts and keeps all inputs when nothing collides', () => {
     const inputs = [fileInput('/a/report.pdf'), urlInput('https://x.com')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/other.pdf', relativePath: 'other.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/other.pdf', relativePath: 'other.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -40,7 +47,10 @@ describe('resolveKnowledgeAddConflicts', () => {
   it('detects a collision against an existing root and reports the existing display title', () => {
     const inputs = [fileInput('/folderA/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -65,7 +75,11 @@ describe('resolveKnowledgeAddConflicts', () => {
     const existing = [
       existingItem('e1', {
         type: 'url',
-        data: { source: 'https://x.com', url: 'https://x.com', relativePath: 'Captured Title.md' }
+        data: {
+          source: 'https://x.com',
+          url: 'https://x.com',
+          relativePath: 'Captured Title.md' as PosixRelativeFilePath
+        }
       })
     ]
 
@@ -92,7 +106,10 @@ describe('resolveKnowledgeAddConflicts', () => {
   it('dedupes the reported conflicts by type and key', () => {
     const inputs = [fileInput('/folderA/report.pdf'), fileInput('/folderB/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -107,9 +124,18 @@ describe('resolveKnowledgeAddConflicts', () => {
     // leaving test_2.md / test_3.md intact — they are distinct, deliberately-kept copies.
     const inputs = [fileInput('/incoming/test.md')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/a/test.md', relativePath: 'test.md' } }),
-      existingItem('e2', { type: 'file', data: { source: '/b/test.md', relativePath: 'test_2.md' } }),
-      existingItem('e3', { type: 'file', data: { source: '/c/test.md', relativePath: 'test_3.md' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/a/test.md', relativePath: 'test.md' as PosixRelativeFilePath }
+      }),
+      existingItem('e2', {
+        type: 'file',
+        data: { source: '/b/test.md', relativePath: 'test_2.md' as PosixRelativeFilePath }
+      }),
+      existingItem('e3', {
+        type: 'file',
+        data: { source: '/c/test.md', relativePath: 'test_3.md' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -118,17 +144,47 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
-  it('never collides blank-content notes (empty detection key) and keeps them all', () => {
-    // An empty note has no first line, so its detection key is '' — that is not a
-    // real name and must never alias other empty notes into a phantom conflict.
-    const inputs = [noteInput(''), noteInput('')]
-    const existing = [existingItem('e1', { type: 'note', data: { source: 'note', content: '' } })]
+  it('matches an already-indexed note by the snapshot slug its title was stored under', () => {
+    // The common re-add: the existing note has been captured, so it keys off `Q4_ plan.md` while the
+    // incoming draft still only has the raw title.
+    const inputs = [titledNoteInput('Q4: plan', 'a new draft')]
+    const existing = [
+      existingItem('e1', {
+        type: 'note',
+        data: { source: 'Q4: plan', content: 'old body', relativePath: 'Q4_ plan.md' as PosixRelativeFilePath }
+      })
+    ]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflicts).toEqual([{ type: 'note', title: 'Q4_ plan' }])
+    expect(result.conflictingExistingRootIds).toEqual(['e1'])
+  })
+
+  it('keeps blank-content notes that carry distinct titles', () => {
+    // Notes key off their title, so an empty body is not what makes two notes the same item.
+    const inputs = [titledNoteInput('Draft A', ''), titledNoteInput('Draft B', '')]
+    const existing = [existingItem('e1', { type: 'note', data: { source: 'Draft C', content: '' } })]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
 
     expect(result.conflicts).toEqual([])
     expect(result.conflictingExistingRootIds).toEqual([])
-    // Both blank notes survive: empty keys never participate in in-batch dedup either.
+    expect(result.keptInputs).toEqual(inputs)
+  })
+
+  it('never collides items with no name at all (empty detection key)', () => {
+    // `source` is schema-required, so this is only reachable through malformed persisted rows —
+    // an empty key is not a real name and must never alias unrelated items into a phantom conflict.
+    const unnamed = { type: 'note' as const, data: { source: '', content: '' } }
+    const inputs = [unnamed, unnamed]
+    const existing = [existingItem('e1', { type: 'note', data: { source: '', content: '' } })]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflicts).toEqual([])
+    expect(result.conflictingExistingRootIds).toEqual([])
+    // Both survive: empty keys never participate in in-batch dedup either.
     expect(result.keptInputs).toEqual(inputs)
   })
 })

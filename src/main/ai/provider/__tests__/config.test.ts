@@ -1,4 +1,6 @@
 import {
+  CHERRY_CLOUD_MODEL_GROUP,
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_ID,
   CHERRYAI_DEFAULT_MODEL_NAME,
@@ -11,7 +13,8 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import type { AuthConfig } from '@shared/data/types/provider'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,8 +30,10 @@ const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
-const { generateSignatureMock } = vi.hoisted(() => ({
-  generateSignatureMock: vi.fn()
+const { buildCherryCloudProviderConfigMock, generateSignatureMock, getCopilotTokenMock } = vi.hoisted(() => ({
+  buildCherryCloudProviderConfigMock: vi.fn(),
+  generateSignatureMock: vi.fn(),
+  getCopilotTokenMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -43,6 +48,16 @@ vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 
+vi.mock('@main/ai/provider/cherryCloud', () => ({
+  buildCherryCloudProviderConfig: buildCherryCloudProviderConfigMock
+}))
+
+vi.mock('@main/services/CopilotService', () => ({
+  copilotService: {
+    getToken: getCopilotTokenMock
+  }
+}))
+
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
 
@@ -55,6 +70,11 @@ beforeEach(() => {
       : { attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' }
   }))
   getAuthConfigMock.mockReturnValue(null)
+  buildCherryCloudProviderConfigMock.mockReturnValue({
+    providerId: 'anthropic',
+    providerSettings: { baseURL: 'https://cloud.cherryai.com.cn/v1', apiKey: 'managed-session' }
+  })
+  getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
 })
 
 afterEach(() => {
@@ -62,6 +82,57 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
+    'passes managed Cherry Cloud %s models to its credential-free transport',
+    async (endpointType) => {
+      const provider = makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID, presetProviderId: CHERRYAI_PROVIDER_ID })
+      const model = makeModel({
+        id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-go`,
+        apiModelId: 'deepseek-go',
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        group: CHERRY_CLOUD_MODEL_GROUP,
+        endpointTypes: [endpointType]
+      })
+
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+      expect(buildCherryCloudProviderConfigMock.mock.calls[0][0]).toBe(endpointType)
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not route an ordinary CherryAI model from its display group', async () => {
+    const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
+    const model = makeModel({
+      id: `${CHERRYAI_PROVIDER_ID}::custom-model`,
+      apiModelId: 'custom-model',
+      providerId: CHERRYAI_PROVIDER_ID,
+      group: CHERRY_CLOUD_MODEL_GROUP
+    })
+
+    await resolveProviderAiSdkConfig(provider, model)
+
+    expect(buildCherryCloudProviderConfigMock).not.toHaveBeenCalled()
+    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined)
+  })
+
+  it('keeps the managed CherryAI default model on its API-key HMAC transport', async () => {
+    const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
+    const model = makeModel({
+      id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+      apiModelId: CHERRYAI_DEFAULT_MODEL_ID,
+      providerId: CHERRYAI_PROVIDER_ID,
+      group: 'Qwen'
+    })
+
+    const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+    expect(resolved.config.providerId).toBe('openai-compatible')
+    expect(buildCherryCloudProviderConfigMock).not.toHaveBeenCalled()
+    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined)
+  })
+
   it('uses an explicit API key override instead of the provider rotation key', async () => {
     const provider = makeProvider({ id: 'openai' })
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
@@ -140,6 +211,86 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+  })
+
+  it('merges Copilot extra headers over defaults case-insensitively', async () => {
+    const provider = makeProvider({
+      id: 'copilot',
+      authType: 'oauth',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.githubcopilot.com',
+          adapterFamily: 'github-copilot-openai-compatible'
+        }
+      },
+      settings: {
+        extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
+      } as never
+    })
+    const model = makeModel({
+      id: 'copilot::gpt-4o',
+      apiModelId: 'gpt-4o',
+      providerId: 'copilot',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const headers = (config.providerSettings as { headers: Record<string, string> }).headers
+    const normalizedHeaders = new Headers(headers)
+
+    expect(normalizedHeaders.get('user-agent')).toBe('CustomAgent/1.0')
+    expect(normalizedHeaders.get('x-custom')).toBe('on')
+    expect(Object.keys(headers).filter((name) => name.toLowerCase() === 'user-agent')).toHaveLength(1)
+  })
+
+  describe('OpenCode Go session header', () => {
+    const model = makeModel({
+      id: 'custom-opencode::glm-5',
+      apiModelId: 'glm-5',
+      providerId: 'custom-opencode',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    it('uses the conversation id for providers derived from the OpenCode preset', async () => {
+      const provider = makeProvider({
+        id: 'custom-opencode',
+        presetProviderId: 'opencode',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://opencode.ai/zen/go/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+
+      expect(headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
+    })
+
+    it('keeps an explicitly configured session header', async () => {
+      const provider = makeProvider({
+        id: 'custom-opencode',
+        presetProviderId: 'opencode',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://opencode.ai/zen/go/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        },
+        settings: { extraHeaders: { 'X-OpenCode-Session': 'configured-session' } }
+      })
+
+      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+
+      expect(headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
+      expect(headers).not.toHaveProperty('x-opencode-session')
+    })
   })
 
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
@@ -222,6 +373,99 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.project).toBe('my-project')
       expect(settings.location).toBe('us-central1')
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/google')
+    })
+
+    it('lets the Vertex SDK derive the resource path when the official bare host is configured', async () => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://aiplatform.googleapis.com',
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex')
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+      expect(settings.baseURL).toBeUndefined()
+    })
+
+    it.each([
+      {
+        // Every spelling below is wire-identical to the bare official host, so
+        // keeping it as an override would send a request with no
+        // /projects/{project}/locations/{location} path — the reported 404.
+        name: 'an explicit default HTTPS port',
+        baseUrl: 'https://aiplatform.googleapis.com:443',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'the trailing-sharp no-version contract',
+        baseUrl: 'https://aiplatform.googleapis.com#',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'the HTTP spelling of the official host',
+        baseUrl: 'http://aiplatform.googleapis.com',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'a regional official host',
+        baseUrl: 'https://us-central1-aiplatform.googleapis.com',
+        expectedBaseUrl: undefined
+      },
+      {
+        name: 'a non-default reverse-proxy port',
+        baseUrl: 'https://aiplatform.googleapis.com:8443',
+        expectedBaseUrl: 'https://aiplatform.googleapis.com:8443/v1/publishers/google'
+      },
+      {
+        name: 'a pinned resource path',
+        baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1',
+        expectedBaseUrl:
+          'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google'
+      },
+      {
+        name: 'a third-party proxy host',
+        baseUrl: 'https://custom.googleapis.com/vertex',
+        expectedBaseUrl: 'https://custom.googleapis.com/vertex/v1/publishers/google'
+      }
+    ])('routes $name', async ({ baseUrl, expectedBaseUrl }) => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl,
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.baseURL).toBe(expectedBaseUrl)
     })
 
     it('lifts snake_case-only credentials (private_key/client_email) to camelCase clientEmail (REGRESSION)', async () => {
@@ -786,11 +1030,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            dialect: { streamOptions: true }
           }
         }
       })
@@ -806,6 +1050,28 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // A builder that installs no fetch of its own must default to the proxy-aware customFetch
       // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
       expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {
+      // Same defect class as #18537: keyed on a bare `id === 'dashscope'`, a user-added
+      // instance stopped at providerId 'openai-compatible', which has no async image
+      // transport — its image models hit the generic OpenAICompatibleImageModel instead
+      // of DashScope's submit/poll one.
+      const provider = makeProvider({
+        id: 'd4e5f6-uuid',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'd4e5f6-uuid', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('dashscope')
     })
 
     it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {
@@ -836,12 +1102,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('leaves ModelScope CHAT models on openai-compatible (image-only override; keeps includeUsage)', async () => {
       const provider = makeProvider({
         id: 'modelscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://api-inference.modelscope.cn/v1/',
-            adapterFamily: 'openai-compatible'
+            adapterFamily: 'openai-compatible',
+            dialect: { streamOptions: true }
           }
         }
       })
@@ -951,6 +1217,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
     })
 
+    it('routes a preset-derived Doubao instance (UUID id, custom host) through Doubao config (REGRESSION #18537)', async () => {
+      // A user-added Ark provider carries a UUID id + presetProviderId 'doubao'. Keying the
+      // image override on a bare `id === 'doubao'` left this instance on openai-compatible,
+      // whose image model POSTs multipart /images/edits once a reference image is attached
+      // — 404 on Ark, while text-to-image kept working on /images/generations.
+      const host = 'https://ark.cn-beijing.volces.com/api/plan/v3'
+      const provider = makeProvider({
+        id: 'a1b2c3-uuid',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: host, adapterFamily: 'openai-compatible' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'a1b2c3-uuid',
+        apiModelId: 'doubao-seedream-5-0-lite',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('doubao')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(host)
+    })
+
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
       const provider = makeProvider({
         id: 'doubao',
@@ -966,6 +1258,105 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('openai-compatible')
+    })
+
+    it('keeps the DashScope web_extractor fetch appender on the Responses route', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}', { status: 200 }))
+      const provider = makeProvider({
+        id: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+            adapterFamily: 'openai'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'dashscope',
+        apiModelId: 'qwen3-max',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai')
+      const settings = config.providerSettings as Record<string, unknown>
+      const fetch = settings.fetch as typeof globalThis.fetch
+
+      await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/responses', {
+        method: 'POST',
+        body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+      })
+
+      const requestBody = JSON.parse(vi.mocked(net.fetch).mock.calls[0][1]?.body as string)
+      expect(requestBody.tools).toEqual([{ type: 'web_search' }, { type: 'web_extractor' }])
+    })
+
+    it('composes Doubao Responses request and response compatibility in its fetch wrapper', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'resp_ark',
+            output: [
+              { type: 'message', role: 'assistant', id: 'msg_ark', content: [{ type: 'output_text', text: 'Hi!' }] }
+            ]
+          }),
+          { status: 200, headers: { 'content-type': 'application/json; charset=utf-8' } }
+        )
+      )
+      const provider = makeProvider({
+        id: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'doubao',
+        apiModelId: 'doubao-seed-2-1-pro-260628',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+      const fetch = settings.fetch as typeof globalThis.fetch
+
+      const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/responses', {
+        method: 'POST',
+        body: JSON.stringify({ include: ['web_search_call.action.sources'] })
+      })
+
+      const requestBody = JSON.parse(vi.mocked(net.fetch).mock.calls[0][1]?.body as string)
+      const responseBody = (await response.json()) as { output: Array<{ content: Array<{ annotations?: unknown[] }> }> }
+      expect(requestBody).not.toHaveProperty('include')
+      expect(responseBody.output[0].content[0].annotations).toEqual([])
+    })
+
+    it('adds the X-Fornax-Trace header for Doubao Responses in developer mode', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      try {
+        const provider = makeProvider({
+          id: 'doubao',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+              adapterFamily: 'openai'
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: 'doubao',
+          apiModelId: 'doubao-seed-2-1-pro-260628',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        })
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+        expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBe('true')
+      } finally {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+      }
     })
 
     it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {
@@ -1157,7 +1548,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('newapi')
       const settings = config.providerSettings as Record<string, unknown>
-      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic')
+      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic/v1')
     })
 
     it('falls back to default endpoint baseURL when anthropic endpointConfig has no baseUrl', async () => {
@@ -1177,6 +1568,96 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const settings = config.providerSettings as Record<string, unknown>
       expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+    })
+
+    // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1']
+    ])('re-derives the chat baseURL of %s as %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // The Anthropic SDK appends `/messages`, so the baseURL must carry `/v1` — a version-less host
+    // would request `/messages` at the root, which NewAPI does not serve.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com#', 'https://api.newapi.com']
+    ])('resolves the anthropic baseURL of %s to %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.newapi.com', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl, adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // One self-hosted host serves every protocol, so the `/v1` a user types belongs to the OpenAI
+    // route — Gemini still needs `/v1beta` rather than inheriting it.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1beta'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1beta'],
+      ['https://gw.example.com/newapi/v1', 'https://gw.example.com/newapi/v1beta']
+    ])('resolves the gemini baseURL to /v1beta for a single host %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // Every endpoint must reach the NewAPI adapter: the plain `google` / `openai` adapters read the
+    // host verbatim, which is how a `/v1` host produced `/v1/…:generateContent` and `/responses`.
+    it.each([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'https://api.newapi.com/v1beta']
+    ])('routes %s through the newapi adapter with baseURL %s', async (endpointType, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.newapi.com/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [endpointType] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
 })

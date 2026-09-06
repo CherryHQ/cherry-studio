@@ -1,0 +1,26 @@
+{
+  "error_code": 200,
+  "error_msg": "",
+  "results": [
+    {
+      "content": "# Querit Article\n\nQuerit crawled markdown content.",
+      "extrasMeta": {
+        "publishTime": "2026-01-01T00:00:00Z",
+        "siteIcon": "https://querit.example/favicon.ico",
+        "siteName": "Querit Example",
+        "title": "Querit Article",
+        "url": "https://querit.example/article"
+      },
+      "id": "1",
+      "url": "https://querit.example/article"
+    }
+  ],
+  "searchTime": 1,
+  "search_id": 1,
+  "statuses": [
+    {
+      "id": "1",
+      "status": "success"
+    }
+  ]
+}

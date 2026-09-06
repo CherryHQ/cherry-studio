@@ -1,14 +1,15 @@
 import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { LocalModelStatus } from '@shared/data/presets/localModel'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { TFunction } from 'i18next'
 import { ChevronLeft, Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -18,7 +19,7 @@ import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getItemTitle } from './utils/selectors'
+import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   embeddingModelId?: string | null
@@ -65,7 +66,7 @@ const getLocalEmbeddingStatusLabel = (status: LocalEmbeddingStatus, t: TFunction
     case 'unsupported':
       return t('settings.dependencies.localModels.unsupported')
     case 'not_downloaded':
-      return t('knowledge.rag.download_local_embedding')
+      return t('knowledge.rag.download_local_model')
     case 'downloading':
       return t('settings.dependencies.localModels.status.downloading')
   }
@@ -231,12 +232,26 @@ const DataSourcePanelContent = ({
   )
 
   const handleBulkReindex = useCallback(async () => {
-    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+    const selectedItems = items.filter((item) => selectedIds.has(item.id))
+    // The main process rejects the whole batch when any selected item is still
+    // indexing, which would also drop the failed ones the user wants to retry.
+    // Skip them here instead, mirroring the row menu's own gate.
+    const reindexableItems = selectedItems.filter(canReindexKnowledgeItem)
+    const skippedCount = selectedItems.length - reindexableItems.length
+
+    if (reindexableItems.length === 0) {
+      toast.warning(t('knowledge.data_source.bulk.reindex_none_eligible'))
+      return
+    }
+
     try {
-      await onReindexItems(itemIds)
+      await onReindexItems(reindexableItems.map((item) => item.id))
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
+    }
+    if (skippedCount > 0) {
+      toast.warning(t('knowledge.data_source.bulk.reindex_skipped', { count: skippedCount }))
     }
     setSelectedIds(new Set())
   }, [items, onReindexItems, selectedIds, t])
@@ -269,6 +284,18 @@ const DataSourcePanelContent = ({
   }
 
   const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
+  const handleFileDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const files = Array.from(event.dataTransfer.files)
+      if (files.length > 0) {
+        onAdd('file', files)
+      }
+    },
+    [onAdd]
+  )
+  const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
+    useDrag<HTMLDivElement>(handleFileDrop)
+  const canAddSource = !currentDirectory && !localEmbeddingState
   const localModelStatus =
     localEmbeddingState && (items.length > 0 || Boolean(currentDirectory))
       ? {
@@ -293,12 +320,24 @@ const DataSourcePanelContent = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
-            canAddSource={!currentDirectory && !localEmbeddingState}
+            canAddSource={canAddSource}
             localModelStatus={localModelStatus}
           />
         </div>
       }>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        onDragEnter={canAddSource ? handleDragEnter : undefined}
+        onDragLeave={canAddSource ? handleDragLeave : undefined}
+        onDragOver={canAddSource ? handleDragOver : undefined}
+        onDrop={canAddSource ? handleDrop : undefined}>
+        {isDragging && canAddSource ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-lg border border-primary border-dashed bg-background/90 text-foreground shadow-sm">
+            <span className="font-medium text-sm">{t('files.drag_upload')}</span>
+          </div>
+        ) : null}
         {currentDirectory && onNavigateUp && (
           <div className="flex shrink-0 items-center gap-2 px-3 py-2">
             {/* Flat text button (no chrome): the `px-2.5` matches the row's own inset so the chevron
@@ -374,7 +413,7 @@ const DataSourcePanelContent = ({
 }
 
 const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel('embedding')
+  const { status, percent } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   return (
     <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />
