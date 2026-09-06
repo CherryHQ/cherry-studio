@@ -5,8 +5,6 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useParams } from '@tanstack/react-router'
@@ -38,21 +36,7 @@ const MiniAppPage: FC = () => {
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive, openSplit, closeSplit, closeMiniApp } = useMiniAppPopup()
   const closeTab = tabsContext?.closeTab
-  const {
-    allApps,
-    openedKeepAliveMiniApps,
-    splitOpen,
-    splitMiniAppId,
-    isLoading,
-    error,
-    currentMiniAppId,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow,
-    setSplitOpen,
-    setSplitMiniAppId
-  } = useMiniApps()
+  const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
 
   // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
   // Every window's keep-alive entry is only a local snapshot of this cross-window value.
@@ -141,49 +125,13 @@ const MiniAppPage: FC = () => {
   const handleClose = useCallback(() => {
     if (!appId || !app) return
     const tabs = tabsContext?.tabs ?? []
-    const evictForClosedIds = (closedIds: readonly string[], clearingSplitId?: string) => {
-      const closedIdSet = new Set(closedIds)
-      const closingMiniAppIds = new Set<string>()
-      for (const id of closedIds) {
-        const tab = tabs.find((t) => t.id === id)
-        const mid = miniAppIdFromTabUrl(tab?.url)
-        if (mid) closingMiniAppIds.add(mid)
-      }
-      if (clearingSplitId) closingMiniAppIds.add(clearingSplitId)
-      if (closingMiniAppIds.size === 0) return
-      const survivingMiniAppIds = new Set<string>()
-      for (const tab of tabs) {
-        if (closedIdSet.has(tab.id)) continue
-        const mid = miniAppIdFromTabUrl(tab.url)
-        if (mid) survivingMiniAppIds.add(mid)
-      }
-      if (splitOpen && splitMiniAppId && splitMiniAppId !== clearingSplitId) {
-        survivingMiniAppIds.add(splitMiniAppId)
-      }
-      const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
-      if (orphanedIds.length === 0) return
-      const orphanedSet = new Set(orphanedIds)
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((a) => !orphanedSet.has(a.appId)))
-      for (const mid of orphanedIds) clearWebviewState(mid)
-      if (currentMiniAppId && orphanedSet.has(currentMiniAppId) && openedOneOffMiniApp?.appId !== currentMiniAppId) {
-        setCurrentMiniAppId('')
-        setMiniAppShow(false)
-      }
-    }
-
+    // Delegate eviction to the surrounding TabsContext when available. The main
+    // window's AppShell wraps `closeTab` with keep-alive and split orphan
+    // handling, so doing it here as well would duplicate webview-state and
+    // keep-alive updates. Detached windows have no such wrapper and fall
+    // through to `closeMiniApp`, which cleans its own pool.
     const tabId = currentTabId && currentTab && isMiniAppTabUrl(currentTab.url, app.appId) ? currentTabId : null
     if (tabId && closeTab) {
-      let clearingSplitId: string | undefined
-      const tab = tabs.find((t) => t.id === tabId)
-      if (splitOpen && splitMiniAppId && miniAppIdFromTabUrl(tab?.url)) {
-        const hasOtherMiniAppTab = tabs.some((c) => c.id !== tabId && miniAppIdFromTabUrl(c.url) !== null)
-        if (!hasOtherMiniAppTab) {
-          clearingSplitId = splitMiniAppId
-          setSplitOpen(false)
-          setSplitMiniAppId('')
-        }
-      }
-      evictForClosedIds([tabId], clearingSplitId)
       closeTab(tabId)
       return
     }
@@ -195,38 +143,11 @@ const MiniAppPage: FC = () => {
       }
     })
     if (fallbackTab?.id && tabsContext?.closeTab) {
-      let clearingSplitId: string | undefined
-      if (splitOpen && splitMiniAppId && miniAppIdFromTabUrl(fallbackTab.url)) {
-        const hasOther = tabs.some((c) => c.id !== fallbackTab.id && miniAppIdFromTabUrl(c.url) !== null)
-        if (!hasOther) {
-          clearingSplitId = splitMiniAppId
-          setSplitOpen(false)
-          setSplitMiniAppId('')
-        }
-      }
-      evictForClosedIds([fallbackTab.id], clearingSplitId)
       tabsContext.closeTab(fallbackTab.id)
       return
     }
     closeMiniApp(app.appId)
-  }, [
-    app,
-    appId,
-    currentTab,
-    currentTabId,
-    closeTab,
-    closeMiniApp,
-    tabsContext,
-    splitOpen,
-    splitMiniAppId,
-    currentMiniAppId,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow,
-    setSplitOpen,
-    setSplitMiniAppId
-  ])
+  }, [app, appId, currentTab, currentTabId, closeTab, closeMiniApp, tabsContext])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
