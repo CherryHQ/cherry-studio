@@ -207,6 +207,9 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
+  // The ai SDK's part typing only models callProviderMetadata; the persisted output metadata
+  // (e.g. the adapter-stamped launch root) is carried by resultProviderMetadata.
+  const resultProviderMetadata = (toolPart as unknown as { resultProviderMetadata?: unknown }).resultProviderMetadata
   const approval =
     typeof toolPart.approval?.approved === 'boolean'
       ? {
@@ -237,7 +240,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
-      ...(partialArguments ? { partialArguments } : {})
+      ...(partialArguments ? { partialArguments } : {}),
+      ...(resultProviderMetadata ? { resultProviderMetadata } : {})
     }
     return mcpResponse
   }
@@ -252,7 +256,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     ...(approval ? { approval } : {}),
     toolCallId,
     ...(parentToolUseId ? { parentToolUseId } : {}),
-    ...(partialArguments ? { partialArguments } : {})
+    ...(partialArguments ? { partialArguments } : {}),
+    ...(resultProviderMetadata ? { resultProviderMetadata } : {})
   }
   return normalResponse
 }

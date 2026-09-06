@@ -24,6 +24,8 @@ interface BaseToolResponse {
   approval?: ToolApprovalOutcome
   // Streaming arguments support
   partialArguments?: string // Accumulated partial JSON string during streaming
+  /** Tool-output metadata persisted with the part (e.g. `cherry.launchToolCallId`). */
+  resultProviderMetadata?: unknown
 }
 
 export interface McpToolResponse extends Omit<BaseToolResponse, 'tool'> {

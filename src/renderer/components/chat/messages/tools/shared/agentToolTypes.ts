@@ -309,8 +309,14 @@ export function getResumedAgentId(output: unknown): string | undefined {
  *  matching part is always the launch itself, and any textual trailer check would break whenever
  *  the CLI rewords its receipt between versions. */
 function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
-  if (typeof output === 'string') return output.includes(resumedAgentId)
-  if (isRecord(output)) return JSON.stringify(output).includes(resumedAgentId)
+  // Only output that carries the launch receipt's `agentId:` trailer (or an equivalent structured
+  // field) may resolve as the launch: a serialized mention inside another part's reply would
+  // otherwise redirect the entry to an unrelated flow.
+  if (typeof output === 'string') return /\bagent_?[Ii]d\s*:\s*/.test(output) && output.includes(resumedAgentId)
+  if (isRecord(output)) {
+    const agentId = output.agentId ?? output.agent_id
+    return typeof agentId === 'string' && agentId === resumedAgentId
+  }
   return false
 }
 
