@@ -81,24 +81,31 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  // Only the canonical system Anthropic provider reports an accurate window;
+  // Only the canonical system providers report an accurate window;
   // a relay must not inherit trust by cloning the preset or merely reusing
   // the endpoint type — a custom baseUrl confirms an untrusted channel that
   // can overstate the window (e.g. #18894). The preset itself defines
   // `https://api.anthropic.com`, which is merged into every provider's
   // runtime endpointConfigs, so the check must compare against that value
-  // rather than merely testing for existence.
+  // rather than merely testing for existence. `claude-code` (external-cli)
+  // is the second official Anthropic channel and must be trusted alike.
   const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
+  const normalizeAnthropicBaseUrl = (url: string): string => {
+    let n = url.trim().replace(/\/+$/, '')
+    if (n.toLowerCase().endsWith('/v1')) n = n.slice(0, -3).replace(/\/+$/, '')
+    return n.toLowerCase()
+  }
   const rawBaseUrl = provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const normalizedActual =
-    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() ? rawBaseUrl.trim().replace(/\/+$/, '') : undefined
-  const normalizedPreset = ANTHROPIC_PRESET_BASE_URL.replace(/\/+$/, '')
+    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() ? normalizeAnthropicBaseUrl(rawBaseUrl) : undefined
+  const normalizedPreset = normalizeAnthropicBaseUrl(ANTHROPIC_PRESET_BASE_URL)
   const hasCustomAnthropicBaseUrl =
     normalizedActual !== undefined && normalizedActual !== '' && normalizedActual !== normalizedPreset
+  const TRUSTED_ANTHROPIC_IDS = new Set(['anthropic', 'claude-code'])
   const isTrustedAnthropic =
     provider != null &&
-    provider.id === 'anthropic' &&
-    provider.presetProviderId === 'anthropic' &&
+    TRUSTED_ANTHROPIC_IDS.has(provider.id) &&
+    provider.presetProviderId === provider.id &&
     !hasCustomAnthropicBaseUrl
   const effectiveContextWindow = isTrustedAnthropic
     ? contextWindow
@@ -109,12 +116,9 @@ export function resolveAutoCompactWindow(
   if (isTrustedAnthropic) {
     return clamped
   }
-  // For untrusted relays the MIN clamp must not be raised above the
-  // safety-adjusted input room when that room is large, but the SDK
-  // rejects windows below MIN, so a tiny safety-adjusted room must still
-  // floor rather than produce a sub-MIN window.
-  const capped = Math.min(clamped, Math.max(inputRoom, 0))
-  return Math.max(capped, MIN_AUTO_COMPACT_WINDOW)
+  // For untrusted relays the MIN floor must not raise the budget above the
+  // safety-adjusted input room (e.g. 100K/60K effective + 32K leaves 28K; 100K would overflow).
+  return Math.min(clamped, Math.max(inputRoom, 0))
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
