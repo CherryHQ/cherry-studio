@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
@@ -218,6 +219,7 @@ vi.mock('react-i18next', () => ({
 const readPastedTextMock = vi.fn()
 
 beforeEach(() => {
+  MockCacheUtils.resetMocks()
   ipcRequestMock.mockReset()
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
