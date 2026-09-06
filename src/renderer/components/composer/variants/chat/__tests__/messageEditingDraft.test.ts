@@ -120,6 +120,22 @@ describe('createEditableMessageDraft', () => {
     expect(anchorsOf(serialized.tokens)).toEqual(anchorsOf(draft.draftTokens))
   })
 
+  it('does not chip a part the message renders as nothing', () => {
+    // A real v2 tool turn: every tool call is followed by a `step-start` opening the next step.
+    const draft = draftFor(
+      { type: 'step-start' },
+      text('searching'),
+      tool('tool-1'),
+      { type: 'step-start' },
+      text('found it')
+    )
+
+    expect(draft.text).toBe('searching\n\nfound it')
+    expect(anchorsOf(draft.draftTokens)).toEqual([
+      { id: `message-part:${MESSAGE_ID}:2`, textOffset: 'searching\n'.length }
+    ])
+  })
+
   it('leaves parts outside the text span unanchored so they keep their side', () => {
     const draft = draftFor({ type: 'reasoning', text: 'reasoning' }, text('answer'), {
       type: 'source-url',
@@ -196,6 +212,27 @@ describe('replaceEditedMessageParts', () => {
     expect(
       replaceEditedMessageParts(originalParts, MESSAGE_ID, editedDraft(draftText, []), parts(text(draftText)))
     ).toEqual([text('before\n\nafter')])
+  })
+
+  it('strips every step boundary so Main re-derives them, and keeps other hidden parts', () => {
+    const originalParts = parts(
+      { type: 'step-start' },
+      text('searching'),
+      tool('tool-1'),
+      { type: 'step-start' },
+      { type: 'data-citation', data: {} },
+      text('found it')
+    )
+    const draft = editedDraft('searching\n\nfound it', [{ partIndex: 2, textOffset: 'searching\n'.length }])
+
+    // A partial set of boundaries is worse than none: `restoreLegacyToolStepBoundaries` only
+    // rebuilds for a message carrying no `step-start` at all.
+    expect(replaceEditedMessageParts(originalParts, MESSAGE_ID, draft, parts(text(draft.text)))).toEqual([
+      text('searching'),
+      originalParts[2],
+      text('found it'),
+      originalParts[4]
+    ])
   })
 
   it('keeps whitespace the user authored next to an anchor', () => {
