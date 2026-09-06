@@ -739,6 +739,7 @@ export class AgentSessionMessageService {
             select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
             where json_extract(part.value, '$.type') = 'data-agent-task-event'
               and json_extract(part.value, '$.data.taskId') = ${taskId}
+              and json_extract(part.value, '$.data.toolUseId') is not null
           )`
         )
       )

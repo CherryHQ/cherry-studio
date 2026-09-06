@@ -1437,7 +1437,17 @@ export class ClaudeCodeStreamAdapter {
     if (this.backgroundTaskToolCallIds.has(taskId)) return
     // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
     // authoritative and must win over a resume edge that arrives before the launch receipt context.
-    const launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
+    let launchToolCallId: string | null = null
+    try {
+      launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
+    } catch (error) {
+      // A transient database error must not kill the connection — fall back to the edge id.
+      logger.warn('Failed to recover launch tool call id for background task', {
+        sessionId: this.sessionId,
+        taskId,
+        error
+      })
+    }
     this.backgroundTaskToolCallIds.set(taskId, launchToolCallId ?? toolCallId)
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }

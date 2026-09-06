@@ -2365,6 +2365,89 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    it('replays chunks buffered while the host-row lookup was failing', async () => {
+      let lookupCalls = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'full-text' },
+        { type: 'text-delta', id: 'full-text', delta: 'Complete findings' },
+        { type: 'text-end', id: 'full-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      // The text-start that hit the transient error is replayed with the rest of the flow.
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Complete findings' })])
+        )
+      })
+    })
+
+    it('does not let a mid-drain successor overwrite the drained tail', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      // First drain starts (accumulator closes) — the second generation arrives synchronously
+      // before the drain settles, so it must be held, not seeded into a successor that misses the tail.
+      sendFlow('First round complete', 'first-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      sendFlow('Second round complete', 'second-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const calls = mocks.replaceMessageParts.mock.calls
+        const last = calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First round complete')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second round complete')).toBe(true)
+      })
+    })
+
     it('retries the host-row lookup after a transient query error', async () => {
       // A failed lookup must not poison the miss cache: the next chunk re-queries and lands.
       let lookupCalls = 0

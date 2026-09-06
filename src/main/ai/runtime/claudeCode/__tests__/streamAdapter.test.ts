@@ -1825,6 +1825,38 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
+    it('registers the edge id when launch-root recovery throws', () => {
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        throw new Error('db locked')
+      })
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      // The connection survives the failed recovery and the edge id is registered as a fallback.
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_resume' }]
+      })
+    })
+
     it('recovers the launch root from the database when the adapter starts fresh', () => {
       // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
       // must land on the persisted launch tool-use id, not the resuming call.
