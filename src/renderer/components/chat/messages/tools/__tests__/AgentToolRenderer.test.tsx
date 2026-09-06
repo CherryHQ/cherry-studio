@@ -1320,6 +1320,35 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // One agent id that prefixes another must not win the other's lookup.
+    it('does not match when the trailer id only prefixes the target id', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-longer',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Another agent', prompt: 'Go' },
+            output: "done. agentId: agent-771 (internal metadata. Use SendMessage with to: 'agent-771')"
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
     // Prose that merely spells out an agentId:-shaped substring must not resolve as the launch.
     it('does not resolve prose with an agentId-shaped substring as the launch', () => {
       const openAgentToolFlow = vi.fn()
