@@ -1739,6 +1739,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
 
     it('uses subagent edges only to enrich navigation without changing authoritative membership', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('tool-use-b')
       const { adapter, statusEvents } = createAdapter()
 
       adapter.handleMessage({
@@ -1791,6 +1792,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     // A SendMessage resume re-points lifecycle edges at the resuming call's id; the navigation
     // anchor must stay on the launch root the content actually streams under.
     it('keeps the first navigation id for a task when resume edges report a new one', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')
       const { adapter, statusEvents } = createAdapter()
 
       adapter.handleMessage({
@@ -1861,6 +1863,58 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
 
       // The next task event re-runs the lookup and finally registers the launch root.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume_2',
+        description: 'Resumed review again',
+        task_type: 'subagent'
+      } as any)
+      const last = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(last).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch', toolCallId: 'call_launch' }]
+      })
+    })
+
+    it('skips registration on a launch-root query miss so a resume edge is not pinned', () => {
+      // A null result (row not yet persisted) must not pin the resume edge id either — a later
+      // event re-queries and lands the authoritative launch root.
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) return null
+        return 'call_launch'
+      })
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-1', task_type: 'subagent', description: 'Review the patch' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-1',
+        tool_use_id: 'call_resume',
+        description: 'Resumed review',
+        task_type: 'subagent'
+      } as any)
+
+      const first = statusEvents.filter((event) => event.type === 'background-tasks').at(-1)
+      expect(first).toEqual({
+        type: 'background-tasks',
+        tasks: [{ id: 'subagent-1', type: 'subagent', description: 'Review the patch' }]
+      })
+
       adapter.handleMessage({
         type: 'system',
         subtype: 'task_started',
@@ -1988,6 +2042,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
 
     it('uses local workflow task starts to enrich navigation without changing authoritative membership', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue('workflow-tool-use')
       const { adapter, statusEvents } = createAdapter()
 
       adapter.handleMessage({

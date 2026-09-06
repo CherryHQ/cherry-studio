@@ -1215,7 +1215,7 @@ export class ClaudeCodeStreamAdapter {
       toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
     if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
-      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
     }
     // A SendMessage receipt that resumed a background agent carries the launch root id in its
     // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
@@ -1452,7 +1452,7 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string, allowToolCallIdFallback: boolean): void {
     // First registration wins: resume edges carry the resuming call's id, not the launch root.
     if (this.backgroundTaskToolCallIds.has(taskId)) return
     // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
@@ -1471,7 +1471,13 @@ export class ClaudeCodeStreamAdapter {
       })
       return
     }
-    this.backgroundTaskToolCallIds.set(taskId, launchToolCallId ?? toolCallId)
+    if (launchToolCallId) {
+      this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
+    } else if (allowToolCallIdFallback) {
+      // The launch receipt's own call id is the launch root (miss is transient pre-persist);
+      // a task edge's id may be a resume call's and must not be pinned while the row is absent.
+      this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    }
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
@@ -1508,7 +1514,7 @@ export class ClaudeCodeStreamAdapter {
         eventData.taskType === 'local_workflow' ||
         eventData.subagentType)
     ) {
-      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
+      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId, false)
     }
 
     // Keep a process-scoped per-task surface for status history and stop targets.

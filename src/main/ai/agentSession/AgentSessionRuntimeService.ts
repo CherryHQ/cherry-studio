@@ -3315,6 +3315,11 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
+    // Chunks buffered by seed/query failures never reached an accumulator: give them one last
+    // accumulator attempt so the normal flush persists them (the retry now may succeed).
+    for (const messageId of [...(entry.pendingBackgroundFlowChunks?.keys() ?? [])]) {
+      this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    }
     const backgroundFlowFlush = this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
@@ -3338,7 +3343,54 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
     if (connectionAttempt) closings.push(connectionAttempt)
-    return Promise.allSettled(closings).then(() => undefined)
+    return Promise.allSettled(closings).then(async () => {
+      // Chunks that never reached an accumulator get folded into a final cache snapshot so
+      // teardown does not silently drop subagent output the database never received.
+      const pending = entry.pendingBackgroundFlowChunks
+      if (pending?.size) {
+        const cacheService = application.get('CacheService')
+        for (const [messageId, chunks] of pending) {
+          if (!chunks.length) continue
+          let seedParts: CherryMessagePart[] = []
+          try {
+            const row = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+            seedParts = row.data.parts ?? []
+          } catch {
+            // The row may never have been written; the chunks themselves are the content.
+          }
+          let fallbackParts = seedParts
+          try {
+            const stream = new ReadableStream<UIMessageChunk>({
+              start: (controller) => {
+                for (const chunk of chunks) controller.enqueue(chunk)
+                controller.close()
+              }
+            })
+            let snapshot: CherryUIMessage = {
+              id: messageId,
+              role: 'assistant',
+              parts: structuredClone(seedParts)
+            }
+            for await (const next of readUIMessageStream<CherryUIMessage>({
+              stream,
+              message: snapshot,
+              terminateOnError: false
+            })) {
+              snapshot = next
+            }
+            fallbackParts = snapshot.parts as CherryMessagePart[]
+          } catch {
+            // Best effort — the seed snapshot still preserves the row's prior content.
+          }
+          cacheService.setShared(
+            AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
+            fallbackParts,
+            BACKGROUND_FLOW_HANDOFF_TTL_MS
+          )
+        }
+      }
+      return undefined
+    })
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {

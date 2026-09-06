@@ -2540,6 +2540,54 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('folds never-accumulated chunks into the cache overlay at teardown', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      // Every seed read fails: the round's chunks stay buffered, never accumulated.
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'orphan-text' },
+        { type: 'text-delta', id: 'orphan-text', delta: 'Orphaned findings' },
+        { type: 'text-end', id: 'orphan-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(getEntry(service).pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(3)
+
+      await service.closeSession('session-1')
+
+      // closeEntry folded the buffered chunks into the cache overlay so the output survives.
+      const call = mocks.cacheSetShared.mock.calls.find(
+        ([key, parts]) =>
+          typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Orphaned findings')
+      )
+      expect(call).toBeDefined()
+    })
+
     it('registers nested tool anchors when replaying buffered recovery chunks', async () => {
       let lookupCalls = 0
       mocks.findFlowHostMessageId.mockImplementation(() => {
