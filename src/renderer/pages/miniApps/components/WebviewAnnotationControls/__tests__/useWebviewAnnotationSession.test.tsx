@@ -230,6 +230,44 @@ describe('useWebviewAnnotationSession', () => {
     })
   })
 
+  it('preserves an unavailable editor draft and refuses to save it', async () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => stateChanged(webview, sessionOne, true, 0))
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        comment: 'Host-owned draft',
+        canDelete: false,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
+    )
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_error',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        reason: 'element_unavailable'
+      })
+    )
+
+    act(() => result.current.setEditorDraft('Updated host-owned draft'))
+    let saved = true
+    await act(async () => {
+      saved = await result.current.saveEditor()
+    })
+
+    expect(saved).toBe(false)
+    expect(result.current.editor).toMatchObject({
+      draft: 'Updated host-owned draft',
+      error: 'element_unavailable'
+    })
+    expect(sentCommands(webview).some((command) => command.type === 'save_editor')).toBe(false)
+  })
+
   it('keeps annotation mode disabled when delivering the toggle rejects', async () => {
     const webview = createWebview()
     const webviewRef = createWebviewRef(webview)

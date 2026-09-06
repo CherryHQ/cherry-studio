@@ -41,6 +41,7 @@ const privateController = (controller: WebviewAnnotationController) =>
     editorAnnotationId: string | null
     editorElement: Element | null
     editorRequestId: string | null
+    editorUnavailable: boolean
     handleClick: (event: MouseEvent) => void
     handleWindowKeyDown: (event: KeyboardEvent) => void
     handlePointerCancel: (event: PointerEvent) => void
@@ -1004,6 +1005,59 @@ describe('WebviewAnnotationController interactions', () => {
     internals.updatePositions()
 
     expect(internals.annotationElements.get(annotationId)).toBe(replacement)
+  })
+
+  it('rebinds an open editor to a replacement of its annotated element', () => {
+    const first = document.createElement('button')
+    first.id = 'edited-replacement'
+    document.body.appendChild(first)
+    mockRect(first, 10, 20, 80, 40)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: first })
+    saveEditor(controller, emissions, 'Keep editing this')
+    const annotationId = readSnapshot(controller, emissions)[0].id
+    internals.openEditor({ mode: 'edit', element: first, annotationId })
+
+    const replacement = document.createElement('button')
+    replacement.id = 'edited-replacement'
+    mockRect(replacement, 140, 160, 90, 50)
+    first.replaceWith(replacement)
+    const eventCount = emissions.length
+
+    internals.updatePositions()
+
+    expect(internals.editorElement).toBe(replacement)
+    expect(internals.highlightElement).toBe(replacement)
+    expect(emissions.slice(eventCount)).toContainEqual({
+      type: 'editor_anchor_changed',
+      sessionId,
+      requestId: internals.editorRequestId,
+      anchor: { x: 140, y: 160, width: 90, height: 50 }
+    })
+    expect(emissions.slice(eventCount).some((event) => event.type === 'editor_error')).toBe(false)
+  })
+
+  it('reports a disconnected editor target unavailable once while keeping the editor request open', () => {
+    const button = document.createElement('button')
+    button.id = 'removed-editor-target'
+    document.body.appendChild(button)
+    mockRect(button, 20, 30, 80, 40)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: button })
+    const requestId = internals.editorRequestId
+
+    button.remove()
+    internals.updatePositions()
+    internals.updatePositions()
+
+    expect(internals.editorRequestId).toBe(requestId)
+    expect(internals.editorUnavailable).toBe(true)
+    expect(
+      emissions.filter(
+        (event) =>
+          event.type === 'editor_error' && event.requestId === requestId && event.reason === 'element_unavailable'
+      )
+    ).toHaveLength(1)
   })
 
   it('releases a disconnected annotated element when it cannot be resolved again', () => {

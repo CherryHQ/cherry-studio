@@ -202,6 +202,53 @@ describe('WebviewAnnotationControls', () => {
     })
   })
 
+  it('keeps an unavailable draft but anchors its disabled editor to the toolbar', async () => {
+    const user = userEvent.setup()
+    const webview = createWebview()
+    vi.spyOn(webview, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 300, y: 180, width: 900, height: 700 })
+    )
+    renderControls(webview)
+    act(() => stateChanged(webview, true, 0))
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        comment: 'Host-owned draft',
+        canDelete: false,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
+    )
+
+    const toggleGroup = screen.getByRole('button', { name: '退出标注' }).parentElement!
+    vi.spyOn(toggleGroup, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 24, y: 16, width: 60, height: 28 })
+    )
+    readPopoverAnchorRect.mockClear()
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_error',
+        sessionId,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        reason: 'element_unavailable'
+      })
+    )
+
+    const editor = screen.getByRole('textbox')
+    await user.type(editor, ' updated')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('无法标注此元素，请选择附近的元素。')
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+    expect(editor).toHaveValue('Host-owned draft updated')
+    expect(readPopoverAnchorRect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 24, y: 16, width: 60, height: 28 })
+    )
+
+    await user.keyboard('{Control>}{Enter}{/Control}')
+    expect(sentCommands(webview).some((command) => command.type === 'save_editor')).toBe(false)
+  })
+
   it('disables copy while pending, writes the result, and reports success', async () => {
     const user = userEvent.setup()
     const webview = createWebview()

@@ -378,6 +378,7 @@ export class WebviewAnnotationController {
   private editorElement: Element | null = null
   private editorRegion: WebviewRegionRect | null = null
   private editorRequestId: string | null = null
+  private editorUnavailable = false
   private enabled = false
   private highlightElement: Element | null = null
   private iframeDiscoveryDirty = true
@@ -966,6 +967,7 @@ export class WebviewAnnotationController {
     this.editorElement = request.element
     this.editorAnnotationId = annotationId
     this.editorRequestId = createGuestUuid()
+    this.editorUnavailable = false
     this.editorRegion = request.mode === 'create-region' ? request.region.rect : (annotation?.region?.rect ?? null)
     this.pendingRegion = request.mode === 'create-region' ? request.region : null
     this.highlightElement = request.element
@@ -995,6 +997,7 @@ export class WebviewAnnotationController {
     this.editorElement = null
     this.editorRequestId = null
     this.editorRegion = null
+    this.editorUnavailable = false
     this.pendingRegion = null
     this.highlightElement = null
     this.schedulePositionUpdate()
@@ -1004,7 +1007,9 @@ export class WebviewAnnotationController {
   }
 
   private saveEditor(requestId: string, draft: string) {
-    if (requestId !== this.editorRequestId || !this.editorElement) return
+    if (requestId !== this.editorRequestId || this.editorUnavailable) return
+    const editorElement = this.resolveEditorElement()
+    if (!editorElement) return
     const comment = draft.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
     if (!comment) return
 
@@ -1015,21 +1020,14 @@ export class WebviewAnnotationController {
       // Region annotations keep their captured ancestor locator: the editor may
       // have fallen back to <body> when the ancestor no longer resolves.
       if (!annotation.region) {
-        const locator = createWebviewElementLocator(this.editorElement)
+        const locator = createWebviewElementLocator(editorElement)
         if (locator) annotation.element = locator
-        this.annotationElements.set(annotation.id, this.editorElement)
+        this.annotationElements.set(annotation.id, editorElement)
       }
     } else {
-      const locator = createWebviewElementLocator(this.editorElement)
+      const locator = createWebviewElementLocator(editorElement)
       if (!locator) {
-        if (this.sessionId) {
-          this.onStateChange({
-            type: 'editor_error',
-            sessionId: this.sessionId,
-            requestId,
-            reason: 'element_unavailable'
-          })
-        }
+        this.reportEditorUnavailable()
         return
       }
       const annotation: WebviewAnnotation = {
@@ -1039,10 +1037,10 @@ export class WebviewAnnotationController {
         ...(this.pendingRegion ? { region: this.pendingRegion } : {})
       }
       this.annotations.push(annotation)
-      this.annotationElements.set(annotation.id, this.editorElement)
+      this.annotationElements.set(annotation.id, editorElement)
     }
 
-    this.observeElementRoot(this.editorElement)
+    this.observeElementRoot(editorElement)
     this.closeEditor()
     this.renderPins()
     this.emitState()
@@ -1253,6 +1251,35 @@ export class WebviewAnnotationController {
     return resolved
   }
 
+  private resolveEditorElement() {
+    if (this.editorUnavailable) return null
+    if (this.editorElement?.isConnected) return this.editorElement
+
+    const annotation = this.editorAnnotationId
+      ? this.annotations.find((item) => item.id === this.editorAnnotationId)
+      : undefined
+    const resolved = annotation ? this.resolveAnnotationElement(annotation) : null
+    if (resolved) {
+      this.editorElement = resolved
+      this.highlightElement = resolved
+      return resolved
+    }
+
+    this.reportEditorUnavailable()
+    return null
+  }
+
+  private reportEditorUnavailable() {
+    if (this.editorUnavailable || !this.sessionId || !this.editorRequestId) return
+    this.editorUnavailable = true
+    this.onStateChange({
+      type: 'editor_error',
+      sessionId: this.sessionId,
+      requestId: this.editorRequestId,
+      reason: 'element_unavailable'
+    })
+  }
+
   private updatePositions() {
     if (!this.overlayHost) return
     if (!this.overlayHost.isConnected) document.documentElement?.appendChild(this.overlayHost)
@@ -1320,8 +1347,9 @@ export class WebviewAnnotationController {
         height: this.editorRegion.height
       })
     }
-    if (!this.editorElement?.isConnected) return null
-    const rect = this.editorElement.getBoundingClientRect()
+    const editorElement = this.resolveEditorElement()
+    if (!editorElement) return null
+    const rect = editorElement.getBoundingClientRect()
     return toAnchorRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
   }
 }
