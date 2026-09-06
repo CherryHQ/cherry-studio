@@ -522,6 +522,69 @@ describe('Tooltip', () => {
       }
     })
 
+    it('does not sweep live open content whose trigger lives in a shadow root', async () => {
+      vi.useFakeTimers()
+      try {
+        const host = document.createElement('div')
+        const shadow = host.attachShadow({ mode: 'open' })
+        const content = document.createElement('div')
+        content.setAttribute('data-slot', 'tooltip-content')
+        content.setAttribute('data-tooltip-sweepable', '')
+        content.setAttribute('data-state', 'instant-open')
+        const tooltipSpan = document.createElement('span')
+        tooltipSpan.setAttribute('role', 'tooltip')
+        tooltipSpan.setAttribute('id', 'radix-shadow-live')
+        content.appendChild(tooltipSpan)
+        const trigger = document.createElement('button')
+        trigger.setAttribute('aria-describedby', 'radix-shadow-live')
+        shadow.appendChild(trigger)
+        shadow.appendChild(content)
+        document.body.appendChild(host) // shadow 内预填；引用搜索必须跨 shadow boundary
+        await act(async () => {})
+
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+        })
+        expect(shadow.contains(content)).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not sweep live open content whose trigger lives in a nested shadow root', async () => {
+      vi.useFakeTimers()
+      try {
+        const hostA = document.createElement('div')
+        const shadowA = hostA.attachShadow({ mode: 'open' })
+        const hostB = document.createElement('div')
+        const shadowB = hostB.attachShadow({ mode: 'open' })
+        const content = document.createElement('div')
+        content.setAttribute('data-slot', 'tooltip-content')
+        content.setAttribute('data-tooltip-sweepable', '')
+        content.setAttribute('data-state', 'delayed-open')
+        const tooltipSpan = document.createElement('span')
+        tooltipSpan.setAttribute('role', 'tooltip')
+        tooltipSpan.setAttribute('id', 'radix-nested-live')
+        content.appendChild(tooltipSpan)
+        const trigger = document.createElement('button')
+        trigger.setAttribute('aria-describedby', 'radix-nested-live')
+        shadowB.appendChild(trigger)
+        shadowB.appendChild(content)
+        shadowA.appendChild(hostB)
+        const wrapper = document.createElement('div')
+        wrapper.appendChild(hostA)
+        document.body.appendChild(wrapper)
+        await act(async () => {})
+
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+        })
+        expect(shadowB.contains(content)).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('renders forceMount content through the TooltipRoot gate even when closed', () => {
       vi.useFakeTimers()
       try {

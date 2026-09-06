@@ -91,6 +91,21 @@ function useTooltipController(
  * timer，故清扫必须与实例生命周期解耦）。只清扫渲染时带 data-tooltip-sweepable 的内容
  * （即本组件非显式 forceMount 的门控渲染内容）；显式 forceMount 内容由用户持有，不受影响。
  */
+/** 跨 shadow 递归查找对某 contentId 的 trigger 引用（document.querySelector 不穿透 shadow boundary）。
+ * 注：closed-mode shadow root 不可读、iframe 内引用不可达——与清扫器的观察权限面一致。 */
+function hasActiveAriaReference(tooltipId: string): boolean {
+  const scan = (root: ParentNode): boolean => {
+    for (const el of root.querySelectorAll('[aria-describedby]')) {
+      if (el.getAttribute('aria-describedby')?.split(/\s+/).includes(tooltipId)) return true
+    }
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot && scan(el.shadowRoot)) return true
+    }
+    return false
+  }
+  return scan(document)
+}
+
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
   const observedRoots = new WeakSet<Document | ShadowRoot>()
@@ -123,7 +138,7 @@ function setupTooltipOrphanSweeper(): void {
             return
           }
           const tooltipId = node.querySelector('[role="tooltip"]')?.getAttribute('id')
-          if (tooltipId && !document.querySelector(`[aria-describedby~="${tooltipId}"]`)) {
+          if (tooltipId && !hasActiveAriaReference(tooltipId)) {
             pending.delete(node)
             node.remove()
             return
