@@ -2518,7 +2518,6 @@
   "miniApp.split.open": "Bölünmüş görünüm",
   "miniApp.title": "Mini Uygulama",
   "miniApp.unpin_failed": "Mini uygulamanın sabitlemesi kaldırılamadı",
-  "miniApp.update_partial_failure": "{{total}} güncellemenin {{failed}} tanesi başarısız oldu",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

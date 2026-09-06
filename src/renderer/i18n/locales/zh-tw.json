@@ -2518,7 +2518,6 @@
   "miniApp.split.open": "分割檢視",
   "miniApp.title": "小程式",
   "miniApp.unpin_failed": "取消固定小程式失敗",
-  "miniApp.update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

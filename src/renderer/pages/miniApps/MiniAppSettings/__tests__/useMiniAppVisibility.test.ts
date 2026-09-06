@@ -1,4 +1,7 @@
+import type * as MiniAppMutationServiceModule from '@renderer/services/MiniAppMutationService'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { toast } from '@renderer/services/toast'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { resetToastMocks } from '@test-mocks/renderer/toast'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -17,27 +20,57 @@ const stubApp = (id: string): MiniApp => ({
 })
 
 const mocks = vi.hoisted(() => ({
+  allApps: [] as MiniApp[],
   miniApps: [] as MiniApp[],
   disabled: [] as MiniApp[],
+  effectiveRegion: 'Global' as 'CN' | 'Global',
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   setAppStatusBulk: vi.fn().mockResolvedValue(undefined),
   reorderMiniAppsByStatus: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({
-    miniApps: mocks.miniApps,
-    disabled: mocks.disabled,
-    updateAppStatus: mocks.updateAppStatus,
-    setAppStatusBulk: mocks.setAppStatusBulk,
-    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
-  })
-}))
+function resolveStatusOrder(callIndex: number, apps: readonly MiniApp[] = mocks.allApps): OrderRequest | undefined {
+  const order = mocks.updateAppStatus.mock.calls[callIndex]?.[2] as
+    | OrderRequest
+    | ((currentApps: readonly MiniApp[]) => OrderRequest)
+    | undefined
+  return typeof order === 'function' ? order(apps) : order
+}
+
+vi.mock('@renderer/hooks/useMiniApps', async () => {
+  const { miniAppMutationService } = await vi.importActual<typeof MiniAppMutationServiceModule>(
+    '@renderer/services/MiniAppMutationService'
+  )
+
+  return {
+    useMiniApps: () => ({
+      allApps: mocks.allApps,
+      miniApps: mocks.miniApps,
+      disabled: mocks.disabled,
+      effectiveRegion: mocks.effectiveRegion,
+      updateAppStatus: (...args: Parameters<typeof mocks.updateAppStatus>) =>
+        miniAppMutationService.enqueue(() => mocks.updateAppStatus(...args)),
+      setAppStatusBulk: (
+        updates:
+          | Parameters<typeof mocks.setAppStatusBulk>[0]
+          | ((apps: readonly MiniApp[]) => Parameters<typeof mocks.setAppStatusBulk>[0])
+      ) =>
+        miniAppMutationService.enqueue(() =>
+          mocks.setAppStatusBulk(typeof updates === 'function' ? updates(mocks.allApps) : updates)
+        ),
+      reorderMiniAppsByStatus: (...args: Parameters<typeof mocks.reorderMiniAppsByStatus>) =>
+        miniAppMutationService.enqueue(() => mocks.reorderMiniAppsByStatus(...args))
+    })
+  }
+})
 
 describe('useMiniAppVisibility', () => {
   beforeEach(() => {
+    miniAppMutationService.resetForTesting()
     mocks.miniApps = [stubApp('a'), stubApp('b')]
-    mocks.disabled = [stubApp('c')]
+    mocks.disabled = [{ ...stubApp('c'), status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    mocks.effectiveRegion = 'Global'
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
     mocks.reorderMiniAppsByStatus.mockClear()
@@ -74,7 +107,240 @@ describe('useMiniAppVisibility', () => {
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
     expect(result.current.hidden).toEqual([])
-    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled')
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(0)).toEqual({ position: 'last' })
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
+  })
+
+  it('hides then shows a visible app back at its original index, not the tail', async () => {
+    const { result } = renderHook(() => useMiniAppVisibility())
+    const first = mocks.miniApps[0]
+
+    act(() => result.current.hide(first))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['b'])
+    expect(result.current.hidden.map((a) => a.appId)).toEqual(['c', 'a'])
+
+    act(() => result.current.show(first))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b'])
+    expect(result.current.hidden.map((a) => a.appId)).toEqual(['c'])
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
+  })
+
+  it('submits rapid reverse-order restores with anchors that include pending actions', async () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.hide(result.current.visible[0]))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c'])
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+
+    const hiddenA = { ...stubApp('a'), status: 'disabled' as const }
+    const hiddenB = { ...stubApp('b'), status: 'disabled' as const }
+    mocks.miniApps = [stubApp('c')]
+    mocks.disabled = [hiddenA, hiddenB]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+
+    const firstRestore = Promise.withResolvers<void>()
+    mocks.updateAppStatus.mockClear()
+    mocks.updateAppStatus.mockImplementationOnce(() => firstRestore.promise)
+    act(() => {
+      result.current.show(hiddenB)
+      result.current.show(hiddenA)
+    })
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
+
+    firstRestore.resolve()
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
+  })
+
+  it('recomputes a queued restore anchor after an earlier restore fails', async () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.hide(result.current.visible[0]))
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+
+    const hiddenA = { ...stubApp('a'), status: 'disabled' as const }
+    const hiddenB = { ...stubApp('b'), status: 'disabled' as const }
+    mocks.miniApps = [stubApp('c')]
+    mocks.disabled = [hiddenA, hiddenB]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+
+    const firstRestore = Promise.withResolvers<void>()
+    mocks.updateAppStatus.mockClear()
+    mocks.updateAppStatus.mockImplementationOnce(() => firstRestore.promise)
+    act(() => {
+      result.current.show(hiddenB)
+      result.current.show(hiddenA)
+    })
+
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
+
+    firstRestore.reject(new Error('restore failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'c' })
+  })
+
+  it('recomputes a queued restore from the cache refreshed by the prior restore', async () => {
+    const appA = { ...stubApp('a'), orderKey: 'a0' }
+    const appB = { ...stubApp('b'), orderKey: 'a1' }
+    const appC = { ...stubApp('c'), orderKey: 'a2' }
+    mocks.miniApps = [appA, appB, appC]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(appA))
+    act(() => result.current.hide(appB))
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+
+    const hiddenA = { ...appA, status: 'disabled' as const }
+    const hiddenB = { ...appB, status: 'disabled' as const }
+    mocks.miniApps = [appC]
+    mocks.disabled = [hiddenA, hiddenB]
+    mocks.allApps = [hiddenA, hiddenB, appC]
+    rerender()
+
+    const firstRestore = Promise.withResolvers<void>()
+    mocks.updateAppStatus.mockClear()
+    mocks.updateAppStatus.mockImplementationOnce(() => firstRestore.promise)
+    act(() => {
+      result.current.show(hiddenB)
+      result.current.show(hiddenA)
+    })
+
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
+
+    mocks.miniApps = [appB, appC]
+    mocks.disabled = [hiddenA]
+    mocks.allApps = [hiddenA, appB, appC]
+    rerender()
+    firstRestore.resolve()
+
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
+  })
+
+  it('submits visibility actions to the shared queue in user-action order', async () => {
+    const firstRestore = Promise.withResolvers<void>()
+    const hiddenC = { ...stubApp('c'), status: 'disabled' as const }
+    const hiddenD = { ...stubApp('d'), status: 'disabled' as const }
+    mocks.disabled = [hiddenC, hiddenD]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    mocks.updateAppStatus.mockImplementationOnce(() => firstRestore.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => {
+      result.current.show(hiddenC)
+      result.current.show(hiddenD)
+    })
+    void miniAppMutationService.enqueue(() => mocks.updateAppStatus('external', 'pinned'))
+
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    firstRestore.resolve()
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(3))
+    expect(mocks.updateAppStatus.mock.calls.map(([appId]) => appId)).toEqual(['c', 'd', 'external'])
+  })
+
+  it('submits a hide after an in-flight show so the shared queue preserves the last action', async () => {
+    const showRequest = Promise.withResolvers<void>()
+    mocks.updateAppStatus.mockImplementationOnce(() => showRequest.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.show(mocks.disabled[0]))
+    const shownApp = result.current.visible.find((app) => app.appId === 'c')!
+    act(() => result.current.hide(shownApp))
+
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(0)).toEqual({ position: 'last' })
+
+    showRequest.resolve()
+    await showRequest.promise
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus.mock.calls.map(([appId, status]) => [appId, status])).toEqual([
+      ['c', 'enabled'],
+      ['c', 'disabled']
+    ])
+  })
+
+  it('reset restores the canonical order when pinned and enabled apps are interleaved', async () => {
+    const enabledFirst = { ...stubApp('a'), orderKey: 'a0' }
+    const pinnedMiddle = { ...stubApp('p'), status: 'pinned' as const, orderKey: 'a1' }
+    const enabledLast = { ...stubApp('b'), orderKey: 'a2' }
+    mocks.miniApps = [enabledFirst, pinnedMiddle, enabledLast]
+    mocks.disabled = [{ ...stubApp('c'), status: 'disabled', orderKey: 'b0' }]
+    // The API groups rows by status, while miniApps exposes the shared visible
+    // partition in canonical orderKey order.
+    mocks.allApps = [pinnedMiddle, enabledFirst, enabledLast, ...mocks.disabled]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(enabledFirst))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['p', 'b'])
+
+    act(() => result.current.reset())
+    expect(result.current.hidden).toEqual([])
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'p', 'b', 'c'])
+    await waitFor(() => expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1))
+    expect(mocks.setAppStatusBulk).toHaveBeenCalledWith([
+      { appId: 'a', status: 'enabled', order: { before: 'p' } },
+      { appId: 'c', status: 'enabled', order: { position: 'last' } }
+    ])
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
+  })
+
+  it('reset restores the original visible order after swap promotes a hidden app', () => {
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.swap())
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['c'])
+
+    act(() => result.current.reset())
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('resolves reset anchors after an earlier swap finishes in the shared queue', async () => {
+    const swapRequest = Promise.withResolvers<void>()
+    mocks.setAppStatusBulk.mockImplementationOnce(() => swapRequest.promise).mockResolvedValueOnce(undefined)
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.swap())
+    act(() => result.current.reset())
+
+    expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
+
+    const disabledA = { ...stubApp('a'), status: 'disabled' as const, orderKey: 'a0' }
+    const disabledB = { ...stubApp('b'), status: 'disabled' as const, orderKey: 'a1' }
+    const enabledC = { ...stubApp('c'), status: 'enabled' as const, orderKey: 'a2' }
+    mocks.miniApps = [enabledC]
+    mocks.disabled = [disabledA, disabledB]
+    mocks.allApps = [disabledA, disabledB, enabledC]
+    rerender()
+    swapRequest.resolve()
+
+    await waitFor(() => expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(2))
+    expect(mocks.setAppStatusBulk).toHaveBeenLastCalledWith([
+      { appId: 'a', status: 'enabled', order: { before: 'c' } },
+      { appId: 'b', status: 'enabled', order: { before: 'c' } }
+    ])
   })
 
   it('swap explicitly names every row in the move and keeps pinned rows visible', () => {
@@ -82,7 +348,8 @@ describe('useMiniAppVisibility', () => {
     // must not appear in the bulk update.
     const pinnedApp = { ...stubApp('p'), status: 'pinned' as const }
     mocks.miniApps = [stubApp('a'), pinnedApp]
-    mocks.disabled = [stubApp('c')]
+    mocks.disabled = [{ ...stubApp('c'), status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
 
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.swap())
@@ -110,16 +377,161 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.hidden).toEqual([])
     expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
     const updates = mocks.setAppStatusBulk.mock.calls[0][0] as Array<{ appId: string; status: string }>
-    expect(updates).toEqual([{ appId: 'c', status: 'enabled' }])
+    expect(updates).toEqual([{ appId: 'c', status: 'enabled', order: { position: 'last' } }])
   })
 
-  it('reorderVisible reorders within the combined visible list', () => {
+  it('reorderVisible reorders within the combined visible list', async () => {
     mocks.miniApps = [stubApp('a'), { ...stubApp('p'), status: 'pinned' }, stubApp('b')]
+    mocks.allApps = [...mocks.miniApps]
 
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 1))
     expect(result.current.visible.map((a) => a.appId)).toEqual(['p', 'a', 'b'])
-    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible))
+  })
+
+  it('restores the latest dragged visible order after hide then show', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'a', 'b'])
+
+    const dragged = result.current.visible[0]
+    act(() => result.current.hide(dragged))
+    act(() => result.current.show(dragged))
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('keeps a still-hidden app in its remembered slot when the visible list is dragged', () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(stubApp('b')))
+    act(() => result.current.reorderVisible(1, 0))
+    act(() => result.current.show(stubApp('b')))
+
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('uses the current region order when restoring an app introduced by a region change', () => {
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    mocks.effectiveRegion = 'CN'
+    mocks.miniApps = [stubApp('cn-only'), ...mocks.miniApps]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+
+    act(() => result.current.hide(result.current.visible[0]))
+    act(() => result.current.show(result.current.hidden.at(-1)!))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['cn-only', 'a', 'b'])
+  })
+
+  it('restores before a region-hidden successor without changing their persisted order', async () => {
+    const regionHidden: MiniApp = { ...stubApp('cn-only'), kind: 'site', supportedRegions: ['CN'] }
+    mocks.miniApps = [stubApp('a'), stubApp('b')]
+    mocks.disabled = []
+    mocks.allApps = [mocks.miniApps[0], regionHidden, mocks.miniApps[1]]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.show(result.current.hidden[0]))
+
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'cn-only' })
+  })
+
+  it('restores an original tail row before a newly created row', async () => {
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+    const originalTail = mocks.miniApps[1]
+
+    act(() => result.current.hide(originalTail))
+    mocks.miniApps = [mocks.miniApps[0], stubApp('new-app')]
+    mocks.disabled = [{ ...originalTail, status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+
+    act(() => result.current.show(originalTail))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'new-app'])
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('b', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'new-app' })
+  })
+
+  it('restores an original tail row before the earliest introduced row across visible statuses', async () => {
+    const originalTail = { ...stubApp('b'), orderKey: 'a1' }
+    mocks.miniApps = [{ ...stubApp('a'), orderKey: 'a0' }, originalTail]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(originalTail))
+    const introducedEnabled = { ...stubApp('new-enabled'), orderKey: 'a2' }
+    const introducedPinned = { ...stubApp('new-pinned'), status: 'pinned' as const, orderKey: 'a3' }
+    mocks.miniApps = [mocks.miniApps[0], introducedEnabled, introducedPinned]
+    mocks.disabled = [{ ...originalTail, status: 'disabled' }]
+    // The API groups pinned rows ahead of enabled rows even when their shared
+    // visible orderKey places the enabled row first.
+    mocks.allApps = [introducedPinned, mocks.miniApps[0], introducedEnabled, ...mocks.disabled]
+    rerender()
+
+    act(() => result.current.show(originalTail))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'new-enabled', 'new-pinned'])
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('b', 'enabled', expect.any(Function))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'new-enabled' })
+  })
+
+  it('does not remember an order that failed to persist', async () => {
+    mocks.reorderMiniAppsByStatus.mockRejectedValueOnce(new Error('reorder failed'))
+    const original = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(1, 0))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+
+    mocks.miniApps = [...original]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+    act(() => result.current.hide(original[0]))
+    act(() => result.current.show(original[0]))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b'])
+  })
+
+  it('submits overlapping visible reorders to the shared queue in user-action order', async () => {
+    const first = Promise.withResolvers<void>()
+    const second = Promise.withResolvers<void>()
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.allApps = [...mocks.miniApps]
+    mocks.disabled = []
+    mocks.reorderMiniAppsByStatus
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1))
+    act(() => result.current.reorderVisible(2, 1))
+
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1)
+    first.resolve()
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.reorderMiniAppsByStatus.mock.calls.map(([, apps]) => apps.map((app: MiniApp) => app.appId))).toEqual([
+      ['c', 'a', 'b'],
+      ['c', 'b', 'a']
+    ])
+    second.resolve()
+    await Promise.all([first.promise, second.promise])
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
@@ -136,12 +548,14 @@ describe('useMiniAppVisibility', () => {
     // and dragged the now-pinned row into the hidden column.
     mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
 
     const { result, rerender } = renderHook(() => useMiniAppVisibility())
     expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('enabled')
 
     // Simulate upstream PATCH landing: status flip but same membership/order.
     mocks.miniApps = [{ ...stubApp('a'), status: 'pinned' }, stubApp('b')]
+    mocks.allApps = [...mocks.miniApps]
     rerender()
 
     expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('pinned')

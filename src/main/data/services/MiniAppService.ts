@@ -21,11 +21,12 @@ import {
   miniAppTable
 } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import type { CreateMiniAppDto, MiniAppStatusBatch, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId, SiteMiniApp } from '@shared/data/types/miniApp'
 import { type MiniAppManifest, MiniAppManifestSchema, resolveLocalizedText } from '@shared/types/miniAppManifest'
@@ -72,6 +73,90 @@ function isVisibleStatus(status: MiniAppStatus): boolean {
 
 function orderScopeForStatus(status: MiniAppStatus) {
   return isVisibleStatus(status) ? inArray(miniAppTable.status, visibleStatusValues) : eq(miniAppTable.status, status)
+}
+
+function movesPreserveCurrentOrder(
+  tx: DbOrTx,
+  status: MiniAppStatus,
+  moves: ReadonlyArray<{ id: string; anchor: OrderRequest }>
+): boolean {
+  const currentIds = tx
+    .select({ appId: miniAppTable.appId })
+    .from(miniAppTable)
+    .where(orderScopeForStatus(status))
+    .orderBy(asc(miniAppTable.orderKey))
+    .all()
+    .map((row) => row.appId)
+  const nextIds = [...currentIds]
+
+  for (const move of moves) {
+    const currentIndex = nextIds.indexOf(move.id)
+    if (currentIndex < 0) return false
+    nextIds.splice(currentIndex, 1)
+
+    let targetIndex: number
+    if ('position' in move.anchor) {
+      targetIndex = move.anchor.position === 'first' ? 0 : nextIds.length
+    } else {
+      const anchorId = 'before' in move.anchor ? move.anchor.before : move.anchor.after
+      const anchorIndex = nextIds.indexOf(anchorId)
+      if (anchorIndex < 0) return false
+      targetIndex = 'before' in move.anchor ? anchorIndex : anchorIndex + 1
+    }
+    nextIds.splice(targetIndex, 0, move.id)
+  }
+
+  return currentIds.every((id, index) => nextIds[index] === id)
+}
+
+function statusOrderKeyForTransition(
+  tx: DbOrTx,
+  appId: string,
+  existing: { status: MiniAppStatus; orderKey: string },
+  targetStatus: MiniAppStatus
+): string {
+  if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
+    const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
+    const [before] = tx
+      .select({ orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
+      .orderBy(desc(miniAppTable.orderKey))
+      .limit(1)
+      .all()
+    const [same] = tx
+      .select({ orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
+      .limit(1)
+      .all()
+    const [after] = tx
+      .select({ orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
+      .orderBy(asc(miniAppTable.orderKey))
+      .limit(1)
+      .all()
+
+    if (same) {
+      return existing.status === 'enabled'
+        ? generateOrderKeyBetween(before?.orderKey ?? null, same.orderKey)
+        : generateOrderKeyBetween(same.orderKey, after?.orderKey ?? null)
+    }
+    if (before || after) {
+      return generateOrderKeyBetween(before?.orderKey ?? null, after?.orderKey ?? null)
+    }
+    return existing.orderKey
+  }
+
+  const [tail] = tx
+    .select({ orderKey: miniAppTable.orderKey })
+    .from(miniAppTable)
+    .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
+    .orderBy(desc(miniAppTable.orderKey))
+    .limit(1)
+    .all()
+  return generateOrderKeyBetween(tail?.orderKey ?? null, null)
 }
 
 // The projection is EXPLICIT: a bare `select().leftJoin()` returns a table-NESTED
@@ -234,7 +319,8 @@ export class MiniAppService {
    * between them keep the same relative position among visible rows, generating
    * a fresh key between the same neighbors when needed. Moving into visible
    * status lands at the visible tail; moving into `disabled` lands at the
-   * disabled tail.
+   * disabled tail. When `order` is provided, the status and target placement
+   * commit in the same transaction.
    */
   update(appId: string, dto: UpdateMiniAppInput): MiniApp {
     const hasStatusUpdate = dto.status !== undefined
@@ -244,6 +330,10 @@ export class MiniAppService {
       ...(dto.aiQuickModelId !== undefined ? { aiQuickModelId: dto.aiQuickModelId } : {})
     }
     const hasAiModelUpdate = Object.keys(modelUpdates).length > 0
+
+    if (dto.order !== undefined && !hasStatusUpdate) {
+      throw DataApiErrorFactory.validation({ order: ['order requires status'] }, 'Order requires a status update')
+    }
 
     if (!hasStatusUpdate && !hasCustomUpdate && !hasAiModelUpdate) {
       throw DataApiErrorFactory.validation(
@@ -267,6 +357,18 @@ export class MiniAppService {
             .limit(1)
             .all()
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
+
+          const orderIsReplay =
+            dto.order !== undefined &&
+            dto.status !== undefined &&
+            existing.status === dto.status &&
+            movesPreserveCurrentOrder(tx, dto.status, [{ id: appId, anchor: dto.order }])
+          if (dto.order !== undefined && existing.status === dto.status && !orderIsReplay) {
+            throw DataApiErrorFactory.validation(
+              { order: ['order requires a status change'] },
+              'Use the order endpoint when status is unchanged'
+            )
+          }
 
           if (existing.kind === 'app' && IDENTITY_FIELDS.some((k) => dto[k] !== undefined)) {
             throw DataApiErrorFactory.invalidOperation(
@@ -306,57 +408,22 @@ export class MiniAppService {
           if (hasStatusUpdate) {
             const targetStatus = dto.status as MiniAppStatus
             updates.status = targetStatus
-            if (existing.status !== targetStatus) {
-              if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
-                const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
-                const [before] = tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
-                  .orderBy(desc(miniAppTable.orderKey))
-                  .limit(1)
-                  .all()
-                const [same] = tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
-                  .limit(1)
-                  .all()
-                const [after] = tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
-                  .orderBy(asc(miniAppTable.orderKey))
-                  .limit(1)
-                  .all()
-
-                if (same) {
-                  updates.orderKey =
-                    existing.status === 'enabled'
-                      ? generateOrderKeyBetween(before?.orderKey ?? null, same.orderKey)
-                      : generateOrderKeyBetween(same.orderKey, after?.orderKey ?? null)
-                } else if (before || after) {
-                  updates.orderKey = generateOrderKeyBetween(before?.orderKey ?? null, after?.orderKey ?? null)
-                } else {
-                  updates.orderKey = existing.orderKey
-                }
-              } else {
-                const [tail] = tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
-                  .orderBy(desc(miniAppTable.orderKey))
-                  .limit(1)
-                  .all()
-                updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
-              }
+            if (existing.status !== targetStatus && dto.order === undefined) {
+              updates.orderKey = statusOrderKeyForTransition(tx, appId, existing, targetStatus)
             }
           }
 
           // A model-only PATCH touched the installation row alone; an empty SET is a Drizzle error.
           if (Object.keys(updates).length === 0) return existing
           const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
-          return updated
+          if (dto.order === undefined || dto.status === undefined || orderIsReplay) return updated
+
+          applyMoves(tx, miniAppTable, [{ id: appId, anchor: dto.order }], {
+            pkColumn: miniAppTable.appId,
+            scope: orderScopeForStatus(dto.status)
+          })
+          const [ordered] = tx.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1).all()
+          return ordered
         }),
       defaultHandlersFor('MiniApp', appId)
     )
@@ -365,6 +432,90 @@ export class MiniAppService {
     // Re-read through the join: the written row alone would yield a LocalMiniApp
     // with no version. A row becomes a MiniApp by exactly one path.
     return this.getByAppId(appId)
+  }
+
+  updateStatusBatch(updates: MiniAppStatusBatch['updates']): void {
+    if (updates.length === 0) return
+
+    withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const visibleMoves: Array<{ id: string; anchor: OrderRequest }> = []
+          const disabledMoves: Array<{ id: string; anchor: OrderRequest }> = []
+          const existingById = new Map<string, { status: MiniAppStatus; orderKey: string }>()
+
+          for (const update of updates) {
+            const [existing] = tx
+              .select({ status: miniAppTable.status, orderKey: miniAppTable.orderKey })
+              .from(miniAppTable)
+              .where(eq(miniAppTable.appId, update.appId))
+              .limit(1)
+              .all()
+            if (!existing) throw DataApiErrorFactory.notFound('MiniApp', update.appId)
+            existingById.set(update.appId, existing)
+          }
+
+          const hasSameStatusOrder = updates.some(
+            (update) => update.order !== undefined && existingById.get(update.appId)?.status === update.status
+          )
+          if (hasSameStatusOrder) {
+            const isReplay =
+              updates.every((update) => existingById.get(update.appId)?.status === update.status) &&
+              movesPreserveCurrentOrder(
+                tx,
+                'enabled',
+                updates
+                  .filter((update) => update.order !== undefined && isVisibleStatus(update.status))
+                  .map((update) => ({ id: update.appId, anchor: update.order! }))
+              ) &&
+              movesPreserveCurrentOrder(
+                tx,
+                'disabled',
+                updates
+                  .filter((update) => update.order !== undefined && !isVisibleStatus(update.status))
+                  .map((update) => ({ id: update.appId, anchor: update.order! }))
+              )
+            if (isReplay) return
+            throw DataApiErrorFactory.validation(
+              { order: ['order requires a status change'] },
+              'Use the order endpoint when status is unchanged'
+            )
+          }
+
+          for (const update of updates) {
+            const existing = existingById.get(update.appId)!
+            const orderKey =
+              existing.status !== update.status && update.order === undefined
+                ? statusOrderKeyForTransition(tx, update.appId, existing, update.status)
+                : existing.orderKey
+            tx.update(miniAppTable)
+              .set({ status: update.status, orderKey })
+              .where(eq(miniAppTable.appId, update.appId))
+              .run()
+
+            if (update.order !== undefined) {
+              const move = { id: update.appId, anchor: update.order }
+              if (isVisibleStatus(update.status)) visibleMoves.push(move)
+              else disabledMoves.push(move)
+            }
+          }
+
+          if (visibleMoves.length > 0) {
+            applyMoves(tx, miniAppTable, visibleMoves, {
+              pkColumn: miniAppTable.appId,
+              scope: orderScopeForStatus('enabled')
+            })
+          }
+          if (disabledMoves.length > 0) {
+            applyMoves(tx, miniAppTable, disabledMoves, {
+              pkColumn: miniAppTable.appId,
+              scope: orderScopeForStatus('disabled')
+            })
+          }
+        }),
+      defaultHandlersFor('MiniApp', 'multiple')
+    )
+    logger.info('Updated miniapp statuses', { count: updates.length })
   }
 
   /**
