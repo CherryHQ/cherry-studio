@@ -706,6 +706,7 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "authOptional": true,
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2485,5 +2486,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c81369dcccb6c728"
+  "version": "686ca429dae784fa"
 }
