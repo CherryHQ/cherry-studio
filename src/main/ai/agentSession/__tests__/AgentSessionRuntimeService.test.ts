@@ -2428,7 +2428,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
       await vi.waitFor(() => {
-        expect((getEntry(service) as any).flowMessageIdsByToolCallId?.get('nested-1')).toBe('assistant-1')
+        expect(getEntry(service).flowMessageIdsByToolCallId?.get('nested-1')).toBe('assistant-1')
       })
       // A nested-root chunk routed after the replay resolves without a second DB lookup.
       const lookupCount = lookupCalls
