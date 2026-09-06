@@ -45,6 +45,7 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
     if (picked.canceled || !picked.filePaths[0]) return null
     return previewFileForInstall(picked.filePaths[0], ctx.senderId)
   },
+  'mini_app.install.preview_file': ({ filePath }, ctx) => previewFileForInstall(filePath, ctx.senderId),
   'mini_app.install.preview_url': async ({ manifestUrl }, ctx) => previewUrlForInstall(manifestUrl, ctx.senderId),
   'mini_app.install.preview_builtin': ({ appId }, ctx) => previewBuiltinForInstall(appId, ctx.senderId),
   'mini_app.install.confirm': ({ installToken, grantedOptional, reinstall }, ctx) =>

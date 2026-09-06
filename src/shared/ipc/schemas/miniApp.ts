@@ -1,4 +1,5 @@
 import { LocalMiniAppSchema } from '@shared/data/types/miniApp'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MiniAppActivityListingSchema } from '@shared/types/miniAppActivity'
 import { LocalizedNameSchema, MiniAppIdSchema, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import type { QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
@@ -146,6 +147,15 @@ export const miniAppRequestSchemas = {
   'mini_app.install.pick_and_preview': defineRoute({
     input: z.void(),
     output: InstallPreviewSummarySchema.nullable()
+  }),
+  /** Preview a dropped package without extracting it. */
+  'mini_app.install.preview_file': defineRoute({
+    input: z.strictObject({
+      filePath: AbsoluteFilePathSchema.refine((filePath) => filePath.toLowerCase().endsWith('.miniapp'), {
+        message: 'must point to a .miniapp package'
+      })
+    }),
+    output: InstallPreviewSummarySchema
   }),
   /** Fetch-and-validate by manifest address; the card is the file source's, the confirm route too. */
   'mini_app.install.preview_url': defineRoute({

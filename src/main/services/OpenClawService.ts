@@ -13,7 +13,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -810,12 +810,16 @@ export class OpenClawService extends BaseService {
     // On Windows, avoid detached: true as it creates a visible console window.
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
+    // Copy before stripping: removeEnvProxy mutates in place, and shellEnv is reused
+    // for other OpenClaw commands. OpenClaw's undici EnvHttpProxyAgent rejects socks5://.
+    const env = { ...shellEnv }
+    removeEnvProxy(env)
     const proc = crossPlatformSpawn(openclawPath, args, {
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
       env: {
-        ...shellEnv,
+        ...env,
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },

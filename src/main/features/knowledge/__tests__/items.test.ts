@@ -19,8 +19,13 @@ vi.mock('../pathStorage', async () => {
   }
 })
 
-const { canKnowledgeItemRebuildSource, classifyKnowledgeItemSource, isIndexableKnowledgeItem, toMaterialRelativePath } =
-  await import('../items')
+const {
+  canKnowledgeItemReacquireSource,
+  classifyKnowledgeItemReacquireSource,
+  classifyKnowledgeItemRestoreSource,
+  isIndexableKnowledgeItem,
+  toMaterialRelativePath
+} = await import('../items')
 
 function createItem(type: KnowledgeItem['type']): KnowledgeItem {
   const base = {
@@ -57,7 +62,7 @@ describe('indexable knowledge item helpers', () => {
   })
 })
 
-describe('classifyKnowledgeItemSource', () => {
+describe('classifyKnowledgeItemRestoreSource', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     probeKnowledgeFileMock.mockResolvedValue('readable')
@@ -67,7 +72,7 @@ describe('classifyKnowledgeItemSource', () => {
   it('checks a directory against its original folder path', async () => {
     probeKnowledgeSourcePathMock.mockResolvedValue('missing')
 
-    await expect(classifyKnowledgeItemSource('kb-1', createItem('directory'))).resolves.toBe('missing')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('directory'))).resolves.toBe('missing')
     expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith('/docs')
     expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
   })
@@ -82,14 +87,20 @@ describe('classifyKnowledgeItemSource', () => {
       }
     }
 
-    await expect(classifyKnowledgeItemSource('kb-1', file)).resolves.toBe('rebuildable')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', file)).resolves.toBe('rebuildable')
     expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'processed/file.md')
     expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
   })
 
+  it('restores a file whose original is gone, since the copy is what gets restored', async () => {
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('file'))).resolves.toBe('rebuildable')
+  })
+
   it('treats note and url items as always rebuildable without touching disk', async () => {
-    await expect(classifyKnowledgeItemSource('kb-1', createItem('note'))).resolves.toBe('rebuildable')
-    await expect(classifyKnowledgeItemSource('kb-1', createItem('url'))).resolves.toBe('rebuildable')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('note'))).resolves.toBe('rebuildable')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('url'))).resolves.toBe('rebuildable')
     expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
     expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
   })
@@ -97,11 +108,69 @@ describe('classifyKnowledgeItemSource', () => {
   it('distinguishes an unverifiable source from a missing one', async () => {
     probeKnowledgeSourcePathMock.mockResolvedValue('unverifiable')
 
-    await expect(classifyKnowledgeItemSource('kb-1', createItem('directory'))).resolves.toBe('unverifiable')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', createItem('directory'))).resolves.toBe('unverifiable')
   })
 })
 
-describe('canKnowledgeItemRebuildSource', () => {
+describe('classifyKnowledgeItemReacquireSource', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    probeKnowledgeFileMock.mockResolvedValue('readable')
+    probeKnowledgeSourcePathMock.mockResolvedValue('readable')
+  })
+
+  it('checks a file against the user’s original path, not this base’s copy', async () => {
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+
+    await expect(classifyKnowledgeItemReacquireSource(createItem('file'))).resolves.toBe('missing')
+    expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith('/docs/file.md')
+    expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores a file’s processed artifact — re-acquisition regenerates it from the original', async () => {
+    const file: KnowledgeItemOf<'file'> = {
+      ...(createItem('file') as KnowledgeItemOf<'file'>),
+      data: {
+        source: '/docs/file.md',
+        relativePath: 'file.md' as PosixRelativeFilePath,
+        indexedRelativePath: 'processed/file.md' as PosixRelativeFilePath
+      }
+    }
+
+    await expect(classifyKnowledgeItemReacquireSource(file)).resolves.toBe('rebuildable')
+    expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith('/docs/file.md')
+    expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+  })
+
+  it('checks a directory against its original folder path', async () => {
+    await expect(classifyKnowledgeItemReacquireSource(createItem('directory'))).resolves.toBe('rebuildable')
+    expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith('/docs')
+  })
+
+  it('treats note and url items as always rebuildable without touching disk', async () => {
+    await expect(classifyKnowledgeItemReacquireSource(createItem('note'))).resolves.toBe('rebuildable')
+    await expect(classifyKnowledgeItemReacquireSource(createItem('url'))).resolves.toBe('rebuildable')
+    expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a source that is not an absolute path as missing instead of throwing', async () => {
+    const file: KnowledgeItemOf<'file'> = {
+      ...(createItem('file') as KnowledgeItemOf<'file'>),
+      data: { source: 'Data/Files/abc.pdf', relativePath: 'abc.pdf' as PosixRelativeFilePath }
+    }
+
+    await expect(classifyKnowledgeItemReacquireSource(file)).resolves.toBe('missing')
+    expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes an unverifiable source from a missing one', async () => {
+    probeKnowledgeSourcePathMock.mockResolvedValue('unverifiable')
+
+    await expect(classifyKnowledgeItemReacquireSource(createItem('file'))).resolves.toBe('unverifiable')
+  })
+})
+
+describe('canKnowledgeItemReacquireSource', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     probeKnowledgeFileMock.mockResolvedValue('readable')
@@ -109,15 +178,15 @@ describe('canKnowledgeItemRebuildSource', () => {
   })
 
   it('is true only for a readable source', async () => {
-    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('directory'))).resolves.toBe(true)
+    await expect(canKnowledgeItemReacquireSource(createItem('directory'))).resolves.toBe(true)
   })
 
   it('is false for both a missing and an unverifiable source', async () => {
     probeKnowledgeSourcePathMock.mockResolvedValueOnce('missing')
-    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('directory'))).resolves.toBe(false)
+    await expect(canKnowledgeItemReacquireSource(createItem('directory'))).resolves.toBe(false)
 
     probeKnowledgeSourcePathMock.mockResolvedValueOnce('unverifiable')
-    await expect(canKnowledgeItemRebuildSource('kb-1', createItem('directory'))).resolves.toBe(false)
+    await expect(canKnowledgeItemReacquireSource(createItem('directory'))).resolves.toBe(false)
   })
 })
 

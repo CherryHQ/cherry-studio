@@ -37,7 +37,9 @@ export function useAutoBackupEvents(): void {
       setBackupSyncState(event.type, {
         syncing: false,
         lastSyncTime: event.timestamp,
-        lastSyncError: getLocalizedBackupErrorMessage(new Error(event.errorMessage))
+        lastSyncError: getLocalizedBackupErrorMessage(new Error(event.errorMessage), 'message.backup.failed', {
+          tlsCertificateHint: event.type === 'webdav'
+        })
       })
     } else {
       setBackupSyncState(event.type, { syncing: false, lastSyncTime: event.timestamp, lastSyncError: null })
@@ -49,7 +51,13 @@ export function useAutoBackupEvents(): void {
     if ((event.status === 'warning' || event.status === 'failed') && !cacheService.hasCasual(cacheKey)) {
       cacheService.setCasual(cacheKey, true, 24 * 60 * 60 * 1000) // 24 hours
       if (event.status === 'warning') toast.warning(t('message.backup.cleanup_failed'))
-      else toast.error(getLocalizedBackupErrorMessage(new Error(event.errorMessage)))
+      else {
+        toast.error(
+          getLocalizedBackupErrorMessage(new Error(event.errorMessage), 'message.backup.failed', {
+            tlsCertificateHint: event.type === 'webdav'
+          })
+        )
+      }
       void ipcApi
         .request('backup.acknowledge_auto_sync_notification', { type: event.type, id: event.id })
         .catch((error) => logger.error('Failed to acknowledge automatic backup notification', error as Error))

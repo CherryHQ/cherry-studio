@@ -1,5 +1,6 @@
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
@@ -302,6 +303,8 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  // Main-owned, session-only local model status and download progress.
+  'local_model.statuses': LocalModelStatusSnapshots
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -358,6 +361,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
