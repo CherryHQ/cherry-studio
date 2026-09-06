@@ -168,6 +168,20 @@ into MCP tool calls and emits a turn-ended event (the natural hook is
 `AgentSessionRuntimeService.handleAutonomousGenerationFinished`). That is a separate decision and PR;
 C4 does not pretend to deliver it.
 
+**Why not `CacheService` or `lru-cache`.** The registry holds resources that must be released
+(`WebContents`, debugger handles, in-flight promises, close callbacks, refcounts), not losable data.
+`CacheService` deep-compares values with `isEqual` on every `set`, never fires main subscribers on
+eviction ([cache invariant 3](../../../docs/references/data/cache-overview.md#design-invariants)), and
+only knows absolute `expireAt` — it cannot run `close` / `freeze` / `detach` on eviction, protect
+`deliverable`, or exclude `borrowed`. A session silently dropped from a cache is a leaked debugger.
+`lru-cache` (already installed) has `max` + `ttl` + `dispose`, but evicts strictly by recency, so the
+retention order would need two containers, and its TTL ignores Vitest fake timers. Every peer in the
+repo (`WebviewService.annotationSessions`, `McpRuntimeService.clients`, `CdpBrowserController`) is a
+`Map` plus a timer; so is this. What the registry does reuse: `BaseService.registerInterval` for the
+sweep, and — when P3 shows sessions in the UI — a Shared-cache projection
+(`setShared('browser.sessions.<owner>', summary)`) instead of a new IPC event. The per-tab last
+snapshot stays inside `GuestSession`; it is main-only and diffed in place.
+
 Budget constants (in `BrowserSessionService.ts`, not configurable; managed sessions only):
 
 | Constant | Value | Applies to |
