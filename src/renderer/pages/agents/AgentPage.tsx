@@ -387,6 +387,24 @@ const AgentPage = () => {
       if (defaults.workspace) return defaults.workspace
       if (defaults.workspaceMode === 'system') return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (defaults.workspaceId) return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaults.workspaceId }
+
+      const targetAgentId = defaults.agentId ?? fallbackSession?.agentId
+      const defaultWorkspaceId = targetAgentId
+        ? agents.find((agent) => agent.id === targetAgentId)?.configuration?.default_workspace_id
+        : undefined
+      if (defaultWorkspaceId) {
+        try {
+          await dataApiService.get(`/agent-workspaces/${defaultWorkspaceId}`)
+          return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaultWorkspaceId }
+        } catch (err) {
+          logger.warn('Configured default workspace is unavailable for new agent session', err as Error, {
+            agentId: targetAgentId,
+            workspaceId: defaultWorkspaceId
+          })
+          throw new Error(t('agent.session.workspace_selector.select_failed'))
+        }
+      }
+
       if (fallbackSession && (!defaults.agentId || defaults.agentId === fallbackSession.agentId)) {
         return getWorkspaceSourceFromSession(fallbackSession)
       }
@@ -404,7 +422,7 @@ const AgentPage = () => {
         return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       }
     },
-    [lastUsedWorkspaceId, setLastUsedWorkspaceId]
+    [agents, lastUsedWorkspaceId, setLastUsedWorkspaceId, t]
   )
 
   const activateSession = useCallback(
@@ -493,10 +511,13 @@ const AgentPage = () => {
 
     closeSurface()
     const pendingRequest = routeAgentSessionRequestRef.current
+    const routeAgentDefaults = agents.find((agent) => agent.id === routeAgentId)?.configuration?.default_workspace_id
+      ? { agentId: routeAgentId }
+      : { agentId: routeAgentId, workspaceMode: 'system' as const }
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
         ? pendingRequest.promise
-        : resolveEmptySession(routeAgentId, { agentId: routeAgentId, workspaceMode: 'system' })
+        : resolveEmptySession(routeAgentId, routeAgentDefaults)
     routeAgentSessionRequestRef.current = { agentId: routeAgentId, promise: sessionPromise }
 
     void sessionPromise
@@ -522,6 +543,7 @@ const AgentPage = () => {
     }
   }, [
     activeSessionId,
+    agents,
     activateSession,
     closeSurface,
     isAgentsLoading,
@@ -601,16 +623,22 @@ const AgentPage = () => {
   )
 
   const handleAgentConversationSelect = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, createdDefaultWorkspaceId?: string | null) => {
       if (isCreatingEmptySessionRef.current) return
       isCreatingEmptySessionRef.current = true
       // Close the dialog first so the session/state churn below doesn't refresh it while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
+        const persistedDefaultWorkspaceId = agents.find((agent) => agent.id === agentId)?.configuration
+          ?.default_workspace_id
+        const effectiveDefaultWorkspaceId = createdDefaultWorkspaceId ?? persistedDefaultWorkspaceId
+        const createdAgentDefaults = effectiveDefaultWorkspaceId
+          ? { agentId, workspaceId: effectiveDefaultWorkspaceId }
+          : { agentId, workspaceMode: 'system' as const }
         const session = await resolveEmptySession(
           agentId,
-          pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : { agentId, workspaceMode: 'system' }
+          pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : createdAgentDefaults
         )
         activateSession(session, agentId)
       } catch (err) {
@@ -620,7 +648,7 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, pendingSessionDefaults, resolveEmptySession, t]
+    [activateSession, agents, pendingSessionDefaults, resolveEmptySession, t]
   )
 
   const handleHistorySessionSelect = useCallback(

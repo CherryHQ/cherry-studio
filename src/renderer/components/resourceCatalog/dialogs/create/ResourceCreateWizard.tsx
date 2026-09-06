@@ -52,7 +52,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: []
+    skillIds: [],
+    defaultWorkspaceId: null
   }
 }
 
@@ -282,7 +283,8 @@ export function ResourceCreateWizard({
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
-        skillIds: values.skillIds
+        skillIds: values.skillIds,
+        ...(kind === 'agent' ? { defaultWorkspaceId: values.defaultWorkspaceId } : {})
       })
     } catch (error) {
       const message =

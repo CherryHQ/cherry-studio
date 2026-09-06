@@ -32,7 +32,8 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
     configuration: {
       avatar: values.avatar,
-      permission_mode: permissionMode
+      permission_mode: permissionMode,
+      ...(values.defaultWorkspaceId ? { default_workspace_id: values.defaultWorkspaceId } : {})
     }
   }
 }

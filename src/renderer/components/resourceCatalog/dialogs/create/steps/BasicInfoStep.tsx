@@ -11,6 +11,7 @@ import {
 import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
+import { AgentDefaultWorkspaceField } from '@renderer/components/resourceCatalog/dialogs/components/AgentDefaultWorkspaceField'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
@@ -140,6 +141,11 @@ function AgentRuntimeModelFields({
         setModelLabels={setModelLabels}
         onSettingsNavigate={onSettingsNavigate}
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
+      />
+      <FormField
+        control={form.control}
+        name="defaultWorkspaceId"
+        render={({ field }) => <AgentDefaultWorkspaceField value={field.value} onChange={field.onChange} />}
       />
     </>
   )

@@ -641,11 +641,20 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
 }))
 
 vi.mock('../components/AgentCreateDialog', () => ({
-  AgentCreateDialog: ({ open, onCreated }: { open?: boolean; onCreated?: (agentId: string) => void }) =>
+  AgentCreateDialog: ({
+    open,
+    onCreated
+  }: {
+    open?: boolean
+    onCreated?: (agentId: string, defaultWorkspaceId?: string | null) => void
+  }) =>
     open ? (
       <div data-testid="agent-create-dialog">
         <button type="button" onClick={() => onCreated?.('agent-b')}>
           Create resource agent
+        </button>
+        <button type="button" onClick={() => onCreated?.('agent-b', 'workspace-next')}>
+          Create resource agent with workspace
         </button>
       </div>
     ) : null
@@ -1204,6 +1213,30 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-picker'))
     expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+  })
+
+  it('uses the workspace returned by agent creation before the agents query refreshes', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-new-agent-workspace',
+      agentId: 'agent-b',
+      workspaceId: 'workspace-next',
+      workspace: agentPageMocks.workspaceNext
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create resource agent with workspace' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-b', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-next'
+      })
+    )
   })
 
   it('prevents duplicate empty session creation from rapid classic-layout agent creation callback', async () => {
@@ -2554,6 +2587,29 @@ describe('AgentPage', () => {
       )
     )
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
+  })
+
+  it('uses the agent default workspace for a new routed conversation', async () => {
+    agentPageMocks.routeSearch = { agentId: 'agent-a' }
+    agentPageMocks.agents = [
+      {
+        id: 'agent-a',
+        model: 'model-a',
+        name: 'Agent A',
+        configuration: { default_workspace_id: 'workspace-next' }
+      }
+    ]
+    agentPageMocks.classicLayoutSessions = []
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-next'))
+    await waitFor(() =>
+      expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-a', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-next'
+      })
+    )
   })
 
   it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
