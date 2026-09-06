@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.10",
+    "version": "2.0.12",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -77,6 +77,7 @@
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
       "/settings/screenshot",
+      "/settings/search",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -225,6 +226,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -448,16 +462,12 @@
     }
   ],
   "providers": {
-    "version": "fc4a6b28db3e604d",
+    "version": "c81369dcccb6c728",
     "count": 61,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -530,6 +540,10 @@
       {
         "id": "ollama",
         "name": "Ollama"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
       },
       {
         "id": "new-api",

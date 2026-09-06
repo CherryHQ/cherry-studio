@@ -247,10 +247,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
-    useSession: () => ({
-      session: undefined,
-      isLoading: false
-    }),
     useUpdateSession: () => ({
       updateSession: agentPageMocks.updateSession,
       setSessionWorkspace: agentPageMocks.setSessionWorkspace
@@ -302,7 +298,7 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => agentPageMocks.navigate,
-  useSearch: () => agentPageMocks.routeSearch
+  getRouteApi: () => ({ useSearch: () => agentPageMocks.routeSearch })
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({

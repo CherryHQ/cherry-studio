@@ -35,6 +35,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
+  BACKUP_NEWER_VERSION_ERROR_CODE,
+  BACKUP_OPERATION_BUSY_ERROR_CODE,
   type LocalBackupConfig,
   type S3Config,
   type WebDavConfig
@@ -44,6 +46,7 @@ import { ZipArchive } from 'archiver'
 import { Mutex, tryAcquire } from 'async-mutex'
 import Database from 'better-sqlite3'
 import dayjs from 'dayjs'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -126,7 +129,7 @@ type BackupInvocationEvent = Electron.IpcMainInvokeEvent | null
 
 export class BackupOperationBusyError extends Error {
   constructor() {
-    super('Another backup operation is already in progress.')
+    super(`${BACKUP_OPERATION_BUSY_ERROR_CODE}: Another backup operation is already in progress.`)
     this.name = 'BackupOperationBusyError'
   }
 }
@@ -1028,6 +1031,11 @@ class BackupManager {
       }
 
       const chain = this.validateStagedDatabase(workDatabase)
+      if (!this.isChainBundledPrefix(chain)) {
+        throw new Error(
+          `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
+        )
+      }
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
 
       const fileResources: RestoreJournal['fileResources'] = []
@@ -1125,6 +1133,11 @@ class BackupManager {
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
       throw new Error('This backup file is not from Cherry Studio and cannot be restored')
     }
+    if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
+      throw new Error(
+        `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (backup version ${String(raw.version)}) and cannot be restored on this version (supports ${DIRECT_BACKUP_VERSION}). Please update Cherry Studio and try again.`
+      )
+    }
     if (raw.version !== DIRECT_BACKUP_VERSION) {
       throw new Error(
         `Unsupported backup version ${String(raw.version)}. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
@@ -1206,6 +1219,25 @@ class BackupManager {
       throw new Error('Backup SQLite database could not be sealed without WAL sidecars')
     }
     return chain
+  }
+
+  private isChainBundledPrefix(chain: RestoreJournal['db']['chain']): boolean {
+    let bundled: ReturnType<typeof readMigrationFiles>
+    try {
+      bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+    } catch (error) {
+      logger.warn(
+        '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
+        error as Error
+      )
+      return true
+    }
+    if (chain.length > bundled.length) {
+      return false
+    }
+    return chain.every(
+      (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
+    )
   }
 
   private async createJournalResource(input: {

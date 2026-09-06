@@ -185,6 +185,33 @@ describe('getTopicMessages', () => {
 
     expect(messages.map((message) => message.id)).toEqual(['user', 'assistant-sibling'])
   })
+
+  it('keeps the target branch and sibling policy on every paginated request', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'branch-leaf',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'branch-leaf',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    await getTopicMessages('topic-a', { nodeId: 'branch-leaf', includeSiblings: false })
+
+    expect(dataApiService.get).toHaveBeenNthCalledWith(1, '/topics/topic-a/messages', {
+      query: { limit: 200, nodeId: 'branch-leaf', includeSiblings: false, cursor: undefined }
+    })
+    expect(dataApiService.get).toHaveBeenNthCalledWith(2, '/topics/topic-a/messages', {
+      query: { limit: 200, nodeId: 'branch-leaf', includeSiblings: false, cursor: 'older-page' }
+    })
+  })
 })
 
 describe('useTopics', () => {
