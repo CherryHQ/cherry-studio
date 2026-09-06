@@ -94,7 +94,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => {
 })
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true
+  useAgentModelFilter: () => () => true,
+  useAgentModelDisabled: () => () => false
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/useResourceCatalogController', () => ({
@@ -239,7 +240,7 @@ describe('ResourceCatalogView', () => {
     render(
       <ResourceCatalogView
         resourceType="skill"
-        resourceFilter={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
       />
     )
 
@@ -255,7 +256,7 @@ describe('ResourceCatalogView', () => {
     render(
       <ResourceCatalogView
         resourceType="skill"
-        resourceFilter={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
       />
     )
 

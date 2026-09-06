@@ -6,7 +6,7 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Copy, LoaderCircle, X } from 'lucide-react'
+import { Check, Copy, LoaderCircle, X } from 'lucide-react'
 import type { KeyboardEvent, Ref } from 'react'
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +22,7 @@ type Props = {
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
+  copied: boolean
   onCopy: () => void
   onCancelOcr: () => void
   disabled: boolean
@@ -38,6 +39,7 @@ const TranslateInputPane = ({
   onPaste,
   onDrop,
   onSelectFile,
+  copied,
   onCopy,
   onCancelOcr,
   disabled,
@@ -71,7 +73,7 @@ const TranslateInputPane = ({
   return (
     <div
       data-ui="translate.input"
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -96,7 +98,7 @@ const TranslateInputPane = ({
           disabled={!text}
           aria-label={t('common.copy')}
           className="absolute top-4 right-3">
-          <Copy size={14} />
+          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
         </IconButton>
       </div>
       {!text && (

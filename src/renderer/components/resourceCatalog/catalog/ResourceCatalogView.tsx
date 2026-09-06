@@ -23,7 +23,9 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
-  resourceFilter?: (resource: ResourceItem) => boolean
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
+  filterResource?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
@@ -34,7 +36,9 @@ export function ResourceCatalogView({
   variant = 'library',
   title,
   description,
-  resourceFilter
+  toolbarFooter,
+  allowColumnToggle,
+  filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -51,10 +55,10 @@ export function ResourceCatalogView({
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
   const visibleResources = useMemo(
-    () => (resourceFilter ? gridProps.resources.filter(resourceFilter) : gridProps.resources),
-    [gridProps.resources, resourceFilter]
+    () => (filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources),
+    [filterResource, gridProps.resources]
   )
-  const hasHiddenResources = Boolean(resourceFilter && gridProps.resources.length > 0 && visibleResources.length === 0)
+  const hasHiddenResources = Boolean(filterResource && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -95,6 +99,8 @@ export function ResourceCatalogView({
             {...gridProps}
             resources={visibleResources}
             hasHiddenResources={hasHiddenResources}
+            toolbarFooter={toolbarFooter}
+            allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}

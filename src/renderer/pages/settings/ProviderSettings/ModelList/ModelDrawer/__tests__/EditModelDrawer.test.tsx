@@ -171,11 +171,58 @@ function makeTieredPricingModel(): Model {
 
 const modelWithFullPricing = makePricingModel({ cacheReadPrice: 0.3 })
 
-describe('EditModelDrawer pricing', () => {
+describe('EditModelDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequest.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+  })
+
+  it('autosaves the settled positive minimum instead of an invalid zero', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      contextWindow: 128_000,
+      maxInputTokens: 64_000,
+      maxOutputTokens: 8_000
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const contextWindow = screen.getByLabelText('settings.models.add.context_window.label')
+    expect(contextWindow).toHaveValue('128000')
+
+    await user.clear(contextWindow)
+    await user.type(contextWindow, '0')
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ contextWindow: 1 }))
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxInputTokens')
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxOutputTokens')
+  })
+
+  it('maps a cleared token limit to null without changing the other numeric limits', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      contextWindow: 128_000,
+      maxInputTokens: 64_000,
+      maxOutputTokens: 8_000
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const maxOutputTokens = screen.getByLabelText('settings.models.add.max_output_tokens.label')
+    await user.clear(maxOutputTokens)
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        maxOutputTokens: null
+      })
+    )
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('contextWindow')
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('maxInputTokens')
   })
 
   it('keeps every pricing tier untouched when an unrelated field is edited', async () => {
@@ -240,15 +287,51 @@ describe('EditModelDrawer pricing', () => {
     expect(cacheReadPrice).toHaveValue('1.25')
   })
 
-  it('rejects non-digits in a tier boundary input', async () => {
+  it('keeps a tier boundary an integer', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
 
     const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
     await user.clear(minInputTokens)
     await user.type(minInputTokens, '12a.8')
+    expect(minInputTokens).toHaveValue('12.8')
 
-    expect(minInputTokens).toHaveValue('128')
+    await user.tab()
+
+    expect(minInputTokens).toHaveValue('12')
+  })
+
+  // The drawer passes the committed value straight through, because its own state
+  // has not re-rendered yet — so what reaches the patch is the settled number, not
+  // the text that was typed.
+  it('saves the settled context window rather than what was typed', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const field = screen.getByLabelText('settings.models.add.context_window.label')
+    await user.clear(field)
+    await user.type(field, '3.9')
+    await user.tab()
+
+    expect(field).toHaveValue('3')
+    await waitFor(() => {
+      expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ contextWindow: 3 }))
+    })
+  })
+
+  it('reports a zero tier boundary instead of raising it to the nearest legal value', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
+    await user.clear(minInputTokens)
+    await user.type(minInputTokens, '0')
+    await user.tab()
+
+    expect(minInputTokens).toHaveValue('0')
+    expect(minInputTokens).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('models.price.validation_min_input_tokens')
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {

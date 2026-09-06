@@ -20,8 +20,6 @@
  * `WebSearchService` honours one). Add one here only once the service does.
  */
 
-import { basename } from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
@@ -563,7 +561,11 @@ function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
       if (!input.path) {
         return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
       }
-      const source = basename(input.path)
+      // Source is the user-facing identifier stored on the row. Reindex rebuilds
+      // from this path; storing only the basename breaks every kb_manage refresh
+      // call after PR #19829 made reindex re-acquire from the real source
+      // (issue #19954).
+      const source = input.path
       return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
     }
     case 'url': {

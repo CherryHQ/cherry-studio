@@ -1,63 +1,59 @@
+import type { ResourceCatalogViewProps } from '@renderer/components/resourceCatalog/catalog/ResourceCatalogView'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SkillsSettings } from '../SkillsSettings'
 
 const resourceCatalogViewMock = vi.hoisted(() => vi.fn())
 
+vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'common.all': 'All',
         'settings.skills.enabledOnly': 'Enabled Skills Only',
+        'settings.skills.tabs.builtin': 'Built in',
+        'settings.skills.tabs.system': 'System',
         'settings.skills.title': 'Skills'
       })[key] ?? key
   })
 }))
 
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
-  ResourceCatalogView: (props: {
-    resourceType: string
-    resourceFilter?: (resource: ResourceItem) => boolean
-    toolbarLeading?: ReactNode
-  }) => {
+  ResourceCatalogView: (props: ResourceCatalogViewProps) => {
     resourceCatalogViewMock(props)
-    return <div data-testid="resource-catalog">{props.toolbarLeading}</div>
+    const installed = [
+      { isGlobalEnabled: true, name: 'System import', scope: 'system', source: 'system', sourceUrl: null },
+      { isGlobalEnabled: true, name: 'Builtin skill', scope: 'builtin', source: 'builtin', sourceUrl: null },
+      { isGlobalEnabled: false, name: 'Local system import', scope: 'system', source: 'local', sourceUrl: null },
+      { isGlobalEnabled: false, name: 'Unknown origin', scope: 'local', source: 'local', sourceUrl: null },
+      {
+        isGlobalEnabled: true,
+        name: 'Online import',
+        scope: 'system',
+        source: 'marketplace',
+        sourceUrl: 'https://example.com/skill'
+      }
+    ]
+    return (
+      <>
+        {props.toolbarLeading}
+        {props.toolbarFooter}
+        <ul aria-label="Installed skills">
+          {installed.map((skill) => {
+            const resource = { id: skill.name, type: 'skill', raw: skill } as ResourceItem
+            return (!props.filterResource || props.filterResource(resource)) && <li key={skill.name}>{skill.name}</li>
+          })}
+        </ul>
+      </>
+    )
   }
 }))
-
-function createSkillResource(isGlobalEnabled: boolean): Extract<ResourceItem, { type: 'skill' }> {
-  return {
-    id: isGlobalEnabled ? 'enabled-skill' : 'disabled-skill',
-    type: 'skill',
-    name: isGlobalEnabled ? 'Enabled skill' : 'Disabled skill',
-    description: '',
-    avatar: 'S',
-    createdAt: '2026-08-20T00:00:00.000Z',
-    updatedAt: '2026-08-20T00:00:00.000Z',
-    raw: {
-      id: isGlobalEnabled ? 'enabled-skill' : 'disabled-skill',
-      name: isGlobalEnabled ? 'Enabled skill' : 'Disabled skill',
-      description: '',
-      folderName: 'skill',
-      source: 'local',
-      sourceUrl: null,
-      namespace: null,
-      author: null,
-      version: null,
-      sourceTags: [],
-      contentHash: 'hash',
-      isGlobalEnabled,
-      isEnabled: isGlobalEnabled,
-      createdAt: '2026-08-20T00:00:00.000Z',
-      updatedAt: '2026-08-20T00:00:00.000Z'
-    }
-  }
-}
 
 describe('SkillsSettings', () => {
   beforeEach(() => {
@@ -65,16 +61,24 @@ describe('SkillsSettings', () => {
     resourceCatalogViewMock.mockClear()
   })
 
-  it('renders the global Skill catalog', () => {
+  it('filters the supplied catalog by physical scope rather than import provenance', async () => {
+    const user = userEvent.setup()
     render(<SkillsSettings />)
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All', 'System', 'Built in'])
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
 
-    const resourceCatalog = screen.getByTestId('resource-catalog')
-    expect(resourceCatalog).toBeInTheDocument()
-    expect(resourceCatalog.parentElement?.parentElement).toHaveClass('pt-4')
-    expect(resourceCatalogViewMock).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceType: 'skill', variant: 'settings' })
-    )
-    expect(resourceCatalogViewMock.mock.calls[0]?.[0]).not.toHaveProperty('description')
+    await user.click(screen.getByRole('tab', { name: 'System' }))
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'System import',
+      'Local system import',
+      'Online import'
+    ])
+
+    await user.click(screen.getByRole('tab', { name: 'Built in' }))
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Builtin skill'])
+
+    await user.click(screen.getByRole('tab', { name: 'All' }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
   })
 
   it('stores the enabled-only preference and restores it after reopening settings', async () => {
@@ -95,8 +99,10 @@ describe('SkillsSettings', () => {
     MockUseCacheUtils.setPersistCacheValue('settings.skills.enabled_only', true)
     render(<SkillsSettings />)
 
-    const filter = resourceCatalogViewMock.mock.calls[0]?.[0].resourceFilter
-    expect(filter(createSkillResource(true))).toBe(true)
-    expect(filter(createSkillResource(false))).toBe(false)
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'System import',
+      'Builtin skill',
+      'Online import'
+    ])
   })
 })
