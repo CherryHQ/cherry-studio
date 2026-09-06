@@ -83,6 +83,7 @@ const translations: Record<string, string> = {
   'message.copied': 'Copied',
   'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
+  'settings.doctor.actions.rerun': 'Run checks again',
   'settings.doctor.checks.config-boot-config-valid.detail.invalid_keys':
     'Some startup settings are not recognized or valid.',
   'settings.doctor.checks.config-boot-config-valid.title': 'Startup configuration',
@@ -439,6 +440,20 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
 
     await user.click(rerun)
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('offers a quick retry when embedded checks are canceled without a report', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = { status: 'canceled', runId: 'canceled-quick' }
+    renderErrorDetailContent({ error: providerError })
+
+    const retry = await screen.findByRole('button', { name: 'Run checks again' })
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(0)
+
+    await user.click(retry)
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
