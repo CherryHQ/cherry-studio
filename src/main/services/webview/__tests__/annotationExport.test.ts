@@ -1,15 +1,24 @@
-import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
-}))
+import { BaseService } from '@main/core/lifecycle'
+import { BrowserSessionService } from '@main/features/browser'
+import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { getBrowserService } = vi.hoisted(() => ({ getBrowserService: vi.fn() }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const module = mockApplicationFactory()
+  const get = module.application.get
+  module.application.get = vi.fn((name) => (name === 'BrowserSessionService' ? getBrowserService() : get(name)))
+  return module
+})
 
 import { exportAnnotationDocument } from '../annotationExport'
 
-interface MockGuest {
+interface MockGuest extends EventEmitter {
   id: number
-  debugger: {
+  debugger: EventEmitter & {
     attach: ReturnType<typeof vi.fn>
     detach: ReturnType<typeof vi.fn>
     isAttached: ReturnType<typeof vi.fn>
@@ -32,9 +41,9 @@ function createGuest(
   options: { title?: string; url?: string; devToolsOpened?: boolean } = {}
 ): MockGuest {
   let attached = false
-  return {
+  return Object.assign(new EventEmitter(), {
     id: 7,
-    debugger: {
+    debugger: Object.assign(new EventEmitter(), {
       attach: vi.fn(() => {
         attached = true
       }),
@@ -47,12 +56,12 @@ function createGuest(
         if (method === 'Page.createIsolatedWorld') return Promise.resolve({ executionContextId: 73 })
         return sendCommand(method, params)
       })
-    },
+    }),
     getTitle: vi.fn(() => options.title ?? 'Example'),
     getURL: vi.fn(() => options.url ?? 'https://example.com/page'),
     isDestroyed: vi.fn(() => false),
     isDevToolsOpened: vi.fn(() => options.devToolsOpened ?? false)
-  }
+  })
 }
 
 const exportFrom = (guest: MockGuest, annotations: WebviewAnnotation[] = [annotation]) =>
@@ -63,8 +72,15 @@ const exportFrom = (guest: MockGuest, annotations: WebviewAnnotation[] = [annota
   })
 
 describe('exportAnnotationDocument', () => {
+  let service: BrowserSessionService
   beforeEach(() => {
     vi.clearAllMocks()
+    BaseService.resetInstances()
+    service = new BrowserSessionService()
+    getBrowserService.mockReturnValue(service)
+  })
+  afterEach(async () => {
+    await service._doStop()
   })
 
   it('rejects duplicate ids before attaching the debugger', async () => {
@@ -115,6 +131,35 @@ describe('exportAnnotationDocument', () => {
       worldName: 'cherry-webview-annotation-accessibility',
       grantUniveralAccess: false
     })
+  })
+
+  it('exports through a shared session without detaching the other consumer', async () => {
+    const guest = createGuest(async (method) => {
+      if (method === 'Runtime.evaluate') return { result: { objectId: 'target' } }
+      if (method === 'DOM.describeNode') return { node: { backendNodeId: 101 } }
+      if (method === 'Accessibility.getAXNodeAndAncestors')
+        return {
+          nodes: [
+            { nodeId: 'target', backendDOMNodeId: 101, role: { value: 'button' }, name: { value: 'Shared target' } }
+          ]
+        }
+      return {}
+    })
+    const session = service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
+    await session.send('Runtime.enable')
+    const markdown = await exportFrom(guest)
+    expect(markdown).toContain('Shared target')
+    expect(session.isAvailable()).toBe(true)
+    expect(guest.debugger.attach).toHaveBeenCalledOnce()
+    service.release(guest as unknown as Electron.WebContents, 'other')
+    expect(guest.debugger.isAttached()).toBe(false)
+  })
+
+  it('does not take over an externally attached debugger', async () => {
+    const guest = createGuest(async () => ({}))
+    guest.debugger.attach()
+    expect(await exportFrom(guest)).toContain('debugger_unavailable')
+    expect(guest.debugger.isAttached()).toBe(true)
   })
 
   it('does not cross iframe frame boundaries', async () => {

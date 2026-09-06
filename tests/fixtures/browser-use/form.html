@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Browser session form</title>
+<style>
+  body { font: 16px sans-serif; padding: 24px; }
+  label, input, select, button { display: block; margin: 8px 0; }
+  .invisible { opacity: 0; }
+</style>
+<h1>Account form</h1>
+<label for="name">Name</label><input id="name" value="Alice">
+<label for="password">Password</label><input id="password" type="password" value="SYNTHETIC_PASSWORD">
+<label for="country">Country</label><select id="country"><option value="uk">United Kingdom</option><option value="us">United States</option></select>
+<label><input type="checkbox" checked>Subscribe</label>
+<label for="file">Attachment</label><input id="file" type="file">
+<button id="submit" disabled>Submit</button>
+<button class="invisible">Invisible action</button>
+<div id="shadow"></div>
+<script>
+  document.querySelector('#shadow').attachShadow({ mode: 'open' }).innerHTML = '<button>Shadow action</button>'
+</script>
+</html>

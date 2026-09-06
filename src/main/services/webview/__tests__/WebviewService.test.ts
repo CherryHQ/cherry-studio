@@ -3,29 +3,38 @@ import { EventEmitter } from 'node:events'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { shell } from 'electron'
 import type * as FsModule from 'fs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { guestById, getAllWebContents, getWindow, getPath, siteSession, localSession, agentSessions } = vi.hoisted(
-  () => ({
-    agentSessions: new Map<string, { setSpellCheckerEnabled: ReturnType<typeof vi.fn> }>(),
-    guestById: new Map<number, unknown>(),
-    getAllWebContents: vi.fn(() => [] as unknown[]),
-    getWindow: vi.fn(),
-    getPath: vi.fn(() => '/app/out/preload/webview.js'),
-    siteSession: {
-      getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
-      setUserAgent: vi.fn(),
-      setSpellCheckerEnabled: vi.fn(),
-      webRequest: { onBeforeSendHeaders: vi.fn() }
-    },
-    localSession: { setSpellCheckerEnabled: vi.fn() }
-  })
-)
+const {
+  getBrowserService,
+  guestById,
+  getAllWebContents,
+  getWindow,
+  getPath,
+  siteSession,
+  localSession,
+  agentSessions
+} = vi.hoisted(() => ({
+  getBrowserService: vi.fn(),
+  agentSessions: new Map<string, { setSpellCheckerEnabled: ReturnType<typeof vi.fn> }>(),
+  guestById: new Map<number, unknown>(),
+  getAllWebContents: vi.fn(() => [] as unknown[]),
+  getWindow: vi.fn(),
+  getPath: vi.fn(() => '/app/out/preload/webview.js'),
+  siteSession: {
+    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+    setUserAgent: vi.fn(),
+    setSpellCheckerEnabled: vi.fn(),
+    webRequest: { onBeforeSendHeaders: vi.fn() }
+  },
+  localSession: { setSpellCheckerEnabled: vi.fn() }
+}))
 
 vi.mock('@application', () => ({
   application: {
     getPath,
     get: (name: string) => {
+      if (name === 'BrowserSessionService') return getBrowserService()
       if (name === 'WindowManager') return { getWindow }
       throw new Error(`Unexpected service: ${name}`)
     }
@@ -44,7 +53,9 @@ vi.mock('@main/core/lifecycle', () => ({
   },
   Injectable: () => () => undefined,
   ServicePhase: () => () => undefined,
-  Phase: { WhenReady: 'when-ready' }
+  DependsOn: () => () => undefined,
+  Phase: { WhenReady: 'when-ready' },
+  LifecycleState: { Stopping: 'stopping' }
 }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US', t: (key: string) => key }))
 vi.mock('fs', async (importOriginal) => {
@@ -74,13 +85,24 @@ vi.mock('electron', () => ({
   webContents: { fromId: (id: number) => guestById.get(id), getAllWebContents }
 }))
 
+import { BrowserSessionService } from '@main/features/browser'
+
 import { WebviewService } from '../WebviewService'
+
+let browserService: BrowserSessionService
+beforeEach(() => {
+  browserService = new BrowserSessionService()
+  getBrowserService.mockReturnValue(browserService)
+})
+afterEach(() => {
+  ;(browserService as unknown as { onStop(): void }).onStop()
+})
 
 interface MockContents extends EventEmitter {
   id: number
   hostWebContents: object | null
   session: object
-  debugger: {
+  debugger: EventEmitter & {
     attach: ReturnType<typeof vi.fn>
     detach: ReturnType<typeof vi.fn>
     isAttached: ReturnType<typeof vi.fn>
@@ -123,7 +145,7 @@ function createContents(
   contents.send = vi.fn()
   contents.setWindowOpenHandler = vi.fn()
   const command = options.sendCommand ?? (async () => ({}))
-  contents.debugger = {
+  contents.debugger = Object.assign(new EventEmitter(), {
     attach: vi.fn(() => {
       attached = true
     }),
@@ -136,7 +158,7 @@ function createContents(
       if (method === 'Page.createIsolatedWorld') return Promise.resolve({ executionContextId: 73 })
       return command(method, params)
     })
-  }
+  })
   return contents
 }
 
