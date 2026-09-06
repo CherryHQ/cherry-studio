@@ -18,6 +18,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import type { CallOverrides } from '@main/ai/types'
 import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
 import {
@@ -29,11 +30,17 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
-import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  isUniqueModelId,
+  type Model,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { getRawModelId, isQwenMTModel } from '@shared/utils/model'
+import { getLowerBaseModelName, getRawModelId, isQwenMTModel } from '@shared/utils/model'
 import { matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { UIMessageChunk } from 'ai'
@@ -181,7 +188,7 @@ const QWEN_MT_LITE_LANGUAGE_CODES = new Set([
 ])
 
 function qwenMtModelId(model: Model): string {
-  return getRawModelId(model).toLowerCase().split('/').at(-1) ?? ''
+  return getLowerBaseModelName(getRawModelId(model))
 }
 
 function isQwenMtLiteModel(model: Model): boolean {
@@ -427,9 +434,12 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
-    const providerOptionsKey = matchesPreset(provider, SystemProviderIds.dashscope)
-      ? SystemProviderIds.dashscope
-      : model.providerId
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+    const providerOptionsKey =
+      matchesPreset(provider, SystemProviderIds.dashscope) &&
+      resolvedEndpoint.endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES
+        ? SystemProviderIds.dashscope
+        : resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
     const content = isQwenMTModel(model)
       ? text
       : preferenceService

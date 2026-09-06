@@ -1,4 +1,4 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -301,36 +301,73 @@ describe('translateService.open', () => {
     )
   })
 
-  it.each(['qwen-mt-plus', 'qwen-mt-turbo'])('normalizes cumulative %s chunks before renderer delivery', (modelId) => {
-    mockQwenMtModel(modelId)
+  it('uses the OpenAI runtime namespace for a DashScope Responses endpoint', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByProviderIdMock.mockReturnValue({
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
+        }
+      }
+    })
     getByLangCodeMock.mockReturnValue(TARGET)
 
     translateService.open(fakeSender, {
-      streamId: `translate:${modelId}`,
+      streamId: 'translate:qwen-mt-responses',
       text: 'source',
       targetLangCode: 'en-us'
     })
 
-    const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [{ listener: { onChunk(chunk: unknown): void } }]
-    streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello' })
-    streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello world' })
-
-    const rendererListener = webContentsListenerMocks.instances[0]
-    expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
-      1,
-      { type: 'text-delta', id: 'text-1', delta: 'Hello' },
-      undefined,
-      undefined,
-      undefined
-    )
-    expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
-      2,
-      { type: 'text-delta', id: 'text-1', delta: ' world' },
-      undefined,
-      undefined,
-      undefined
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            openai: expect.objectContaining({ translation_options: expect.any(Object) })
+          }
+        })
+      })
     )
   })
+
+  it.each(['qwen-mt-plus', 'qwen-mt-turbo', 'qwen-mt-plus(free)'])(
+    'normalizes cumulative %s chunks before renderer delivery',
+    (modelId) => {
+      mockQwenMtModel(modelId)
+      getByLangCodeMock.mockReturnValue(TARGET)
+
+      translateService.open(fakeSender, {
+        streamId: `translate:${modelId}`,
+        text: 'source',
+        targetLangCode: 'en-us'
+      })
+
+      const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [
+        { listener: { onChunk(chunk: unknown): void } }
+      ]
+      streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello' })
+      streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello world' })
+
+      const rendererListener = webContentsListenerMocks.instances[0]
+      expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
+        1,
+        { type: 'text-delta', id: 'text-1', delta: 'Hello' },
+        undefined,
+        undefined,
+        undefined
+      )
+      expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
+        2,
+        { type: 'text-delta', id: 'text-1', delta: ' world' },
+        undefined,
+        undefined,
+        undefined
+      )
+    }
+  )
 
   it('rejects a Qwen MT target language that the model does not support', () => {
     mockQwenMtModel('qwen-mt-turbo')
