@@ -98,7 +98,13 @@ describe('LOGS_DIR dev diversion', () => {
       path.join(DEV_PROFILE_ROOT, 'userData'),
       path.join(DEV_PROFILE_ROOT, 'logs')
     ])
-    expect(isolatedPaths.every((value) => value.startsWith(DEV_PROFILE_ROOT))).toBe(true)
+    const normalizedProfileRoot = path.normalize(DEV_PROFILE_ROOT)
+    expect(
+      isolatedPaths.every((value) => {
+        const relative = path.relative(normalizedProfileRoot, value)
+        return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+      })
+    ).toBe(true)
     expect(isolatedPaths.every((value) => !value.startsWith(os.homedir()))).toBe(true)
     expect(setAppLogsPath).toHaveBeenCalledWith(path.join(DEV_PROFILE_ROOT, 'logs'))
   })
