@@ -39,7 +39,7 @@ const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   }
 }
 
-const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title /
+const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title(?: |$)/
 
 function renderPanel() {
   render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
