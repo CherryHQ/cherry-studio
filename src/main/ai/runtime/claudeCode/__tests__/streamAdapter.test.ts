@@ -1878,6 +1878,83 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
+    it('recovers the launch root from the resume receipt when registration recovery failed', () => {
+      let lookupCalls = 0
+      messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
+        lookupCalls += 1
+        if (lookupCalls === 1) throw new Error('db locked')
+        return 'call_launch'
+      })
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Agent "agent-a1b2c3d4e5f6" had no active task; resumed from transcript',
+                resumedAgentId: 'agent-a1b2c3d4e5f6'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      // The registration-time recovery failed; the receipt itself recovers and stamps the root.
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-use'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('call_launch')
+    })
+
     it('recovers the launch root from the database when the adapter starts fresh', () => {
       // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
       // must land on the persisted launch tool-use id, not the resuming call.

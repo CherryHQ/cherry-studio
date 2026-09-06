@@ -40,6 +40,7 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -2180,13 +2181,22 @@ export class AgentSessionRuntimeService extends BaseService {
       try {
         persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
       } catch (error) {
-        // The row was deleted while its anchors survived a reconnect — the chunk has nowhere to go.
-        logger.warn('Detached subagent flow chunk lost its host message', {
+        // A row deleted while its anchors survived a reconnect has nowhere to go; any other
+        // (transient) database error must hold the chunk for retry instead of dropping it.
+        if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+          logger.warn('Detached subagent flow chunk lost its host message', {
+            sessionId: entry.sessionId,
+            messageId,
+            error
+          })
+          return null
+        }
+        logger.warn('Detached subagent flow accumulator seed failed', {
           sessionId: entry.sessionId,
           messageId,
           error
         })
-        return null
+        return 'hold'
       }
       persistedParts = persisted.data.parts ?? []
     }
@@ -2210,6 +2220,13 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
+    // Chunks held while this message had no usable accumulator (mid-drain hold, seed error) now
+    // flow into it — the buffered ones are older, so they enqueue first.
+    const held = entry.pendingBackgroundFlowChunks?.get(messageId)
+    if (held?.length) {
+      entry.pendingBackgroundFlowChunks?.delete(messageId)
+      for (const heldChunk of held) this.enqueueBackgroundFlowChunk(entry, messageId, heldChunk)
+    }
     return accumulator
   }
 
@@ -2350,6 +2367,24 @@ export class AgentSessionRuntimeService extends BaseService {
               parts,
               BACKGROUND_FLOW_HANDOFF_TTL_MS
             )
+          }
+        }
+        // Failed persists still hand the final overlay to the cache, outside the current-entry
+        // gate: after teardown there is no retry window, so the renderer keeps the output visible
+        // even though the DB row lags behind (or never lands).
+        for (const accumulator of accumulators) {
+          if (!failedMessageIds.has(accumulator.messageId)) continue
+          const successor = entry.backgroundFlowAccumulators?.get(accumulator.messageId)
+          if (successor && successor.latest) continue
+          const failedParts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          if (failedParts) {
+            application
+              .get('CacheService')
+              .setShared(
+                AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
+                failedParts,
+                BACKGROUND_FLOW_HANDOFF_TTL_MS
+              )
           }
         }
       })

@@ -1229,7 +1229,27 @@ export class ClaudeCodeStreamAdapter {
             ? normalizedResult.pin.id
             : undefined
       if (resumedAgentId) {
-        const launchToolCallId = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
+        // when the registration-time recovery failed or never ran, recover the launch root here
+        // rather than leaving the task permanently unmapped.
+        if (!launchToolCallId) {
+          try {
+            launchToolCallId =
+              agentSessionMessageService.findLaunchToolCallId(this.sessionId, resumedAgentId) ?? undefined
+            if (launchToolCallId) {
+              this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
+              if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
+            }
+          } catch (error) {
+            // Silent: the renderer's scanning fallback covers the unresolved entry.
+            logger.warn('Failed to recover launch tool call id from resume receipt', {
+              sessionId: this.sessionId,
+              resumedAgentId,
+              error
+            })
+          }
+        }
         if (launchToolCallId) {
           this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
           const cherry = providerMetadata.cherry as Record<string, unknown>

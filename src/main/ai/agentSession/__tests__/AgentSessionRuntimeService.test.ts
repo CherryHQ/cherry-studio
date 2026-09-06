@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
@@ -2398,6 +2399,144 @@ describe('AgentSessionRuntimeService', () => {
           'assistant-1',
           expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'Complete findings' })])
         )
+      })
+    })
+
+    it('holds chunks while the accumulator seed read fails and replays them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        if (seedCalls === 1) throw new Error('db busy')
+        return {
+          id: 'assistant-1',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'tool-Agent', toolCallId: 'task-root', state: 'input-available', input: { prompt: 'Audit' } }
+            ]
+          }
+        }
+      })
+
+      const sendFlow = (text: string, textId: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id: textId },
+          { type: 'text-delta', id: textId, delta: text },
+          { type: 'text-end', id: textId }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+      }
+
+      // The first seed read fails: the round's chunks must be held, not dropped.
+      sendFlow('First findings', 'first-text')
+      sendFlow('Second findings', 'second-text')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        const calls = mocks.replaceMessageParts.mock.calls
+        const last = calls.at(-1)?.[2] as Array<{ text?: string }> | undefined
+        expect(last?.some((part) => part?.text === 'First findings')).toBe(true)
+        expect(last?.some((part) => part?.text === 'Second findings')).toBe(true)
+      })
+    })
+
+    it('drops chunks whose host row is genuinely gone instead of buffering them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Message', 'assistant-1')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'lost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).not.toHaveBeenCalled())
+      expect((getEntry(service) as any).pendingBackgroundFlowChunks).toBeUndefined()
+    })
+
+    it('hands failed-flush parts to the cache overlay so teardown does not lose them', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      mocks.replaceMessageParts.mockImplementation(() => {
+        throw new Error('db locked')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'final-text' },
+        { type: 'text-delta', id: 'final-text', delta: 'Final findings' },
+        { type: 'text-end', id: 'final-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalled())
+      await vi.waitFor(() => {
+        // Streaming snapshots also hit the cache; the final overlay is the one that carries the text.
+        const call = mocks.cacheSetShared.mock.calls.find(
+          ([key, parts]) =>
+            typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Final findings')
+        )
+        expect(call).toBeDefined()
       })
     })
 
