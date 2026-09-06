@@ -149,6 +149,53 @@ describe('createRetryableWrap API key failover', () => {
     expect(attempts).toEqual(['key-1', 'key-2', 'key-2', 'key-3'])
   })
 
+  it('does not reuse an exhausted last key in later tool-loop operations', async () => {
+    const attempts: string[] = []
+    const secondKeyGenerate = vi
+      .fn<() => Promise<typeof okResult | typeof toolCallResult>>()
+      .mockImplementationOnce(async () => {
+        attempts.push('key-2')
+        return toolCallResult
+      })
+      .mockImplementationOnce(async () => {
+        attempts.push('key-2')
+        throw makeApiError(429)
+      })
+      .mockImplementation(async () => {
+        attempts.push('key-2')
+        return okResult
+      })
+    const fallbackGenerate = vi
+      .fn<() => Promise<typeof okResult | typeof toolCallResult>>()
+      .mockImplementationOnce(async () => {
+        attempts.push('fallback-model')
+        return toolCallResult
+      })
+      .mockImplementationOnce(async () => {
+        attempts.push('fallback-model')
+        return okResult
+      })
+    const wrap = createRetryableWrap({
+      apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('same-model', secondKeyGenerate))],
+      fallbacks: [fallbackOf(makeFakeLanguageModel('fallback-model', fallbackGenerate))],
+      retryPolicy: policy(true)
+    })
+    const primaryGenerate = vi.fn(async () => {
+      attempts.push('key-1')
+      throw makeApiError(401)
+    })
+    const wrapped = wrap!(makeFakeLanguageModel('same-model', primaryGenerate))
+
+    const firstStep = await wrapped.doGenerate({ prompt: [] } as never)
+    const secondStep = await wrapped.doGenerate({ prompt: [] } as never)
+    const thirdStep = await wrapped.doGenerate({ prompt: [] } as never)
+
+    expect(firstStep.content).toEqual(toolCallResult.content)
+    expect(secondStep.content).toEqual(toolCallResult.content)
+    expect(thirdStep.content).toEqual(okResult.content)
+    expect(attempts).toEqual(['key-1', 'key-2', 'key-2', 'fallback-model', 'fallback-model'])
+  })
+
   it('tries each API key once before cross-model fallback without same-key backoff', async () => {
     const attempts: string[] = []
     const secondKeyGenerate = vi.fn(async () => {

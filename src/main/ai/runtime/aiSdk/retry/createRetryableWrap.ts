@@ -101,7 +101,8 @@ function lazyFallbackRetryable(
 function apiKeyFallbackRetryable(
   resolveFallbacks: FallbackResolver[],
   onFallbackActivated?: (fallback: RetryFallback) => void,
-  wrapFallbackModel?: WrapLanguageModel
+  wrapFallbackModel?: WrapLanguageModel,
+  onExhausted?: (error: APICallError) => void
 ): Retryable<LanguageModel> {
   const resolvedFallbacks = resolveFallbacks.map((resolveFallback) =>
     lazyFallbackRetryable(resolveFallback, onFallbackActivated, wrapFallbackModel)
@@ -118,7 +119,10 @@ function apiKeyFallbackRetryable(
       return undefined
     }
     const resolve = resolvedFallbacks[nextFallbackIndex]
-    if (!resolve) return undefined
+    if (!resolve) {
+      onExhausted?.(terminalError)
+      return undefined
+    }
     return Promise.resolve(resolve(context)).then((fallback) => {
       if (!fallback) return undefined
       nextFallbackIndex += 1
@@ -217,6 +221,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       : undefined
     let activeApiKeyModel = primary
     let activeApiKeyFallback: RetryFallback | undefined
+    let exhaustedApiKeyError: APICallError | undefined
     const requestApiKeyModel: LanguageModelV3 = {
       specificationVersion: 'v3',
       get provider() {
@@ -229,10 +234,12 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         return activeApiKeyModel.supportedUrls
       },
       doGenerate: (callOptions) => {
+        if (exhaustedApiKeyError) throw exhaustedApiKeyError
         if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
         return activeApiKeyModel.doGenerate(callOptions)
       },
       doStream: (callOptions) => {
+        if (exhaustedApiKeyError) throw exhaustedApiKeyError
         if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
         return activeApiKeyModel.doStream(callOptions)
       }
@@ -252,6 +259,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
                 (model) => {
                   activeApiKeyModel = wrapApiKeyFallback?.(model) ?? model
                   return activeApiKeyModel
+                },
+                (error) => {
+                  exhaustedApiKeyError = error
                 }
               )
             ],
