@@ -1,3 +1,4 @@
+import { serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
@@ -68,8 +69,8 @@ export function serializeError(error: unknown): SerializedError {
     if ('availableProviders' in e) serialized.availableProviders = e.availableProviders as string[]
     if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
     if ('reason' in e) serialized.reason = e.reason as string
-    if ('lastError' in e) serialized.lastError = toSerializable(e.lastError)
-    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map((err) => toSerializable(err))
+    if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
+    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedProviderError)
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError) as Serializable
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string

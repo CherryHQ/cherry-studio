@@ -1,4 +1,4 @@
-import { NoSuchToolError, RetryError } from 'ai'
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../serializeError'
@@ -83,20 +83,107 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
-    it('serializes a RetryError with its discriminant fields', () => {
+    it('preserves only safe nested provider details in a RetryError', () => {
+      const providerError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat/completions?token=url-secret',
+        requestBodyValues: { messages: [{ content: 'private user prompt' }] },
+        statusCode: 429,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({
+          error: { message: 'provider concurrency limit reached' },
+          trace: 'response-secret'
+        }),
+        data: { apiKey: 'data-secret' },
+        cause: new Error('Authorization: Bearer cause-secret'),
+        isRetryable: true
+      })
       const retryError = new RetryError({
         message: 'retry failed',
         reason: 'maxRetriesExceeded',
-        errors: [new Error('attempt 1'), new Error('attempt 2')]
+        errors: [providerError]
       })
 
       const result = serializeError(retryError)
 
       expect(result.reason).toBe('maxRetriesExceeded')
-      expect(Array.isArray(result.errors)).toBe(true)
-      expect((result.errors as unknown[]).length).toBe(2)
-      // lastError is also carried.
-      expect('lastError' in result).toBe(true)
+      expect(result.lastError).toMatchObject({
+        name: 'AI_APICallError',
+        message: 'provider concurrency limit reached',
+        statusCode: 429,
+        isRetryable: true
+      })
+      expect(result.lastError).not.toHaveProperty('url')
+      expect(result.lastError).not.toHaveProperty('requestBodyValues')
+      expect(result.lastError).not.toHaveProperty('responseHeaders')
+      expect(result.lastError).not.toHaveProperty('responseBody')
+      expect(result.lastError).not.toHaveProperty('data')
+      expect(result.errors).toEqual([result.lastError])
+      expect(JSON.stringify(result)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+      )
+    })
+
+    it('redacts a plain nested retry error without serializing its cause or stack', () => {
+      const terminalError = new Error('upstream socket closed; Authorization: Bearer message-secret', {
+        cause: new Error('Authorization: Bearer cause-secret')
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toEqual({
+        name: 'Error',
+        message: 'upstream socket closed; Authorization: "<redacted>"',
+        stack: null,
+        cause: null
+      })
+      expect(result.errors).toEqual([result.lastError])
+      expect(JSON.stringify(result)).not.toMatch(/message-secret|cause-secret/)
+    })
+
+    it('drops unknown nested retry values instead of serializing credentials', () => {
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [
+          'Authorization: Bearer string-secret',
+          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
+        ] as unknown as Error[]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toBeNull()
+      expect(result.errors).toEqual([null, null])
+      expect(JSON.stringify(result)).not.toMatch(/string-secret|object-secret|nested-secret/)
+    })
+
+    it('preserves safe discriminants from a nested AI SDK error', () => {
+      const terminalError = new NoSuchToolError({
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator']
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.lastError).toMatchObject({
+        name: 'AI_NoSuchToolError',
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator'],
+        stack: null,
+        cause: null
+      })
+      expect(result.errors).toEqual([result.lastError])
     })
 
     it('serializes a NoSuchToolError with its discriminant fields', () => {

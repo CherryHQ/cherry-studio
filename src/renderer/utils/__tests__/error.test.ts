@@ -1,6 +1,7 @@
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +12,7 @@ import {
   isAbortError,
   isTimeoutError,
   providerErrorText,
+  serializeError,
   serializeHealthCheckError
 } from '../error'
 
@@ -272,56 +274,198 @@ describe('error', () => {
       ).toBe('Chute not available on your plan')
     })
 
-    it('reads the OpenAI-shaped nested message', () => {
+    it.each([
+      [400, '{"detail":{"message":"invalid model id"}}', 'invalid model id'],
+      [429, '{"error":{"message":"concurrency limit reached"}}', 'concurrency limit reached'],
+      [502, '{"message":"upstream service unavailable"}', 'upstream service unavailable']
+    ])('extracts the provider message from an HTTP %s response', (statusCode, responseBody, expected) => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
-          message: 'Forbidden',
+          message: null,
           stack: null,
-          responseBody: '{"error":{"message":"model access denied","type":"invalid_request_error"}}'
+          statusCode,
+          responseBody
         })
-      ).toBe('model access denied')
+      ).toBe(expected)
     })
 
-    it('reads a message nested under detail.error.message', () => {
+    it('extracts the final provider message from a retry error', () => {
       expect(
         providerErrorText({
-          name: 'AI_APICallError',
-          message: '429 Too Many Requests',
+          name: 'AI_RetryError',
+          message: 'Failed after retries. Last error:',
           stack: null,
-          statusCode: 429,
-          responseBody:
-            '{"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"global_concurrency_rate_limit_exceeded"}}}'
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 429,
+            responseBody: '{"error":{"message":"concurrency limit reached"}}'
+          },
+          errors: []
         })
-      ).toBe('Model API rate limit exceeded; please retry later')
+      ).toBe('concurrency limit reached')
     })
 
-    it('reads a message nested under detail.message', () => {
+    it('preserves only safe provider details when serializing a retry error', () => {
+      const providerError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat/completions?token=url-secret',
+        requestBodyValues: { messages: [{ content: 'private user prompt' }] },
+        statusCode: 403,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({
+          error: { message: 'account is not authorized for this model' },
+          trace: 'response-secret'
+        }),
+        data: { apiKey: 'data-secret' },
+        cause: new Error('Authorization: Bearer cause-secret'),
+        isRetryable: true
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [providerError]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(providerErrorText(serialized)).toBe('account is not authorized for this model')
+      expect(serialized.lastError).toMatchObject({
+        name: 'AI_APICallError',
+        message: 'account is not authorized for this model',
+        statusCode: 403,
+        isRetryable: true
+      })
+      expect(serialized.lastError).not.toHaveProperty('url')
+      expect(serialized.lastError).not.toHaveProperty('requestBodyValues')
+      expect(serialized.lastError).not.toHaveProperty('responseHeaders')
+      expect(serialized.lastError).not.toHaveProperty('responseBody')
+      expect(serialized.lastError).not.toHaveProperty('data')
+      expect(JSON.stringify(serialized)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+      )
+    })
+
+    it('preserves a plain terminal error when serializing a retry error', () => {
+      const terminalError = new Error('upstream socket closed; Authorization: Bearer message-secret', {
+        cause: new Error('Authorization: Bearer cause-secret')
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toMatchObject({
+        name: 'Error',
+        message: 'upstream socket closed; Authorization: "<redacted>"',
+        stack: null,
+        cause: null
+      })
+      expect(providerErrorText(serialized)).toBe('upstream socket closed; Authorization: "<redacted>"')
+      expect(JSON.stringify(serialized)).not.toMatch(/message-secret|cause-secret/)
+    })
+
+    it('drops unknown nested retry values instead of serializing credentials', () => {
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [
+          'Authorization: Bearer string-secret',
+          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
+        ] as unknown as Error[]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toBeNull()
+      expect(serialized.errors).toEqual([null, null])
+      expect(JSON.stringify(serialized)).not.toMatch(/string-secret|object-secret|nested-secret/)
+    })
+
+    it('preserves safe discriminants from a nested AI SDK error', () => {
+      const terminalError = new NoSuchToolError({
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator']
+      })
+      const retryError = new RetryError({
+        message: 'Failed after retries',
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const serialized = serializeError(retryError)
+
+      expect(serialized.lastError).toMatchObject({
+        name: 'AI_NoSuchToolError',
+        toolName: 'missing_tool',
+        availableTools: ['search', 'calculator'],
+        stack: null,
+        cause: null
+      })
+      expect(serialized.errors).toEqual([serialized.lastError])
+    })
+
+    it('uses the newest retry attempt when lastError is absent', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_RetryError',
+          message: 'Failed after retries. Last error:',
+          stack: null,
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: null,
+          errors: [
+            { statusCode: 400, responseBody: '{"error":{"message":"older invalid request"}}' },
+            { statusCode: 502, responseBody: '{"error":{"message":"latest upstream failure"}}' }
+          ]
+        })
+      ).toBe('latest upstream failure')
+    })
+
+    it('extracts structured provider data when the response body is absent', () => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
-          message: 'Bad Request',
+          message: null,
           stack: null,
-          responseBody: '{"detail":{"message":"invalid model id"}}'
+          statusCode: 400,
+          responseBody: null,
+          data: { error: { message: 'invalid model id' } }
         })
       ).toBe('invalid model id')
     })
 
-    it('falls back to the raw body for an unrecognised shape', () => {
+    it('does not display unknown fields from a structured provider body', () => {
       expect(
         providerErrorText({
           name: 'AI_APICallError',
           message: 'Forbidden',
           stack: null,
-          responseBody: '{"code":40301,"reason":"blocked"}'
+          responseBody: '{"token":"secret","internal":"trace"}'
         })
-      ).toBe('{"code":40301,"reason":"blocked"}')
+      ).toBe('Forbidden')
     })
 
-    it('falls back to the raw body when it is not JSON', () => {
+    it('does not display an unstructured provider body', () => {
       expect(
         providerErrorText({ name: 'AI_APICallError', message: 'Forbidden', stack: null, responseBody: '<html>nope' })
-      ).toBe('<html>nope')
+      ).toBe('Forbidden')
+    })
+
+    it('redacts credentials from an extracted provider message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: null,
+          stack: null,
+          responseBody: '{"error":{"message":"Authorization: Bearer sk-provider-secret"}}'
+        })
+      ).toBe('Authorization: "<redacted>"')
     })
 
     it('falls back to message when there is no body', () => {
@@ -329,8 +473,9 @@ describe('error', () => {
       expect(providerErrorText(undefined)).toBe('')
     })
 
-    it('truncates an oversized body', () => {
-      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody: 'x'.repeat(600) })
+    it('truncates an oversized provider message', () => {
+      const responseBody = JSON.stringify({ error: { message: 'x'.repeat(600) } })
+      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody })
       expect(result).toHaveLength(501)
       expect(result.endsWith('\u2026')).toBe(true)
     })
