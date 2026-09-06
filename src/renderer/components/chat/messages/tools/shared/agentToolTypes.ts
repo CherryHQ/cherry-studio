@@ -305,7 +305,7 @@ export function getResumedAgentId(output: unknown): string | undefined {
  * launch's toolCallId and description (which doubles as the agent's identity).
  */
 /** The launched agent id a launch receipt reports — the text trailer or a structured field. */
-function extractLaunchReceiptId(output: unknown): string | undefined {
+export function extractLaunchReceiptId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     // The trailer marker alone is spoofable by prose; require the launch receipt's structural
     // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
