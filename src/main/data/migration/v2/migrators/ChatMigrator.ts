@@ -182,7 +182,7 @@ function collectV1TopicOrderIds(source: AssistantState | undefined): string[] {
   const visit = (assistant: OldAssistant | undefined): void => {
     const topics = Array.isArray(assistant?.topics) ? assistant.topics : []
     for (const topic of topics) {
-      if (!topic.id || seen.has(topic.id)) continue
+      if (!topic?.id || seen.has(topic.id)) continue
       seen.add(topic.id)
       topicIds.push(topic.id)
     }
@@ -218,9 +218,9 @@ function orderPreparedTopicsByV1Sequence(
     remaining.delete(id)
   }
 
-  const leftovers = [...remaining.values()].sort(
-    (a, b) => b.topic.updatedAt - a.topic.updatedAt || a.topic.id.localeCompare(b.topic.id)
-  )
+  const leftovers = [...remaining.values()].sort((a, b) => {
+    return b.topic.updatedAt - a.topic.updatedAt || (a.topic.id < b.topic.id ? -1 : a.topic.id > b.topic.id ? 1 : 0)
+  })
   return [...ordered, ...leftovers]
 }
 
@@ -426,7 +426,7 @@ export class ChatMigrator extends BaseMigrator {
           // primary-wins merge contract.
           if (assistant.topics && Array.isArray(assistant.topics)) {
             for (const topic of assistant.topics) {
-              if (topic.id && !this.topicMetaLookup.has(topic.id)) {
+              if (topic?.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
                 this.topicAssistantLookup.set(topic.id, remappedId)
               }
