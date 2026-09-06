@@ -115,6 +115,7 @@ function stubBootConfig(store: BootConfigStore = {}) {
 function stubFs(opts: FsStubOptions = {}) {
   const existsSync = vi.fn(opts.existsSyncImpl ?? (() => true))
   const accessSync = vi.fn(opts.accessSyncImpl ?? (() => undefined))
+  const mkdirSync = vi.fn()
   // isUsableDataDir() gates on statSync().isDirectory(); default to a directory.
   const statSync = vi.fn(opts.statSyncImpl ?? (() => ({ isDirectory: () => true, isFile: () => false })))
   cpSyncMock.mockImplementation(opts.cpSyncImpl ?? (() => undefined))
@@ -133,10 +134,11 @@ function stubFs(opts: FsStubOptions = {}) {
       },
       readFileSync: vi.fn(),
       writeFileSync: vi.fn(),
-      mkdirSync: vi.fn()
+      mkdirSync
     }
     return { ...fsMock, default: fsMock }
   })
+  return { mkdirSync }
 }
 
 async function loadModule() {
@@ -306,6 +308,22 @@ describe('resolveUserDataLocation', () => {
       resolveUserDataLocation()
       expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDevQuito')
       expect(setPathMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('app.isPackaged=false: creates and selects the configured dev profile userData', async () => {
+      vi.stubEnv('CS_DEV_PROFILE_ROOT', '/private/tmp/cherry-profile')
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/real/user/data' } })
+      const { mkdirSync } = stubFs()
+
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+
+      expect(mkdirSync).toHaveBeenCalledWith('/private/tmp/cherry-profile/userData', { recursive: true })
+      expect(setPathMock).toHaveBeenCalledWith('userData', '/private/tmp/cherry-profile/userData')
+      expect(setPathMock).toHaveBeenCalledTimes(1)
+      expect(bootConfigGetMock).not.toHaveBeenCalled()
     })
 
     it('app.isPackaged=false: blank configured dev suffix falls back to Dev', async () => {

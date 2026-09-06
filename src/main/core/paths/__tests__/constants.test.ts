@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const DEFAULT_LOGS = '/default/Logs/CherryStudio'
 const DEFAULT_USER_DATA = '/default/userData/CherryStudio'
+const DEV_PROFILE_ROOT = '/private/tmp/cherry-profile'
 const REAL_PLATFORM = process.platform
 
 function stubPlatform(platform: NodeJS.Platform) {
@@ -71,12 +73,34 @@ afterEach(() => {
 })
 
 describe('LOGS_DIR dev diversion', () => {
-  it('packaged: leaves the platform default untouched', async () => {
+  it('packaged: ignores even an unsafe dev profile root and leaves platform defaults untouched', async () => {
     stubPlatform('darwin')
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', 'relative/profile')
     const { setAppLogsPath } = stubElectron({ isPackaged: true })
-    const { LOGS_DIR } = await loadConstants()
+    const { CHERRY_HOME, LOGS_DIR } = await loadConstants()
     expect(setAppLogsPath).not.toHaveBeenCalled()
+    expect(CHERRY_HOME).toBe(path.join(os.homedir(), '.cherrystudio'))
     expect(LOGS_DIR).toBe(DEFAULT_LOGS)
+  })
+
+  it('dev profile root keeps Cherry home, BootConfig, userData, and logs outside the real home', async () => {
+    stubPlatform('darwin')
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', `  ${DEV_PROFILE_ROOT}  `)
+    vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', 'IgnoredWhenRootIsSet')
+    const { setAppLogsPath } = stubElectron()
+
+    const { BOOT_CONFIG_PATH, CHERRY_HOME, LOGS_DIR, resolveDevUserDataPath } = await loadConstants()
+
+    const isolatedPaths = [CHERRY_HOME, BOOT_CONFIG_PATH, resolveDevUserDataPath(), LOGS_DIR]
+    expect(isolatedPaths).toEqual([
+      path.join(DEV_PROFILE_ROOT, '.cherrystudio'),
+      path.join(DEV_PROFILE_ROOT, '.cherrystudio', 'boot-config.json'),
+      path.join(DEV_PROFILE_ROOT, 'userData'),
+      path.join(DEV_PROFILE_ROOT, 'logs')
+    ])
+    expect(isolatedPaths.every((value) => value.startsWith(DEV_PROFILE_ROOT))).toBe(true)
+    expect(isolatedPaths.every((value) => !value.startsWith(os.homedir()))).toBe(true)
+    expect(setAppLogsPath).toHaveBeenCalledWith(path.join(DEV_PROFILE_ROOT, 'logs'))
   })
 
   it('dev macOS: suffixes the name-derived logs directory', async () => {
@@ -168,5 +192,25 @@ describe('CS_DEV_USER_DATA_SUFFIX validation', () => {
     stubElectron()
     const { LOGS_DIR } = await loadConstants()
     expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}Dev2`)
+  })
+})
+
+describe('CS_DEV_PROFILE_ROOT validation', () => {
+  it.each([['relative/profile'], ['/']])('aborts startup for unsafe root %j', async (value) => {
+    stubPlatform('darwin')
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', value)
+    stubElectron()
+    await expect(loadConstants()).rejects.toThrow(/CS_DEV_PROFILE_ROOT/)
+  })
+
+  it('blank values preserve the existing suffix behavior', async () => {
+    stubPlatform('darwin')
+    vi.stubEnv('CS_DEV_PROFILE_ROOT', '   ')
+    vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', 'DevQuito')
+    stubElectron()
+    const { CHERRY_HOME, LOGS_DIR, resolveDevUserDataPath } = await loadConstants()
+    expect(CHERRY_HOME).toBe(path.join(os.homedir(), '.cherrystudio'))
+    expect(resolveDevUserDataPath()).toBe(`${DEFAULT_USER_DATA}DevQuito`)
+    expect(LOGS_DIR).toBe(`${DEFAULT_LOGS}DevQuito`)
   })
 })
