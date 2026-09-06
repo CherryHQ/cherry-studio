@@ -1,5 +1,6 @@
 import { application } from '@application'
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +14,7 @@ const {
   mockStreamPrompt,
   mockGetProvider,
   mockListModels,
+  mockIsInternalAgentRequest,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
   captured
@@ -20,6 +22,7 @@ const {
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
+  mockIsInternalAgentRequest: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
   captured: {
@@ -31,11 +34,21 @@ const {
 
 vi.mock('@application', () => ({
   application: {
-    get: vi.fn((name: string) =>
-      name === 'AiStreamManager' ? { streamPrompt: mockStreamPrompt, abort: vi.fn() } : undefined
-    )
+    get: vi.fn((name: string) => {
+      if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
+      if (name === 'ApiGatewayService') {
+        return {
+          getAgentSessionId: vi.fn(),
+          resolveAgentSessionUsage: vi.fn(),
+          isInternalAgentRequest: mockIsInternalAgentRequest
+        }
+      }
+      return undefined
+    })
   }
 }))
+// cn keeps Cherry Cloud agent-only, which the external-request rejection below relies on.
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'cn' }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))
@@ -64,6 +77,7 @@ vi.mock('../adapters', () => ({
   }
 }))
 
+import { ApiGatewayService } from '../ApiGatewayService'
 import { processMessage } from '../proxyStream'
 
 const applicationGet = vi.mocked(application.get)
@@ -82,6 +96,7 @@ beforeEach(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
+  mockIsInternalAgentRequest.mockReturnValue(false)
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
@@ -89,16 +104,16 @@ beforeEach(() => {
   })
 })
 
-function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId) {
+function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId, group?: string) {
   mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
-  mockListModels.mockReturnValue([
-    {
-      id: createUniqueModelId(providerId, internalModelId),
-      providerId,
-      apiModelId,
-      capabilities: []
-    }
-  ])
+  const model = {
+    id: createUniqueModelId(providerId, internalModelId),
+    providerId,
+    apiModelId,
+    group,
+    capabilities: []
+  }
+  mockListModels.mockReturnValue([model])
 }
 
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
@@ -233,6 +248,43 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('sophnet', 'deepseek-v3', 'DeepSeek-v3')
 
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
+  })
+
+  it('does not resolve Cherry Cloud models for external requests', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+
+    await expect(
+      processMessage({
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic'
+      })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(mockListModels).not.toHaveBeenCalled()
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+
+  it('routes Cherry Cloud messages authorized by the production usage-token gate', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    const gatewayService = new ApiGatewayService()
+    mockIsInternalAgentRequest.mockImplementation((headers) => gatewayService.isInternalAgentRequest(headers))
+    const responsePromise = processMessage({
+      params: {
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
+        max_tokens: 64,
+        messages: [{ role: 'user', content: 'hello' }]
+      },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers(gatewayService.getAgentSessionUsageHeaders('session-1'))
+    })
+
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
+    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
+    void captured.opts!.listener!.onDone({} as any)
+
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
   it('rejects an address that does not match an enabled gateway model', async () => {

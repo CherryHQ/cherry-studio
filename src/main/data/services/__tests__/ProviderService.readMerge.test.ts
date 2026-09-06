@@ -10,6 +10,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+
 // Stub the registry loader with CherryIN plus a future `my-relay` preset.
 // `google-generate-content` is deliberately present for CherryIN but ABSENT
 // from the persisted rows below — modelling an install seeded before the
@@ -32,7 +34,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           },
           defaultChatEndpoint: 'openai-chat-completions',
           reportsActualCost: false,
-          reportedCostCurrency: 'USD'
+          reportedCostCurrency: 'USD',
+          availableInEditions: ['global', 'cn']
         },
         {
           id: 'my-relay',
@@ -67,62 +70,69 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
 
-  it('makes retired providers and their preset-derived copies unavailable to runtime reads and mutations', async () => {
-    await dbh.db.insert(userProviderTable).values([
-      {
-        providerId: 'github',
-        presetProviderId: 'github',
-        name: 'GitHub Models',
-        apiKeys: [{ id: 'github-key', key: 'secret', isEnabled: true }],
-        orderKey: 'a0'
-      },
-      {
-        providerId: 'github-copy',
-        presetProviderId: 'github',
-        name: 'GitHub Models Copy',
-        apiKeys: [{ id: 'github-copy-key', key: 'copy-secret', isEnabled: true }],
-        orderKey: 'a1'
-      },
-      {
-        providerId: 'custom-relay',
-        presetProviderId: null,
-        name: 'Custom Relay',
-        orderKey: 'a2'
+  it.each(['github', 'yi'])(
+    'makes retired %s providers and copies unavailable without deleting data',
+    async (retiredId) => {
+      await dbh.db.insert(userProviderTable).values([
+        {
+          providerId: retiredId,
+          presetProviderId: null,
+          name: 'Retired Provider',
+          apiKeys: [{ id: `${retiredId}-key`, key: 'secret', isEnabled: true }],
+          orderKey: 'a0'
+        },
+        {
+          providerId: `${retiredId}-copy`,
+          presetProviderId: retiredId,
+          name: 'Retired Provider Copy',
+          apiKeys: [{ id: `${retiredId}-copy-key`, key: 'copy-secret', isEnabled: true }],
+          orderKey: 'a1'
+        },
+        {
+          providerId: 'custom-relay',
+          presetProviderId: null,
+          name: 'Custom Relay',
+          orderKey: 'a2'
+        }
+      ])
+
+      const originalRows = dbh.db.select().from(userProviderTable).all()
+
+      expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-relay'])
+      expect(() => providerService.getByProviderId(retiredId)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(() => providerService.getByProviderId(`${retiredId}-copy`)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+
+      for (const { providerId, keyId } of [
+        { providerId: retiredId, keyId: `${retiredId}-key` },
+        { providerId: `${retiredId}-copy`, keyId: `${retiredId}-copy-key` }
+      ]) {
+        const operations = [
+          () => providerService.assertAvailable(providerId),
+          () => providerService.update(providerId, { name: 'Still retired' }),
+          () => providerService.resolveApiKey(providerId),
+          () => providerService.getApiKeys(providerId),
+          () => providerService.getAuthConfig(providerId),
+          () => providerService.addApiKey(providerId, 'new-secret'),
+          () =>
+            providerService.replaceApiKeys(providerId, [
+              { id: 'replacement-key', key: 'replacement-secret', isEnabled: true }
+            ]),
+          () => providerService.updateApiKey(providerId, keyId, { label: 'updated' }),
+          () => providerService.deleteApiKey(providerId, keyId),
+          () => providerService.delete(providerId)
+        ]
+
+        for (const operation of operations) {
+          expect(operation).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+        }
       }
-    ])
-
-    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-relay'])
-    expect(() => providerService.getByProviderId('github')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-    expect(() => providerService.getByProviderId('github-copy')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-
-    for (const { providerId, keyId } of [
-      { providerId: 'github', keyId: 'github-key' },
-      { providerId: 'github-copy', keyId: 'github-copy-key' }
-    ]) {
-      const operations = [
-        () => providerService.update(providerId, { name: 'Still retired' }),
-        () => providerService.resolveApiKey(providerId),
-        () => providerService.getApiKeys(providerId),
-        () => providerService.getAuthConfig(providerId),
-        () => providerService.addApiKey(providerId, 'new-secret'),
-        () =>
-          providerService.replaceApiKeys(providerId, [
-            { id: 'replacement-key', key: 'replacement-secret', isEnabled: true }
-          ]),
-        () => providerService.updateApiKey(providerId, keyId, { label: 'updated' }),
-        () => providerService.deleteApiKey(providerId, keyId),
-        () => providerService.delete(providerId)
-      ]
-
-      for (const operation of operations) {
-        expect(operation).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
-      }
+      expect(dbh.db.select().from(userProviderTable).all()).toEqual(originalRows)
     }
-  })
+  )
 
   it('surfaces a registry-added endpoint type absent from the persisted row', async () => {
     // Stale seed: only openai-chat persisted; google-generate-content added to
@@ -224,6 +234,27 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
+    expect(provider.availableInEditions).toEqual(['global', 'cn'])
+  })
+
+  it('keeps providers absent from the current registry edition-neutral', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'hyperbolic',
+        presetProviderId: 'hyperbolic',
+        name: 'Hyperbolic',
+        orderKey: 'a0'
+      },
+      {
+        providerId: 'custom-provider',
+        presetProviderId: null,
+        name: 'Custom Provider',
+        orderKey: 'a1'
+      }
+    ])
+
+    expect(providerService.getByProviderId('hyperbolic').availableInEditions).toBeUndefined()
+    expect(providerService.getByProviderId('custom-provider').availableInEditions).toBeUndefined()
   })
 
   it('persists an endpoint dialect as a delta: deviations stick, registry echoes vanish', async () => {

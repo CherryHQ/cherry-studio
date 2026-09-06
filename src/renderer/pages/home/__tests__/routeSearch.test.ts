@@ -6,32 +6,28 @@ describe('parseChatRouteSearch', () => {
   it('parses the sidebar assistantId for pinned entity entries', () => {
     expect(parseChatRouteSearch({ assistantId: 'assistant-1' })).toEqual({
       assistantId: 'assistant-1',
-      topicId: undefined,
-      view: undefined
+      topicId: undefined
     })
   })
 
   it('keeps assistantId alongside an explicit topic', () => {
     expect(parseChatRouteSearch({ assistantId: 'assistant-1', topicId: 'topic-1' })).toEqual({
       assistantId: 'assistant-1',
-      topicId: 'topic-1',
-      view: undefined
+      topicId: 'topic-1'
     })
   })
 
-  it('parses topic and message view', () => {
+  it('keeps the topic of a tab restored with the legacy message-only view param', () => {
     expect(parseChatRouteSearch({ topicId: 'topic-1', view: 'message' })).toEqual({
       assistantId: undefined,
-      topicId: 'topic-1',
-      view: 'message'
+      topicId: 'topic-1'
     })
   })
 
-  it('drops non-string assistantId values and unknown views', () => {
-    expect(parseChatRouteSearch({ assistantId: 7, view: 'other' })).toEqual({
+  it('drops non-string assistantId values', () => {
+    expect(parseChatRouteSearch({ assistantId: 7 })).toEqual({
       assistantId: undefined,
-      topicId: undefined,
-      view: undefined
+      topicId: undefined
     })
   })
 })

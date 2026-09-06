@@ -36,6 +36,7 @@ vi.mock('@application', () => ({
     })
   }
 }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))
