@@ -3838,6 +3838,87 @@ describe('Sessions', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
+  it('does not reveal hidden protected built-in tasks while their metadata is loading', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => ({
+      agents: options?.ids ? [] : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: options?.ids?.includes('cherry-support') ?? false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('does not reveal hidden protected built-in tasks when their metadata fails to load', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    const hiddenAgentError = new Error('Hidden Agent request failed')
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => ({
+      agents: options?.ids ? [] : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: options?.ids?.includes('cherry-support') ? hiddenAgentError : undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Hidden Agent request failed')
+  })
+
+  it('recovers protected built-in Agent actions when the main Agent page omits their identity', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => ({
+      agents: options?.ids?.includes('cherry-support')
+        ? [
+            {
+              id: 'cherry-support',
+              model: 'model-a',
+              name: 'Cherry Support',
+              configuration: { builtin_role: 'support' }
+            }
+          ]
+        : options?.ids
+          ? []
+          : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Cherry Support' }).closest('div')
+    expect(agentGroup).not.toBeNull()
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    expect(screen.getAllByRole('menuitem', { name: 'Hide from list' })).not.toHaveLength(0)
+  })
+
   it.each([
     { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
     { builtinRole: 'support' as const, name: 'Cherry Support' }

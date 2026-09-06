@@ -1,20 +1,58 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
+import { agentAdapter, useAgentMutations, useAgentMutationsById } from '../agentAdapter'
 
 const triggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
+const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const hiddenBuiltinAgentIdsMock = vi.hoisted(() => ({ value: [] as string[] }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useMutation: useMutationMock,
-  useQuery: vi.fn()
+  useQuery: useQueryMock
+}))
+
+vi.mock('@renderer/hooks/agent/useBuiltinAgentListVisibility', () => ({
+  useBuiltinAgentListVisibility: () => ({ hiddenBuiltinAgentIds: hiddenBuiltinAgentIdsMock.value })
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
+describe('agentAdapter.useList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hiddenBuiltinAgentIdsMock.value = []
+  })
+
+  it('includes hidden protected built-ins omitted from the main catalog page', () => {
+    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
+      data: {
+        items: options.query.ids
+          ? [
+              {
+                id: 'cherry-support',
+                name: 'Cherry Support',
+                configuration: { builtin_role: 'support' }
+              }
+            ]
+          : [{ id: 'agent-1', name: 'Agent', configuration: {} }]
+      },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1', 'cherry-support'])
+  })
+})
 
 describe('useAgentMutationsById', () => {
   beforeEach(() => {

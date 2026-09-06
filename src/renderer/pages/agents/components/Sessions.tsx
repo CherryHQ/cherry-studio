@@ -389,7 +389,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
+  const { hiddenBuiltinAgentIds = [], hideBuiltinAgent } = useBuiltinAgentListVisibility()
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -418,7 +418,12 @@ const Sessions = ({
     togglePin
   } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
-  const { agents: hiddenBuiltinAgents } = useAgents({ ids: hiddenBuiltinAgentIds })
+  const {
+    agents: hiddenBuiltinAgents,
+    error: hiddenBuiltinAgentsError,
+    isLoading: isHiddenBuiltinAgentsLoading,
+    refetch: refetchHiddenBuiltinAgents
+  } = useAgents({ ids: hiddenBuiltinAgentIds })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
@@ -494,6 +499,23 @@ const Sessions = ({
     return reconciliation.items
   }, [pinIdBySessionId, sessions])
   const { items: sessionItems, rename: renameSessionOptimistically } = useOptimisticResourceName(apiBackedSessionItems)
+  const loadedAgentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
+  const missingSessionAgentIds = useMemo(() => {
+    const missingIds = new Set<string>()
+    for (const session of sessionItems) {
+      if (session.agentId && !loadedAgentIdSet.has(session.agentId)) missingIds.add(session.agentId)
+    }
+    return [...missingIds]
+  }, [loadedAgentIdSet, sessionItems])
+  const {
+    agents: sessionAgents,
+    error: sessionAgentsError,
+    isLoading: isSessionAgentsLoading,
+    refetch: refetchSessionAgents
+  } = useAgents({
+    enabled: displayMode === 'agent' && !isAgentsLoading,
+    ids: missingSessionAgentIds
+  })
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const togglePinRef = useRef(togglePin)
@@ -581,8 +603,12 @@ const Sessions = ({
       ),
     [hiddenBuiltinAgentIdSet, hiddenBuiltinAgents]
   )
+  const agentsWithSessionMetadata = useMemo(() => {
+    const knownAgentIds = new Set(agents.map((agent) => agent.id))
+    return [...agents, ...sessionAgents.filter((agent) => !knownAgentIds.has(agent.id))]
+  }, [agents, sessionAgents])
   const agentsForDisplay = useMemo(() => {
-    const visibleAgents = agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id))
+    const visibleAgents = agentsWithSessionMetadata.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id))
     if (!optimisticAgentOrderIds) return visibleAgents
 
     const agentById = new Map(visibleAgents.map((agent) => [agent.id, agent]))
@@ -599,7 +625,7 @@ const Sessions = ({
     }
 
     return orderedAgents
-  }, [agents, hiddenProtectedAgentIdSet, optimisticAgentOrderIds])
+  }, [agentsWithSessionMetadata, hiddenProtectedAgentIdSet, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
@@ -1232,10 +1258,28 @@ const Sessions = ({
 
   const handleRetry = useCallback(async () => {
     await reload()
+    if (hiddenBuiltinAgentIds.length > 0) {
+      await refetchHiddenBuiltinAgents()
+    }
+    if (displayMode === 'agent') {
+      await refetchAgents()
+      if (missingSessionAgentIds.length > 0) {
+        await refetchSessionAgents()
+      }
+    }
     if (displayMode === 'workdir') {
       await refetchWorkspaces()
     }
-  }, [displayMode, refetchWorkspaces, reload])
+  }, [
+    displayMode,
+    hiddenBuiltinAgentIds.length,
+    missingSessionAgentIds.length,
+    refetchAgents,
+    refetchHiddenBuiltinAgents,
+    refetchSessionAgents,
+    refetchWorkspaces,
+    reload
+  ])
 
   const handleDeleteAgent = useCallback(
     async (agentId: string) => {
@@ -1967,16 +2011,25 @@ const Sessions = ({
     ]
   )
 
-  const listError =
-    error ?? (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
+  const metadataError =
+    hiddenBuiltinAgentsError ??
+    (displayMode === 'agent'
+      ? (agentsError ?? sessionAgentsError)
+      : displayMode === 'workdir'
+        ? workspacesError
+        : undefined)
+  const listError = error ?? metadataError
   const historyLoading = isLoadingAll || !isFullyLoaded
   const metadataLoading =
-    isSessionPinsLoading || isWorkdirMetadataLoading || (displayMode === 'agent' && isAgentsLoading)
+    isSessionPinsLoading ||
+    isHiddenBuiltinAgentsLoading ||
+    isWorkdirMetadataLoading ||
+    (displayMode === 'agent' && (isAgentsLoading || isSessionAgentsLoading))
   const listLoading = historyLoading || metadataLoading
   const listValidating = isValidating || isWorkdirMetadataRefreshing
   const visibleGroupedSessions = useMemo(
-    () => (metadataLoading ? [] : filteredGroupedSessions),
-    [filteredGroupedSessions, metadataLoading]
+    () => (metadataLoading || metadataError ? [] : filteredGroupedSessions),
+    [filteredGroupedSessions, metadataError, metadataLoading]
   )
   const listStatus = listError
     ? 'error'
