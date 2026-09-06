@@ -97,7 +97,7 @@ const baseProps = (): BarProps => ({
   isBidirectional: false,
   showSourceControls: true,
   bidirectionalPair: [english.langCode, chinese.langCode],
-  couldExchange: true,
+  couldExchange: false,
   onExchange: vi.fn()
 })
 
@@ -127,17 +127,24 @@ describe('TranslateLanguageBar', () => {
     expect(screen.getByText('translate.source_language')).toBeInTheDocument()
     expect(screen.getByText('translate.target_language')).toBeInTheDocument()
     expect(screen.getByText('English')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
   })
 
-  it('renders only the target language control for single-direction text translation', () => {
+  it('renders an enabled swap action for exchangeable single-direction text', () => {
     const props = baseProps()
+    props.sourceLanguage = chinese.langCode
     props.showSourceControls = false
+    props.couldExchange = true
 
     render(<TranslateLanguageBar {...props} />)
 
     expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
+    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
+    expect(swapButton).toBeEnabled()
     expect(screen.getByRole('button', { name: targetLanguageButtonName })).toBeInTheDocument()
+
+    fireEvent.click(swapButton)
+    expect(props.onExchange).toHaveBeenCalled()
   })
 
   it('labels the lone target control so it explains what is being selected', () => {
@@ -208,20 +215,12 @@ describe('TranslateLanguageBar', () => {
     expect(props.onSourceChange).toHaveBeenCalledWith('auto')
   })
 
-  it('invokes onExchange when swap button is clicked', () => {
+  it('hides swap button when exchange is unavailable', () => {
     const props = baseProps()
-    render(<TranslateLanguageBar {...props} />)
-    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
-    fireEvent.click(swapButton)
-    expect(props.onExchange).toHaveBeenCalled()
-  })
-
-  it('disables swap button when couldExchange is false', () => {
-    const props = baseProps()
+    props.showSourceControls = false
     props.couldExchange = false
     render(<TranslateLanguageBar {...props} />)
-    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
-    expect(swapButton).toHaveAttribute('disabled')
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
   })
 
   it('renders bidirectional pair display without the source dropdown', () => {
