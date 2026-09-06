@@ -356,6 +356,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
           iframeRef={iframeRef}
           sandbox="allow-same-origin"
           csp={HTML_PREVIEW_RESTRICTED_CSP}
+          stableScrollbarGutter
         />
       </div>
     </div>

@@ -42,6 +42,8 @@ interface HtmlPreviewFrameProps {
    *  one; not injected for other sandboxes (e.g. interactive artifacts need full network
    *  access). Pass an explicit value (or `''` to disable) to override. */
   csp?: string
+  /** Reserve native scrollbar width for surfaces whose height tracks their content. */
+  stableScrollbarGutter?: boolean
   iframeRef?: Ref<HTMLIFrameElement>
 }
 
@@ -90,6 +92,63 @@ export function injectHtmlPreviewCsp(html: string, csp: string): string {
   )
 }
 
+export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-scrollbar'
+const HTML_PREVIEW_SCROLLBAR_GUTTER_CSS = 'html{overflow-y:auto;scrollbar-gutter:stable}'
+export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>${HTML_PREVIEW_SCROLLBAR_GUTTER_CSS}</style>`
+
+function isActiveOwnedScrollbarStyle(attributes: Record<string, string>): boolean {
+  if (!(HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes)) return false
+  // `disabled` stylesheets are not applied and must not suppress live head injection
+  return !('disabled' in attributes)
+}
+
+function hasHtmlPreviewScrollbarGutter(html: string): boolean {
+  let found = false
+  let ownedStyle = false
+  let styleContent = ''
+  let inactiveDepth = 0
+  const parser = new Parser(
+    {
+      onopentag(name, attributes) {
+        if (name === 'template' || name === 'noscript') {
+          inactiveDepth += 1
+        } else if (inactiveDepth === 0 && name === 'style' && isActiveOwnedScrollbarStyle(attributes)) {
+          ownedStyle = true
+          styleContent = ''
+        }
+      },
+      ontext(text) {
+        if (ownedStyle) styleContent += text
+      },
+      onclosetag(name) {
+        if (name === 'style' && ownedStyle) {
+          found ||= styleContent === HTML_PREVIEW_SCROLLBAR_GUTTER_CSS
+          ownedStyle = false
+        } else if (name === 'template' || name === 'noscript') {
+          inactiveDepth -= 1
+        }
+      }
+    },
+    { lowerCaseTags: true }
+  )
+  parser.end(html)
+  return found
+}
+
+export function injectHtmlPreviewScrollbarGutter(html: string): string {
+  if (!html.trim() || hasHtmlPreviewScrollbarGutter(html)) return html
+  return injectHtmlPreviewHeadElement(html, HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
+}
+
+export function applyHtmlPreviewScrollbarGutter(frameDocument: Document | null): void {
+  const scrollRoot = frameDocument?.scrollingElement ?? frameDocument?.documentElement
+  if (!scrollRoot || !('style' in scrollRoot)) return
+
+  const style = (scrollRoot as HTMLElement).style
+  style.overflowY = 'auto'
+  style.scrollbarGutter = 'stable'
+}
+
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
   ({
     html,
@@ -98,13 +157,15 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     emptyText,
     sandbox = HTML_PREVIEW_RESTRICTED_SANDBOX,
     csp,
+    stableScrollbarGutter = false,
     iframeRef
   }) => {
     // CSP follows the sandbox tier: restricted frames get the strict CSP, interactive
     // sandboxes keep full network access unless the caller overrides.
     const effectiveCsp = csp ?? (sandbox === HTML_PREVIEW_RESTRICTED_SANDBOX ? HTML_PREVIEW_RESTRICTED_CSP : undefined)
     const withBase = injectHtmlPreviewBase(html, baseUrl)
-    const srcDoc = effectiveCsp ? injectHtmlPreviewCsp(withBase, effectiveCsp) : withBase
+    const withScrollbar = stableScrollbarGutter ? injectHtmlPreviewScrollbarGutter(withBase) : withBase
+    const srcDoc = effectiveCsp ? injectHtmlPreviewCsp(withScrollbar, effectiveCsp) : withScrollbar
     return (
       <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (
@@ -114,6 +175,11 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
             title={title}
             sandbox={sandbox}
             className="h-full w-full border-0 bg-white"
+            onLoad={
+              stableScrollbarGutter
+                ? (event) => applyHtmlPreviewScrollbarGutter(event.currentTarget.contentDocument)
+                : undefined
+            }
           />
         ) : emptyText ? (
           <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">
