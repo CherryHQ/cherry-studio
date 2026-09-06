@@ -64,6 +64,44 @@ describe('getSafeProviderErrorMessage', () => {
     }
   )
 
+  it.each(PROVIDER_TEXT_FIELDS)(
+    'ignores malformed single-quoted and escaped-quote containers in %s',
+    (_field, payloadFor) => {
+      const privateObject = JSON.stringify({ prompt: 'private user prompt', trace: 'internal trace' })
+
+      for (const privatePayload of [`'${privateObject}`, `\\"${privateObject}`]) {
+        const message = getSafeProviderErrorMessage({
+          message: 'Bad Request',
+          responseBody: JSON.stringify(payloadFor(privatePayload))
+        })
+
+        expect(message).toBe('Bad Request')
+        expect(message).not.toMatch(/private user prompt|internal trace/)
+      }
+    }
+  )
+
+  it('ignores an oversized provider payload before decoding it', () => {
+    const message = getSafeProviderErrorMessage({
+      message: 'Bad Request',
+      responseBody: JSON.stringify({ detail: 'x'.repeat(1_000_000) })
+    })
+
+    expect(message).toBe('Bad Request')
+  })
+
+  it('ignores provider text nested beyond the supported decode depth', () => {
+    let deeplyEncoded = 'Service temporarily unavailable'
+    for (let depth = 0; depth < 8; depth += 1) deeplyEncoded = JSON.stringify(deeplyEncoded)
+
+    expect(
+      getSafeProviderErrorMessage({
+        message: 'Bad Request',
+        responseBody: JSON.stringify({ detail: deeplyEncoded })
+      })
+    ).toBe('Bad Request')
+  })
+
   it.each(PROVIDER_TEXT_FIELDS)('keeps normal provider text in %s', (_field, payloadFor) => {
     expect(
       getSafeProviderErrorMessage({ responseBody: JSON.stringify(payloadFor('Service temporarily unavailable')) })

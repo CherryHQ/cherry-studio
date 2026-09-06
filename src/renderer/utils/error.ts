@@ -8,8 +8,8 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
-import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/utils/providerError'
 import { safeSerialize } from '@shared/utils/serialize'
 import { AISDKError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'

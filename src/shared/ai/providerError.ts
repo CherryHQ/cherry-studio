@@ -2,9 +2,11 @@ import { AISDKError, APICallError } from 'ai'
 
 import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
-import { redactSecretText } from './redaction'
+import { redactSecretText } from '../utils/redaction'
 
 const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
+const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
+const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 
 interface ProviderErrorSource {
@@ -28,22 +30,25 @@ const SAFE_AI_SDK_STRING_FIELDS = [
 ] as const
 
 function actionableText(value: unknown): string {
-  if (typeof value !== 'string') return ''
+  if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   const text = value.trim()
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
 
 function startsWithEncodedContainer(text: string): boolean {
   let candidate = text.trimStart()
-  while (candidate.startsWith('"')) candidate = candidate.slice(1).trimStart()
+  while (candidate.startsWith('"') || candidate.startsWith("'") || candidate.startsWith('\\')) {
+    candidate = candidate.slice(1).trimStart()
+  }
   return candidate.startsWith('{') || candidate.startsWith('[')
 }
 
 function providerPayloadText(value: unknown): string {
-  if (typeof value !== 'string') return ''
+  if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   let parsed: unknown = value
-  while (typeof parsed === 'string') {
+  for (let depth = 0; depth < MAX_PROVIDER_ERROR_DECODE_DEPTH && typeof parsed === 'string'; depth += 1) {
     const text = parsed
+    if (text.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
     try {
       parsed = JSON.parse(text)
     } catch {
@@ -51,14 +56,16 @@ function providerPayloadText(value: unknown): string {
       return actionableText(value)
     }
   }
+  if (typeof parsed === 'string') return ''
   if (typeof parsed === 'object' && parsed !== null) return ''
   return actionableText(value)
 }
 
-function payloadText(value: unknown): string {
+function payloadText(value: unknown, decodeDepth = 0): string {
   if (typeof value === 'string') {
+    if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
     try {
-      return payloadText(JSON.parse(value))
+      return payloadText(JSON.parse(value), decodeDepth + 1)
     } catch {
       return ''
     }
