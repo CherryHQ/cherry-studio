@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
@@ -472,6 +473,60 @@ describe('buildAgentParams provider resolution', () => {
     expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
     expect(requestFetches[2]).toBe(requestFetches[0])
     expect(requestFetches[1]).not.toBe(requestFetches[0])
+  })
+
+  it('preserves caller raw body parameters through Anthropic request serialization', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    const innerFetch: typeof globalThis.fetch = async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body))
+      throw new Error('request captured')
+    }
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: { fetch: innerFetch } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'dashscope::qwen-mt-flash',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-flash',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    const rawBodyParameters = {
+      translation_options: { source_lang: 'auto', target_lang: 'English' },
+      incremental_output: true
+    }
+
+    const result = await buildAgentParams({
+      request: {
+        callOverrides: {
+          providerOptions: { anthropic: rawBodyParameters },
+          rawBodyParameters
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+    const sdkModel = createAnthropic({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: result.sdkConfig.providerSettings.fetch
+    }).languageModel(model.apiModelId!)
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject(rawBodyParameters)
   })
 })
 

@@ -245,6 +245,12 @@ describe('translateService.open', () => {
       expect.objectContaining({
         prompt: '原文',
         callOverrides: expect.objectContaining({
+          rawBodyParameters: {
+            translation_options: {
+              source_lang: 'auto',
+              target_lang: expectedTargetLanguage
+            }
+          },
           providerOptions: {
             dashscope: {
               translation_options: {
@@ -271,6 +277,7 @@ describe('translateService.open', () => {
     expect(streamPromptMock).toHaveBeenCalledWith(
       expect.objectContaining({
         callOverrides: expect.objectContaining({
+          rawBodyParameters: expect.objectContaining({ incremental_output: true }),
           providerOptions: {
             dashscope: expect.objectContaining({ incremental_output: true })
           }

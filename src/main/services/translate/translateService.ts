@@ -384,14 +384,17 @@ export class TranslateService {
     const temperature = getTemperature(settings, model, reasoning)
     const topP = getTopP(settings, model, reasoning)
     let providerOptions: CallOverrides['providerOptions']
+    let rawBodyParameters: CallOverrides['rawBodyParameters']
     if (targetLanguage && isQwenMTModel(model)) {
       const targetLang = resolveQwenMtTargetLanguage(targetLanguage, model)
       if (!targetLang) throw new Error(NOT_SUPPORTED_ERROR)
+      const qwenMtParameters = {
+        translation_options: { source_lang: 'auto', target_lang: targetLang },
+        ...(isQwenMtIncrementalModel(model) && { incremental_output: true })
+      }
+      rawBodyParameters = qwenMtParameters
       providerOptions = {
-        [providerOptionsKey]: {
-          translation_options: { source_lang: 'auto', target_lang: targetLang },
-          ...(isQwenMtIncrementalModel(model) && { incremental_output: true })
-        }
+        [providerOptionsKey]: qwenMtParameters
       }
     }
 
@@ -400,7 +403,8 @@ export class TranslateService {
       callOverrides: {
         ...(temperature !== undefined && { temperature }),
         ...(topP !== undefined && { topP }),
-        ...(providerOptions && { providerOptions })
+        ...(providerOptions && { providerOptions }),
+        ...(rawBodyParameters && { rawBodyParameters })
       }
     }
   }
