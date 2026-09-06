@@ -50,7 +50,7 @@ function useTooltipUnmountDelay(open: boolean): boolean {
   return visible
 }
 
-/** 清扫延迟 = 退出动画窗口 + 余量：先让其他实例的退出动画走完，再移除 closed 残骸。 */
+/** 清扫延迟 = 退出动画窗口 + 余量：正常实例在退出窗口内自行卸载，此期间不触发清扫。 */
 const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
 
 /**
@@ -60,11 +60,9 @@ const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
 function useTooltipController(
   controlledOpen: boolean | undefined,
   onOpenChange?: (open: boolean) => void,
-  defaultOpen = false,
-  sweepContainer?: Element | DocumentFragment | null
+  defaultOpen = false
 ) {
   const [innerOpen, setInnerOpen] = React.useState(controlledOpen ?? defaultOpen)
-  const defaultPortalContainer = usePortalContainer()
   const effectiveOpen = controlledOpen != null ? controlledOpen : innerOpen
   const contentVisible = useTooltipUnmountDelay(effectiveOpen)
   const handleOpenChange = React.useCallback(
@@ -74,18 +72,63 @@ function useTooltipController(
     },
     [controlledOpen, onOpenChange]
   )
-  const sweepTarget = sweepContainer ?? defaultPortalContainer ?? document.body
-  React.useEffect(() => {
-    if (contentVisible) return
-    const timer = window.setTimeout(() => {
-      // 清扫失去 React owner 的 closed 残骸；延迟到自身退出窗口之外，避免误删仍在淡出的 peer
-      sweepTarget
-        .querySelectorAll?.('[data-slot="tooltip-content"][data-state="closed"]')
-        .forEach((node) => node.remove())
-    }, TOOLTIP_SWEEP_DELAY_MS)
-    return () => window.clearTimeout(timer)
-  }, [contentVisible, sweepTarget])
   return { contentVisible, effectiveOpen, handleOpenChange }
+}
+
+/**
+ * 孤儿清扫器（模块级，单例）：Radix portal content 在重挂风暴中可能失去 React owner 而
+ * 永久残留。观察 data-state 生命周期：closed 连续存活超过清扫延迟即移除。不依赖任何实例
+ * （实例卸载会取消其 timer，故清扫必须与实例生命周期解耦），覆盖所有 portal 容器
+ * （body 下钻，含自定义 TooltipContent portalContainer）。正常实例与 peer 的退出窗口
+ * （150ms）远短于清扫延迟，不会误删。
+ */
+function setupTooltipOrphanSweeper(): void {
+  const pending = new WeakMap<Element, number>()
+  const maybeSweep = (node: Element) => {
+    if (node.getAttribute('data-state') !== 'closed') {
+      pending.delete(node)
+      return
+    }
+    if (pending.has(node)) return
+    pending.set(
+      node,
+      window.setTimeout(() => {
+        pending.delete(node)
+        if (node.isConnected && node.getAttribute('data-state') === 'closed') node.remove()
+      }, TOOLTIP_SWEEP_DELAY_MS)
+    )
+  }
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes') {
+        const target = mutation.target as Element
+        if (target.getAttribute('data-slot') === 'tooltip-content') maybeSweep(target)
+        continue
+      }
+      for (const node of mutation.addedNodes) {
+        const element = node as Element
+        if (element.nodeType !== 1) continue
+        // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
+        if (element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
+        if (element.getAttribute('data-slot') === 'tooltip-content') {
+          maybeSweep(element)
+        } else {
+          element.querySelectorAll?.('[data-slot="tooltip-content"]').forEach(maybeSweep)
+        }
+      }
+    }
+  })
+  if (document.body) {
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-state']
+    })
+  }
+}
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  setupTooltipOrphanSweeper()
 }
 
 /** 由 TooltipRoot 提供，让低层 TooltipContent 走同一套挂载接管；无 Provider 时保持原行为。 */
@@ -231,12 +274,7 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
-  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(
-    isOpen,
-    onOpenChange,
-    false,
-    portalContainer
-  )
+  const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(isOpen, onOpenChange, false)
   const triggerWrapperClassName = cn(
     'relative z-10',
     fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',

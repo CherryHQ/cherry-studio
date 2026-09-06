@@ -413,33 +413,94 @@ describe('Tooltip', () => {
       }
     })
 
-    it('sweeps orphaned closed content after the unmount window', () => {
+    it('sweeps orphaned closed content after the sweep delay', async () => {
       vi.useFakeTimers()
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
         ghost.setAttribute('data-state', 'closed')
         document.body.appendChild(ghost)
+        // jsdom 的 MutationObserver 走原生微任务，排空后清扫 timer 才会被登记
+        await act(async () => {})
 
-        const view = render(
-          <Tooltip content="sweeper" isOpen={true}>
-            <button type="button">Trigger</button>
-          </Tooltip>
-        )
-        expect(screen.getByRole('tooltip')).toBeInTheDocument()
-        view.rerender(
-          <Tooltip content="sweeper" isOpen={false}>
-            <button type="button">Trigger</button>
-          </Tooltip>
-        )
-        // 先走完卸载窗口（flush 让清扫 timer 被 schedule），再走完清扫延迟
+        // 退出窗口内（<清扫延迟）不删
         act(() => {
-          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+          vi.advanceTimersByTime(160)
         })
+        expect(document.body.contains(ghost)).toBe(true)
+        // 超过清扫延迟后移除
         act(() => {
-          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 100)
+          vi.advanceTimersByTime(100)
         })
         expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps a ghost even after its owner instance unmounted', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(ghost)
+        await act(async () => {})
+
+        const view = render(
+          <Tooltip content="owner" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        view.unmount()
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not sweep content that is reopened inside its exit window', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(ghost)
+        await act(async () => {})
+
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        // 退出窗口内重新打开 → 取消清扫
+        ghost.setAttribute('data-state', 'open')
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(document.body.contains(ghost)).toBe(true)
+        ghost.remove()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps ghosts rendered into a custom portal container', async () => {
+      vi.useFakeTimers()
+      try {
+        const elsewhere = document.createElement('div')
+        document.body.appendChild(elsewhere)
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        elsewhere.appendChild(ghost)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(elsewhere.contains(ghost)).toBe(false)
       } finally {
         vi.useRealTimers()
       }
