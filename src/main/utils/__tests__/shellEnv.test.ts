@@ -14,18 +14,19 @@ vi.mock('@main/core/platform', () => ({
   isPortable: false
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    getPath: (key: string) => {
-      if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
-      if (key === 'feature.binary.data') {
-        return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
-      }
-      if (key === 'sys.home') return 'C:\\Users\\test'
-      return `/mock/${key}`
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory()
+  mocked.application.getPath = vi.fn((key: string) => {
+    if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
+    if (key === 'feature.binary.data') {
+      return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
     }
-  }
-}))
+    if (key === 'sys.home') return 'C:\\Users\\test'
+    return `/mock/${key}`
+  })
+  return mocked
+})
 
 vi.mock('child_process')
 
@@ -49,6 +50,8 @@ vi.mock('../bundledGit', () => ({
 }))
 
 // Import AFTER mocks are registered so the module binds to mocked values.
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import { getBundledGitDir } from '../bundledGit'
 import { getPathFromEnvironment, getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
@@ -90,6 +93,7 @@ describe('shellEnv – Windows registry PATH', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
 
     // Minimal process.env used by getWindowsEnvironment()
     process.env = {
@@ -150,6 +154,22 @@ describe('shellEnv – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     expect(env.Path).toContain('C:\\StaleOldPath')
+  })
+
+  it('should not record an unreadable registry as the last known good env', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\NodeJS' })
+    await getShellEnv()
+
+    // process.env holds the boot-time PATH — the very value the registry read
+    // exists to replace, so a failed read must not pass as a capture.
+    mockRegistryPaths()
+    const env = await refreshShellEnv()
+
+    expect(env.Path).toContain('C:\\NodeJS')
+    expect(env.Path).not.toContain('C:\\StaleOldPath')
+    expect(MockMainCacheServiceUtils.getCacheValue<Record<string, string>>('system.shell_env.last_good')?.Path).toBe(
+      'C:\\Windows;C:\\NodeJS'
+    )
   })
 
   // -- %VAR% expansion ------------------------------------------------------
@@ -250,14 +270,39 @@ describe('shellEnv – Windows registry PATH', () => {
 
   // -- concurrent dedup -----------------------------------------------------
 
-  it('should collapse overlapping fetches onto a single env resolution', async () => {
+  it('should collapse overlapping reads onto a single env resolution', async () => {
     mockRegistryPaths({ system: 'C:\\Windows' })
 
     // getWindowsEnvironment() reads HKLM + HKCU, i.e. two registry calls
-    // per resolution. Overlapping callers must share one resolution → 2 calls.
-    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
+    // per resolution. Overlapping readers must share one resolution → 2 calls.
+    await Promise.all([getShellEnv(), getShellEnv(), getRawShellEnv()])
 
     expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('should resolve the env again for an explicit refresh', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows' })
+    await getShellEnv()
+
+    // Callers refresh to observe a tool they just installed, so a refresh may
+    // never be served from the cache → a second resolution, i.e. 4 calls.
+    await refreshShellEnv()
+
+    expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(4)
+  })
+
+  // -- staleness ------------------------------------------------------------
+
+  it('serves a tool installed after launch to a fresh read', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows' })
+    await getShellEnv()
+
+    // User installs a tool (e.g. ffmpeg) and it lands in the system PATH, then
+    // activates an MCP server that needs it — no app restart in between.
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\ffmpeg\\bin' })
+
+    const env = await getShellEnv({ fresh: true })
+    expect(env.Path).toContain('C:\\ffmpeg\\bin')
   })
 
   // -- cache isolation ------------------------------------------------------

@@ -30,6 +30,8 @@ type CreateTransportInput = {
   authProvider: McpOAuthClientProvider
   logger: LoggerService
   onServerLog: (entry: McpServerLogEntry) => void
+  /** Accept a cached shell environment instead of capturing a fresh one — see ConnectOptions. */
+  passiveEnv?: boolean
 }
 
 function fetchViaNet(url: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -146,7 +148,7 @@ function createUrlTransport(
 }
 
 async function createStdio(
-  { sdk, server, args, logger, onServerLog }: CreateTransportInput,
+  { sdk, server, args, logger, onServerLog, passiveEnv }: CreateTransportInput,
   configuredCommand: string
 ): Promise<McpTransport> {
   let command = configuredCommand
@@ -159,8 +161,10 @@ async function createStdio(
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
 
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
+  // Fresh by default: reached only when actually establishing a connection, which is when the
+  // user expects a tool they just installed to be found — a cached PATH would fail the connect
+  // until restart. Background warmers opt out (see ConnectOptions).
+  const loginShellEnv = await getShellEnv({ fresh: !passiveEnv })
 
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {

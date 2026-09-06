@@ -20,7 +20,7 @@ const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
-type ListToolsOptions = { includeDisabled?: boolean }
+type ListToolsOptions = { includeDisabled?: boolean; passiveEnv?: boolean }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  protocol extensions while normalizing missing fields for renderer reads. */
@@ -179,20 +179,24 @@ export class McpCatalogService extends BaseService {
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
-  private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
+  private async listToolsImpl(server: McpServer, passiveEnv?: boolean): Promise<McpTool[]> {
     try {
-      const { tools } = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
-        // A server that publishes only prompts or resources answers `tools/list` with -32601, which
-        // used to surface as "start failed" and made it impossible to enable at all.
-        if (!client.getServerCapabilities()?.tools) {
-          logger.debug('Server does not declare tools capability, skipping list', {
-            serverId: server.id,
-            serverName: server.name
-          })
-          return { tools: [] as SDKTool[] }
-        }
-        return client.listTools()
-      })
+      const { tools } = await application.get('McpRuntimeService').withClient(
+        server.id,
+        async (client) => {
+          // A server that publishes only prompts or resources answers `tools/list` with -32601, which
+          // used to surface as "start failed" and made it impossible to enable at all.
+          if (!client.getServerCapabilities()?.tools) {
+            logger.debug('Server does not declare tools capability, skipping list', {
+              serverId: server.id,
+              serverName: server.name
+            })
+            return { tools: [] as SDKTool[] }
+          }
+          return client.listTools()
+        },
+        { passiveEnv }
+      )
       return tools.map((tool: SDKTool) => {
         const serverTool: McpTool = {
           ...tool,
@@ -230,7 +234,7 @@ export class McpCatalogService extends BaseService {
 
     const listFunc = (server: McpServer) => {
       const cachedListTools = withCache<[McpServer], McpTool[]>(
-        this.listToolsImpl.bind(this),
+        (target) => this.listToolsImpl(target, options.passiveEnv),
         (server) => {
           const serverKey = application.get('McpRuntimeService').getServerKey(server)
           return `mcp:list_tool:${serverKey}`
@@ -350,8 +354,11 @@ export class McpCatalogService extends BaseService {
       for (let index = 0; index < servers.length; index += PREWARM_CONCURRENCY) {
         if (this.prewarmCancelled || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)
+        // passiveEnv: batches run serially, so a fresh capture per batch would
+        // cost one login shell per PREWARM_CONCURRENCY servers and queue ahead of
+        // the connects the user actually triggers meanwhile.
         const results = await Promise.allSettled(
-          batch.map((server) => this.listToolsForServer(server, { includeDisabled: true }))
+          batch.map((server) => this.listToolsForServer(server, { includeDisabled: true, passiveEnv: true }))
         )
         results.forEach((result, resultIndex) => {
           if (result.status === 'fulfilled') return
