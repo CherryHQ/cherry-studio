@@ -1,10 +1,16 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
-import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  getWebviewElement,
+  getWebviewLoaded,
+  onWebviewElementChange,
+  onWebviewStateChange,
+  setWebviewLoaded
+} from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -32,28 +38,18 @@ interface Props {
 function useConcreteWebview(appId: string, isReady: boolean) {
   const webviewRef = useRef<WebviewTag | null>(null)
   const revisionRef = useRef(0)
-  const selector = useMemo(() => `webview[data-mini-app-id="${CSS.escape(appId)}"]`, [appId])
   const subscribe = useCallback(
-    (listener: () => void) => {
-      if (!isReady) return () => {}
-
-      const observer = new MutationObserver(() => listener())
-      observer.observe(document.body, { childList: true, subtree: true })
-      return () => observer.disconnect()
-    },
-    [isReady]
+    (listener: () => void) => (isReady ? onWebviewElementChange(appId, listener) : () => {}),
+    [appId, isReady]
   )
-  const getSnapshot = useCallback(() => {
-    const webview = isReady ? document.querySelector<WebviewTag>(selector) : null
-    if (webviewRef.current !== webview) {
-      webviewRef.current = webview
-      revisionRef.current++
-    }
-    return revisionRef.current
-  }, [isReady, selector])
+  const getSnapshot = useCallback(() => (isReady ? getWebviewElement(appId) : null), [appId, isReady])
+  const webview = useSyncExternalStore(subscribe, getSnapshot, () => null)
+  if (webviewRef.current !== webview) {
+    webviewRef.current = webview
+    revisionRef.current++
+  }
 
-  const webviewRevision = useSyncExternalStore(subscribe, getSnapshot, () => 0)
-  return { webviewRef, webviewRevision }
+  return { webviewRef, webviewRevision: revisionRef.current }
 }
 
 /**

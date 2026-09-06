@@ -16,6 +16,8 @@ interface ToolbarProbeProps {
 
 const mocks = vi.hoisted(() => ({
   loaded: false,
+  element: null as WebviewTag | null,
+  elementListeners: new Set<() => void>(),
   listeners: new Set<(loaded: boolean) => void>(),
   toolbarRenders: [] as ToolbarProbeProps[],
   toolbarProps: null as ToolbarProbeProps | null,
@@ -46,7 +48,12 @@ vi.mock('../WebviewSearch', () => ({
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
+  getWebviewElement: () => mocks.element,
   getWebviewLoaded: () => mocks.loaded,
+  onWebviewElementChange: (_appId: string, listener: () => void) => {
+    mocks.elementListeners.add(listener)
+    return () => mocks.elementListeners.delete(listener)
+  },
   onWebviewStateChange: (_appId: string, listener: (loaded: boolean) => void) => {
     mocks.listeners.add(listener)
     return () => mocks.listeners.delete(listener)
@@ -97,8 +104,17 @@ function emitLoaded(loaded: boolean) {
   })
 }
 
+function publishWebview(element: WebviewTag | null) {
+  mocks.element = element
+  act(() => {
+    for (const listener of mocks.elementListeners) listener()
+  })
+}
+
 beforeEach(() => {
   mocks.loaded = false
+  mocks.element = null
+  mocks.elementListeners.clear()
   mocks.listeners.clear()
   mocks.toolbarRenders.length = 0
   mocks.toolbarProps = null
@@ -154,7 +170,7 @@ describe('MiniAppPane concrete webview ownership', () => {
   it('keeps an already-loaded webview behind one stable ref', () => {
     mocks.loaded = true
     const webview = createWebview()
-    document.body.appendChild(webview)
+    mocks.element = webview
 
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
 
@@ -174,7 +190,7 @@ describe('MiniAppPane concrete webview ownership', () => {
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
     const initialRef = mocks.searchWebviewRef
     const webview = createWebview()
-    document.body.appendChild(webview)
+    mocks.element = webview
 
     expect(initialRef?.current).toBeNull()
     emitLoaded(true)
@@ -189,23 +205,19 @@ describe('MiniAppPane concrete webview ownership', () => {
     mocks.loaded = true
     const firstWebview = createWebview()
     const removeEventListener = vi.spyOn(firstWebview, 'removeEventListener')
-    document.body.appendChild(firstWebview)
+    mocks.element = firstWebview
 
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
     const stableRef = mocks.searchWebviewRef
     await waitFor(() => expect(stableRef?.current).toBe(firstWebview))
 
     const replacementWebview = createWebview()
-    act(() => {
-      firstWebview.remove()
-    })
+    publishWebview(null)
 
     await waitFor(() => expect(stableRef?.current).toBeNull())
     expect(mocks.toolbarProps?.webviewRef?.current).toBeNull()
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'false')
-    act(() => {
-      document.body.appendChild(replacementWebview)
-    })
+    publishWebview(replacementWebview)
     await waitFor(() => expect(stableRef?.current).toBe(replacementWebview))
     expect(mocks.toolbarProps?.webviewRef?.current).toBe(replacementWebview)
     expect(mocks.searchWebviewRef).toBe(stableRef)
@@ -221,5 +233,19 @@ describe('MiniAppPane concrete webview ownership', () => {
     emitLoaded(true)
     await waitFor(() => expect(stableRef?.current).toBe(replacementWebview))
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
+  })
+
+  it('ignores unowned DOM WebViews until the pool publishes their identity', async () => {
+    mocks.loaded = true
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    const stableRef = mocks.searchWebviewRef
+    const unownedWebview = createWebview()
+
+    document.body.appendChild(unownedWebview)
+    await Promise.resolve()
+    expect(stableRef?.current).toBeNull()
+
+    publishWebview(unownedWebview)
+    await waitFor(() => expect(stableRef?.current).toBe(unownedWebview))
   })
 })

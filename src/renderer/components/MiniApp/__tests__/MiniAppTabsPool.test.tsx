@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
+  setWebviewElement: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>,
@@ -121,10 +122,11 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/utils/webviewStateManager', () => ({
   clearWebviewState: mocks.clearWebviewState,
   getWebviewLoaded: () => false,
+  setWebviewElement: mocks.setWebviewElement,
   setWebviewLoaded: vi.fn()
 }))
 
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewElement, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -171,6 +173,7 @@ describe('MiniAppTabsPool', () => {
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
     mocks.clearWebviewState.mockReset()
+    mocks.setWebviewElement.mockReset()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -178,6 +181,21 @@ describe('MiniAppTabsPool', () => {
 
   /** Latest value the pool published for `webview.focused`. */
   const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('publishes the concrete WebView while the pool owns it', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    const { unmount } = render(<MiniAppTabsPool />)
+    const webview = screen.getByTestId('webview-alpha')
+
+    expect(setWebviewElement).toHaveBeenCalledWith('alpha', webview)
+
+    unmount()
+    expect(setWebviewElement).toHaveBeenLastCalledWith('alpha', null)
+  })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
