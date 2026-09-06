@@ -4,7 +4,7 @@ import type { ResponseForPath } from '@shared/data/api/paths'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
-import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseWriteInfiniteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Cache } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
@@ -764,6 +764,32 @@ describe('unified useInfiniteQuery mock parity', () => {
     rerender()
     expect(result.current.mutate).toBe(mutate)
   })
+
+  it('clears cached pages when either functional mutation returns undefined', async () => {
+    const queryOptions = options('session-1', true, 50)
+    const initialPages = pages('before')
+    MockUseDataApiUtils.seedInfiniteQuery(path, initialPages, queryOptions)
+
+    const { result } = renderHook(() => ({
+      query: mockUseInfiniteQuery(path, queryOptions),
+      writeCache: mockUseWriteInfiniteCache(path, queryOptions)
+    }))
+
+    await act(async () => {
+      await result.current.query.mutate(() => undefined)
+    })
+    expect(result.current.query.pages).toEqual([])
+    expect(MockUseDataApiUtils.getInfiniteQueryPages(path, queryOptions)).toBeUndefined()
+
+    act(() => {
+      MockUseDataApiUtils.setInfiniteQueryPages(path, initialPages, queryOptions)
+    })
+    await act(async () => {
+      await result.current.writeCache(() => undefined)
+    })
+    expect(result.current.query.pages).toEqual([])
+    expect(MockUseDataApiUtils.getInfiniteQueryPages(path, queryOptions)).toBeUndefined()
+  })
 })
 
 describe('useInfiniteQuery integration', () => {
@@ -1047,6 +1073,49 @@ describe('useInfiniteQuery integration', () => {
       'latest-older'
     )
     expect(cache.has(staleSecondPageKey)).toBe(false)
+  })
+
+  it('preserves a newer commit while an older undefined write reconciles page caches', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+
+    let olderWrite!: Promise<BranchMessagesResponse[] | undefined>
+    let newerWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      olderWrite = result.current.writeCache(() => undefined)
+      newerWrite = result.current.writeCache(latestPages)
+    })
+    await act(async () => {
+      await Promise.all([olderWrite, newerWrite])
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: latestPages, _l: 2 })
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
   })
 
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {

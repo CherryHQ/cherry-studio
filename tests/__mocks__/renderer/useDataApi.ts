@@ -296,6 +296,26 @@ function setMockInfiniteQueryPages<T>(key: string, pages: MockInfinitePages<T>) 
   if (previous !== pages) notifyMockInfiniteQuerySubscribers(key)
 }
 
+async function applyMockInfiniteQueryMutation(key: string, value: unknown) {
+  const current = mockInfiniteQueryStore.get(key)
+  const next =
+    typeof value === 'function'
+      ? await (
+          value as (
+            pages: MockInfinitePages<unknown> | undefined
+          ) => MockInfinitePages<unknown> | undefined | Promise<MockInfinitePages<unknown> | undefined>
+        )(current)
+      : await value
+
+  if (next === undefined) {
+    if (mockInfiniteQueryStore.delete(key)) notifyMockInfiniteQuerySubscribers(key)
+    return undefined
+  }
+
+  setMockInfiniteQueryPages(key, next as MockInfinitePages<unknown>)
+  return next as MockInfinitePages<unknown>
+}
+
 function statefulMockUseInfiniteQuery<TPath extends ApiPath>(path: TPath, options?: MockInfiniteQueryOptions<TPath>) {
   const key = buildMockInfiniteQueryKey(path, options)
   const subscribe = useCallback(
@@ -323,16 +343,7 @@ function statefulMockUseInfiniteQuery<TPath extends ApiPath>(path: TPath, option
       vi.fn(async (value?: unknown, _options?: unknown) => {
         const current = mockInfiniteQueryStore.get(key)
         if (value === undefined) return current
-        const next =
-          typeof value === 'function'
-            ? await (
-                value as (
-                  pages: MockInfinitePages<unknown> | undefined
-                ) => MockInfinitePages<unknown> | undefined | Promise<MockInfinitePages<unknown> | undefined>
-              )(current)
-            : await value
-        if (next !== undefined) setMockInfiniteQueryPages(key, next as MockInfinitePages<unknown>)
-        return next ?? current
+        return applyMockInfiniteQueryMutation(key, value)
       }),
     [key]
   )
@@ -375,20 +386,7 @@ export const mockUseWriteInfiniteCache = vi.fn(
   <TPath extends ApiPath>(path: TPath, options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>) => {
     const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
     return useMemo(
-      () =>
-        vi.fn(async (value: unknown) => {
-          const current = mockInfiniteQueryStore.get(key)
-          const next =
-            typeof value === 'function'
-              ? await (
-                  value as (
-                    pages: MockInfinitePages<unknown> | undefined
-                  ) => MockInfinitePages<unknown> | undefined | Promise<MockInfinitePages<unknown> | undefined>
-                )(current)
-              : await value
-          if (next !== undefined) setMockInfiniteQueryPages(key, next as MockInfinitePages<unknown>)
-          return next ?? current
-        }),
+      () => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)),
       [key]
     )
   }
