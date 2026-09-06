@@ -34,7 +34,9 @@ export const providerDetailColumnClasses = {
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  // h-full (not min-h-full): the model list below sizes itself from the remaining
+  // space, which only works if this column has a definite height.
+  sectionStack: 'mx-auto flex h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */
@@ -235,7 +237,9 @@ export const modelListClasses = {
     'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
+  // mt-1, not pt-1: rows scroll through a scroller's top padding, but the pinned
+  // group header sticks below it, so padding here leaks a sliver of the row above.
+  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden mt-1',
   virtualModelRow: 'border-x border-border-subtle bg-transparent',
   virtualModelRowLast: 'rounded-b-lg border-b border-border-subtle pb-1',
   /**
