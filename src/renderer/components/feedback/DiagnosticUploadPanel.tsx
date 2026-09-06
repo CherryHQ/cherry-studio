@@ -24,7 +24,7 @@ const RANGE_OPTIONS = [
 ] as const
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
-type UploadResult = OutputFor<'diagnostics.bundle.upload'>
+type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
 type OperationStatus = 'discarding' | 'idle' | 'saving' | 'submitting'
 
@@ -191,11 +191,13 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       }
       return
     }
-    if (uploadResult.status !== 'busy') {
-      const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
-      retainedBundleIdRef.current = nextBundleId
-      setRetainedBundleId(nextBundleId)
+    if (uploadResult.status === 'busy') {
+      toast.error(t('settings.about.diagnostics.errors.busy'))
+      return
     }
+    const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
+    retainedBundleIdRef.current = nextBundleId
+    setRetainedBundleId(nextBundleId)
     setResult(uploadResult)
   }
 
@@ -438,9 +440,6 @@ function UploadResultContent({
   readonly onReveal: () => Promise<void>
 }) {
   const { t } = useTranslation()
-  if (result.status === 'busy') {
-    return <Alert type="warning" showIcon role="alert" description={t('settings.about.diagnostics.errors.busy')} />
-  }
   if (result.status === 'uploaded') {
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">

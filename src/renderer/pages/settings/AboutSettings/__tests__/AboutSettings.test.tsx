@@ -94,14 +94,20 @@ describe('AboutSettings diagnostics entry', () => {
 
     const diagnosticsEntry = entries.find((entry) => entry.anchorId === 'diagnostics')
     expect(diagnosticsEntry).toBeUndefined()
-    expect(entries.some((entry) => entry.anchorId === 'debug-tools')).toBe(false)
+    expect(entries).toContainEqual({
+      anchorId: 'debug-tools',
+      titleKey: 'settings.about.debug.title',
+      groupKey: 'settings.about.label'
+    })
   })
 
-  it('does not expose system diagnostics or the former debug entry', async () => {
+  it('keeps system diagnostics out of About and opens the existing debug panel action', async () => {
+    const user = userEvent.setup()
     await renderAboutSettings()
 
     expect(screen.queryByText('System diagnostics')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.about.debug.open' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.about.debug.open' }))
+    expect(mocks.request).toHaveBeenCalledWith('system.toggle_dev_tools')
   })
 
   it('opens an externally requested Doctor panel and consumes only that query', async () => {

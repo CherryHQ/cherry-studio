@@ -7,6 +7,7 @@ export {
 } from './doctorContent'
 export {
   buildDoctorViewModel,
+  canCancelDoctorRun,
   defaultExpandedDoctorDomains,
   type DisplayedDoctorDomain,
   type DoctorGroupStatus,

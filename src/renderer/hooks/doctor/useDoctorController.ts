@@ -5,7 +5,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { buildDoctorViewModel, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
+import { buildDoctorViewModel, canCancelDoctorRun, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
@@ -27,11 +27,8 @@ import {
 
 const logger = loggerService.withContext('DoctorController')
 const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
-const EMBEDDED_RUN_FEEDBACK_MS = 600
-type DoctorAutoRunPolicy = 'when-idle' | 'when-not-running'
 
 interface UseDoctorControllerOptions {
-  readonly autoRunPolicy?: DoctorAutoRunPolicy
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
   readonly onNavigate: (target: DoctorNavigateTarget) => void
@@ -57,7 +54,6 @@ function fixRequestFor(
 }
 
 export function useDoctorController({
-  autoRunPolicy = 'when-idle',
   initialPanel,
   initialDescription,
   onNavigate,
@@ -93,12 +89,7 @@ export function useDoctorController({
     return () => window.clearTimeout(timer)
   }, [doctorState])
 
-  const pendingRunTier =
-    session.interaction.kind === 'run' && now < session.interaction.pendingUntil ? session.interaction.tier : undefined
-  const viewModel = useMemo(
-    () => buildDoctorViewModel(doctorState, now, pendingRunTier),
-    [doctorState, now, pendingRunTier]
-  )
+  const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -107,29 +98,14 @@ export function useDoctorController({
     session.interaction.kind === 'report-operation'
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
-  useEffect(() => {
-    if (session.interaction.kind !== 'run') return
-    const remaining = session.interaction.pendingUntil - Date.now()
-    if (remaining <= 0) {
-      setNow(Date.now())
-      return
-    }
-    const timer = window.setTimeout(() => setNow(Date.now()), remaining)
-    return () => window.clearTimeout(timer)
-  }, [session.interaction])
-
   const run = useCallback(
     async (tier: DoctorRunTier) => {
-      const feedbackMs = autoRunPolicy === 'when-not-running' ? EMBEDDED_RUN_FEEDBACK_MS : 0
       dispatch({
         type: 'start-interaction',
-        interaction: { kind: 'run', tier, pendingUntil: feedbackMs > 0 ? Date.now() + feedbackMs : 0 }
+        interaction: { kind: 'run', tier }
       })
       try {
-        await Promise.all([
-          ipcApi.request('diagnostics.doctor.run', { tier }),
-          feedbackMs > 0 ? new Promise((resolve) => window.setTimeout(resolve, feedbackMs)) : Promise.resolve()
-        ])
+        await ipcApi.request('diagnostics.doctor.run', { tier })
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -137,7 +113,7 @@ export function useDoctorController({
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
     },
-    [autoRunPolicy, t]
+    [t]
   )
 
   useEffect(() => {
@@ -146,14 +122,13 @@ export function useDoctorController({
       autoRunRequestedRef.current = true
       return
     }
-    const shouldAutoRun = doctorState.status === 'idle' || autoRunPolicy === 'when-not-running'
-    if (!shouldAutoRun) return
+    if (doctorState.status !== 'idle') return
     autoRunRequestedRef.current = true
     void run('quick')
-  }, [autoRunPolicy, doctorState.status, run, sharedCacheReady])
+  }, [doctorState.status, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
-    if (doctorState.status !== 'running' || doctorState.tier !== 'live') return
+    if (!canCancelDoctorRun(doctorState)) return
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
     try {
       await ipcApi.request('diagnostics.doctor.cancel', { runId: doctorState.runId })

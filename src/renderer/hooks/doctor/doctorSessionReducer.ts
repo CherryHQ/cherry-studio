@@ -11,7 +11,7 @@ export type DoctorInteraction =
       readonly checkId?: DoctorCheckId
       readonly actionKind: Exclude<DoctorAction['kind'], 'fix' | 'navigate' | 'report'> | 'toggle_dev_tools'
     }
-  | { readonly kind: 'run'; readonly tier: DoctorRunTier; readonly pendingUntil: number }
+  | { readonly kind: 'run'; readonly tier: DoctorRunTier }
   | { readonly kind: 'cancel' }
   | { readonly kind: 'bundle-operation' }
   | { readonly kind: 'report-operation' }

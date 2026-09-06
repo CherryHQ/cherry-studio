@@ -202,7 +202,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             disabled={
               controller.isInteracting &&
               session.interaction.kind !== 'cancel' &&
-              !(session.interaction.kind === 'run' && session.interaction.tier === 'live')
+              !(session.interaction.kind === 'run' && viewModel.canCancel)
             }
             onClick={() => void controller.cancel()}>
             {t('settings.doctor.actions.cancel_run')}

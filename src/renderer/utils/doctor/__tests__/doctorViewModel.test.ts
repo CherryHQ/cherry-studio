@@ -81,10 +81,10 @@ describe('buildDoctorViewModel', () => {
     expect(viewModel.rows.map((row) => row.id)).toEqual(QUICK_CHECK_IDS)
     expect(viewModel.rows.every((row) => row.status === 'pending')).toBe(true)
     expect(viewModel.rows.some((row) => row.id === 'install-update-available')).toBe(false)
-    expect(viewModel.canCancel).toBe(false)
+    expect(viewModel.canCancel).toBe(true)
   })
 
-  it('allows cancellation only for a network and service run', () => {
+  it('allows cancellation while a network and service run is in progress', () => {
     const state: DoctorState = {
       status: 'running',
       runId: 'run-1',
