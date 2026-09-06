@@ -246,8 +246,9 @@ export async function createTransport(input: CreateTransportInput): Promise<McpT
   if (server.type === 'inMemory' && hasInMemoryImplementation(server.name)) {
     return createInMemory(input)
   }
-  if (server.baseUrl) {
-    return createUrlTransport(input, server.baseUrl)
+  const baseUrl = server.baseUrl?.trim()
+  if (baseUrl) {
+    return createUrlTransport(input, baseUrl)
   }
   if (server.command) {
     return createStdio(input, server.command)

@@ -72,7 +72,7 @@ export function resolveMcpConfigTransportType(
   const hasInMemoryImplementation = PRESET_MCP_SERVERS.some(
     (server) => server.name === name && server.type === 'inMemory'
   )
-  return !hasInMemoryImplementation && !baseUrl && command ? 'stdio' : type
+  return !hasInMemoryImplementation && !baseUrl?.trim() && command ? 'stdio' : type
 }
 
 /**

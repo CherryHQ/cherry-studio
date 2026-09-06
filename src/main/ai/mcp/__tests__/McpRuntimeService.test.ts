@@ -479,6 +479,31 @@ describe('McpRuntimeService.setServerStatus', () => {
     })
     expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
   })
+
+  it('does not replace a structured transport diagnostic with a later generic error', () => {
+    const service = new McpRuntimeService()
+    const command = 'C:\\MCP\\server.exe'
+    const transportError = new Error(`spawn ${command} EPERM`)
+
+    service.setServerStatus('server-1', 'error', transportError, { code: 'EPERM', path: command })
+    service.setServerStatus('server-1', 'error', new Error('Connection closed'))
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toMatchObject({
+      state: 'error',
+      lastError: transportError.message,
+      errorCode: 'EPERM',
+      errorPath: command
+    })
+    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
+
+    service.setServerStatus('server-1', 'connected')
+
+    const connected = MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')
+    expect(connected).toMatchObject({ state: 'connected' })
+    expect(connected).not.toHaveProperty('lastError')
+    expect(connected).not.toHaveProperty('errorCode')
+    expect(connected).not.toHaveProperty('errorPath')
+  })
 })
 
 describe('McpRuntimeService connect single-flight', () => {

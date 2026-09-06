@@ -229,17 +229,27 @@ export class McpRuntimeService extends BaseService {
       return
     }
 
-    const lastError =
+    const reportedLastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
     const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
-    const repeatsCurrentError = current?.state === 'error' && state === 'error' && current.lastError === lastError
     const errorProperties = error && typeof error === 'object' ? (error as { code?: unknown; path?: unknown }) : {}
-    const code = details?.code ?? errorProperties.code ?? (repeatsCurrentError ? current.errorCode : undefined)
+    const incomingCode = details?.code ?? errorProperties.code
+    const incomingPath = details?.path ?? errorProperties.path
+    // A generic SDK/connectivity error must not erase a richer stdio failure; non-error transitions still clear it.
+    const preservesCurrentDiagnostic =
+      state === 'error' &&
+      current?.state === 'error' &&
+      (current.errorCode !== undefined || current.errorPath !== undefined) &&
+      incomingCode === undefined &&
+      incomingPath === undefined
+    const lastError = preservesCurrentDiagnostic ? current.lastError : reportedLastError
+    const repeatsCurrentError = current?.state === 'error' && state === 'error' && current.lastError === lastError
+    const code = incomingCode ?? (repeatsCurrentError ? current.errorCode : undefined)
     const errorCode =
       state === 'error' && (typeof code === 'string' || typeof code === 'number') ? String(code) : undefined
-    const path = details?.path ?? errorProperties.path ?? (repeatsCurrentError ? current.errorPath : undefined)
+    const path = incomingPath ?? (repeatsCurrentError ? current.errorPath : undefined)
     const errorPath =
       state === 'error' && (typeof path === 'string' || typeof path === 'number') ? String(path) : undefined
 

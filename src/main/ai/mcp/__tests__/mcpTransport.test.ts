@@ -7,6 +7,7 @@ const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMem
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
 const getShellEnv = vi.hoisted(() => vi.fn(async () => ({ PATH: '/shell/bin' })))
+const mcpPackageService = vi.hoisted(() => ({ getResolvedMcpConfig: vi.fn() }))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
@@ -16,7 +17,7 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({ McpPackageService: mcpPackageService } as never)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv }))
@@ -176,6 +177,21 @@ describe('createTransport', () => {
     expect(getShellEnv).not.toHaveBeenCalled()
   })
 
+  it('rejects an unresolved DXT command placeholder before requesting the login shell environment', async () => {
+    mcpPackageService.getResolvedMcpConfig.mockReturnValueOnce({
+      command: '${user_config.MCP_COMMAND}',
+      args: [],
+      env: {}
+    })
+
+    await expect(create({ type: 'stdio', command: 'fallback', dxtPath: '/tmp/example.dxt' })).rejects.toMatchObject({
+      code: 'MCP_UNRESOLVED_PLACEHOLDER',
+      path: '${user_config.MCP_COMMAND}'
+    })
+
+    expect(getShellEnv).not.toHaveBeenCalled()
+  })
+
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
     const entries: McpServerLogEntry[] = []
     const transport = (await create(
@@ -254,6 +270,7 @@ describe('createTransport', () => {
     const transport = (await create({
       type: 'inMemory',
       name: '@cherry/mcp-auto-install',
+      baseUrl: '   ',
       command: 'npx'
     })) as unknown as FakeStdioTransport
 

@@ -276,6 +276,7 @@ describe('McpSettings', () => {
       id: 'legacy-command-server',
       name: 'Legacy command server',
       type: 'inMemory',
+      baseUrl: '   ',
       command: 'missing-mcp-command',
       isActive: true
     }
