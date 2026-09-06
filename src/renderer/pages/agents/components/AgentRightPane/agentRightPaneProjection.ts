@@ -290,7 +290,8 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
   // not a reason to drop the launch identity; the round-split gate compares exact equality).
   if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
   if (isRecord(output)) {
-    const direct = output.agentId ?? output.agent_id
+    // Workflow/local launches carry the same identity under `taskId`.
+    const direct = output.agentId ?? output.agent_id ?? output.taskId
     return typeof direct === 'string' && direct.length > 0 ? direct : undefined
   }
   return undefined
