@@ -30,7 +30,7 @@ vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: async (name?: string) => `/bundled/${name}`
 }))
 
-const { createTransport } = await import('../mcpTransport')
+const { createTransport, isMcpOAuthEnabled } = await import('../mcpTransport')
 
 class FakeTransport {
   constructor(
@@ -288,5 +288,20 @@ describe('createTransport', () => {
 
   it('refuses a config that says neither where to connect nor what to run', async () => {
     await expect(create({ type: 'stdio' })).rejects.toThrow(/Either baseUrl or command must be provided/)
+  })
+})
+
+describe('isMcpOAuthEnabled', () => {
+  it('does not enable HTTP OAuth for a command-backed server with a whitespace-only URL', () => {
+    expect(
+      isMcpOAuthEnabled({
+        id: 'legacy-command-server',
+        name: 'Legacy command server',
+        type: 'sse',
+        baseUrl: '   ',
+        command: 'npx',
+        isActive: true
+      } as McpServer)
+    ).toBe(false)
   })
 })

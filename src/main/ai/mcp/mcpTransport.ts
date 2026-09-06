@@ -14,6 +14,7 @@ import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/std
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
+import { normalizeMcpBaseUrl } from '@shared/utils/mcp'
 import { redactDeep } from '@shared/utils/redaction'
 import { net } from 'electron'
 
@@ -68,7 +69,7 @@ function hasAuthorization(headers: Record<string, string>): boolean {
 export function isMcpOAuthEnabled(server: McpServer): boolean {
   const type = server.type ?? 'sse'
   return (
-    Boolean(server.baseUrl) &&
+    Boolean(normalizeMcpBaseUrl(server.baseUrl)) &&
     (type === 'sse' || type === 'streamableHttp') &&
     !hasAuthorization(buildHttpHeaders(server))
   )
@@ -246,7 +247,7 @@ export async function createTransport(input: CreateTransportInput): Promise<McpT
   if (server.type === 'inMemory' && hasInMemoryImplementation(server.name)) {
     return createInMemory(input)
   }
-  const baseUrl = server.baseUrl?.trim()
+  const baseUrl = normalizeMcpBaseUrl(server.baseUrl)
   if (baseUrl) {
     return createUrlTransport(input, baseUrl)
   }

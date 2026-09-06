@@ -131,6 +131,13 @@ describe('resolveMcpConfigTransportType', () => {
   it('exposes stdio configuration for legacy command-backed servers', () => {
     expect(resolveMcpConfigTransportType('inMemory', 'Legacy server', 'npx')).toBe('stdio')
   })
+
+  it.each(['sse', 'streamableHttp'] as const)(
+    'exposes stdio configuration for a command-backed %s row with a whitespace-only URL',
+    (type) => {
+      expect(resolveMcpConfigTransportType(type, 'Legacy server', 'npx', '   ')).toBe('stdio')
+    }
+  )
 })
 
 describe('resolveMcpConfigInstallSource', () => {

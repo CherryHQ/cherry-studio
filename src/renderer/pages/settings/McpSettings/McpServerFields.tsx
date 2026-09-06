@@ -21,7 +21,7 @@ import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames, normalizeMcpBaseUrl } from '@shared/utils/mcp'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import type { DefaultValues, UseFormReturn } from 'react-hook-form'
@@ -66,13 +66,14 @@ export function resolveMcpConfigTransportType(
   command?: string,
   baseUrl?: string
 ): McpServer['type'] {
-  if (type !== 'inMemory') return type
-  if (name === BuiltinMcpServerNames.mcpAutoInstall) return 'stdio'
-
-  const hasInMemoryImplementation = PRESET_MCP_SERVERS.some(
-    (server) => server.name === name && server.type === 'inMemory'
-  )
-  return !hasInMemoryImplementation && !baseUrl?.trim() && command ? 'stdio' : type
+  if (type === 'inMemory') {
+    if (name === BuiltinMcpServerNames.mcpAutoInstall) return 'stdio'
+    const hasInMemoryImplementation = PRESET_MCP_SERVERS.some(
+      (server) => server.name === name && server.type === 'inMemory'
+    )
+    if (hasInMemoryImplementation) return type
+  }
+  return !normalizeMcpBaseUrl(baseUrl) && command ? 'stdio' : type
 }
 
 /**

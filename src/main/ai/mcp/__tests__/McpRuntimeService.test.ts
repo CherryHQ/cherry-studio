@@ -181,6 +181,7 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
 const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
   '../McpRuntimeService'
 )
+const { getTransportCandidates } = await import('../mcpClientSdk')
 
 /** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -1154,6 +1155,10 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
   }
 
   type MockClient = InstanceType<typeof mcpSdkMock.Client>
+
+  it('does not create HTTP fallback candidates for a whitespace-only URL', () => {
+    expect(getTransportCandidates({ ...urlServer('sse'), baseUrl: '   ', command: 'npx' })).toBeNull()
+  })
 
   it('falls back to Streamable HTTP when an sse-typed server rejects the SSE GET with 405', async () => {
     const service = new McpRuntimeService()

@@ -270,12 +270,12 @@ describe('McpSettings', () => {
     expect(screen.getByRole('textbox', { name: 'Environment' })).toHaveFocus()
   })
 
-  it('focuses the command for a legacy command-backed in-memory server', async () => {
+  it('focuses the command for a legacy remote-typed server with a whitespace-only URL', async () => {
     currentSearch = {}
     currentServer = {
       id: 'legacy-command-server',
       name: 'Legacy command server',
-      type: 'inMemory',
+      type: 'sse',
       baseUrl: '   ',
       command: 'missing-mcp-command',
       isActive: true
