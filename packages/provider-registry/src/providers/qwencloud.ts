@@ -53,7 +53,10 @@ const glm52ChatSupport: ReasoningSupport = {
   supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
-/** DeepSeek-V4 Chat lines take five effort tiers, documented to default to `high`. */
+/**
+ * DeepSeek-V4 Chat lines take five effort tiers, documented to default to `high`. QwenCloud normalizes
+ * DeepSeek to platform params (`enable_thinking` + `reasoning_effort`), not its native `thinking.type` wire.
+ */
 const deepseekV4ChatSupport: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' }],
   defaultEffort: 'high',
