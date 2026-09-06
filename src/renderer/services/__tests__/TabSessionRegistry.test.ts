@@ -115,6 +115,24 @@ describe('tabSessionRegistry', () => {
     expect(tabSessionRegistry.get('kept')).toBeDefined()
   })
 
+  it('stops treating a session as unreachable once a tab names it again', () => {
+    // The mark is the latest sweep's verdict. Latched, it would release the draft of a live page
+    // and cancel its work on every later sweep — silently, forever.
+    const release = vi.fn(() => true)
+    const owner = testOwner(release)
+    const handle = tabSessionRegistry.getOrCreate('returning', owner.create)
+    handle.addWork('run-1')
+
+    tabSessionRegistry.sweep(new Set())
+    tabSessionRegistry.sweep(new Set(['returning']))
+    handle.addWork('run-2')
+    tabSessionRegistry.releaseUnreachable()
+
+    expect(release).not.toHaveBeenCalled()
+    expect(tabSessionRegistry.get('returning')?.isBusy()).toBe(true)
+    expect(owner.cancelled).toEqual(['run-1'])
+  })
+
   it('keeps a session whose release was refused, and tries again on the next pass', () => {
     // The cache refuses to drop a key its hook still reads — dropping the session here would
     // leak the entry for good.

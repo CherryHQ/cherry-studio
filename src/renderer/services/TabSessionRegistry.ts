@@ -75,7 +75,7 @@ export interface TabSessionHandle extends Pick<TabSessionOwner, 'isBusy' | 'canc
 interface SessionEntry {
   owner: TabSessionOwner
   handle: TabSessionHandle
-  /** Set by `sweep`, consumed by `releaseUnreachable`. A tab session id is never reused. */
+  /** The latest sweep's verdict, consumed by `releaseUnreachable`. Not a historical fact. */
   unreachable: boolean
 }
 
@@ -137,10 +137,17 @@ class TabSessionRegistry {
    * Cancelling is urgent — an unreachable session's work has no audience — but releasing is not,
    * and cannot happen here: the page whose tab just went away is still mounted at this point. See
    * `releaseUnreachable`.
+   *
+   * Each run restates the verdict for every session rather than only marking: nothing can point a
+   * tab back at a session it left today (#20107), and a latched mark would silently cancel that
+   * tab's work on every later sweep if something ever could.
    */
   sweep(liveIds: ReadonlySet<string>): void {
     for (const [id, entry] of this.sessions) {
-      if (liveIds.has(id)) continue
+      if (liveIds.has(id)) {
+        entry.unreachable = false
+        continue
+      }
       entry.unreachable = true
       entry.owner.cancel()
     }
