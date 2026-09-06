@@ -1230,6 +1230,10 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
+  const routeFallback = (part: FileUIPart, fileEntryId?: string) => {
+    const target = fileEntryId || part.url?.startsWith('file://') ? fallbackParts : unavailableParts
+    target.push(part)
+  }
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
@@ -1239,8 +1243,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
-      target.push(originalPart)
+      routeFallback(originalPart, fileEntryId)
       continue
     }
 
@@ -1249,14 +1252,14 @@ async function materializeUserContent(
     if (!parsed) {
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
-        unavailableParts.push(originalPart)
+        routeFallback(originalPart, fileEntryId)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
-      unavailableParts.push(originalPart)
+      routeFallback(originalPart, fileEntryId)
       continue
     }
 
@@ -1269,16 +1272,25 @@ async function materializeUserContent(
       continue
     }
 
-    if (originalPart.url?.startsWith('file://')) {
-      fallbackParts.push(originalPart)
-    } else {
-      unavailableParts.push(originalPart)
-    }
+    routeFallback(originalPart, fileEntryId)
   }
 
-  const resolvedPaths = await extractAttachmentPaths(fallbackParts)
+  const fallbackEntryIds = new Set(
+    fallbackParts.map((part) => readCherryMeta(part)?.fileEntryId).filter((id): id is string => Boolean(id))
+  )
+  // A successfully routed image is absent from fallbackParts, but filesystem-oriented
+  // skills still need its managed path. Keep the path additive to native image/OCR content.
+  const supplementalImagePathParts = firstPartyImageParts.filter((part) => {
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    if (!fileEntryId) return false
+    return !fallbackEntryIds.has(fileEntryId)
+  })
+  const [resolvedPaths, resolvedImagePaths] = await Promise.all([
+    extractAttachmentPaths(fallbackParts),
+    extractAttachmentPaths(supplementalImagePathParts)
+  ])
   unavailableParts.push(...resolvedPaths.unavailable)
-  let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
+  let textContent = appendAgentAttachmentPaths(text, [...resolvedPaths.files, ...resolvedImagePaths.files])
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
