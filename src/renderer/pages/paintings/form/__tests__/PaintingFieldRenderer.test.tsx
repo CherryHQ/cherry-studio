@@ -1,323 +1,125 @@
+import '@testing-library/jest-dom/vitest'
+
 import { buildParamsSchema } from '@cherrystudio/provider-registry'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { BaseConfigItem } from '../baseConfigItem'
+import type { SliderConfigItem } from '../baseConfigItem'
 import { PaintingFieldRenderer } from '../PaintingFieldRenderer'
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<object>()
 
-const GUIDANCE_RANGE: BaseConfigItem = {
-  type: 'slider',
-  key: 'guidanceScale',
-  min: 1,
-  max: 20,
-  step: 0.1,
-  initialValue: 1
-}
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key })
+  }
+})
 
-function ControlledRange({
-  item,
-  initial,
-  onChange
-}: {
-  item: BaseConfigItem
-  initial: number
-  onChange?: (updates: Record<string, unknown>) => void
-}) {
-  const fieldKey = item.key ?? 'value'
-  const [painting, setPainting] = useState<Record<string, unknown>>({ [fieldKey]: initial })
-  return (
+function renderSlider(item: Partial<SliderConfigItem>, painting: Record<string, unknown>) {
+  const onChange = vi.fn()
+  render(
     <PaintingFieldRenderer
-      item={item}
+      item={{ type: 'slider', key: 'guidanceScale', ...item } as SliderConfigItem}
       painting={painting}
-      onChange={(updates) => {
-        onChange?.(updates)
-        setPainting((current) => ({ ...current, ...updates }))
-      }}
+      onChange={onChange}
     />
   )
+  return onChange
 }
 
-describe('PaintingFieldRenderer range contract', () => {
-  it('names the numeric control for the configured range', () => {
-    render(
-      <PaintingFieldRenderer
-        item={{
-          type: 'slider',
-          key: 'guidanceScale',
-          title: 'paintings.guidance_scale',
-          min: 1,
-          max: 20,
-          step: 0.1,
-          initialValue: 1
-        }}
-        painting={{ guidanceScale: 4.5 }}
-        onChange={vi.fn()}
-      />
-    )
+describe('PaintingFieldRenderer slider input', () => {
+  it('names the slider companion field', () => {
+    renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
-    expect(screen.getByRole('spinbutton', { name: 'paintings.guidance_scale' })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton')).toHaveAccessibleName()
   })
 
-  it('keeps range numeric inputs compact at w-12 and h-8', () => {
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'guidanceScale', min: 1, max: 20, step: 0.1, initialValue: 16.5 }}
-        painting={{ guidanceScale: 16.5 }}
-        onChange={vi.fn()}
-      />
-    )
+  it('keeps the numeric control compact', () => {
+    renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 16.5 })
 
-    // The numeric control must fit the 300px parameter overlay without crowding its slider.
-    expect(screen.getByRole('spinbutton')).toHaveClass('w-12', 'h-8')
+    expect(screen.getByRole('spinbutton')).toHaveClass('h-8', 'w-12')
   })
 
-  it('rejects a typed numImages of 2.5 by snapping onto step 1', () => {
-    const onChange = vi.fn()
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
-        painting={{ numImages: 1 }}
-        onChange={onChange}
-      />
-    )
-
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2.5' } })
-
-    expect(onChange).toHaveBeenCalledWith({ numImages: 3 })
-  })
-
-  it('keeps guidanceScale 4.5 on a 0.1 step', () => {
-    const onChange = vi.fn()
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'guidanceScale', min: 1, max: 20, step: 0.1, initialValue: 4.5 }}
-        painting={{ guidanceScale: 5 }}
-        onChange={onChange}
-      />
-    )
-
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4.5' } })
-
-    expect(onChange).toHaveBeenCalledWith({ guidanceScale: 4.5 })
-  })
-
-  it('keeps a typed 50.5 on an omitted-step float range', () => {
-    const onChange = vi.fn()
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'imageWeight', min: 1, max: 100, initialValue: 50 }}
-        painting={{ imageWeight: 50 }}
-        onChange={onChange}
-      />
-    )
-
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '50.5' } })
-
-    expect(onChange).toHaveBeenCalledWith({ imageWeight: 50.5 })
-  })
-
-  it('lets the user type 2.5 through the intermediate 2. on a 0.1 step', async () => {
+  it('aligns a typed value to an explicit integer step on settle', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<ControlledRange item={GUIDANCE_RANGE} initial={1} onChange={onChange} />)
+    const onChange = renderSlider({ key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }, { numImages: 1 })
 
     const input = screen.getByRole('spinbutton')
-    await user.click(input)
     await user.clear(input)
-    await user.keyboard('2.')
-
-    expect(input).toHaveProperty('value', '2.')
-    expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenCalledWith({ guidanceScale: 2 })
-
-    await user.keyboard('5')
-
-    expect(input).toHaveProperty('value', '2.5')
-    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 2.5 })
-    expect(screen.getByTestId('slider')).toHaveProperty('value', '2.5')
-  })
-
-  it('lets the user type 0.05 through the intermediate 0.0 on a 0.05 step', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    const refStrengthRange: BaseConfigItem = {
-      type: 'slider',
-      key: 'refStrength',
-      min: 0,
-      max: 1,
-      step: 0.05,
-      initialValue: 0.5
-    }
-    render(<ControlledRange item={refStrengthRange} initial={0.5} onChange={onChange} />)
-
-    const input = screen.getByRole('spinbutton')
-    await user.click(input)
-    await user.clear(input)
-    await user.keyboard('0.0')
-
-    expect(input).toHaveProperty('value', '0.0')
-    expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenCalledWith({ refStrength: 0 })
-
-    await user.keyboard('5')
-
-    expect(input).toHaveProperty('value', '0.05')
-    expect(onChange).toHaveBeenLastCalledWith({ refStrength: 0.05 })
-    expect(screen.getByTestId('slider')).toHaveProperty('value', '0.05')
-  })
-
-  it('lets the user type 0.05 with a leading decimal point', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    const refStrengthRange: BaseConfigItem = {
-      type: 'slider',
-      key: 'refStrength',
-      min: 0,
-      max: 1,
-      step: 0.05,
-      initialValue: 0.5
-    }
-    render(<ControlledRange item={refStrengthRange} initial={0.5} onChange={onChange} />)
-
-    const input = screen.getByRole('spinbutton')
-    await user.click(input)
-    await user.clear(input)
-    await user.keyboard('.05')
-
-    expect(input).toHaveProperty('value', '0.05')
-    expect(onChange).toHaveBeenLastCalledWith({ refStrength: 0.05 })
-    expect(screen.getByTestId('slider')).toHaveProperty('value', '0.05')
-  })
-
-  it('shows the committed grid value when typed input snaps', async () => {
-    const user = userEvent.setup()
-    render(
-      <ControlledRange
-        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
-        initial={1}
-      />
-    )
-
-    const input = screen.getByRole('spinbutton')
-    await user.click(input)
-    await user.clear(input)
-    await user.keyboard('2.5')
-
-    expect(input).toHaveProperty('value', '3')
-    expect(input).toHaveAttribute('aria-valuenow', '3')
-    expect(screen.getByTestId('slider')).toHaveProperty('value', '3')
-  })
-
-  it('restores the committed value when a cleared field blurs', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<ControlledRange item={GUIDANCE_RANGE} initial={4.5} onChange={onChange} />)
-
-    const input = screen.getByRole('spinbutton')
-    await user.click(input)
-    await user.clear(input)
-
-    expect(input).toHaveProperty('value', '')
-    expect(input).not.toHaveAttribute('aria-valuenow')
-    expect(onChange).not.toHaveBeenCalled()
-
+    await user.type(input, '2.5')
     await user.tab()
 
-    expect(input).toHaveProperty('value', '4.5')
+    expect(onChange).toHaveBeenLastCalledWith({ numImages: 3 })
+  })
+
+  it('keeps a typed value that is already on a decimal step', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ min: 1, max: 20, step: 0.1 }, { guidanceScale: 5 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '4.5')
+    await user.tab()
+
+    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 4.5 })
+  })
+
+  it('keeps decimal precision when step is omitted', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ key: 'imageWeight', min: 1, max: 100, initialValue: 50 }, { imageWeight: 50 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '50.5')
+    await user.tab()
+
+    expect(onChange).toHaveBeenLastCalledWith({ imageWeight: 50.5 })
+  })
+
+  it('clamps a value above the maximum on settle', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '99')
+    await user.tab()
+
+    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 20 })
+  })
+
+  it('does not write a half-typed value into the slider state', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '99')
+
+    expect(input).toHaveValue('99')
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('keeps aria-valuenow on the committed range while a pasted draft is out of bounds', () => {
-    render(
-      <ControlledRange
-        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
-        initial={2}
-      />
-    )
-
-    const input = screen.getByRole('spinbutton')
-    fireEvent.focus(input)
-    fireEvent.change(input, { target: { value: '99.' } })
-
-    expect(input).toHaveValue('99.')
-    expect(input).toHaveAttribute('aria-valuenow', '2')
-  })
-
-  it('replaces a focused draft when the model value changes from outside', async () => {
+  it('writes nothing when the field is cleared and left empty', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    const { rerender } = render(
-      <PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 1 }} onChange={onChange} />
-    )
+    const onChange = renderSlider({ min: 1, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
     const input = screen.getByRole('spinbutton')
-    await user.click(input)
     await user.clear(input)
-    await user.keyboard('2.')
+    await user.tab()
 
-    expect(input).toHaveProperty('value', '2.')
-
-    rerender(<PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 8 }} onChange={onChange} />)
-
-    expect(input).toHaveProperty('value', '8')
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('replaces a focused draft when the range constraints change', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    const { rerender } = render(
-      <PaintingFieldRenderer
-        item={{ ...GUIDANCE_RANGE, max: 20 }}
-        painting={{ guidanceScale: 1 }}
-        onChange={onChange}
-      />
-    )
+  it('keeps persisted out-of-range values inside both control bounds', () => {
+    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 99 })
 
-    const input = screen.getByRole('spinbutton')
-    await user.click(input)
-    await user.clear(input)
-    await user.keyboard('2.')
-
-    rerender(
-      <PaintingFieldRenderer
-        item={{ ...GUIDANCE_RANGE, max: 10 }}
-        painting={{ guidanceScale: 1 }}
-        onChange={onChange}
-      />
-    )
-
-    expect(input).toHaveProperty('value', '1')
-  })
-
-  it.each([0, -1])('does not pass non-positive step %s to the slider', (step) => {
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'strength', min: 0, max: 10, step, initialValue: 4 }}
-        painting={{ strength: 4 }}
-        onChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('slider')).toHaveAttribute('step', '1')
-  })
-
-  it('nudges a focused range by its declared step with arrow keys', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<ControlledRange item={GUIDANCE_RANGE} initial={1} onChange={onChange} />)
-
-    await user.click(screen.getByRole('spinbutton'))
-    await user.keyboard('{ArrowUp}')
-
-    expect(onChange).toHaveBeenCalledWith({ guidanceScale: 1.1 })
-    expect(screen.getByRole('spinbutton')).toHaveProperty('value', '1.1')
+    expect(screen.getByRole('slider')).toHaveValue('20')
+    expect(screen.getByRole('spinbutton')).toHaveValue('20')
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '20')
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
 
@@ -335,7 +137,6 @@ describe('PaintingFieldRenderer seed reset control', () => {
 
     const input = screen.getByRole('textbox')
     const reset = screen.getByRole('button', { name: 'common.regenerate' })
-    // Explicit h-8 on both controls so the reset square matches the compact field.
     expect(input).toHaveClass('h-8')
     expect(reset).toHaveClass('h-8', 'w-8')
 
@@ -354,7 +155,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('4')
+    expect(screen.getByRole('spinbutton')).toHaveValue('4')
   })
 
   it('displays a numeric string using the same effective value as submit normalization', () => {
@@ -375,7 +176,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('4.5')
+    expect(screen.getByRole('spinbutton')).toHaveValue('4.5')
     expect(submitted.strength).toBe(4.5)
   })
 
@@ -397,7 +198,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('4')
+    expect(screen.getByRole('spinbutton')).toHaveValue('4')
     expect(submitted.strength).toBeUndefined()
   })
 
@@ -430,7 +231,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
     expect(screen.getByTestId('select')).toHaveAttribute('data-value', '1024x1024')
   })
 
-  it('displays a decimal persisted value for an integer-backed slider until it is edited', () => {
+  it('displays an in-range off-grid value until it is edited', () => {
     const support = {
       modes: {
         generate: {
@@ -448,7 +249,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('2.5')
+    expect(screen.getByRole('spinbutton')).toHaveValue('2.5')
     expect(submitted.numImages).toBeUndefined()
   })
 })

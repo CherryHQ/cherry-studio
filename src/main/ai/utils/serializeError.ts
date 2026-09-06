@@ -1,5 +1,6 @@
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
+import { isErrorCategory } from '@shared/utils/errorCategory'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -76,6 +77,16 @@ export function serializeError(error: unknown): SerializedError {
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
+    if ('claudeCodeExitCategory' in e && isErrorCategory(e.claudeCodeExitCategory)) {
+      serialized.claudeCodeExitCategory = e.claudeCodeExitCategory
+    }
+    if ('diagnosticReference' in e && typeof e.diagnosticReference === 'string') {
+      serialized.diagnosticReference = e.diagnosticReference
+    }
+    if ('processExitCode' in e && typeof e.processExitCode === 'number') serialized.processExitCode = e.processExitCode
+    if ('processExitSignal' in e && typeof e.processExitSignal === 'string') {
+      serialized.processExitSignal = e.processExitSignal
+    }
 
     return serialized
   }

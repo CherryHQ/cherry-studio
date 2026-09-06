@@ -1,8 +1,10 @@
-import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'
 import {
+  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -16,8 +18,10 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { isNonChatModel } from '@shared/utils/model'
+import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
@@ -49,9 +53,14 @@ const GeneralSettings: FC = () => {
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [clientId] = usePreference('app.user.id')
+  const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
+  const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
+  const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
+  const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -121,27 +130,27 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
           <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
           <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
           <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
           <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
@@ -150,7 +159,7 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
         </SettingRow>
@@ -191,7 +200,7 @@ const GeneralSettings: FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.fetch.allow_private_network')}</span>
             <InfoTooltip
@@ -206,7 +215,7 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
@@ -215,9 +224,87 @@ const GeneralSettings: FC = () => {
       <ContextManagementSettings />
 
       <SettingGroup theme={theme}>
+        <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6 items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle className="gap-1">
+              {t('settings.models.retry.label')}
+              <InfoTooltip content={t('settings.models.retry.tooltip')} />
+            </SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">
+              {t('settings.models.retry.description')}
+            </SettingDescription>
+          </div>
+          <Switch
+            checked={retryEnabled}
+            onCheckedChange={(checked) => void setRetryEnabled(checked)}
+            aria-label={t('settings.models.retry.label')}
+          />
+        </SettingRow>
+        {retryEnabled && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.models.retry.max_attempts')}</SettingRowTitle>
+              <div className="w-[220px] shrink-0">
+                <InputNumber
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="h-8 rounded-lg px-2.5"
+                  aria-label={t('settings.models.retry.max_attempts')}
+                  value={retryMaxAttempts}
+                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
+                />
+              </div>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.models.retry.backoff')}</SettingRowTitle>
+              <Switch
+                checked={retryBackoffEnabled}
+                onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
+                aria-label={t('settings.models.retry.backoff')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.fallback_models')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.fallback_models_description')}
+                </SettingDescription>
+              </div>
+              <div className="flex w-[220px] min-w-0 shrink-0 items-center">
+                <ModelSelector
+                  multiple={true}
+                  selectionType="id"
+                  value={retryFallbackModelIds}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  filter={chatModelFilter}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
+                      <span className="min-w-0 flex-1 truncate">
+                        {retryFallbackModelIds.length > 0
+                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
+                          : t('settings.models.empty')}
+                      </span>
+                      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                    </Button>
+                  }
+                />
+              </div>
+            </SettingRow>
+          </>
+        )}
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />

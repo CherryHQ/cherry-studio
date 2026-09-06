@@ -45,3 +45,24 @@ it('moves a step-declared range through the real Slider keyboard contract', asyn
   expect(slider).toHaveAttribute('aria-valuenow', '2')
   expect(screen.getByRole('spinbutton', { name: 'paintings.num_images' })).toHaveDisplayValue('2')
 })
+
+it('keeps a persisted out-of-range value inside the real controls aria range', () => {
+  render(
+    <PaintingFieldRenderer
+      item={{
+        type: 'slider',
+        key: 'guidanceScale',
+        title: 'paintings.guidance_scale',
+        min: 0,
+        max: 20,
+        step: 0.1,
+        initialValue: 4.5
+      }}
+      painting={{ guidanceScale: 99 }}
+      onChange={vi.fn()}
+    />
+  )
+
+  expect(screen.getByRole('slider', { name: 'paintings.guidance_scale' })).toHaveAttribute('aria-valuenow', '20')
+  expect(screen.getByRole('spinbutton', { name: 'paintings.guidance_scale' })).toHaveAttribute('aria-valuenow', '20')
+})
