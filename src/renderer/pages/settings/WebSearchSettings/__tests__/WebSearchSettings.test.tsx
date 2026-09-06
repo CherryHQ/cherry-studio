@@ -46,12 +46,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    Alert: ({ children, message, ...props }: React.HTMLAttributes<HTMLDivElement> & { message?: React.ReactNode }) => (
-      <div role="alert" {...props}>
-        {message}
-        {children}
-      </div>
-    ),
     Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
     ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
       <div role="group" {...props}>
@@ -235,6 +229,35 @@ describe('WebSearchSettings', () => {
     expect(searchResultTitle).toBeVisible()
     expect(compressionControl).toBeVisible()
     expect(blacklistTitle).toBeVisible()
+  })
+
+  it('warns about disabled compression and restores the default cutoff', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 50_000)
+    const { rerender } = render(<WebSearchSettings />)
+
+    const keywordProviderSection = getKeywordProviderSection()
+    expect(getAdvancedSettingsTrigger()).toHaveAttribute('aria-expanded', 'false')
+
+    const warning = within(keywordProviderSection).getByRole('status')
+    expect(warning).toHaveTextContent('settings.tool.websearch.compression.none_warning.message')
+    expect(warning).toHaveTextContent('settings.tool.websearch.compression.none_warning.description')
+
+    await user.click(
+      within(warning).getByRole('button', {
+        name: 'settings.tool.websearch.compression.none_warning.action'
+      })
+    )
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.method')).toBe('cutoff')
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(2000)
+    })
+    rerender(<WebSearchSettings />)
+
+    expect(
+      within(getKeywordProviderSection()).queryByText('settings.tool.websearch.compression.none_warning.message')
+    ).not.toBeInTheDocument()
   })
 
   // The preference governs every capability section, so it lives in its own group rather than under

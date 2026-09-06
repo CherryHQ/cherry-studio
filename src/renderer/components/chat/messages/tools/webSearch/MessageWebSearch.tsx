@@ -1,4 +1,5 @@
 import Link from '@renderer/components/chat/messages/markdown/Link'
+import { StatusBadge } from '@renderer/components/chat/primitives'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -19,6 +20,20 @@ function parseResultUrl(url: string): { hostname: string; domain: string } {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getBudgetStatusKey(budget: WebSearchOutputItem['budget']) {
+  if (!budget || budget.status === 'retained') return undefined
+
+  if (budget.status === 'truncated') {
+    return budget.reason === 'configured_cutoff'
+      ? 'message.websearch.budget.truncated.configured_cutoff'
+      : 'message.websearch.budget.truncated.hard_limit'
+  }
+
+  return budget.reason === 'configured_cutoff'
+    ? 'message.websearch.budget.omitted.configured_cutoff'
+    : 'message.websearch.budget.omitted.hard_limit'
 }
 
 /** Display target emitted by provider-executed Responses web search tools. */
@@ -110,6 +125,7 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
 }
 
 export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+  const { t } = useTranslation()
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
@@ -117,6 +133,7 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
     <ul className="flex flex-col gap-0.5 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:p-0">
       {outputParse.data.map((result: WebSearchOutputItem) => {
         const { hostname, domain } = parseResultUrl(result.url)
+        const budgetStatusKey = getBudgetStatusKey(result.budget)
         return (
           <li key={result.id}>
             <Link
@@ -124,6 +141,11 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
               className="-mx-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1 no-underline transition-colors hover:bg-accent">
               {hostname && <Favicon hostname={hostname} alt={result.title || domain} />}
               <span className="min-w-0 flex-1 truncate text-foreground">{result.title || result.url}</span>
+              {budgetStatusKey && (
+                <StatusBadge status="warning" className="px-1.5 py-0 font-normal text-[10px]">
+                  {t(budgetStatusKey)}
+                </StatusBadge>
+              )}
               <span className="max-w-[40%] shrink-0 truncate text-foreground-tertiary">{domain}</span>
             </Link>
           </li>

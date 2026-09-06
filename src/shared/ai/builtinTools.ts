@@ -403,6 +403,15 @@ export const webSearchInputSchema = z.object({
     )
 })
 
+const webSearchBudgetMetricsSchema = z.object({
+  originalTokens: z.number().int().nonnegative(),
+  retainedTokens: z.number().int().nonnegative(),
+  originalBytes: z.number().int().nonnegative(),
+  retainedBytes: z.number().int().nonnegative()
+})
+
+const webSearchBudgetReasonSchema = z.enum(['configured_cutoff', 'hard_limit'])
+
 export const webSearchOutputItemSchema = z.object({
   // Citation id the model echoes back as `[cite:id]`. New results use a per-call
   // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
@@ -410,7 +419,22 @@ export const webSearchOutputItemSchema = z.object({
   id: z.union([z.string(), z.number().int().positive()]),
   title: z.string(),
   url: z.string(),
-  content: z.string()
+  content: z.string(),
+  budget: z
+    .discriminatedUnion('status', [
+      webSearchBudgetMetricsSchema.extend({
+        status: z.literal('retained')
+      }),
+      webSearchBudgetMetricsSchema.extend({
+        status: z.literal('truncated'),
+        reason: webSearchBudgetReasonSchema
+      }),
+      webSearchBudgetMetricsSchema.extend({
+        status: z.literal('omitted'),
+        reason: webSearchBudgetReasonSchema
+      })
+    ])
+    .optional()
 })
 
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
