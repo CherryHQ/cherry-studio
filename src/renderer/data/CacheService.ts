@@ -350,6 +350,13 @@ export class CacheService {
 
   /**
    * Delete from memory cache with hook protection (type-safe)
+   *
+   * The guard only sees hooks in **visible** components: `useCache` registers from an effect, and
+   * `<Activity mode="hidden">` destroys the effects of a hidden tab, so a hidden consumer is
+   * indistinguishable from no consumer (#20074). A `true` return therefore means "no visible hook
+   * objected", not "nobody depends on this key" — the caller owns the key's lifetime and must know
+   * on its own that the data is dead.
+   *
    * @param key - Schema-defined cache key
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
@@ -362,6 +369,8 @@ export class CacheService {
    *
    * Use this for fully dynamic keys that don't match any schema pattern.
    * For keys matching schema patterns (including templates), use `delete()` instead.
+   *
+   * Carries the same visible-only hook protection as `delete()` — see its doc comment.
    *
    * @param key - Dynamic cache key that doesn't match any schema pattern
    * @returns True if deletion succeeded, false if key is protected by active hooks
