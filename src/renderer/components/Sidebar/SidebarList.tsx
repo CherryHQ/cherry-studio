@@ -6,7 +6,10 @@ import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarVisibleLayout } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarIconPresentation, SidebarVisibleLayout } from './types'
+
+const FULL_ICON_PRESENTATION = { slotSize: 18, glyphSize: 16 } as const
+const ICON_ICON_PRESENTATION = { slotSize: 24, glyphSize: 18 } as const
 
 export interface SidebarListProps {
   layout: SidebarVisibleLayout
@@ -17,14 +20,9 @@ export interface SidebarListProps {
 }
 
 /**
- * Renders built-in apps and mini apps as one continuous, drag-reorderable list.
+ * Renders resolved shortcuts as one continuous, drag-reorderable list.
  * A single `SidebarSortableList` (one dnd-kit context) backs the whole list, so a
- * drag can move an item to any position regardless of type — apps and mini apps
- * freely interleave with no divider between them.
- *
- * Entries are already resolved to a type-agnostic shape (see
- * `components/app/sidebarVariants`), so this presentation layer never switches on
- * whether a row is an app or a mini app.
+ * drag can move an item to any position regardless of its resource provider.
  */
 export function SidebarList({ layout, ...props }: SidebarListProps) {
   if (layout === 'icon') return <IconList {...props} />
@@ -65,6 +63,23 @@ function preventMiddleClickAutoscroll(e: React.MouseEvent) {
   if (e.button === 1) e.preventDefault()
 }
 
+function SidebarEntryIcon({
+  entry,
+  presentation
+}: {
+  entry: ResolvedSidebarEntry
+  presentation: SidebarIconPresentation
+}) {
+  return (
+    <span
+      data-slot="sidebar-entry-icon"
+      className="flex shrink-0 items-center justify-center"
+      style={{ width: presentation.slotSize, height: presentation.slotSize }}>
+      {entry.renderIcon(presentation)}
+    </span>
+  )
+}
+
 function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
@@ -81,16 +96,19 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
               <button
                 type="button"
                 aria-label={entry.label}
-                onClick={guardClick(entry.key, entry.onOpen)}
+                aria-disabled={entry.disabled || undefined}
+                onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
+                  entry.disabled ? 'cursor-not-allowed opacity-55' : ''
+                } ${
                   isActive
                     ? 'bg-[var(--sidebar-active-bg)] text-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-full" />}
-                {entry.renderIcon(18, 'lg')}
+                <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
               </button>
             </EntryContextMenu>
           </SidebarTooltip>
@@ -115,13 +133,14 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
             <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
               <MenuItem
                 variant="ghost"
-                icon={entry.renderIcon(16, 'md')}
+                icon={<SidebarEntryIcon entry={entry} presentation={FULL_ICON_PRESENTATION} />}
                 label={entry.label}
                 active={isActive}
-                onClick={guardClick(entry.key, entry.onOpen)}
+                aria-disabled={entry.disabled || undefined}
+                onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
+                className="rounded-xl aria-disabled:cursor-not-allowed aria-disabled:opacity-55 data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />
             </EntryContextMenu>
             {isActive && <ActiveIndicator className="rounded-xl" />}

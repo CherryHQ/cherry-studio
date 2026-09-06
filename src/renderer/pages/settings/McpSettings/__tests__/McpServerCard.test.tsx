@@ -34,6 +34,20 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('McpServerCard', () => {
+  it('does not expose a sidebar shortcut action', () => {
+    const server: McpServer = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Filesystem',
+      type: 'stdio',
+      command: 'npx',
+      isActive: false
+    }
+
+    render(<McpServerCard server={server} onEdit={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
   it('deletes a server whose card crashed through the mcp.server.remove IPC channel', async () => {
     mocks.request.mockResolvedValue(undefined)
     mocks.invalidate.mockResolvedValue(undefined)

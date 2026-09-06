@@ -7,6 +7,7 @@ import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTa
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -474,6 +475,11 @@ import { Topics } from '../Topics'
 
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
+
+const sidebarShortcut = (providerId: string, resourceId: string) => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
 
 // The full set of collapsible time groups; the stored cache is a flat list of
 // the ones the user explicitly collapsed (denylist). Empty = everything expanded.
@@ -999,6 +1005,8 @@ describe('Topics', () => {
     expect(screen.getByText('This week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+    // Pinned conversation names stay visually centered in their dedicated group.
+    expect(screen.getByText('Beta pinned')).toHaveClass('text-center')
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
@@ -1576,6 +1584,7 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
+      'Add to sidebar',
       expect.stringMatching(/^Move to/),
       'Open in New Window',
       'Conversation positionLeftRight',
@@ -1592,6 +1601,23 @@ describe('Topics', () => {
       'variant',
       'destructive'
     )
+  })
+
+  it('adds a topic shortcut without changing its conversation pin', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { ...sidebarShortcut('core.topic', 'topic-a'), fallbackLabel: 'Alpha topic' }
+      ])
+    )
+    expect(pinMutationMocks.createPin).not.toHaveBeenCalled()
   })
 
   it('clears a non-active topic from its context menu without switching the conversation', async () => {
@@ -3552,7 +3578,7 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        { type: 'assistant', id: 'assistant-1' }
+        sidebarShortcut('core.assistant', 'assistant-1')
       ])
     )
   })
@@ -3560,7 +3586,7 @@ describe('Topics', () => {
   it('unpins an already pinned assistant from the assistant group menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
-      { type: 'assistant', id: 'assistant-1' }
+      sidebarShortcut('core.assistant', 'assistant-1')
     ])
 
     renderTopicList()

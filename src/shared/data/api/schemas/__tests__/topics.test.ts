@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DuplicateTopicSchema,
+  ListTopicsQuerySchema,
+  SetActiveNodeSchema,
+  UpdateTopicSchema
+} from '../topics'
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `topic-${index}`)
+
+    expect(ListTopicsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListTopicsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListTopicsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+})
 
 describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {

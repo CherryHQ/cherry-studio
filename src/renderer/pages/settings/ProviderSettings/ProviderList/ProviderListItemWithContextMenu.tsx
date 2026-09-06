@@ -78,7 +78,7 @@ export default function ProviderListItemWithContextMenu({
       })
     }
     return items
-  }, [onDelete, onDuplicate, onEdit, provider.id, showManagementActions, t])
+  }, [onDelete, onDuplicate, onEdit, provider, showManagementActions, t])
 
   // Right-click stays uncontrolled — Radix handles cross-popup mutex naturally.
   // The more-button popup remains controlled so the parent's single-row-active-at-a-time

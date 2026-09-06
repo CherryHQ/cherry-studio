@@ -27,6 +27,14 @@ const imagePreviewMocks = vi.hoisted(() => ({
   show: vi.fn().mockResolvedValue(undefined)
 }))
 
+const dataApiMocks = vi.hoisted(() => ({
+  get: vi.fn()
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: dataApiMocks.get }
+}))
+
 vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
     filePreviewMocks.render(props)
@@ -774,6 +782,25 @@ describe('FilesPage file operations', () => {
     expect(screen.queryByRole('region', { name: 'report.md' })).not.toBeInTheDocument()
     expect(screen.getByText('report.md')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.open' })).toBeInTheDocument()
+  })
+
+  it('reveals a route-targeted entry without requiring it in the current page', async () => {
+    const onEntryIdChange = vi.fn()
+    dataApiMocks.get.mockResolvedValue(entry)
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+
+    render(<FilesPage entryId={entry.id} onEntryIdChange={onEntryIdChange} />)
+
+    await waitFor(() => expect(screen.getByRole('region', { name: 'report.md' })).toBeInTheDocument())
+    expect(dataApiMocks.get).toHaveBeenCalledWith(`/files/entries/${entry.id}`)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(onEntryIdChange).toHaveBeenCalledWith()
   })
 
   it('reports a file preview path resolution failure', async () => {

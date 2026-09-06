@@ -50,8 +50,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     removeCustomMiniApp: vi.fn()
   })
 }))
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: vi.fn() })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], toggle: vi.fn() })
 }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openMiniAppInSplit: mocks.openMiniAppInSplit })

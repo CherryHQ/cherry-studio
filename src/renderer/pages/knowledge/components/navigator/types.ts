@@ -35,6 +35,8 @@ export interface BaseNavigatorGroupSectionProps {
   onCreateGroup: (baseId: string) => void
   onDeleteGroup: (groupId: string) => Promise<void> | void
   onDeleteBase: (baseId: string) => Promise<void> | void
+  onToggleSidebar: (base: KnowledgeBaseListItem) => void
+  sidebarPinnedBaseIds: ReadonlySet<string>
 }
 
 export interface BaseNavigatorSectionTriggerProps {
@@ -56,6 +58,8 @@ export interface KnowledgeBaseRowProps {
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onCreateGroup: (baseId: string) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
+  onToggleSidebar: (base: KnowledgeBaseListItem) => void
+  sidebarPinned: boolean
 }
 
 export interface KnowledgeGroupRowProps {

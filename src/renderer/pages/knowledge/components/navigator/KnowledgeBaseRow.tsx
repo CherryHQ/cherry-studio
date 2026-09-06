@@ -1,6 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
@@ -17,7 +18,9 @@ const KnowledgeBaseRow = ({
   onMoveBase,
   onRenameBase,
   onCreateGroup,
-  onDeleteBase
+  onDeleteBase,
+  onToggleSidebar,
+  sidebarPinned
 }: KnowledgeBaseRowProps) => {
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -105,6 +108,13 @@ const KnowledgeBaseRow = ({
       })
     }
 
+    items.push({
+      type: 'item',
+      id: 'toggle-sidebar',
+      label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+      icon: <SidebarShortcutIcon pinned={sidebarPinned} className="size-3.5" />,
+      onSelect: () => onToggleSidebar(base)
+    })
     items.push({ type: 'separator' })
     items.push({
       type: 'item',
@@ -116,7 +126,18 @@ const KnowledgeBaseRow = ({
     })
 
     return items
-  }, [availableGroups, canMoveToUngrouped, handleCreateGroup, handleMoveBase, handleRenameBase, handleRequestDelete, t])
+  }, [
+    availableGroups,
+    base,
+    canMoveToUngrouped,
+    handleCreateGroup,
+    handleMoveBase,
+    handleRenameBase,
+    handleRequestDelete,
+    onToggleSidebar,
+    sidebarPinned,
+    t
+  ])
 
   return (
     <>

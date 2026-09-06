@@ -168,16 +168,36 @@
     },
     {
       "targetKey": "ui.sidebar.favorites",
-      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "type": "PreferenceTypes.SidebarShortcutItem[]",
       "defaultValue": [
-        { "id": "agents", "type": "app" },
-        { "id": "assistants", "type": "app" },
-        { "id": "translate", "type": "app" },
-        { "id": "paintings", "type": "app" },
-        { "id": "knowledge", "type": "app" }
+        {
+          "id": "sidebar-shortcut:core.app:agents",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:assistants",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:translate",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:paintings",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:knowledge",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "type": "shortcut"
+        }
       ],
       "status": "classified",
-      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+      "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
       "targetKey": "ui.launchpad.app_order",

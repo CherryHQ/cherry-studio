@@ -1,10 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { type IconRef, useIcon } from '@cherrystudio/ui/icons'
+import type { IconRef } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
@@ -33,9 +34,29 @@ const REASON_MESSAGE_KEYS: Partial<Record<WebToolUnavailableReason, string>> = {
   'openai-minimal-reasoning': 'chat.web_search.warning.openai'
 }
 
-const WebSearchProviderIcon: FC<{ iconRef?: IconRef }> = ({ iconRef }) => {
-  const Icon = useIcon(iconRef)
-  return Icon ? <Icon width={18} height={18} /> : <Globe />
+const TOOLBAR_ICON_SIZE = 18
+const TOOLBAR_ARTWORK_SIZE = 14
+
+const WebSearchProviderIcon: FC<{ iconRef?: IconRef; providerName?: string }> = ({ iconRef, providerName }) => {
+  return (
+    <span
+      data-slot="web-search-provider-icon"
+      className="flex shrink-0 items-center justify-center overflow-hidden"
+      style={{ width: TOOLBAR_ICON_SIZE, height: TOOLBAR_ICON_SIZE }}>
+      {iconRef ? (
+        <ProviderAvatarPrimitive
+          providerId={iconRef.meta.id}
+          providerName={providerName ?? iconRef.meta.id}
+          logo={`icon:${iconRef.meta.id}`}
+          size={TOOLBAR_ICON_SIZE}
+          artworkSize={TOOLBAR_ARTWORK_SIZE}
+          displayContext="toolbar"
+        />
+      ) : (
+        <Globe size={TOOLBAR_ICON_SIZE} aria-hidden />
+      )}
+    </span>
+  )
 }
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
@@ -82,6 +103,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : { webSearch: 'none' as const, reasons: undefined }
   const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
   const activeProviderId = effectiveSearchProvider?.id
+  const activeProviderName = effectiveSearchProvider?.name
 
   const providerIconRef =
     enableWebSearch && webSearchRoute === 'client' && activeProviderId
@@ -157,7 +179,10 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         : undefined
   const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
-  const icon = useMemo(() => <WebSearchProviderIcon iconRef={providerIconRef} />, [providerIconRef])
+  const icon = useMemo(
+    () => <WebSearchProviderIcon iconRef={providerIconRef} providerName={activeProviderName} />,
+    [activeProviderName, providerIconRef]
+  )
 
   useEffect(() => {
     return launcher.registerLaunchers([

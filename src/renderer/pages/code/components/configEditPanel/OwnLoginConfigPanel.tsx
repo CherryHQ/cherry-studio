@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
@@ -15,7 +16,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CliIcon } from '../CliIcon'
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
 import { renderToolFields } from './toolFieldRenderer'

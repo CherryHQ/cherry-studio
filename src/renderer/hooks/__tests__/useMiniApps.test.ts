@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -42,6 +43,11 @@ import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './
 const paginated = (items: MiniApp[]) => items
 const mockClearWebviewState = vi.mocked(clearWebviewState)
 const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
+
+const sidebarShortcut = (providerId: string, resourceId: string) => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
 
 /** Control the `system.get_ip_country` route on the ipcApi facade for region-detection tests. */
 const mockIpCountry = (result: string | Error) => {
@@ -495,9 +501,9 @@ describe('useMiniApps', () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
       MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
-        { type: 'app', id: 'assistants' },
-        { type: 'mini_app', id: 'custom-app' },
-        { type: 'mini_app', id: 'other-app' }
+        sidebarShortcut('core.app', 'assistants'),
+        sidebarShortcut('core.mini-app', 'custom-app'),
+        sidebarShortcut('core.mini-app', 'other-app')
       ])
 
       const { result } = renderHook(() => useMiniApps())
@@ -508,8 +514,8 @@ describe('useMiniApps', () => {
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
-        { type: 'app', id: 'assistants' },
-        { type: 'mini_app', id: 'other-app' }
+        sidebarShortcut('core.app', 'assistants'),
+        sidebarShortcut('core.mini-app', 'other-app')
       ])
     })
   })

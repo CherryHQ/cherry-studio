@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -26,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   toggleMiniApp: vi.fn(),
   pinned: [] as MiniAppType[],
   openedKeepAliveMiniApps: [] as MiniAppType[],
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[]
+  sidebarFavoriteIds: [] as string[]
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -133,9 +132,7 @@ const TestMiniApp = (props: TestMiniAppProps) => {
       onRemoveCustom={mocks.removeCustomMiniApp}
       onToggleSidebarFavorite={mocks.toggleMiniApp}
       isPinned={mocks.pinned.some((item) => item.appId === app.appId)}
-      isSidebarFavorite={mocks.sidebarFavorites.some(
-        (favorite) => favorite.type === 'mini_app' && favorite.id === app.appId
-      )}
+      isSidebarFavorite={mocks.sidebarFavoriteIds.includes(app.appId)}
       isOpened={mocks.openedKeepAliveMiniApps.some((item) => item.appId === app.appId)}
       isActive={false}
     />
@@ -148,7 +145,7 @@ afterEach(() => {
   MockUseCacheUtils.resetMocks()
   mocks.pinned = []
   mocks.openedKeepAliveMiniApps = []
-  mocks.sidebarFavorites = [{ type: 'app', id: 'assistants' }]
+  mocks.sidebarFavoriteIds = []
 })
 
 describe('MiniApp launchpad pin menu', () => {
@@ -196,11 +193,7 @@ describe('MiniApp launchpad pin menu', () => {
   })
 
   it('removes a mini app from sidebar favorites', () => {
-    mocks.sidebarFavorites = [
-      { type: 'app', id: 'assistants' },
-      { type: 'mini_app', id: 'calculator' },
-      { type: 'mini_app', id: 'weather' }
-    ]
+    mocks.sidebarFavoriteIds = ['calculator', 'weather']
     mocks.pinned = [calculatorApp]
 
     render(<TestMiniApp app={calculatorApp} variant="launchpad" />)
@@ -237,7 +230,6 @@ describe('MiniApp installed-app menu', () => {
   it('offers view-details but neither edit nor delete for an installed app', () => {
     // An installed app's `presetMiniAppId` is null too, so the old condition showed both —
     // and the service layer now refuses them, turning a rule into an error toast.
-
     render(<TestMiniApp app={installedApp} variant="launchpad" onEditCustom={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'miniApp.detail.open' })).toBeInTheDocument()

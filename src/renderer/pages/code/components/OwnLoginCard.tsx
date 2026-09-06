@@ -1,10 +1,9 @@
 import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import type { CodeCli } from '@shared/types/codeCli'
 import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { CliIcon } from './CliIcon'
 
 export interface OwnLoginCardProps {
   toolId: CodeCli

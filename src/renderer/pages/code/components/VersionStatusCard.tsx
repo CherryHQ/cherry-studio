@@ -1,11 +1,11 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import { type FC, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { VersionStatus } from '../types'
-import { CliIcon } from './CliIcon'
 
 interface VersionStatusCardProps {
   toolId: string

@@ -6,7 +6,7 @@ import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,6 +62,25 @@ vi.mock('@renderer/components/ActionIconButton', () => ({
       </button>
     )
   }
+}))
+
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: ({
+    size,
+    artworkSize,
+    displayContext
+  }: {
+    size: number
+    artworkSize?: number
+    displayContext?: string
+  }) => (
+    <span
+      data-slot="provider-avatar"
+      data-size={size}
+      data-artwork-size={artworkSize}
+      data-display-context={displayContext}
+    />
+  )
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -191,6 +210,11 @@ describe('WebSearchButton', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
+    mocks.getWebSearchProviderIconRef.mockReturnValue({
+      kind: 'provider',
+      key: 'exa',
+      meta: { id: 'exa', colorPrimary: '#1F40ED', colorScheme: 'color' }
+    })
   })
 
   it('reads only the current model provider', () => {
@@ -332,13 +356,19 @@ describe('WebSearchButton', () => {
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
     mocks.getWebSearchProviderIconRef.mockImplementation((providerId) =>
-      providerId === 'exa-mcp' ? { kind: 'provider', key: 'exa' } : undefined
+      providerId === 'exa-mcp'
+        ? {
+            kind: 'provider',
+            key: 'exa',
+            meta: { id: 'exa', colorPrimary: '#1F40ED', colorScheme: 'color' }
+          }
+        : undefined
     )
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
     const button = screen.getByRole('button', { name: 'common.close' })
-    expect(within(button).getByTestId('web-search-provider-icon')).toBeInTheDocument()
+    expect(button.querySelector('[data-slot="provider-avatar"]')).toBeInTheDocument()
     expect(screen.getByTestId('tooltip')).toHaveAttribute(
       'data-content',
       'Zhipu is unavailable, so the query is sent to ExaMCP.'
@@ -405,6 +435,19 @@ describe('WebSearchButton', () => {
     await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
     const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
     expect(webSearchLauncher.tooltip).toBe('chat.input.web_search.route.client')
+  })
+
+  it('uses the shared provider presentation with a lighter toolbar footprint', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    mocks.assistant.settings.enableWebSearch = true
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const providerAvatar = document.querySelector('[data-slot="provider-avatar"]')
+    expect(providerAvatar).toHaveAttribute('data-size', '18')
+    expect(providerAvatar).toHaveAttribute('data-artwork-size', '14')
+    expect(providerAvatar).toHaveAttribute('data-display-context', 'toolbar')
   })
 
   it('registers web search only for the plus menu', async () => {

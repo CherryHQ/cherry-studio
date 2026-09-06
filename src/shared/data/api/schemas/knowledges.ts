@@ -80,6 +80,7 @@ export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
 export const ListKnowledgeBasesQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(KNOWLEDGE_BASES_MAX_LIMIT).optional(),
   cursor: z.string().optional(),
   limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT),
   search: z.string().trim().min(1).optional(),

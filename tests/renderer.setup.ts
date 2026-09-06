@@ -994,14 +994,15 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize }) =>
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
       React.createElement(
         'div',
         {
           className,
           'data-testid': 'emoji-icon',
           ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
-          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {})
+          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {}),
+          ...(size !== undefined ? { 'data-size': String(size) } : {})
         },
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji

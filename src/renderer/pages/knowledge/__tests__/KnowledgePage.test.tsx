@@ -704,6 +704,28 @@ describe('KnowledgePage', () => {
     )
   })
 
+  it('selects the knowledge base from the route and publishes later selections', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Base 1' }))
+
+    expect(onBaseIdChange).toHaveBeenCalledWith('base-1')
+  })
+
   it('keeps a global search knowledge selection until cold-start bases load', async () => {
     let bases: KnowledgeBase[] = []
 

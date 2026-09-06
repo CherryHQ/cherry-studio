@@ -819,6 +819,12 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()

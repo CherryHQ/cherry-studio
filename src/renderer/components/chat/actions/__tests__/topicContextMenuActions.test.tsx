@@ -83,6 +83,19 @@ describe('topic context menu actions', () => {
     expect(exportAction?.children.map((action) => action.id)).not.toContain('topic.export.image')
   })
 
+  it('keeps ordinary pinning separate from sidebar shortcuts', async () => {
+    const onToggleSidebar = vi.fn()
+    const context = createTopicActionFixture({ onToggleSidebar, sidebarPinned: true })
+    const actions = resolveTopicMenuActions(context)
+    const sidebarAction = actions.find((action) => action.id === 'topic.toggle-sidebar')
+
+    expect(actions.find((action) => action.id === 'topic.pin')?.label).toBe('chat.topics.pin')
+    expect(sidebarAction?.label).toBe('launchpad.unpin_from_sidebar')
+
+    await executeTopicMenuAction(sidebarAction!, context)
+    expect(onToggleSidebar).toHaveBeenCalledWith(topic)
+  })
+
   it('runs a move-to-assistant submenu action', async () => {
     const onMoveToAssistant = vi.fn()
     const context = createTopicActionFixture({

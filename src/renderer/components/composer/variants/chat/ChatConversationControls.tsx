@@ -1,6 +1,5 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, EmojiIcon } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
