@@ -8,37 +8,22 @@ import { useMemo } from 'react'
 const logger = loggerService.withContext('useTranslateSession')
 
 function sessionCacheKeys(tabSession: string): UseCacheKey[] {
-  return [`translate.input.${tabSession}`, `translate.output.${tabSession}`, `translate.detecting.${tabSession}`]
+  return [`translate.input.${tabSession}`, `translate.output.${tabSession}`]
 }
 
 export interface TranslateSessionHandle extends TabSessionHandle {
   /**
-   * Hand a running main-process stream to the session, by id. The returned callback marks it
-   * finished. A stream still registered when the session is released is aborted — that is the
-   * only place a tab-scoped run gets cancelled, so unmounting the component that started it no
-   * longer kills it.
+   * Adopt a main-owned translation by its task id. The returned callback marks it finished; a
+   * task still adopted when the session is released is cancelled, which is the only place a
+   * tab-scoped translation ends — unmounting the page that started it no longer kills it.
    *
-   * The id, not an `AbortController`: the run lives in main and is cancelled by
-   * `ai.stream.abort`, so a plain string is the whole handle. Detaching a tab destroys and
-   * rebuilds it in another window, which an `AbortController` could never survive.
+   * An id rather than anything callable: the task runs in main and is cancelled through
+   * `translate.task.cancel`, so a plain string is the whole handle. Detaching a tab destroys and
+   * rebuilds this renderer, which nothing callable could survive.
    */
-  addStream: (streamId: string) => () => void
-  /**
-   * How far the run has got, as accumulated text. The session holds it, not the page: with no
-   * page mounted the run keeps advancing, and after a remount a different page instance has to
-   * pick it up.
-   */
-  recordProgress: (accumulated: string) => void
-  /** Reset it as a run starts, before the session reports busy. */
-  clearProgress: () => void
-  /**
-   * The run's text if a page has not taken it yet, marking it taken. What makes a second page
-   * not replay a finished run over an output the user has since replaced is this cursor, not
-   * the text being thrown away — the run's product stays readable for as long as the run does.
-   */
-  takeProgress: () => string | undefined
-  /** Follow it. The listener fires at once with the current value, then on every change. */
-  onProgress: (listener: (accumulated: string) => void) => () => void
+  addTask: (taskId: string) => () => void
+  /** The task this session follows, if any — what a page re-attaches by after coming back. */
+  currentTaskId: () => string | undefined
 }
 
 /**
@@ -59,29 +44,18 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
     }
 
     return tabSessionRegistry.getOrCreate(tabSession, (notify) => {
-      const streams = new Set<string>()
-      // The run's text, and how much of it a page has taken. Stream state, so it lives here
-      // rather than in the cache: a run cannot outlive the process, and what a page has already
-      // shown is the half that persists, under `translate.output`.
-      let progress = ''
-      let deliveredLength = 0
-      const progressListeners = new Set<(accumulated: string) => void>()
-      const emitProgress = () => {
-        for (const listener of progressListeners) {
-          listener(progress)
-        }
-      }
+      const tasks = new Set<string>()
       return {
-        isBusy: () => streams.size > 0,
+        isBusy: () => tasks.size > 0,
         cancel: () => {
-          if (streams.size === 0) return
-          for (const streamId of streams) {
-            void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch((error: unknown) => {
-              // Already finished or gone — main drives the final reject via the stream error event.
-              logger.debug('Stream abort request failed', { streamId, error })
+          if (tasks.size === 0) return
+          for (const taskId of tasks) {
+            void ipcApi.request('translate.task.cancel', { taskId }).catch((error: unknown) => {
+              // Already settled or gone — main drives the final state through the task events.
+              logger.debug('Task cancel request failed', { taskId, error })
             })
           }
-          streams.clear()
+          tasks.clear()
           notify()
         },
         release: () => {
@@ -93,32 +67,12 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
           }
           return released
         },
-        recordProgress: (accumulated: string) => {
-          progress = accumulated
-          emitProgress()
-        },
-        clearProgress: () => {
-          progress = ''
-          deliveredLength = 0
-          emitProgress()
-        },
-        takeProgress: () => {
-          if (deliveredLength >= progress.length) return undefined
-          deliveredLength = progress.length
-          return progress
-        },
-        onProgress: (listener: (accumulated: string) => void) => {
-          progressListeners.add(listener)
-          listener(progress)
-          return () => {
-            progressListeners.delete(listener)
-          }
-        },
-        addStream: (streamId: string) => {
-          streams.add(streamId)
+        currentTaskId: () => tasks.values().next().value,
+        addTask: (taskId: string) => {
+          tasks.add(taskId)
           notify()
           return () => {
-            if (streams.delete(streamId)) notify()
+            if (tasks.delete(taskId)) notify()
           }
         }
       }
