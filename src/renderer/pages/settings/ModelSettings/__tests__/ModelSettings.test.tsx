@@ -181,11 +181,7 @@ describe('ModelSettings', () => {
     harness.selectorFilters = []
     harness.preferenceValues = {
       'chat.suggestions.enabled': true,
-      'chat.suggestions.model_id': null,
-      'chat.retry.enabled': false,
-      'chat.retry.max_attempts': 2,
-      'chat.retry.backoff_enabled': true,
-      'chat.retry.fallback_model_ids': []
+      'chat.suggestions.model_id': null
     }
     harness.preferenceSetters = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
@@ -268,55 +264,6 @@ describe('ModelSettings', () => {
     ).toBe(false)
   })
 
-  it('shows retry controls and restricts fallback selection to chat models', () => {
-    harness.preferenceValues['chat.retry.enabled'] = true
-    harness.preferenceValues['chat.retry.max_attempts'] = 3
-    harness.preferenceValues['chat.retry.fallback_model_ids'] = ['openai::gpt-4o']
-
-    render(
-      <ModelSettings
-        modelFilter={(model) => model.providerId !== 'hidden'}
-        showPaintingModel={false}
-        showSettingsButton={false}
-      />
-    )
-
-    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue('3')
-    expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
-
-    const fallbackFilter = harness.selectorFilters.at(-1)
-    expect(fallbackFilter?.(createModel('openai', 'gpt-4o'))).toBe(true)
-    expect(
-      fallbackFilter?.({
-        ...createModel('openai', 'embed'),
-        capabilities: [MODEL_CAPABILITY.EMBEDDING]
-      })
-    ).toBe(false)
-    expect(fallbackFilter?.(createModel('hidden', 'chat'))).toBe(false)
-  })
-
-  it('writes retry preference changes through the shared preference hook', () => {
-    harness.preferenceValues['chat.retry.enabled'] = true
-    harness.preferenceValues['chat.retry.max_attempts'] = 2
-
-    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
-
-    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
-
-    const attempts = screen.getByLabelText('settings.models.retry.max_attempts')
-    // Typing alone writes nothing: the preference is written once the field settles.
-    fireEvent.change(attempts, { target: { value: '99' } })
-    expect(harness.preferenceSetters['chat.retry.max_attempts']).not.toHaveBeenCalled()
-
-    fireEvent.blur(attempts)
-    fireEvent.change(attempts, { target: { value: '' } })
-    fireEvent.blur(attempts)
-
-    expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
-    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)
-    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(2, 1)
-  })
-
   it('lets users disable suggestions or choose a dedicated model', () => {
     const selectedModel = createModel('openai', 'gpt-4o-mini')
     render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
@@ -387,6 +334,7 @@ describe('ModelSettings', () => {
 
     const focusGuide = screen.getByTestId('model-settings-focus-guide')
     expect(focusGuide).toBeInTheDocument()
+    expect(focusGuide).toHaveClass('motion-reduce:!animate-none', 'motion-reduce:-translate-y-1/2')
     expect(screen.getAllByTestId('model-settings-focus-guide')).toHaveLength(1)
     expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
 

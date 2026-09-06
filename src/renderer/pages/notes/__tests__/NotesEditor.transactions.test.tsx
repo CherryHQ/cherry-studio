@@ -10,7 +10,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
