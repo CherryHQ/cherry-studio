@@ -1,2 +1,2 @@
-export type { DoctorController, DoctorInteraction, DoctorPanel } from './useDoctorController'
+export type { DoctorController } from './useDoctorController'
 export { useDoctorController } from './useDoctorController'

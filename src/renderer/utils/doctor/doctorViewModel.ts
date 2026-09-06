@@ -10,11 +10,11 @@ import {
   type DoctorState
 } from '@shared/types/doctor'
 
-export type DisplayedDoctorDomain = (typeof DOCTOR_CHECK_CATALOG)[DoctorCheckId]['domain']
-export type DoctorRowStatus = DoctorCheckStatus | 'pending'
-export type DoctorGroupStatus = 'pass' | 'warn' | 'fail' | 'running' | 'neutral'
+type DisplayedDoctorDomain = (typeof DOCTOR_CHECK_CATALOG)[DoctorCheckId]['domain']
+type DoctorRowStatus = DoctorCheckStatus | 'pending'
+type DoctorGroupStatus = 'pass' | 'warn' | 'fail' | 'running' | 'neutral'
 
-export interface DoctorRowViewModel {
+interface DoctorRowViewModel {
   readonly id: DoctorCheckId
   readonly domain: DisplayedDoctorDomain
   readonly status: DoctorRowStatus
@@ -23,13 +23,13 @@ export interface DoctorRowViewModel {
   readonly actionsDisabled: boolean
 }
 
-export interface DoctorGroupViewModel {
+interface DoctorGroupViewModel {
   readonly domain: DisplayedDoctorDomain
   readonly status: DoctorGroupStatus
   readonly rows: readonly DoctorRowViewModel[]
 }
 
-export interface DoctorViewModel {
+interface DoctorViewModel {
   readonly status: DoctorState['status']
   readonly tier?: DoctorRunTier
   readonly report?: DoctorReport

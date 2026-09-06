@@ -21,19 +21,27 @@ import type { DoctorController } from '@renderer/hooks/doctor'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import {
   defaultExpandedDoctorDomains,
-  DOCTOR_CHECK_CONTENT,
   DOCTOR_DOMAIN_LABEL_KEYS,
   DOCTOR_NAVIGATION_LABEL_KEYS,
   DOCTOR_STATUS_LABEL_KEYS,
   isDoctorRowExpandedByDefault,
   resolveDoctorFixLabel
 } from '@renderer/utils/doctor'
-import type { DoctorAction, DoctorCheckId, DoctorCheckResult } from '@shared/types/doctor'
+import {
+  type DoctorAction,
+  doctorCheckDetailKey,
+  type DoctorCheckId,
+  type DoctorCheckResult,
+  doctorCheckTitleKey
+} from '@shared/types/doctor'
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type DoctorFixTargetNameResolver = (target: string) => string | undefined
+type DoctorStatusIconStatus =
+  | DoctorController['viewModel']['rows'][number]['status']
+  | DoctorController['viewModel']['groups'][number]['status']
 
 function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
   const { mcpServers } = useMcpServers()
@@ -95,7 +103,8 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
   )
 }
 
-export function DoctorCheckList({
+/** Renders check items inside an existing Accordion root owned by the host. */
+export function DoctorCheckAccordionItems({
   controller,
   rows = controller.viewModel.rows
 }: {
@@ -139,14 +148,12 @@ function DoctorCheckListItem({
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const { t } = useTranslation()
-  const content = DOCTOR_CHECK_CONTENT[row.id]
-
   return (
     <AccordionItem value={`doctor-${row.id}`} className="px-2">
       <AccordionTrigger className="py-3 font-normal">
         <span className="flex min-w-0 items-center gap-2">
           <StatusIcon status={row.status} />
-          <span className="min-w-0 truncate font-medium text-sm">{t(content.title)}</span>
+          <span className="min-w-0 truncate font-medium text-sm">{t(doctorCheckTitleKey(row.id))}</span>
           <Badge variant="outline" className="shrink-0 font-normal text-xs">
             {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
           </Badge>
@@ -360,13 +367,12 @@ function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
   if (result.status === 'skip') {
     return (
       <p className={className}>
-        {t('settings.doctor.checks.skipped', { check: t(DOCTOR_CHECK_CONTENT[result.skippedBy].title) })}
+        {t('settings.doctor.checks.skipped', { check: t(doctorCheckTitleKey(result.skippedBy)) })}
       </p>
     )
   }
   if (!result.detail) return <p className={className}>{t(DOCTOR_STATUS_LABEL_KEYS[result.status])}</p>
-  const details = DOCTOR_CHECK_CONTENT[result.id].details as Readonly<Record<string, string>>
-  return <p className={className}>{t(details[result.detail.variant], result.detail.params)}</p>
+  return <p className={className}>{t(doctorCheckDetailKey(result.id, result.detail.variant), result.detail.params)}</p>
 }
 
 function Evidence({ name, value }: { readonly name: string; readonly value: string }) {
@@ -439,7 +445,7 @@ function actionLabel(
   }
 }
 
-function StatusIcon({ status }: { readonly status: string }): ReactNode {
+function StatusIcon({ status }: { readonly status: DoctorStatusIconStatus }): ReactNode {
   switch (status) {
     case 'pass':
       return <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
@@ -459,10 +465,10 @@ function StatusIcon({ status }: { readonly status: string }): ReactNode {
     case 'neutral':
       return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
     default:
-      return null
+      return assertNever(status)
   }
 }
 
 function assertNever(value: never): never {
-  throw new Error(`Unhandled Doctor action: ${JSON.stringify(value)}`)
+  throw new Error(`Unhandled Doctor value: ${JSON.stringify(value)}`)
 }

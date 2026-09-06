@@ -5,7 +5,6 @@ export interface DiagnosticsPanelProps extends Omit<ComponentProps<'section'>, '
   readonly title: ReactNode
   readonly description?: ReactNode
   readonly actions?: ReactNode
-  readonly headerClassName?: string
   readonly bodyClassName?: string
 }
 
@@ -13,7 +12,6 @@ export function DiagnosticsPanel({
   title,
   description,
   actions,
-  headerClassName,
   bodyClassName,
   className,
   children,
@@ -27,7 +25,7 @@ export function DiagnosticsPanel({
       aria-labelledby={ariaLabelledBy ?? titleId}
       className={cn('min-w-0 overflow-hidden rounded-xl border border-border bg-background-subtle', className)}
       {...props}>
-      <div className={cn('flex flex-wrap items-start justify-between gap-3 px-4 py-3', headerClassName)}>
+      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
           <h2 id={titleId} className="font-medium text-sm">
             {title}

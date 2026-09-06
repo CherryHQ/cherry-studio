@@ -522,5 +522,3 @@ function SourceRow({
     </div>
   )
 }
-
-export default DiagnosticUploadPanel
