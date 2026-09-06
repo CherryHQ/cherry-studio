@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  clearSessionMessages: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
@@ -24,8 +25,11 @@ const mocks = vi.hoisted(() => ({
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+    request: (route: string, input: unknown) => {
+      if (route === 'ai.tool.respond_approval') return mocks.respondToolApproval(input)
+      if (route === 'ai.agent.session.messages.clear') return mocks.clearSessionMessages(input)
+      return Promise.resolve(undefined)
+    },
     on: () => () => {}
   }
 }))
@@ -145,6 +149,7 @@ describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
+    mocks.clearSessionMessages.mockResolvedValue(undefined)
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
@@ -213,6 +218,21 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  it('clears messages through the Agent Session command boundary', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(() => result.current.clearMessages())
+
+    expect(mocks.clearSessionMessages).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session-1' })
+    expect(mocks.chatStop).not.toHaveBeenCalled()
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {

@@ -375,6 +375,197 @@ describe('AgentSessionMessageService', () => {
       ).toEqual([first!.id, request.id].sort())
     })
 
+    it.each(['accepted', 'delivering'] as const)(
+      'writes one sender failure result before clearing a %s completion request',
+      async (status) => {
+        await seedAgent('agent-a', 'Agent A')
+        await seedAgent('agent-b', 'Agent B')
+        await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+        await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+        const request = agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'Do the work',
+          replyPolicy: 'completion'
+        })
+        if (status === 'delivering') {
+          agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+            expected: ['accepted'],
+            turnRef: 'assistant-turn'
+          })
+        }
+
+        agentSessionMessageService.clearSessionMessages('target')
+
+        expect(agentSessionMessageService.hasSessionMessages('target')).toBe(false)
+        const [result] = agentSessionMessageService.listSessionDeliveries({
+          sessionId: 'sender',
+          requestId: request.id
+        })
+        expect(result).toMatchObject({
+          sessionId: 'sender',
+          data: {
+            parts: [{ type: 'text', text: 'Target Session messages were cleared before completing the request.' }]
+          },
+          delivery: {
+            inReplyTo: request.id,
+            outcome: 'failed',
+            error: { code: 'TARGET_SESSION_CLEARED' },
+            status: 'accepted'
+          }
+        })
+        expect(
+          agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+        ).toHaveLength(1)
+      }
+    )
+
+    it.each(['accepted', 'delivering'] as const)(
+      'does not resurrect a %s completion result in a cleared sender session',
+      async (status) => {
+        await seedAgent('agent-a', 'Agent A')
+        await seedAgent('agent-b', 'Agent B')
+        await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+        await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+        const request = agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'Do the work',
+          replyPolicy: 'completion'
+        })
+        const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d091'
+        agentSessionMessageService.saveMessage({
+          sessionId: 'target',
+          message: {
+            id: assistantId,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Late result' }] }
+          }
+        })
+        if (status === 'delivering') {
+          agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+            expected: ['accepted'],
+            turnRef: assistantId
+          })
+        }
+
+        agentSessionMessageService.clearSessionMessages('sender')
+
+        expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+        expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+          status: 'failed',
+          outcome: 'failed',
+          error: { code: 'CALLER_SESSION_CLEARED' }
+        })
+        expect(agentSessionMessageService.getSessionMessage('target', assistantId).id).toBe(assistantId)
+
+        const finalized = agentSessionMessageService.finalizeSessionDelivery({
+          requestSessionId: 'target',
+          requestMessageId: request.id,
+          assistantMessageId: assistantId,
+          outcome: 'success'
+        })
+        const failed = agentSessionMessageService.failSessionDelivery(request, {
+          code: 'CANCELLED',
+          message: 'Late failure'
+        })
+
+        expect(finalized).toBeNull()
+        expect(failed).toBeNull()
+        expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+        expect(
+          agentSessionMessageService
+            .listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+            .filter((message) => message.sessionId === 'sender' || message.delivery?.inReplyTo === request.id)
+        ).toEqual([])
+      }
+    )
+
+    it('leaves a none-policy target delivery intact when the sender is cleared', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Fire and forget'
+      })
+
+      agentSessionMessageService.clearSessionMessages('sender')
+
+      expect(agentSessionMessageService.hasSessionMessages('sender')).toBe(false)
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'accepted',
+        replyPolicy: 'none'
+      })
+    })
+
+    it('does not invent a sender result when clearing a none-policy delivery', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Fire and forget'
+      })
+
+      agentSessionMessageService.clearSessionMessages('target')
+
+      expect(agentSessionMessageService.hasSessionMessages('target')).toBe(false)
+      expect(agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })).toEqual(
+        []
+      )
+    })
+
+    it('keeps an existing completion result and does not throw when the sender is already gone', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'orphan-sender', agentId: 'agent-a', name: 'Orphan sender', orderKey: 'b1' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b2' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      const existing = agentSessionMessageService.failSessionDelivery(request, {
+        code: 'CANCELLED',
+        message: 'Already failed'
+      })
+      const orphaned = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'orphan-sender',
+        receiverSessionId: 'target',
+        content: 'Do more work',
+        replyPolicy: 'completion'
+      })
+      agentSessionService.delete('orphan-sender')
+
+      expect(() => agentSessionMessageService.clearSessionMessages('target')).not.toThrow()
+      expect(agentSessionMessageService.hasSessionMessages('target')).toBe(false)
+      expect(agentSessionMessageService.getSessionMessage('sender', existing!.id).delivery).toMatchObject({
+        inReplyTo: request.id,
+        outcome: 'failed',
+        error: { code: 'CANCELLED' }
+      })
+      expect(
+        agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+      ).toHaveLength(1)
+      expect(agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: orphaned.id })).toEqual(
+        []
+      )
+    })
+
     it('creates a failure result before deleting a target with an unfinished completion request', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
@@ -900,6 +1091,98 @@ describe('AgentSessionMessageService', () => {
     agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
     const [emptySession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
     expect(emptySession.lastActivityAt).toBe(3_000)
+  })
+
+  it('clears only the requested session messages and leaves other sessions untouched', async () => {
+    const otherSessionId = 'session-other-clear'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'c0' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: otherSessionId,
+      message: {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004',
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'keep' }] }
+      }
+    })
+
+    const result = agentSessionMessageService.clearSessionMessages(SESSION_ID)
+
+    expect(result.deletedIds.sort()).toEqual([ASSISTANT_MESSAGE_ID, USER_MESSAGE_ID].sort())
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(otherSessionId, '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004').id
+    ).toBe('018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004')
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: SESSION_ID },
+        entityIds: result.deletedIds
+      }
+    ])
+  })
+
+  it('is idempotent when the session is empty or already gone', () => {
+    expect(agentSessionMessageService.clearSessionMessages(SESSION_ID)).toEqual({ deletedIds: [] })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    expect(agentSessionMessageService.clearSessionMessages('missing-session')).toEqual({ deletedIds: [] })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('updates an existing assistant placeholder and does not recreate it after clear', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+
+    const updated = agentSessionMessageService.persistExistingAssistantMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'done' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+    expect(updated).toMatchObject({
+      id: ASSISTANT_MESSAGE_ID,
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'done' }] }
+    })
+
+    agentSessionMessageService.clearSessionMessages(SESSION_ID)
+    const latePersist = agentSessionMessageService.persistExistingAssistantMessage(
+      {
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'resurrected' }] }
+        }
+      },
+      { publishDataChange: true }
+    )
+
+    expect(latePersist).toBeNull()
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {

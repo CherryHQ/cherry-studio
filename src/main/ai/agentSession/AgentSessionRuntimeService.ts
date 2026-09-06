@@ -3084,7 +3084,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const userText = extractMessageText(userMessage)
     const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+          await topicNamingService.maybeRenameAgentSession(
+            entry.agentId,
+            entry.sessionId,
+            userText,
+            finalMessage,
+            userMessage.id
+          )
         }
       : undefined
     return new PersistenceListener({

@@ -251,8 +251,9 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (nextName === (latestSession.name ?? '').trim()) return
 
-      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      if (agentSessionService.tryAutoRename(sessionId, latestSession.name ?? '', nextName)) {
+        this.notifyAgentSessionAutoRenamed(sessionId)
+      }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', {
         sessionId,
@@ -276,15 +277,17 @@ export class TopicNamingService {
    * @param userText   Plain text of the persisted user turn, extracted by
    *                   AgentSessionRuntimeService from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
+   * @param userMessageId Persisted user message that must still exist when the detached rename writes.
    */
   maybeRenameAgentSession(
     agentId: string,
     sessionId: string,
     userText: string,
-    finalMessage: UIMessage
+    finalMessage: UIMessage,
+    userMessageId: string
   ): Promise<void> {
     return trackNamingWrite(`agent-session:${sessionId}`, () =>
-      this.doMaybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
+      this.doMaybeRenameAgentSession(agentId, sessionId, userText, finalMessage, userMessageId)
     )
   }
 
@@ -292,7 +295,8 @@ export class TopicNamingService {
     agentId: string,
     sessionId: string,
     userText: string,
-    finalMessage: UIMessage
+    finalMessage: UIMessage,
+    userMessageId: string
   ): Promise<void> {
     const enabled = application.get('PreferenceService').get('topic.naming.enabled')
     if (!enabled) return
@@ -324,8 +328,9 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
-      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      if (agentSessionService.tryAutoRename(sessionId, latestSession.name ?? '', nextName, userMessageId)) {
+        this.notifyAgentSessionAutoRenamed(sessionId)
+      }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', {
         agentId,

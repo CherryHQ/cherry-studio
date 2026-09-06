@@ -39,6 +39,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    persistExistingAssistantMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,

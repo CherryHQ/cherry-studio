@@ -133,7 +133,8 @@ export interface PersistenceBackend {
   /** True only when an empty successful response is itself a valid terminal result. */
   readonly canPersistEmptySuccessTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void | Promise<void>
+  /** Return false when no durable row was written, so success hooks are skipped. */
+  persistAssistant(input: PersistAssistantInput): boolean | void | Promise<boolean | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing

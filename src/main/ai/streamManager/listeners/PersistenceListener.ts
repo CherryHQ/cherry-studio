@@ -122,12 +122,13 @@ export class PersistenceListener implements StreamListener {
     }
 
     try {
-      await this.opts.backend.persistAssistant({
+      const persisted = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
+      if (persisted === false) return
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,

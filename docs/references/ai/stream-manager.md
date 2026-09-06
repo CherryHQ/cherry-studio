@@ -470,7 +470,7 @@ class AiStreamManager {
 
   // ── Control ───────────────────────────────────────────────────────
   abort(topicId: string, reason: string): void
-  abortAndDrain(topicId: string, reason: string): Promise<void>
+  abortAndDrain(topicId: string, reason: string, options?: { clearSessionMessages?: boolean }): Promise<void>
   hasLiveStream(topicId: string): boolean
   // Queue a steer user row persisted while a turn was live; the running turn
   // yields and `onExecutionDone` chains a `steer-continuation` to answer it.
@@ -740,7 +740,7 @@ duplicated; the rest are stream-manager-specific.
 | Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Reconnect | `ai.stream.attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
-| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
+| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles. A caller-supplied post-drain callback runs before the lock is released; Agent message clearing supplies its DELETE there | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `ai.stream.attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
@@ -779,7 +779,7 @@ chunks-only prompt stream with no message target. See
 | `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `ai.stream.detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
-| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle |
+| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle. Agent message clearing uses its dedicated route, which passes DELETE as `abortAndDrain`'s post-drain callback so it runs before the dispatch lock is released |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
