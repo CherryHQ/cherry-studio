@@ -27,7 +27,7 @@ import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } fr
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -192,10 +192,20 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
   const providersRef = useRef(providers)
+  // Settings PATCHed here that the query cache has not reflected yet.
+  // AssistantService shallow-merges `settings`, so a follow-up PATCH built from
+  // a stale snapshot would overwrite keys an in-flight PATCH just wrote (e.g. a
+  // reasoning-effort selection made moments before a model switch).
+  const pendingSettingsRef = useRef<Partial<AssistantSettings>>({})
   idRef.current = id
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
   providersRef.current = providers
+
+  // Fresh cache data supersedes anything staged optimistically.
+  useEffect(() => {
+    pendingSettingsRef.current = {}
+  }, [assistant])
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -203,29 +213,54 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
   const isModelMissing = !isModelPending && !model
 
-  const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
-    const currentId = idRef.current
-    const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return Promise.resolve(undefined)
-    return patchAssistantRef.current(currentId, { settings })
-  }, [])
+  const updateAssistantSettings = useCallback(
+    (
+      settings: Partial<AssistantSettings> | ((latest: AssistantSettings) => Partial<AssistantSettings>)
+    ): Promise<Assistant | undefined> => {
+      const currentId = idRef.current
+      const currentAssistant = assistantRef.current
+      if (!currentId || !currentAssistant) return Promise.resolve(undefined)
+      const latestSettings = { ...currentAssistant.settings, ...pendingSettingsRef.current }
+      const patch = typeof settings === 'function' ? settings(latestSettings) : settings
+      const previousPending = pendingSettingsRef.current
+      pendingSettingsRef.current = { ...previousPending, ...patch }
+      return patchAssistantRef.current(currentId, { settings: patch }).catch((error) => {
+        pendingSettingsRef.current = previousPending
+        throw error
+      })
+    },
+    []
+  )
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
+    const currentSettings = { ...currentAssistant.settings, ...pendingSettingsRef.current }
     // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
+    const reasoning = reconcileReasoningEffortForModel(
+      next,
+      currentSettings.reasoning_effort,
+      currentId,
+      currentSettings.reasoning_effort_by_model
+    )
     const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
-    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
+    const webSearch = reconcileWebSearchForModel(next, currentSettings, nextProvider)
+    // Delta-only patch: the service shallow-merges settings, so re-sending the
+    // full snapshot could resurrect stale keys over concurrent in-flight writes.
     const settingsPatch =
-      extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
-        : undefined
-    return patchAssistantRef.current(
+      reasoning || webSearch || extraSettings ? { ...reasoning, ...webSearch, ...extraSettings } : undefined
+    const update = patchAssistantRef.current(
       currentId,
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
     )
+    if (!settingsPatch) return update
+    const previousPending = pendingSettingsRef.current
+    pendingSettingsRef.current = { ...previousPending, ...settingsPatch }
+    return update.catch((error) => {
+      pendingSettingsRef.current = previousPending
+      throw error
+    })
   }, [])
 
   const updateAssistant = useCallback((patch: UpdateAssistantDto) => {
