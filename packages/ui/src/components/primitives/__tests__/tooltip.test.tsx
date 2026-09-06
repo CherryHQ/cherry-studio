@@ -487,6 +487,38 @@ describe('Tooltip', () => {
       }
     })
 
+    it('restarts the sweep window when content closes again after a reopen', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(ghost)
+        await act(async () => {}) // close @t=0，sweep timer 排期 @t=200
+        act(() => {
+          vi.advanceTimersByTime(50)
+        })
+        ghost.setAttribute('data-state', 'open') // reopen @t=50，旧 timer 应被取消
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        ghost.setAttribute('data-state', 'closed') // 再 close @t=150，sweep 重新排期 @t=350
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(150)
+        })
+        // 第二轮退出窗口（150..300）内不得被旧 timer 提前删除
+        expect(document.body.contains(ghost)).toBe(true)
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('sweeps ghosts rendered into a custom portal container', async () => {
       vi.useFakeTimers()
       try {

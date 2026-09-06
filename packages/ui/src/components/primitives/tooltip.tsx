@@ -85,11 +85,13 @@ function useTooltipController(
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
   const maybeSweep = (node: Element) => {
+    // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
+    const previous = pending.get(node)
+    if (previous != null) window.clearTimeout(previous)
     if (node.getAttribute('data-state') !== 'closed') {
       pending.delete(node)
       return
     }
-    if (pending.has(node)) return
     pending.set(
       node,
       window.setTimeout(() => {
