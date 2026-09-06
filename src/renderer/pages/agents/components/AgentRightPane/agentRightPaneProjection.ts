@@ -270,8 +270,8 @@ export function resolveFlowToolCallId(
       // out; the scan below stays as the fallback for unstamped history.
       const stamped = getPartLaunchToolCallId(part)
       if (stamped) {
-        const identity = resolveResumedAgent(record.output, partsByMessageId)
-        return { toolCallId: stamped, description: identity?.description }
+        const description = resolveResumedAgent(record.output, partsByMessageId)?.description
+        return description ? { toolCallId: stamped, description } : { toolCallId: stamped }
       }
       // Receipt outputs are small inline JSON, so no deferred-envelope resolution is needed here
       // (unlike launch receipts, whose resolved output the flow view prefers).
