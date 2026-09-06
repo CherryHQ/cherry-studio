@@ -389,6 +389,9 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^3.0.0
         version: 3.0.0(electron@41.8.0)
+      '@electron/asar':
+        specifier: 3.4.1
+        version: 3.4.1
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0
