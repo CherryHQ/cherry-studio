@@ -33,9 +33,18 @@ import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isQwenMTModel } from '@shared/utils/model'
+import { getRawModelId, isQwenMTModel } from '@shared/utils/model'
+import { matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import type { UIMessageChunk } from 'ai'
 
-import { WebContentsListener } from '../../ai/streamManager'
+import {
+  type StreamDoneResult,
+  type StreamErrorResult,
+  type StreamListener,
+  type StreamPausedResult,
+  WebContentsListener
+} from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -43,6 +52,8 @@ const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
 const NOT_SUPPORTED_ERROR = 'translate.error.not_supported'
 
 const QWEN_MT_TARGET_LANGUAGES: Readonly<Record<string, string>> = {
+  zh: 'Chinese',
+  zh_tw: 'Traditional Chinese',
   en: 'English',
   ru: 'Russian',
   ja: 'Japanese',
@@ -135,11 +146,105 @@ const QWEN_MT_TARGET_LANGUAGES: Readonly<Record<string, string>> = {
   fa: 'Western Persian'
 }
 
-function resolveQwenMtTargetLanguage(language: TranslateLanguage): string | undefined {
-  if (language.langCode === 'zh-cn') return 'Chinese'
-  if (language.langCode === 'zh-tw') return 'Traditional Chinese'
-  if (language.langCode === 'zh-yue') return 'Cantonese'
-  return QWEN_MT_TARGET_LANGUAGES[language.langCode.split('-')[0]]
+const QWEN_MT_LITE_LANGUAGE_CODES = new Set([
+  'zh',
+  'zh_tw',
+  'en',
+  'ru',
+  'ja',
+  'ko',
+  'es',
+  'fr',
+  'pt',
+  'de',
+  'it',
+  'th',
+  'vi',
+  'id',
+  'ms',
+  'ar',
+  'hi',
+  'he',
+  'ur',
+  'bn',
+  'pl',
+  'nl',
+  'tr',
+  'km',
+  'cs',
+  'sv',
+  'hu',
+  'da',
+  'fi',
+  'tl',
+  'fa'
+])
+
+function qwenMtModelId(model: Model): string {
+  return getRawModelId(model).toLowerCase().split('/').at(-1) ?? ''
+}
+
+function isQwenMtLiteModel(model: Model): boolean {
+  return /^qwen-mt-lite(?:$|[-:])/.test(qwenMtModelId(model))
+}
+
+function isQwenMtIncrementalModel(model: Model): boolean {
+  return /^qwen-mt-(?:flash|lite)(?:$|[-:])/.test(qwenMtModelId(model))
+}
+
+function isQwenMtCumulativeModel(model: Model): boolean {
+  return /^qwen-mt-(?:plus|turbo)(?:$|[-:])/.test(qwenMtModelId(model))
+}
+
+function qwenMtLanguageCode(language: TranslateLanguage): string {
+  if (language.langCode === 'zh-cn' || language.langCode === 'zh') return 'zh'
+  if (language.langCode === 'zh-tw') return 'zh_tw'
+  if (language.langCode === 'zh-yue') return 'yue'
+  return language.langCode.split('-')[0]
+}
+
+function resolveQwenMtTargetLanguage(language: TranslateLanguage, model: Model): string | undefined {
+  const languageCode = qwenMtLanguageCode(language)
+  if (isQwenMtLiteModel(model) && !QWEN_MT_LITE_LANGUAGE_CODES.has(languageCode)) return undefined
+  if (isQwenMtLiteModel(model) && languageCode === 'fa') return 'Persian'
+  return QWEN_MT_TARGET_LANGUAGES[languageCode]
+}
+
+class CumulativeTextStreamListener implements StreamListener {
+  readonly id: string
+  private readonly previousTextById = new Map<string, string>()
+
+  constructor(private readonly delegate: StreamListener) {
+    this.id = delegate.id
+  }
+
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
+    if (chunk.type !== 'text-delta') {
+      this.delegate.onChunk(chunk, sourceModelId, anchorMessageId, attemptId)
+      return
+    }
+
+    const previousText = this.previousTextById.get(chunk.id) ?? ''
+    const delta = chunk.delta.slice(previousText.length)
+    this.previousTextById.set(chunk.id, chunk.delta)
+    if (delta) this.delegate.onChunk({ ...chunk, delta }, sourceModelId, anchorMessageId, attemptId)
+  }
+
+  onDone(result: StreamDoneResult): void | Promise<void> {
+    return this.delegate.onDone(result)
+  }
+
+  onPaused(result: StreamPausedResult): void | Promise<void> {
+    return this.delegate.onPaused(result)
+  }
+
+  onError(result: StreamErrorResult): void | Promise<void> {
+    return this.delegate.onError(result)
+  }
+
+  isAlive(): boolean {
+    return this.delegate.isAlive()
+  }
 }
 
 /**
@@ -189,6 +294,7 @@ interface ResolvedPayload {
   content: string
   /** Carried out so `open` can gate the sampling settings against this model's capabilities. */
   model: Model
+  providerOptionsKey: string
 }
 
 export class TranslateService {
@@ -207,17 +313,20 @@ export class TranslateService {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
-    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model, targetLanguage)
+    const { uniqueModelId, content, model, providerOptionsKey } = this.resolveTranslatePayload(req.text, targetLanguage)
+    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model, targetLanguage, providerOptionsKey)
 
-    const wcListener = new WebContentsListener(sender, req.streamId)
+    const rendererListener = new WebContentsListener(sender, req.streamId)
+    const listener = isQwenMtCumulativeModel(model)
+      ? new CumulativeTextStreamListener(rendererListener)
+      : rendererListener
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
       prompt: content,
-      listener: wcListener,
+      listener,
       reasoningEffort,
       callOverrides
     })
@@ -253,7 +362,8 @@ export class TranslateService {
    */
   resolveRequestParameters(
     model: Model,
-    targetLanguage?: TranslateLanguage
+    targetLanguage?: TranslateLanguage,
+    providerOptionsKey = model.providerId
   ): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')
     const reasoningEffort = preferenceService.get('feature.translate.reasoning_effort')
@@ -269,11 +379,12 @@ export class TranslateService {
     const topP = getTopP(settings, model, reasoning)
     let providerOptions: CallOverrides['providerOptions']
     if (targetLanguage && isQwenMTModel(model)) {
-      const targetLang = resolveQwenMtTargetLanguage(targetLanguage)
+      const targetLang = resolveQwenMtTargetLanguage(targetLanguage, model)
       if (!targetLang) throw new Error(NOT_SUPPORTED_ERROR)
       providerOptions = {
-        [model.providerId]: {
-          translation_options: { source_lang: 'auto', target_lang: targetLang }
+        [providerOptionsKey]: {
+          translation_options: { source_lang: 'auto', target_lang: targetLang },
+          ...(isQwenMtIncrementalModel(model) && { incremental_output: true })
         }
       }
     }
@@ -316,6 +427,9 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
+    const providerOptionsKey = matchesPreset(provider, SystemProviderIds.dashscope)
+      ? SystemProviderIds.dashscope
+      : model.providerId
     const content = isQwenMTModel(model)
       ? text
       : preferenceService
@@ -324,7 +438,7 @@ export class TranslateService {
             placeholder === '{{target_language}}' ? targetLanguage.value : text
           )
 
-    return { uniqueModelId, content, model }
+    return { uniqueModelId, content, model, providerOptionsKey }
   }
 }
 

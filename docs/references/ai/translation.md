@@ -86,7 +86,11 @@ none of `feature.translate.*`.)
 
 Qwen-MT receives the source text directly plus provider-scoped
 `translation_options` with automatic source detection and the mapped target
-language. Unsupported target languages fail before the stream is opened.
+language. The 31-language Lite model is validated against its narrower set;
+other supported variants use the 92-language set. Flash and Lite request
+incremental output, while cumulative Plus and Turbo chunks are normalized to
+deltas before renderer delivery. Unsupported target languages fail before the
+stream is opened.
 
 ## Home message persistence
 

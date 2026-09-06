@@ -20,7 +20,9 @@ renderer translateText
 
 Translation has no assistant, message history, tools, or chat
 `RequestFeature` stack. Qwen-MT receives raw text plus its provider-scoped
-`translation_options`; other models receive the configured translation prompt.
+`translation_options`; Flash/Lite use incremental output and Plus/Turbo
+cumulative chunks are normalized before renderer delivery. Other models
+receive the configured translation prompt.
 
 `translateService` remains a direct-import singleton. It owns no long-lived
 resource or persistent side effect; the lifecycle-owned IpcApi layer owns route
