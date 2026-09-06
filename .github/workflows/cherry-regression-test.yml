@@ -1,0 +1,507 @@
+name: Cherry End-to-End Regression Test
+
+on:
+  push:
+    branches:
+      - "kangfenmao/github-action-auto-test"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Trusted reference to test: main, release/*, or a v* release tag"
+        required: true
+        default: "main"
+        type: string
+      task:
+        description: "Regression task to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - startup-smoke
+          - mini-app
+          - notes
+          - custom-provider-chat
+          - custom-assistant
+          - translation
+          - quick-assistant
+          - selection-assistant
+          - knowledge-import
+          - knowledge-qa
+          - everything-mcp
+          - skill-import
+          - code-cli
+          - openclaw
+          - cherryin-chat
+          - image-generation
+          - claude-agent-runtime
+          - pi-runtime
+          - deepseek-harness-runtime
+          - agent-ppt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cherry-regression-test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  resolve:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/kangfenmao/github-action-auto-test') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.ref.outputs.mode }}
+      name: ${{ steps.ref.outputs.name }}
+      ref: ${{ steps.ref.outputs.ref }}
+      sha: ${{ steps.ref.outputs.sha }}
+      task: ${{ steps.ref.outputs.task }}
+    steps:
+      - name: Checkout workflow controller
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install controller dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve and validate test reference
+        id: ref
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_REF: ${{ github.ref }}
+          PUSH_REF_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
+          REQUESTED_REF: ${{ inputs.ref }}
+          REQUESTED_TASK: ${{ inputs.task }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            {
+              echo "mode=branch"
+              echo "name=$PUSH_REF_NAME"
+              echo "ref=$PUSH_REF"
+              echo "sha=$PUSH_SHA"
+              echo "task=all"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts resolve-ref \
+            --requested "$REQUESTED_REF" \
+            --repository "${{ github.repository }}"
+          echo "task=$REQUESTED_TASK" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - runner: macos-latest
+            platform: macos
+          - runner: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    env:
+      TARGET_DIR: ${{ github.workspace }}/target-app
+      MCP_TIMEOUT: "30000"
+      MCP_TOOL_TIMEOUT: "240000"
+    steps:
+      - name: Checkout workflow controller
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Checkout application under test
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          path: target-app
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Export pinned Node.js version
+        shell: bash
+        run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
+
+      - name: Install controller dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Define isolated test directory
+        shell: bash
+        run: |
+          echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
+          echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
+
+      - name: Install code tools under test
+        shell: bash
+        run: |
+          npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
+          claude --version
+          codex --version
+          openclaw --version
+
+      - name: Initialize isolated test directory
+        shell: bash
+        env:
+          TEST_MODE: ${{ needs.resolve.outputs.mode }}
+          TEST_REF_NAME: ${{ needs.resolve.outputs.name }}
+          TEST_SHA: ${{ needs.resolve.outputs.sha }}
+          TEST_RUNNER: ${{ matrix.runner }}
+          TEST_TASK: ${{ needs.resolve.outputs.task }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts initialize
+          --run-dir "$RUN_DIR"
+          --mode "$TEST_MODE"
+          --platform "${{ matrix.platform }}"
+          --ref "$TEST_REF_NAME"
+          --sha "$TEST_SHA"
+          --runner "$TEST_RUNNER"
+          --task "$TEST_TASK"
+
+      - name: Validate test configuration
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
+          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts preflight
+
+      - name: Install application dependencies
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app install --frozen-lockfile
+
+      - name: Download application binary dependencies
+        if: needs.resolve.outputs.mode == 'branch'
+        run: pnpm --dir target-app download:binaries
+
+      - name: Download and install release
+        if: needs.resolve.outputs.mode == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts release
+          --run-dir "$RUN_DIR"
+          --repository "${{ github.repository }}"
+          --arch "${{ runner.arch }}"
+
+      - name: Launch controlled Cherry Studio once
+        id: launch
+        shell: bash
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts launch
+          --run-dir "$RUN_DIR"
+          --target-root "$TARGET_DIR"
+          --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
+
+      - name: Prepare end-to-end test configuration
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
+          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: |
+          names=(
+            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
+            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
+            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
+            CHERRY_TEST_CHERRYIN_CHAT_MODEL
+            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
+            CHERRY_TEST_CHERRYIN_ACCOUNT
+            CHERRY_TEST_CHERRYIN_PASSWORD
+          )
+          for name in "${names[@]}"; do
+            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
+          done
+
+      - name: Phase 01 - Application startup smoke
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=01-startup
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/01-startup.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 02 - Mini Apps and Notes
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app' || needs.resolve.outputs.task == 'notes')
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=02-basic-features
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/02-basic-features.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 03 - Models and Custom Assistants
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat' || needs.resolve.outputs.task == 'custom-assistant')
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=03-models-and-assistants
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/03-models-and-assistants.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 04 - Translation
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=04-translation
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/04-translation.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 05 - Quick Assistant and Selection Assistant
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant' || needs.resolve.outputs.task == 'selection-assistant')
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=05-desktop-assistants
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/05-desktop-assistants.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 06 - Knowledge Base
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import' || needs.resolve.outputs.task == 'knowledge-qa')
+        continue-on-error: true
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=06-knowledge
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/06-knowledge.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 07 - MCP and Skills
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp' || needs.resolve.outputs.task == 'skill-import')
+        continue-on-error: true
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=07-integrations
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/07-integrations.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 08 - Code Tools
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli' || needs.resolve.outputs.task == 'openclaw')
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=08-code-tools
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/08-code-tools.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 09 - CherryIN and Image Generation
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat' || needs.resolve.outputs.task == 'image-generation')
+        continue-on-error: true
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=09-cherryin-and-images
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/09-cherryin-and-images.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Phase 10 - Agent Runtimes and PPT
+        if: >-
+          !cancelled() && steps.launch.outcome == 'success' &&
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime' || needs.resolve.outputs.task == 'pi-runtime' || needs.resolve.outputs.task == 'deepseek-harness-runtime' || needs.resolve.outputs.task == 'agent-ppt')
+        continue-on-error: true
+        timeout-minutes: 55
+        shell: bash
+        run: |
+          export CHERRY_TEST_PHASE=10-agent-runtimes
+          TEST_TASK="${{ needs.resolve.outputs.task }}"
+          args=(tests/e2e/cherry-regression/10-agent-runtimes.test.ts)
+          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
+          pnpm test:e2e:regression "${args[@]}"
+
+      - name: Clear end-to-end test configuration
+        if: always()
+        shell: bash
+        run: |
+          names=(
+            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
+            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
+            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
+            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
+            CHERRY_TEST_CHERRYIN_CHAT_MODEL
+            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
+            CHERRY_TEST_CHERRYIN_ACCOUNT
+            CHERRY_TEST_CHERRYIN_PASSWORD
+          )
+          for name in "${names[@]}"; do
+            echo "$name=" >> "$GITHUB_ENV"
+          done
+
+      - name: Generate platform report
+        if: always()
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts finalize --run-dir "$RUN_DIR"
+
+      - name: Upload platform report and evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-regression-${{ matrix.platform }}-${{ needs.resolve.outputs.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/cherry-regression/report
+            ${{ runner.temp }}/cherry-regression/evidence
+            ${{ runner.temp }}/cherry-regression/agent-workspace
+            ${{ runner.temp }}/cherry-regression/fixtures
+            ${{ runner.temp }}/cherry-regression/release/installation.json
+
+      - name: Validate platform result
+        if: always()
+        shell: bash
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
+
+      - name: Stop controlled application
+        if: always()
+        shell: bash
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
+
+  aggregate:
+    needs: [resolve, test]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout workflow controller
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install controller dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download platform reports
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          path: downloaded-reports
+          pattern: cherry-regression-*
+          merge-multiple: false
+
+      - name: Generate aggregate report
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate
+          --input downloaded-reports
+          --output combined-report
+          --mode "${{ needs.resolve.outputs.mode }}"
+
+      - name: Upload aggregate report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-regression-combined-${{ github.run_id }}
+          path: combined-report
+          retention-days: 30
+
+      - name: Validate aggregate result
+        if: always()
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate-gate
+          --report combined-report/combined-results.json
