@@ -59,4 +59,24 @@ describe('Alibaba Qwen catalog', () => {
       }
     })
   })
+
+  it('maps QwenCloud to qwen3.8-flash with the Qwen3.8 chat effort contract', () => {
+    const override = loader.findOverride('qwencloud', 'qwen3.8-flash')
+    expect(override).toMatchObject({
+      apiModelId: 'qwen3.8-flash',
+      modelId: 'qwen3-8-flash',
+      name: 'Qwen3.8 Flash',
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: {
+            controls: [{ default: 'xhigh', kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+            thinkingTokenLimits: { min: 0, max: 262144 }
+          }
+        }
+      }
+    })
+    // No per-model Responses support list is published internationally, so the
+    // contract mirrors qwen3.8-max's Chat-only shape, not DashScope's dual-endpoint one.
+    expect(override?.reasoningContracts).not.toHaveProperty('openai-responses')
+  })
 })
