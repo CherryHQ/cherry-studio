@@ -1,4 +1,4 @@
-import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
@@ -132,6 +132,10 @@ export default function Sidebar({
   const sidebarLogo = useMemo(
     () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
+  )
+  const renderSidebarHeaderTrigger = useCallback(
+    (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
+    []
   )
   const renderSidebarHeaderAnchor = useCallback(
     (anchor: ReactElement) => (
@@ -399,6 +403,7 @@ export default function Sidebar({
     title: sidebarUser.name,
     logo: sidebarLogo,
     onHeaderClick: sidebarUser.onClick,
+    renderHeaderTrigger: renderSidebarHeaderTrigger,
     renderHeaderAnchor: renderSidebarHeaderAnchor,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions

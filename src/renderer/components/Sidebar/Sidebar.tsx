@@ -33,6 +33,7 @@ export interface SidebarProps {
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onHeaderClick?: () => void
+  renderHeaderTrigger?: (trigger: React.ReactElement) => React.ReactElement
   renderHeaderAnchor?: (anchor: React.ReactElement) => React.ReactNode
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
@@ -56,6 +57,7 @@ export function Sidebar({
   onSearchClick,
   onExtensionsClick,
   onHeaderClick,
+  renderHeaderTrigger,
   renderHeaderAnchor,
   onEntriesReorder,
   onDismiss
@@ -116,10 +118,13 @@ export function Sidebar({
     )
   }
 
+  const withHeaderTrigger = (trigger: React.ReactElement) => renderHeaderTrigger?.(trigger) ?? trigger
   const withHeaderAnchor = (anchor: React.ReactElement) => renderHeaderAnchor?.(anchor) ?? anchor
 
   const renderHeader = (headerLayout: SidebarVisibleLayout) => {
-    const identity = renderHeaderIdentity(headerLayout === 'icon' ? 'sm' : 'default', headerLayout === 'full')
+    const identity = withHeaderTrigger(
+      renderHeaderIdentity(headerLayout === 'icon' ? 'sm' : 'default', headerLayout === 'full')
+    )
     const header = (
       <div
         className={cn(

@@ -168,11 +168,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('../../UserAccountPanel', () => ({
-  UserAccountPanel: () => (
-    <div role="dialog" aria-label="account menu">
-      account-menu
-    </div>
-  )
+  UserAccountPanel: () => <div data-testid="account-menu">account-menu</div>
 }))
 
 vi.mock('../../icons/SvgIcon', () => ({
@@ -242,6 +238,7 @@ vi.mock('../../Sidebar', async () => {
       title,
       logo,
       onHeaderClick,
+      renderHeaderTrigger,
       renderHeaderAnchor,
       user,
       actions,
@@ -255,6 +252,7 @@ vi.mock('../../Sidebar', async () => {
       title?: string
       logo?: ReactNode
       onHeaderClick?: () => void
+      renderHeaderTrigger?: (trigger: ReactElement) => ReactElement
       renderHeaderAnchor?: (anchor: ReactElement) => ReactNode
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
@@ -287,10 +285,11 @@ vi.mock('../../Sidebar', async () => {
             <div data-testid={prefix === 'sidebar' ? 'sidebar-title' : undefined}>{title}</div>
           </button>
         )
-        const row = <div data-testid={`${prefix}-header`}>{action}</div>
+        const trigger = renderHeaderTrigger?.(action) ?? action
+        const row = <div data-testid={`${prefix}-header`}>{trigger}</div>
 
         if (!renderHeaderAnchor) return row
-        return layout === 'full' ? renderHeaderAnchor(row) : <div>{renderHeaderAnchor(action)}</div>
+        return layout === 'full' ? renderHeaderAnchor(row) : <div>{renderHeaderAnchor(trigger)}</div>
       }
 
       return isFloating ? (
@@ -505,11 +504,11 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
     expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'account menu' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
 
     await user.click(screen.getByTestId('sidebar-title'))
 
-    expect(screen.getByRole('dialog', { name: 'account menu' })).toBeVisible()
+    expect(screen.getByTestId('account-menu')).toBeVisible()
     expect(mocks.showUserPopup).not.toHaveBeenCalled()
   })
 
@@ -550,12 +549,12 @@ describe('app Sidebar', () => {
     const floatingSidebar = screen.getByTestId('floating-sidebar')
     await user.click(within(floatingSidebar).getByRole('button', { name: 'JD' }))
 
-    expect(screen.getByRole('dialog', { name: 'account menu' })).toBeVisible()
+    expect(screen.getByTestId('account-menu')).toBeVisible()
     await user.click(within(floatingSidebar).getByRole('button', { name: 'dismiss' }))
     expect(screen.getByTestId('floating-sidebar')).toBeVisible()
 
     await user.click(within(floatingSidebar).getByRole('button', { name: 'JD' }))
-    expect(screen.queryByRole('dialog', { name: 'account menu' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
   })
 

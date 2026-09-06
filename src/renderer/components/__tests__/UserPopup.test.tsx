@@ -160,7 +160,7 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) => (key === 'settings.provider.cherry_cloud.title' ? 'Localized Cherry Cloud' : key)
   })
 }))
 
@@ -322,7 +322,7 @@ describe('UserPopup', () => {
   it('renders the localized Cherry Cloud product label', async () => {
     showUserPopup()
 
-    expect(await screen.findByText('settings.provider.cherry_cloud.title')).toBeVisible()
+    expect(await screen.findByText('Localized Cherry Cloud')).toBeVisible()
     expect(screen.queryByText('Cherry Cloud')).not.toBeInTheDocument()
   })
 
