@@ -51,20 +51,25 @@ async function renderSubWindowAppShell({
       commandHandlers.set(command, handler)
     }
   }))
-  vi.doMock('@renderer/hooks/tab', () => ({
-    useTabs: () => ({
-      tabs: defaultTabs,
-      activeTabId: 'home',
-      setActiveTab: vi.fn(),
-      closeTab: vi.fn(),
-      updateTab: vi.fn(),
-      addTab: vi.fn(),
-      reorderTabs: vi.fn(),
-      openTab,
-      pinTab: vi.fn(),
-      unpinTab: vi.fn()
-    })
-  }))
+  vi.doMock('@renderer/hooks/tab', async () => {
+    const actual = (await vi.importActual('@renderer/hooks/tab')) as Record<string, unknown>
+    return {
+      ...(actual as object),
+      useTabs: () => ({
+        tabs: defaultTabs,
+        activeTabId: 'home',
+        setActiveTab: vi.fn(),
+        closeTab: vi.fn(),
+        closeTabs: vi.fn(),
+        updateTab: vi.fn(),
+        addTab: vi.fn(),
+        reorderTabs: vi.fn(),
+        openTab,
+        pinTab: vi.fn(),
+        unpinTab: vi.fn()
+      })
+    }
+  })
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
     isPageTitledRoute: () => false
