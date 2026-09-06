@@ -159,8 +159,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 
+    // Register before yielding so an in-flight rewrite cannot recreate state after teardown.
+    sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
     const rewritten = await rtkRewrite(command)
-    if (!rewritten) return {}
+    if (!rewritten) {
+      sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id)
+      return {}
+    }
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
@@ -206,6 +211,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const steerHook: HookCallback = async (input) => takePendingSteer('PreToolUse', input)
   const postToolBatchSteerHook: HookCallback = async (input) => takePendingSteer('PostToolBatch', input)
 
+  const bashRewriteCleanupHook: HookCallback = async (input) => {
+    if (input.hook_event_name !== 'PostToolBatch') return {}
+    // Denied calls have no PostToolUse event; consume only this batch's leftovers.
+    for (const call of input.tool_calls) sessionState().takeBashRewriteOrigin(sessionId, call.tool_use_id)
+    return {}
+  }
+
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
@@ -239,8 +251,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
 
-    const command = (input.tool_input as { command?: unknown } | undefined)?.command
-    if (typeof command !== 'string') return {}
+    const executedCommand = (input.tool_input as { command?: unknown } | undefined)?.command
+    if (typeof executedCommand !== 'string') return {}
+    const command = sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id) ?? executedCommand
 
     if (input.hook_event_name === 'PostToolUseFailure') {
       if (input.is_interrupt === true) {
@@ -293,7 +306,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolBatch: [{ hooks: [postToolBatchSteerHook] }],
+    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

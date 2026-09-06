@@ -19,6 +19,35 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it.each([
+    ['auth', '/settings/provider?id=anthropic'],
+    ['model', '/settings/provider?id=anthropic'],
+    ['rate_limit', '/settings/provider?id=anthropic'],
+    ['network', '/settings/general'],
+    ['mcp', '/settings/mcp/servers'],
+    ['unknown', null]
+  ] as const)('uses an explicit Claude Code %s exit category', (category, navTarget) => {
+    expect(
+      classifyError(
+        {
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: category
+        },
+        'anthropic'
+      )
+    ).toMatchObject({ category, navTarget })
+  })
+
+  it('falls back to the message when the exit category is not one the app knows', () => {
+    const result = classifyError(
+      makeError({ message: 'HTTP 429 too many requests', claudeCodeExitCategory: 'sandbox_denied' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
@@ -55,6 +84,22 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
+  it('prefers an earlier specific diagnosis over the last attempt generic recovery', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [
+          { name: 'AI_APICallError', statusCode: 401 },
+          { name: 'AI_APICallError', statusCode: 400 }
+        ]
+      }),
+      'openai'
+    )
+
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
   it('keeps the outer classification when the wrapper itself is diagnosable', () => {
     const result = classifyError(
       makeRetryError({
@@ -64,6 +109,28 @@ describe('classifyError', () => {
       })
     )
     expect(result.category).toBe('rate_limit')
+  })
+
+  it.each([
+    ['direct', makeError({ statusCode: 400 })],
+    [
+      'retry-wrapped',
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [{ name: 'AI_APICallError', statusCode: 400 }]
+      })
+    ]
+  ])('offers provider settings recovery for a %s HTTP 400', (_kind, error) => {
+    const result = classifyError(error, 'openai')
+
+    expect(result.category).toBe('unknown')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('encodes the provider id in the generic HTTP 400 recovery target', () => {
+    const result = classifyError(makeError({ statusCode: 400 }), 'gateway&fallback#beta')
+
+    expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
   // Auth

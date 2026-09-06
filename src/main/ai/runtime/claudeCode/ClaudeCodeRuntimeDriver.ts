@@ -64,8 +64,13 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import {
+  type ClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  isClaudeCodeProcessFailure
+} from './processExitDiagnostics'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -334,6 +339,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private closePromise?: Promise<void>
   /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
+  private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private lastSdkUserMessage?: SDKUserMessage
   private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
@@ -392,6 +398,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
+    const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
       ...(traceEnv
@@ -403,7 +410,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -423,7 +430,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
-    this.spawnOptions = options
+    this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
+    this.spawnOptions = consumedWarmQuery
+      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
+      : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
     this.createQuery = createClaudeQuery
@@ -753,20 +763,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
-      const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      const isProcessFailure = isClaudeCodeProcessFailure(error, this.processDiagnostics)
+      const surfacedError =
+        isProcessFailure && this.processDiagnostics
+          ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
+          : error
+      const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
       this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
-          error
+          error: surfacedError,
+          ...(isProcessFailure && this.processDiagnostics
+            ? { diagnosticReference: this.processDiagnostics.reference }
+            : {})
         })
       }
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
-      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
+      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfacedError })
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
