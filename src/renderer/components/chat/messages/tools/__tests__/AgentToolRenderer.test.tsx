@@ -1258,6 +1258,57 @@ describe('AgentToolRenderer', () => {
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
+    // The continue-handling label must not gate on resolution (B-label enhacement), but the click
+    // must: an unresolved resume would otherwise open the receipt's own empty flow.
+    it('labels an un-resolvable resume receipt but does not open a flow for it', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({}) // launch part is outside the loaded window
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      // The label still identifies the receipt as a continuation…
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+      // …but the entry is not clickable, so it cannot target the receipt's own call id.
+      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
+    // A mere mention of the agent id inside another part's reply is not a launch receipt.
+    it('does not resolve an unrelated mention of the agent id as the launch', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-unrelated',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Another round', prompt: 'Recheck' },
+            output: 'Summary: agent-77 already answered this earlier; proceed with the fix.'
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
     // A send to a still-running agent queues instead of resuming — its receipt carries only
     // pin.id, and the entry must still resolve back to the launch flow.
     it('opens the launch flow from a queued-pin SendMessage receipt', () => {
