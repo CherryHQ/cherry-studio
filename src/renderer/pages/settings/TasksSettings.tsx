@@ -196,17 +196,27 @@ const parseScheduleDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
-  return { hour, minute }
+// Canonical value for the time presets: a sorted, deduped 'HH:MM,HH:MM…' list
+// sharing one minute — per-entry minutes would cross-product into extra cron firings.
+const parseTimes = (value: string): { hours: string[]; minute: string } | null => {
+  const matches = value.split(',').map((part) => /^(\d{1,2}):(\d{2})$/.exec(part.trim()))
+  if (matches.some((match) => match === null)) return null
+
+  const minute = matches[0]![2]
+  if (Number(minute) > 59 || matches.some((match) => match![2] !== minute)) return null
+
+  const hours = matches.map((match) => Number(match![1]))
+  if (hours.some((hour) => hour > 23)) return null
+
+  const uniqueSorted = [...new Set(hours)].sort((a, b) => a - b)
+  return { hours: uniqueSorted.map((hour) => String(hour).padStart(2, '0')), minute }
 }
 
-const formatTime = (hour: number, minute: number) =>
-  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+const formatTimes = (hours: string[], minute: string) =>
+  [...new Set(hours)]
+    .sort()
+    .map((hour) => `${hour}:${minute}`)
+    .join(',')
 
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
@@ -236,15 +246,18 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
   }
 
   const minute = Number(minutePart)
-  const hour = Number(hourPart)
+  const hourParts = hourPart.split(',')
   const hasValidTime =
-    Number.isInteger(minute) && minute >= 0 && minute <= 59 && Number.isInteger(hour) && hour >= 0 && hour <= 23
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59 &&
+    hourParts.every((part) => /^\d{1,2}$/.test(part) && Number(part) <= 23)
 
   if (!hasValidTime || dayOfMonth !== '*' || month !== '*') {
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
-  const value = formatTime(hour, minute)
+  const value = hourParts.map((part) => `${part.padStart(2, '0')}:${String(minute).padStart(2, '0')}`).join(',')
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
@@ -270,9 +283,9 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
     return expr ? { kind: 'cron', expr } : null
   }
 
-  const time = parseTime(schedule.value)
-  if (!time) return null
-  const prefix = `${time.minute} ${time.hour} * *`
+  const times = parseTimes(schedule.value)
+  if (!times || times.hours.length === 0) return null
+  const prefix = `${Number(times.minute)} ${times.hours.map(Number).join(',')} * *`
 
   if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
   if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
@@ -287,7 +300,7 @@ function scheduleForKind(kind: ScheduleKind, current: ScheduleFormState): Schedu
     case 'daily':
     case 'weekdays':
     case 'weekly':
-      return { ...current, kind, value: parseTime(current.value) ? current.value : '09:00' }
+      return { ...current, kind, value: parseTimes(current.value) ? current.value : '09:00' }
     case 'interval':
     case 'once':
     case 'cron':
@@ -467,17 +480,19 @@ const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
 
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
   const schedule = triggerToFormState(trigger)
+  // Time presets may hold a comma-joined list; space it out for display.
+  const time = schedule.value.split(',').join(', ')
   switch (schedule.kind) {
     case 'hourly':
       return t('agent.tasks.schedule.summary.hourly')
     case 'daily':
-      return t('agent.tasks.schedule.summary.daily', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.daily', { time })
     case 'weekdays':
-      return t('agent.tasks.schedule.summary.weekdays', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.weekdays', { time })
     case 'weekly':
       return t('agent.tasks.schedule.summary.weekly', {
         weekday: getWeekdayLabel(schedule.weekday, t),
-        time: schedule.value
+        time
       })
     case 'interval':
       return t('agent.tasks.schedule.summary.interval', { count: Number(schedule.value) })
@@ -494,34 +509,28 @@ const TaskTimeSelect: FC<{
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
-  const { hour, minute } = parseTime(value) ?? { hour: 9, minute: 0 }
-  const hourValue = String(hour).padStart(2, '0')
-  const minuteValue = String(minute).padStart(2, '0')
+  const { hours, minute } = parseTimes(value) ?? { hours: ['09'], minute: '00' }
 
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
-      <Select
-        value={hourValue}
+      <Combobox
+        multiple
+        searchable={false}
+        width={160}
+        aria-label={t('agent.tasks.schedule.hours')}
+        placeholder={t('agent.tasks.schedule.hours')}
         disabled={disabled}
-        onValueChange={(nextHour) => onChange(`${nextHour}:${minuteValue}`)}>
-        <SelectTrigger aria-label={t('agent.tasks.schedule.hour')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SCHEDULE_HOURS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
+        value={hours}
+        onChange={(next) => {
+          if (Array.isArray(next)) onChange(formatTimes(next, minute))
+        }}
+      />
       <InputGroupText aria-hidden="true">:</InputGroupText>
       <Select
-        value={minuteValue}
+        value={minute}
         disabled={disabled}
-        onValueChange={(nextMinute) => onChange(`${hourValue}:${nextMinute}`)}>
+        onValueChange={(nextMinute) => onChange(formatTimes(hours, nextMinute))}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
           <SelectValue />
         </SelectTrigger>

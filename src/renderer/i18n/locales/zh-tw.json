@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "每日",
   "agent.tasks.schedule.hour": "小時",
   "agent.tasks.schedule.hourly": "每小時",
+  "agent.tasks.schedule.hours": "小時",
   "agent.tasks.schedule.interval": "自訂間隔",
   "agent.tasks.schedule.intervalMinutes": "間隔",
   "agent.tasks.schedule.invalid": "請輸入有效的執行頻率。",

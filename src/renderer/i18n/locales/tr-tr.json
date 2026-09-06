@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Günlük",
   "agent.tasks.schedule.hour": "Saat",
   "agent.tasks.schedule.hourly": "Saatlik",
+  "agent.tasks.schedule.hours": "Saat",
   "agent.tasks.schedule.interval": "Özel aralık",
   "agent.tasks.schedule.intervalMinutes": "Aralık",
   "agent.tasks.schedule.invalid": "Geçerli bir çalıştırma sıklığı girin.",

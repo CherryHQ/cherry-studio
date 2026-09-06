@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Daily",
   "agent.tasks.schedule.hour": "Hour",
   "agent.tasks.schedule.hourly": "Hourly",
+  "agent.tasks.schedule.hours": "Hours",
   "agent.tasks.schedule.interval": "Custom interval",
   "agent.tasks.schedule.intervalMinutes": "Interval",
   "agent.tasks.schedule.invalid": "Enter a valid execution frequency.",

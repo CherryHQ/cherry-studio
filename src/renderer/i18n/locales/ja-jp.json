@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "毎日",
   "agent.tasks.schedule.hour": "時間",
   "agent.tasks.schedule.hourly": "毎時",
+  "agent.tasks.schedule.hours": "時",
   "agent.tasks.schedule.interval": "カスタム間隔",
   "agent.tasks.schedule.intervalMinutes": "インターバル",
   "agent.tasks.schedule.invalid": "有効な実行頻度を入力してください。",

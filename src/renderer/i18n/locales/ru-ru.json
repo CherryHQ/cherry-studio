@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Ежедневно",
   "agent.tasks.schedule.hour": "Час",
   "agent.tasks.schedule.hourly": "Почасовой",
+  "agent.tasks.schedule.hours": "Часы",
   "agent.tasks.schedule.interval": "Пользовательский интервал",
   "agent.tasks.schedule.intervalMinutes": "Интервал",
   "agent.tasks.schedule.invalid": "Введите допустимую частоту выполнения.",

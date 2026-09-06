@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Zilnic",
   "agent.tasks.schedule.hour": "Oră",
   "agent.tasks.schedule.hourly": "Orară",
+  "agent.tasks.schedule.hours": "Ore",
   "agent.tasks.schedule.interval": "Interval personalizat",
   "agent.tasks.schedule.intervalMinutes": "Interval",
   "agent.tasks.schedule.invalid": "Introdu o frecvență de execuție validă.",
