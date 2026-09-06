@@ -1,5 +1,4 @@
 import { dataApiService } from '@data/DataApiService'
-import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -23,6 +22,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -46,36 +46,6 @@ import {
 } from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
-
-function withTerminalErrorFallback(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
-  noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
-
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
-    const needsFallback =
-      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && !hasVisiblePart)
-    if (!needsFallback) continue
-
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [
-      ...parts,
-      {
-        type: 'data-error',
-        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
-      }
-    ]
-  }
-
-  return next
-}
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId) ?? null
@@ -195,6 +165,10 @@ export function useAgentMessageListProviderValue({
 
     return { ...streamingLayers, historyPartsByMessageId }
   }, [messages, streamingLayers, t])
+  const displayPartsByMessageIdRef = useRef(displayPartsByMessageId)
+  useEffect(() => {
+    displayPartsByMessageIdRef.current = displayPartsByMessageId
+  }, [displayPartsByMessageId])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -232,7 +206,13 @@ export function useAgentMessageListProviderValue({
       const persistedMessage = (await dataApiService.get(
         `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
       )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
-      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+      let updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+      if (!updatedParts) {
+        const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
+        if (displayParts) {
+          updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
+        }
+      }
       if (!updatedParts) return
 
       await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {

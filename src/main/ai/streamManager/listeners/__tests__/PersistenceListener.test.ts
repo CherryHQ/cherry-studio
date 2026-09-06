@@ -150,6 +150,24 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     ])
   })
 
+  it('keeps status=success when hidden markers accompany real content', async () => {
+    const listener = makeListener()
+
+    const finalMessage = {
+      id: 'ignored',
+      role: 'assistant',
+      parts: [
+        { type: 'step-start' },
+        { type: 'text', text: 'a real answer' },
+        { type: 'data-citation', data: { title: 'source', url: 'https://example.com' } }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success' })
+
+    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('success')
+  })
+
   it('does not copy cumulative stream metadata into persistence', async () => {
     const listener = makeListener()
     const finalMessage = {
@@ -352,15 +370,6 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       status: 'paused',
       runtimeStats: undefined
     })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
-  })
-
-  it('does not create an empty successful ordinary-chat reply', async () => {
-    const listener = makeMessageServiceListener()
-
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
-
-    expect(messageFinalizeMock).not.toHaveBeenCalled()
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 

@@ -89,11 +89,7 @@ export class PersistenceListener implements StreamListener {
     status: 'success' | 'paused' | 'error',
     runtimeTiming: MessageRuntimeTiming | undefined
   ): Promise<void> {
-    const canPersistEmpty =
-      status === 'success'
-        ? this.opts.backend.canPersistEmptySuccessTerminal
-        : this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!finalMessage && !this.opts.backend.canPersistEmptyTerminal) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
@@ -102,10 +98,6 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    // Strip live-only status parts (e.g. data-retry), then empty
-    // text/reasoning parts so neither can reach storage. Applied for all
-    // statuses. The `finalMessage`
-    // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
