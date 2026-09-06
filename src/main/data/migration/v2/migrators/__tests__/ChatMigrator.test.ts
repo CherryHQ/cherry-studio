@@ -736,6 +736,7 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     const internal = migrator as unknown as {
       topicMetaLookup: Map<string, { name?: string; pinned?: boolean }>
       topicAssistantLookup: Map<string, string>
+      reduxTopicOrderIds: string[]
     }
     // Both topics should be registered
     expect(internal.topicMetaLookup.has('topic-A')).toBe(true)
@@ -745,6 +746,60 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     // defaultAssistant's topic resolves through the remap, not the dead 'default' literal.
     expect(internal.topicAssistantLookup.get('topic-X')).toBe(remappedDefaultId)
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
+    expect(internal.reduxTopicOrderIds).toEqual(['topic-A', 'topic-X'])
+  })
+
+  it('ignores a malformed non-array topics field without aborting migration preparation', async () => {
+    const migrator = new ChatMigrator()
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(0),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({ assistants: [{ id: 'ast-1', topics: {} }] })
+        }
+      },
+      sharedData: new Map()
+    }
+
+    await expect(migrator.prepare(ctx as any)).resolves.toMatchObject({ success: true })
+    expect((migrator as unknown as { reduxTopicOrderIds: string[] }).reduxTopicOrderIds).toEqual([])
+  })
+
+  it('skips null topic entries while preserving valid topic metadata', async () => {
+    const migrator = new ChatMigrator()
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(0),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            assistants: [{ id: 'ast-1', topics: [null, { id: 'topic-valid', name: 'Valid' }] }]
+          })
+        }
+      },
+      sharedData: new Map()
+    }
+
+    await expect(migrator.prepare(ctx as any)).resolves.toMatchObject({ success: true })
+    const internal = migrator as unknown as {
+      reduxTopicOrderIds: string[]
+      topicMetaLookup: Map<string, { name?: string }>
+    }
+    expect(internal.reduxTopicOrderIds).toEqual(['topic-valid'])
+    expect(internal.topicMetaLookup.get('topic-valid')?.name).toBe('Valid')
   })
 })
 
@@ -996,18 +1051,51 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     return { db: dbh.db } as unknown as MigrationContext
   }
 
-  it('stamps one global topic order and emits pinned topics by updatedAt DESC', async () => {
+  it('stamps one global topic order from Redux [C,A,B] even when updatedAt conflicts', async () => {
     const migrator = new ChatMigrator()
+    await migrator.prepare({
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(4),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            assistants: [
+              {
+                id: 'ast-1',
+                topics: [
+                  { id: 't-c', name: 'C', pinned: true, updatedAt: '2025-01-01T00:00:00.100Z' },
+                  { id: 't-a', name: 'A', pinned: false, updatedAt: '2025-01-01T00:00:00.200Z' },
+                  { id: 't-b', name: 'B', pinned: true, updatedAt: '2025-01-01T00:00:00.300Z' }
+                ]
+              }
+            ],
+            defaultAssistant: {
+              id: 'default',
+              topics: [{ id: 't-c', name: 'C-dup', pinned: false }]
+            }
+          })
+        }
+      },
+      sharedData: new Map()
+    } as unknown as MigrationContext)
+
     stage(migrator, [
-      { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
-      { topic: newTopic('t-new-pin', 300), messages: [], pinned: true },
-      { topic: newTopic('t-mid', 200), messages: [], pinned: false }
+      { topic: newTopic('t-c', 100), messages: [], pinned: true },
+      { topic: newTopic('t-a', 200), messages: [], pinned: false },
+      { topic: newTopic('t-b', 300), messages: [], pinned: true },
+      { topic: newTopic('t-dexie', 50), messages: [], pinned: false }
     ])
 
-    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
-      ctx: MigrationContext
-    ) => Promise<{ pinsInserted: number }>
-    const result = await fn.call(migrator, ctxOf())
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (ctx: MigrationContext) => {
+      pinsInserted: number
+    }
+    const result = fn.call(migrator, ctxOf())
 
     expect(result.pinsInserted).toBe(2)
 
@@ -1015,7 +1103,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       .select({ id: topicTable.id, orderKey: topicTable.orderKey })
       .from(topicTable)
       .orderBy(asc(topicTable.orderKey))
-    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid', 't-old-pin'])
+    expect(topics.map((topic) => topic.id)).toEqual(['t-c', 't-a', 't-b', 't-dexie'])
     expect(new Set(topics.map((topic) => topic.orderKey)).size).toBe(topics.length)
 
     const pins = await dbh.db
@@ -1024,11 +1112,34 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       .where(eq(pinTable.entityType, 'topic'))
       .orderBy(asc(pinTable.orderKey))
 
-    // Newest-first: t-new-pin (updatedAt=300) gets the smallest orderKey.
-    expect(pins.map((p) => p.entityId)).toEqual(['t-new-pin', 't-old-pin'])
+    expect(pins.map((p) => p.entityId)).toEqual(['t-c', 't-b'])
     expect(pins.every((p) => p.orderKey.length > 0)).toBe(true)
-    // Distinct, monotonically increasing keys.
     expect(new Set(pins.map((p) => p.orderKey)).size).toBe(pins.length)
+  })
+
+  it('appends Dexie-only leftovers after an empty Redux flatten using updatedAt DESC then stable id', async () => {
+    const migrator = new ChatMigrator()
+    stage(migrator, [
+      { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
+      { topic: newTopic('t-new-pin', 300), messages: [], pinned: true },
+      { topic: newTopic('t-mid-a', 200), messages: [], pinned: false },
+      { topic: newTopic('t-mid-Z', 200), messages: [], pinned: false }
+    ])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (ctx: MigrationContext) => {
+      pinsInserted: number
+    }
+    const result = fn.call(migrator, ctxOf())
+
+    expect(result.pinsInserted).toBe(2)
+    const topics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid-Z', 't-mid-a', 't-old-pin'])
+    const pins = await dbh.db
+      .select({ entityId: pinTable.entityId })
+      .from(pinTable)
+      .where(eq(pinTable.entityType, 'topic'))
+      .orderBy(asc(pinTable.orderKey))
+    expect(pins.map((p) => p.entityId)).toEqual(['t-new-pin', 't-old-pin'])
   })
 
   it('skips pin emission entirely when no topic is pinned', async () => {

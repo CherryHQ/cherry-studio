@@ -60,6 +60,7 @@ describe('MainWindowContent', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.clearAllMocks()
   })
 
@@ -112,6 +113,15 @@ describe('MainWindowContent', () => {
     render(<MainWindowContent />)
 
     expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
+  })
+
+  it('does not read the removed V1 Redux store during normal V2 startup', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    const getItem = vi.spyOn(window.localStorage, 'getItem')
+
+    render(<MainWindowContent />)
+
+    expect(getItem).not.toHaveBeenCalledWith('persist:cherry-studio')
   })
 })
 

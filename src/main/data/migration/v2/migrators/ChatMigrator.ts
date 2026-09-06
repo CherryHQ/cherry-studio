@@ -175,6 +175,24 @@ interface AssistantState {
   defaultAssistant?: OldAssistant
 }
 
+function collectV1TopicOrderIds(source: AssistantState | undefined): string[] {
+  const topicIds: string[] = []
+  const seen = new Set<string>()
+
+  const visit = (assistant: OldAssistant | undefined): void => {
+    const topics = Array.isArray(assistant?.topics) ? assistant.topics : []
+    for (const topic of topics) {
+      if (!topic?.id || seen.has(topic.id)) continue
+      seen.add(topic.id)
+      topicIds.push(topic.id)
+    }
+  }
+
+  for (const assistant of source?.assistants ?? []) visit(assistant)
+  visit(source?.defaultAssistant)
+  return topicIds
+}
+
 /**
  * Prepared data for execution phase. `pinned` carries the legacy `pinned`
  * flag from the source so the migrator can emit a corresponding `pin` row
@@ -184,6 +202,26 @@ interface PreparedTopicData {
   topic: NewTopic
   messages: NewMessage[]
   pinned: boolean
+}
+
+function orderPreparedTopicsByV1Sequence(
+  topics: readonly PreparedTopicData[],
+  reduxOrderIds: readonly string[]
+): PreparedTopicData[] {
+  const remaining = new Map(topics.map((data) => [data.topic.id, data]))
+  const ordered: PreparedTopicData[] = []
+
+  for (const id of reduxOrderIds) {
+    const data = remaining.get(id)
+    if (!data) continue
+    ordered.push(data)
+    remaining.delete(id)
+  }
+
+  const leftovers = [...remaining.values()].sort((a, b) => {
+    return b.topic.updatedAt - a.topic.updatedAt || (a.topic.id < b.topic.id ? -1 : a.topic.id > b.topic.id ? 1 : 0)
+  })
+  return [...ordered, ...leftovers]
 }
 
 export class ChatMigrator extends BaseMigrator {
@@ -203,6 +241,8 @@ export class ChatMigrator extends BaseMigrator {
   private topicMetaLookup: Map<string, OldTopicMeta> = new Map()
   // Topic → AssistantId mapping from Redux (Dexie topics don't store assistantId)
   private topicAssistantLookup: Map<string, string> = new Map()
+  // First-write-wins flatten of assistants[] then defaultAssistant.topics[].
+  private reduxTopicOrderIds: string[] = []
   private skippedTopics = 0
   private skippedMessages = 0
   private orphanedAssistantTopics = 0
@@ -237,6 +277,7 @@ export class ChatMigrator extends BaseMigrator {
     this.assistantLookup = new Map()
     this.topicMetaLookup = new Map()
     this.topicAssistantLookup = new Map()
+    this.reduxTopicOrderIds = []
     this.skippedTopics = 0
     this.skippedMessages = 0
     this.orphanedAssistantTopics = 0
@@ -360,6 +401,7 @@ export class ChatMigrator extends BaseMigrator {
       // can also carry topics — must be visited too, otherwise its topics show
       // up post-migration unnamed and with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
+      this.reduxTopicOrderIds = collectV1TopicOrderIds(assistantState)
       const allAssistants: OldAssistant[] = []
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
@@ -384,7 +426,7 @@ export class ChatMigrator extends BaseMigrator {
           // primary-wins merge contract.
           if (assistant.topics && Array.isArray(assistant.topics)) {
             for (const topic of assistant.topics) {
-              if (topic.id && !this.topicMetaLookup.has(topic.id)) {
+              if (topic?.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
                 this.topicAssistantLookup.set(topic.id, remappedId)
               }
@@ -1156,8 +1198,8 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   /**
-   * Post-stream insert pass: stamp orderKey, insert topics+messages with
-   * FK toggling, emit pin rows for legacy `pinned: true` topics.
+   * Post-stream insert pass: stamp orderKey from the V1 Redux topic
+   * flatten, insert topics+messages, emit pin rows for legacy `pinned: true`.
    */
   private insertStagedTopics(ctx: MigrationContext): {
     topicsInserted: number
@@ -1166,12 +1208,10 @@ export class ChatMigrator extends BaseMigrator {
   } {
     const db = ctx.db
 
-    // Sort by updatedAt DESC so the stamped orderKey matches the default
-    // unpinned list sort — otherwise drag-mode would see arbitrary order.
-    const sortedTopics = [...this.stagedTopics]
-      .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
-      .map((d) => d.topic)
-    const stampedTopics = assignOrderKeysInSequence(sortedTopics)
+    // Stamp from V1 Redux `assistants[].topics[]` (then defaultAssistant),
+    // first-write-wins. Dexie-only leftovers append after that flatten.
+    const orderedPrepared = orderPreparedTopicsByV1Sequence(this.stagedTopics, this.reduxTopicOrderIds)
+    const stampedTopics = assignOrderKeysInSequence(orderedPrepared.map((data) => data.topic))
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {
       const orderKey = orderKeyById.get(data.topic.id)
@@ -1264,13 +1304,12 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // ON CONFLICT DO NOTHING so a retry doesn't trip the (entity_type, entity_id) UNIQUE.
-    const pinned = this.stagedTopics.filter((d) => d.pinned)
+    const pinned = orderedPrepared.filter((d) => d.pinned)
     let pinsInserted = 0
     if (pinned.length > 0) {
-      const sorted = [...pinned].sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       const now = Date.now()
       const pinRows = assignOrderKeysInSequence(
-        sorted.map((d) => ({
+        pinned.map((d) => ({
           id: uuidv4(),
           entityType: 'topic',
           entityId: d.topic.id,
@@ -1302,7 +1341,6 @@ export class ChatMigrator extends BaseMigrator {
     // assistant (migrated at order 2), message.topicId / parentId / modelId, and
     // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
     this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
-
     return { topicsInserted, messagesInserted, pinsInserted }
   }
 }
