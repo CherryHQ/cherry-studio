@@ -81,6 +81,20 @@ describe('getSafeProviderErrorMessage', () => {
     }
   )
 
+  it.each(PROVIDER_TEXT_FIELDS)(
+    'ignores malformed containers after arbitrary provider prefixes in %s',
+    (_field, payloadFor) => {
+      const malformed = 'Provider failed: {"prompt":"private user prompt","trace":"internal trace"'
+      const message = getSafeProviderErrorMessage({
+        message: 'Bad Request',
+        responseBody: JSON.stringify(payloadFor(malformed))
+      })
+
+      expect(message).toBe('Bad Request')
+      expect(message).not.toMatch(/private user prompt|internal trace/)
+    }
+  )
+
   it('ignores an oversized provider payload before decoding it', () => {
     const message = getSafeProviderErrorMessage({
       message: 'Bad Request',

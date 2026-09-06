@@ -1,7 +1,8 @@
-import { serializeNestedProviderError } from '@shared/ai/providerError'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+import { RetryError } from 'ai'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -35,11 +36,12 @@ function toSerializable(value: unknown): Serializable {
 export function serializeError(error: unknown): SerializedError {
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
+    const isRetryError = RetryError.isInstance(error)
 
     const serialized: SerializedError = {
       name: error.name ?? null,
-      message: error.message ?? null,
-      stack: error.stack ?? null,
+      message: isRetryError ? getSafeProviderErrorMessage({ message: error.message }) : error.message,
+      stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
 

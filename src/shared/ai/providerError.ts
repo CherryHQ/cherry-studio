@@ -35,12 +35,12 @@ function actionableText(value: unknown): string {
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
 
-function startsWithEncodedContainer(text: string): boolean {
+function containsEncodedContainer(text: string): boolean {
   let candidate = text.trimStart()
   while (candidate.startsWith('"') || candidate.startsWith("'") || candidate.startsWith('\\')) {
     candidate = candidate.slice(1).trimStart()
   }
-  return candidate.startsWith('{') || candidate.startsWith('[')
+  return candidate.includes('{') || candidate.includes('[')
 }
 
 function providerPayloadText(value: unknown): string {
@@ -52,7 +52,7 @@ function providerPayloadText(value: unknown): string {
     try {
       parsed = JSON.parse(text)
     } catch {
-      if (startsWithEncodedContainer(text)) return ''
+      if (containsEncodedContainer(text)) return ''
       return actionableText(value)
     }
   }

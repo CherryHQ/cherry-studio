@@ -146,6 +146,21 @@ describe('serializeError', () => {
       expect(JSON.stringify(result)).not.toMatch(/message-secret|cause-secret/)
     })
 
+    it('does not expose structured provider text from a RetryError wrapper message', () => {
+      const privatePayload = '{"prompt":"private user prompt","trace":"internal trace"'
+      const terminalError = new Error(`Provider failed: ${privatePayload}`)
+      const retryError = new RetryError({
+        message: `Failed after 3 attempts. Last error: ${terminalError.message}`,
+        reason: 'maxRetriesExceeded',
+        errors: [terminalError]
+      })
+
+      const result = serializeError(retryError)
+
+      expect(result.message).toBe('')
+      expect(JSON.stringify(result)).not.toMatch(/private user prompt|internal trace/)
+    })
+
     it('drops unknown nested retry values instead of serializing credentials', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',
