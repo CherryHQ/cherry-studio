@@ -1,6 +1,8 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { NoImageGeneratedError } from 'ai'
+import type * as FileTypeModule from 'file-type'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
@@ -46,6 +48,14 @@ const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
+const mockFileTypeFromBuffer = vi.fn()
+const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const TINY_SVG_BASE64 = Buffer.from(
+  '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+).toString('base64')
+const PREFIXED_SVG_BASE64 = Buffer.from(
+  '<svg:svg xmlns:svg="http://www.w3.org/2000/svg"><svg:rect width="1" height="1"/></svg:svg>'
+).toString('base64')
 
 vi.mock('@application', () => ({
   application: {
@@ -130,6 +140,14 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
 
+vi.mock('file-type', async (importOriginal) => {
+  const actual = await importOriginal<typeof FileTypeModule>()
+  return {
+    ...actual,
+    fileTypeFromBuffer: (...args: Parameters<typeof actual.fileTypeFromBuffer>) => mockFileTypeFromBuffer(...args)
+  }
+})
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     getById: mockMessageGetById,
@@ -208,6 +226,7 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
+const { fileTypeFromBuffer: fileTypeFromBufferActual } = await vi.importActual<typeof FileTypeModule>('file-type')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -224,6 +243,7 @@ describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateAgent.mockReset()
+    mockFileTypeFromBuffer.mockImplementation(fileTypeFromBufferActual)
     mockAssistantGetById.mockReturnValue(undefined)
     mockReadRetryPolicy.mockReturnValue({
       enabled: true,
@@ -443,7 +463,7 @@ describe('AiService', () => {
     } as never)
 
     mockGenerateImage.mockResolvedValue({
-      images: [{ base64: 'abc123', mediaType: 'image/png' }, { nonsense: true }],
+      images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }, { nonsense: true }],
       providerMetadata: {
         testProvider: {
           images: [{ url: 'https://example.com/image.png' }]
@@ -526,10 +546,16 @@ describe('AiService', () => {
 
     expect(createInternalEntry).toHaveBeenCalledWith({
       source: 'base64',
-      data: 'data:image/png;base64,abc123',
+      data: `data:image/png;base64,${TINY_PNG_BASE64}`,
       cleanupPolicy: 'delete_when_unreferenced'
     })
-    expect(result).toEqual({ files: [fileEntry] })
+    expect(result).toEqual({
+      files: [fileEntry],
+      validation: {
+        receivedCount: 2,
+        rejected: [{ index: 1, reason: 'invalid_image_data' }]
+      }
+    })
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
@@ -605,6 +631,259 @@ describe('AiService', () => {
     )
   })
 
+  describe('generateImage — output validation', () => {
+    it('reports an empty output when the AI SDK rejects zero processed images', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockRejectedValue(new NoImageGeneratedError({ responses: [] }))
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: { receivedCount: 0, rejected: [] }
+      })
+      expect(mockGenerateImage).toHaveBeenCalledOnce()
+    })
+
+    it('rejects non-empty malformed base64 image data', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'not-base64!', mediaType: 'image/png' }] })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 1,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('rejects valid base64 when the decoded bytes are not an image', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'YWJjMTIz', mediaType: 'image/png' }] })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 1,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('persists a valid SVG while rejecting non-SVG XML payloads', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      const textBase64 = Buffer.from('not an image').toString('base64')
+      const htmlBase64 = Buffer.from('<html><svg xmlns="http://www.w3.org/2000/svg"/></html>').toString('base64')
+      const dtdBase64 = Buffer.from(
+        '<!DOCTYPE svg [<!ENTITY payload "unsafe">]><svg xmlns="http://www.w3.org/2000/svg"><text>&payload;</text></svg>'
+      ).toString('base64')
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: TINY_SVG_BASE64, mediaType: 'image/svg+xml' },
+          { base64: PREFIXED_SVG_BASE64, mediaType: 'image/svg+xml' },
+          { base64: textBase64, mediaType: 'image/svg+xml' },
+          { base64: htmlBase64, mediaType: 'image/svg+xml' },
+          { base64: dtdBase64, mediaType: 'image/svg+xml' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'svg', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a vector icon',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file, file],
+        validation: {
+          receivedCount: 5,
+          rejected: [
+            { index: 2, reason: 'invalid_image_data' },
+            { index: 3, reason: 'invalid_image_data' },
+            { index: 4, reason: 'invalid_image_data' }
+          ]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledTimes(2)
+      expect(createInternalEntry).toHaveBeenNthCalledWith(1, {
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${TINY_SVG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(createInternalEntry).toHaveBeenNthCalledWith(2, {
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${PREFIXED_SVG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    })
+
+    it('isolates image type detection failures to the invalid output', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockFileTypeFromBuffer.mockRejectedValueOnce(new Error('detector failed'))
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledOnce()
+    })
+
+    it('reports why every provider image was rejected without issuing another request', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: '', mediaType: 'image/png' },
+          { base64: '', mediaType: 'text/html' }
+        ]
+      })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 2,
+          rejected: [
+            { index: 0, reason: 'invalid_image_data' },
+            { index: 1, reason: 'unsupported_media_type' }
+          ]
+        }
+      })
+      expect(mockGenerateImage).toHaveBeenCalledOnce()
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('keeps valid images from a mixed response and reports only the rejected entries', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: '', mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/webp' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
+        }
+      })
+      expect(createInternalEntry).toHaveBeenCalledWith({
+        source: 'base64',
+        data: `data:image/png;base64,${TINY_PNG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(mockGenerateImage).toHaveBeenCalledOnce()
+    })
+  })
+
   // The direct (non-job) image path observes the actual ImageModel doGenerate
   // call in aiCore. These tests pin both the usage payload and the fact that
   // local persistence happens after the provider output has been recorded.
@@ -614,7 +893,7 @@ describe('AiService', () => {
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
-      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }] })
       const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
       mockApplicationGet.mockImplementation((name: string) =>
         name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue(fileEntry) } : undefined
@@ -656,8 +935,8 @@ describe('AiService', () => {
       } as never)
       mockGenerateImage.mockResolvedValue({
         images: [
-          { base64: 'first', mediaType: 'image/png' },
-          { base64: 'second', mediaType: 'image/png' }
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' }
         ]
       })
       const createInternalEntry = vi.fn().mockRejectedValue(new Error('disk full'))
@@ -2188,6 +2467,36 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       { fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' },
       { fileEntryId: 'mask-1', sourceId: 'job-1', role: 'mask' }
     ])
+  })
+
+  it('preserves custom-job output validation for the IPC consumer', async () => {
+    const service = createService()
+    stubResolution(service)
+    const validation = { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' as const }] }
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn() }
+      if (name === 'JobManager') {
+        return {
+          enqueueTx: () => ({
+            id: 'job-1',
+            snapshot: {},
+            finished: Promise.resolve({ status: 'completed', output: { files: [], validation }, error: null })
+          }),
+          cancel: vi.fn()
+        }
+      }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({}) }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    ).resolves.toEqual({ files: [], validation })
   })
 
   it('never stamps the caller output policy on the temp input / mask copies', async () => {

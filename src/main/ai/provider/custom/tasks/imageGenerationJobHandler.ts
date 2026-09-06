@@ -7,10 +7,11 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import type { Base64String } from '@shared/types/file'
 
+import { type GeneratedImageValidationResult, validateGeneratedImage } from '../../../utils/generatedImage'
 import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
@@ -124,18 +125,11 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       })
     }
 
-    // An empty URL list from a *successful* submit/poll (e.g. content moderation
-    // or a degraded vendor response that still charged) must fail rather than
-    // complete as a silent zero-image "success". Covers both submit.imageUrls === []
-    // and poll() === []; the malformed-submit (neither field) case threw above.
-    // Recorded above with imageCount=0 because the provider invocation did complete.
-    if (urls.length === 0) {
-      throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
-    }
-
-    const files = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
+    // Preserve empty/rejected output as structured validation so both the painting
+    // page and built-in tool can explain the paid no-op without parsing job errors.
+    const output = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
     ctx.reportProgress(100, { stage: 'done' })
-    return { files } satisfies ImageGenerationJobOutput
+    return output satisfies ImageGenerationJobOutput
   }
 }
 
@@ -201,37 +195,52 @@ async function pollUntilDone(
 
 /** Resolve a transport result to a base64 data URL: inline `data:` results (from
  *  `b64_json`-style responses) are used as-is; anything else is downloaded. */
-async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
-  if (url.startsWith('data:')) return url as Base64String
+type ResolvedImageDataUrl = GeneratedImageValidationResult | { downloadFailed: true }
+
+async function resolveImageDataUrl(url: string): Promise<ResolvedImageDataUrl> {
+  if (url.startsWith('data:')) {
+    const separator = url.indexOf(',')
+    const [mediaType, ...parameters] = url.slice(5, separator).split(';')
+    if (separator < 0 || !mediaType || !parameters.includes('base64')) return { reason: 'invalid_image_data' }
+    return validateGeneratedImage({ mediaType, base64: url.slice(separator + 1) })
+  }
   const downloaded = await downloadImageAsBase64(url)
-  if (!downloaded) return null
-  return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
+  return downloaded
+    ? validateGeneratedImage({ mediaType: downloaded.media_type, base64: downloaded.data })
+    : { downloadFailed: true }
 }
 
-/** Persist result URLs (always non-empty — the caller guards) as internal FileEntries. */
+/** Validate and persist result URLs as internal FileEntries. */
 async function downloadAndPersistImageUrls(
   urls: string[],
   signal: AbortSignal,
   cleanupPolicy: CleanupPolicy
-): Promise<FileEntry[]> {
+): Promise<ImageGenerationJobOutput> {
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
-  for (const url of urls) {
+  const rejected: GeneratedImageValidation['rejected'] = []
+  let downloadFailures = 0
+  for (const [index, url] of urls.entries()) {
     if (signal.aborted) throw createAbortError('Image generation aborted')
-    const data = await resolveImageDataUrl(url)
-    if (!data) continue
-    files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
+    const validated = await resolveImageDataUrl(url)
+    if ('downloadFailed' in validated) {
+      downloadFailures += 1
+      continue
+    }
+    if (validated.reason) {
+      rejected.push({ index, reason: validated.reason })
+      continue
+    }
+    files.push(await fileManager.createInternalEntry({ source: 'base64', data: validated.data, cleanupPolicy }))
   }
-  // The remote generation succeeded (it returned URLs); surfacing a hard failure
-  // when none could be downloaded avoids reporting a paid generation as an empty,
-  // silent success. A partial failure still returns what we have, with a warning.
-  if (files.length === 0) {
+  if (files.length === 0 && downloadFailures > 0) {
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
   }
-  if (files.length < urls.length) {
+  if (rejected.length > 0 || downloadFailures > 0) {
     logger.warn('Some generated image downloads failed', { requested: urls.length, persisted: files.length })
   }
-  return files
+  const validation = urls.length === 0 || rejected.length > 0 ? { receivedCount: urls.length, rejected } : undefined
+  return { files, ...(validation && { validation }) }
 }
 
 /**

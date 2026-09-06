@@ -73,6 +73,7 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
 const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
+const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 
 function createCtx(
   overrides: Partial<JobContext<ImageGenerationJobPayload>> = {}
@@ -125,7 +126,7 @@ beforeEach(() => {
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
-  downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
+  downloadMock.mockResolvedValue({ data: TINY_PNG_BASE64, media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
 
@@ -301,7 +302,7 @@ describe('imageGenerationJobHandler.execute', () => {
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/neither imageUrls nor a taskId/i)
   })
 
-  it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
+  it('keeps remote download failures on the provider-error path', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
@@ -312,15 +313,15 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('returns the subset (does not throw) when only some downloads fail', async () => {
+  it('returns the valid subset when only some remote downloads fail', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockImplementation(async (url: string) =>
-      url.endsWith('a.png') ? { data: 'AAAA', media_type: 'image/png' } : null
+      url.endsWith('a.png') ? { data: TINY_PNG_BASE64, media_type: 'image/png' } : null
     )
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-a' })
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
-    expect(result.files).toEqual([{ id: 'file-a' }])
+    expect(result).toEqual({ files: [{ id: 'file-a' }] })
     // Bills the generated URL count, not the persisted file count.
     expect(recordRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
@@ -328,7 +329,7 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('persists inline data: URL results without downloading (b64_json-style sync responses)', async () => {
-    const inline = 'data:image/jpeg;base64,/9j/4AAQ'
+    const inline = `data:image/png;base64,${TINY_PNG_BASE64}`
     submitMock.mockResolvedValue({ imageUrls: [inline, 'https://cdn.example.com/b.png'] })
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' }).mockResolvedValueOnce({ id: 'file-b' })
 
@@ -342,16 +343,32 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
+  it('rejects invalid inline data instead of persisting it as an image', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['data:image/png;base64,YWJjMTIz'] })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' }] }
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty output when submit returns no image URLs', async () => {
     submitMock.mockResolvedValue({ imageUrls: [] })
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 0, rejected: [] }
+    })
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
-  it('fails when poll returns an empty array (paid no-op guard)', async () => {
+  it('reports an empty output when poll returns no image URLs', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-empty' })
     pollMock.mockResolvedValue([])
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 0, rejected: [] }
+    })
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 

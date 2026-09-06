@@ -22,6 +22,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
+import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import {
   type ImageGenerationMode,
@@ -59,6 +60,11 @@ export type PaintingResult = GenerateImageOutput | PaintingError
 
 /** Transient failure (provider/network hiccup) — a retry can succeed. */
 export const PAINTING_ERROR_NOTE = 'Image generation failed (provider error); retry or inform the user.'
+export const PAINTING_EMPTY_OUTPUT_NOTE = 'Image generation returned no images; inform the user and try another prompt.'
+export const PAINTING_INVALID_OUTPUT_NOTE =
+  'Image generation returned invalid image data; inform the user and try another model or provider.'
+export const PAINTING_UNSUPPORTED_OUTPUT_NOTE =
+  'Image generation returned an unsupported image format; inform the user and try another model or provider.'
 
 /**
  * Permanent failure: no painting model is configured. Retrying can never succeed until the user picks
@@ -96,6 +102,14 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   }
   const list = output.map((file) => `${file.name} (${file.id})`).join(', ')
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
+}
+
+function paintingValidationError(validation: GeneratedImageValidation): PaintingError {
+  if (validation.receivedCount === 0) return { error: PAINTING_EMPTY_OUTPUT_NOTE }
+  if (validation.rejected.some(({ reason }) => reason === 'unsupported_media_type')) {
+    return { error: PAINTING_UNSUPPORTED_OUTPUT_NOTE }
+  }
+  return { error: PAINTING_INVALID_OUTPUT_NOTE }
 }
 
 export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
@@ -186,7 +200,7 @@ export async function generateImageFromPrompt(
   }
 
   try {
-    const { files } = await application.get('AiService').generateImage({
+    const result = await application.get('AiService').generateImage({
       uniqueModelId,
       prompt: input.prompt,
       mode,
@@ -201,7 +215,8 @@ export async function generateImageFromPrompt(
       cleanupPolicy: 'manual',
       requestOptions: signal ? { signal } : undefined
     })
-    return files.map((file) => ({ id: file.id, name: file.name }))
+    if (result.files.length === 0 && result.validation) return paintingValidationError(result.validation)
+    return result.files.map((file) => ({ id: file.id, name: file.name }))
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.

@@ -1,4 +1,5 @@
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -40,9 +41,10 @@ export interface ImageGenerationJobPayload {
   cleanupPolicy: CleanupPolicy
 }
 
-/** Job output — the persisted result FileEntries the IPC layer returns verbatim. */
+/** Job output returned through AiService to the IPC layer. */
 export interface ImageGenerationJobOutput {
   files: FileEntry[]
+  validation?: GeneratedImageValidation
 }
 
 declare module '@main/core/job/jobRegistry' {

@@ -30,10 +30,11 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { OutputFor } from '@shared/ipc/types'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
@@ -42,6 +43,7 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -74,6 +76,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { validateGeneratedImage } from './utils/generatedImage'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
@@ -88,7 +91,6 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
-
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
@@ -275,9 +277,7 @@ export interface AiImageRequest extends AiBaseRequest {
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
-export interface AiImageResult {
-  files: FileEntry[]
-}
+export type AiImageResult = OutputFor<'ai.image.generate'>
 
 /**
  * Map a painting input-image / mask string to FileManager create params. Preserves
@@ -851,28 +851,36 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
-
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+    let result: Awaited<ReturnType<typeof aiCoreGenerateImage>>
+    try {
+      result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        ...imageParams,
+        onProviderCall: createProviderCallHandler(imageUsageContext)
+      })
+    } catch (error) {
+      if (NoImageGeneratedError.isInstance(error)) {
+        return { files: [], validation: { receivedCount: 0, rejected: [] } }
       }
-
-      filteredCount += 1
+      throw error
     }
 
-    if (filteredCount > 0) {
+    const images = result.images ?? []
+    const dataUrls: Base64String[] = []
+    const rejected: NonNullable<AiImageResult['validation']>['rejected'] = []
+    for (const [index, image] of images.entries()) {
+      const validated = await validateGeneratedImage(image)
+      if (validated.reason) rejected.push({ index, reason: validated.reason })
+      else dataUrls.push(validated.data)
+    }
+
+    const validation =
+      images.length === 0 || rejected.length > 0 ? { receivedCount: images.length, rejected } : undefined
+    if (validation) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
         providerId: sdkConfig.providerId,
         modelId: sdkConfig.modelId,
-        filteredCount
+        validation
       })
     }
     const fileManager = application.get('FileManager')
@@ -882,7 +890,7 @@ export class AiService extends BaseService {
       )
     )
 
-    return { files }
+    return { files, ...(validation && { validation }) }
   }
 
   /**
@@ -990,7 +998,7 @@ export class AiService extends BaseService {
 
     if (snapshot.status === 'completed') {
       const output = snapshot.output as ImageGenerationJobOutput | null
-      return { files: output?.files ?? [] }
+      return { files: output?.files ?? [], ...(output?.validation && { validation: output.validation }) }
     }
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')
