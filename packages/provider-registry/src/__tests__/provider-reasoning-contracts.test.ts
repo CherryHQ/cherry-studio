@@ -304,4 +304,17 @@ describe('qwencloud reasoning contracts', () => {
     const support = override('qwencloud', 'glm-5.1').reasoningContracts?.['openai-chat-completions']?.support
     expect(support?.supportedEfforts).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
   })
+
+  // `enable_thinking` outranks `reasoning_effort`, so the effort tier must pin thinking on
+  // explicitly instead of leaning on the models' thinking-on default.
+  it('pins enable_thinking on the third-party effort wire', () => {
+    const wire = override('qwencloud', 'glm-5.2').reasoningContracts?.['openai-chat-completions']?.wire
+    const targets = wire?.effort?.operations?.map((op) => [op.target, op.value])
+    expect(targets).toEqual(
+      expect.arrayContaining([
+        ['enable_thinking', { source: 'literal', value: true }],
+        ['reasoning_effort', { source: 'effort' }]
+      ])
+    )
+  })
 })

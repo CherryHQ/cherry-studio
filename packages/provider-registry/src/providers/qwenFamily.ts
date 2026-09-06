@@ -55,7 +55,14 @@ const kimiK3Support: ReasoningSupport = {
 
 const effortChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+  // `enable_thinking` outranks `reasoning_effort` (docs), so pin it explicitly instead of
+  // relying on the models' thinking-on default.
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'reasoning_effort', value: { source: 'effort' } }
+    ]
+  }
 }
 
 const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
