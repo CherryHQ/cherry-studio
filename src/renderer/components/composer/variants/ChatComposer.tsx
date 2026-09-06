@@ -629,6 +629,11 @@ const ChatComposerInner = ({
   const isEditingDraftRestoring = Boolean(
     editingMessageForCurrentTopic && restoredEditingSessionId !== editingMessageForCurrentTopic.editingSessionId
   )
+  useEffect(() => {
+    if (isEditingDraftRestoring && quickPanel?.isVisible) {
+      quickPanel.close('message_edit_restore')
+    }
+  }, [isEditingDraftRestoring, quickPanel])
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
@@ -1214,6 +1219,7 @@ const ChatComposerInner = ({
       editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
     }
+    if (isKnowledgeBasesLoading) return
     if (
       restoredEditingSessionId === editingMessageForCurrentTopic.editingSessionId ||
       restoringEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId
@@ -1242,12 +1248,13 @@ const ChatComposerInner = ({
     }
 
     void restoreEditableMessageDraft(editingMessageForCurrentTopic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases.
   }, [
     actionsRef,
     editingMessageForCurrentTopic,
     exitInputHistoryPreview,
     filesRef,
+    isKnowledgeBasesLoading,
     mentionedModelsRef,
     restoredEditingSessionId,
     selectedKnowledgeBasesRef

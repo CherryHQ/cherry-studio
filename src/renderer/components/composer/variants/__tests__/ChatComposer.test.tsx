@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import { QuickPanelProvider, useQuickPanel } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -646,6 +647,21 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
     <button type="button" onClick={() => startEditing(message, parts)}>
       start editing
     </button>
+  )
+}
+
+const QuickPanelTestControls = () => {
+  const quickPanel = useQuickPanel()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => quickPanel.open({ list: [], symbol: '/', triggerInfo: { type: 'button', position: 0 } })}>
+        open quick panel
+      </button>
+      <span>{quickPanel.isVisible ? 'quick panel open' : 'quick panel closed'}</span>
+    </>
   )
 }
 
@@ -3835,6 +3851,95 @@ describe('ChatComposer', () => {
     })
   })
 
+  it('waits for the knowledge-base catalog before restoring an edited message scope', async () => {
+    const knowledgeBase = { id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase
+    mocks.assistant = { ...mocks.assistant, knowledgeBaseIds: [knowledgeBase.id] }
+    mocks.knowledgeBasesLoading = true
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [
+      {
+        type: 'text',
+        text: 'question with knowledge',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'knowledge:kb-1',
+                  kind: 'knowledge',
+                  label: knowledgeBase.name,
+                  index: 0,
+                  textOffset: 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    ] as any[]
+
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+
+    mocks.knowledgeBases = [knowledgeBase]
+    mocks.knowledgeBasesLoading = false
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    expect(mocks.surfaceProps?.editable).toBe(true)
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
+      expect.objectContaining({ id: 'knowledge:kb-1', kind: 'knowledge' })
+    )
+  })
+
+  it('closes an open Quick Panel when message-edit restoration starts', async () => {
+    const user = userEvent.setup()
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <QuickPanelProvider>
+        <QuickPanelTestControls />
+        <MessageEditingProvider>
+          <StartEditingButton message={message as any} parts={[{ type: 'text', text: 'old prompt' }]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open quick panel' }))
+    expect(screen.getByText('quick panel open')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'start editing' }))
+
+    await waitFor(() => expect(screen.getByText('quick panel closed')).toBeInTheDocument())
+  })
+
   it('blocks input history navigation until asynchronous attachment restoration completes', async () => {
     seedInputHistory(['previous prompt'])
     const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
@@ -4518,6 +4623,7 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await waitFor(() => expect(mocks.surfaceProps?.draftTokens).toHaveLength(1))
     const rewrittenToken = mocks.surfaceProps?.draftTokens?.[0]
     expect(rewrittenToken?.id).toMatch(/^file:.+/)
     expect(rewrittenToken?.id).not.toBe(ghostToken.id)
