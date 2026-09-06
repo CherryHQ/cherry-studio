@@ -522,8 +522,8 @@ export class PreferenceService extends BaseService {
       for (const { value, route } of items) {
         if (route.store !== 'preference') continue
         const cacheKey = route.key
-        if (!(cacheKey in this.cache) || value === undefined || value === null) {
-          throw new Error(`Preference ${cacheKey} not found in cache or value is undefined or null`)
+        if (!(cacheKey in this.cache) || value === undefined) {
+          throw new Error(`Preference ${cacheKey} not found in cache or value is undefined`)
         }
 
         const oldValue = this.cache[cacheKey]

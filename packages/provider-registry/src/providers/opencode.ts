@@ -157,6 +157,7 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
 export default defineProvider({
   id: 'opencode',
   name: 'OpenCode Go',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

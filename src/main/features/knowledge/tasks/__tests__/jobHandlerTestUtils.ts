@@ -8,6 +8,8 @@ import { beforeEach, type Mocked, vi } from 'vitest'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'
+import type * as NoteSnapshot from '../../pipeline/sources/noteSnapshot'
+import type * as UrlSnapshot from '../../pipeline/sources/urlSnapshot'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
@@ -33,6 +35,8 @@ const mocks = vi.hoisted(() => ({
   fetchKnowledgeWebPageMock: vi.fn(),
   captureUrlSnapshotFileMock: vi.fn(),
   captureNoteSnapshotFileMock: vi.fn(),
+  copyFileIntoKnowledgeBaseAtMock: vi.fn(),
+  writeFileIntoKnowledgeBaseAtMock: vi.fn(),
   rebuildMaterialMock: vi.fn(),
   deleteMaterialsMock: vi.fn(),
   reclaimSpaceMock: vi.fn(),
@@ -68,6 +72,8 @@ export const {
   fetchKnowledgeWebPageMock,
   captureUrlSnapshotFileMock,
   captureNoteSnapshotFileMock,
+  copyFileIntoKnowledgeBaseAtMock,
+  writeFileIntoKnowledgeBaseAtMock,
   rebuildMaterialMock,
   deleteMaterialsMock,
   reclaimSpaceMock,
@@ -150,11 +156,15 @@ vi.mock('../../pipeline/sources/url', () => ({
   fetchKnowledgeWebPage: fetchKnowledgeWebPageMock
 }))
 
-vi.mock('../../pipeline/sources/urlSnapshot', () => ({
+// Only the capture entry points are stubbed; the pure snapshot builders stay real so
+// re-acquisition produces the same bytes the first-index path would.
+vi.mock('../../pipeline/sources/urlSnapshot', async () => ({
+  ...(await vi.importActual<typeof UrlSnapshot>('../../pipeline/sources/urlSnapshot')),
   captureUrlSnapshotFile: captureUrlSnapshotFileMock
 }))
 
-vi.mock('../../pipeline/sources/noteSnapshot', () => ({
+vi.mock('../../pipeline/sources/noteSnapshot', async () => ({
+  ...(await vi.importActual<typeof NoteSnapshot>('../../pipeline/sources/noteSnapshot')),
   captureNoteSnapshotFile: captureNoteSnapshotFileMock
 }))
 
@@ -166,11 +176,15 @@ vi.mock('../../pathStorage', async () => {
     // contract is unit-tested directly in pathStorage's own test; here we only
     // need handlers to route cleanup through it and still delete rows.
     deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
-    // Stub the on-disk source probes (used by classifyKnowledgeItemSource /
-    // canKnowledgeItemRebuildSource in the reindex source guard) so tests control
+    // Stub the on-disk source probes (used by classifyKnowledgeItemReacquireSource /
+    // canKnowledgeItemReacquireSource in the reindex source guard) so tests control
     // rebuildability without touching the real filesystem; default to 'readable' in beforeEach.
     probeKnowledgeFile: probeKnowledgeFileMock,
-    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
+    probeKnowledgeSourcePath: probeKnowledgeSourcePathMock,
+    // Reindex re-acquires a leaf's bytes through these before rebuilding; stub the writes so
+    // tests assert what would land in raw/ without touching the real filesystem.
+    copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
+    writeFileIntoKnowledgeBaseAt: writeFileIntoKnowledgeBaseAtMock
   }
 })
 
@@ -292,7 +306,7 @@ export function createDirectoryItem(
     baseId: 'kb-1',
     groupId: null,
     type: 'directory',
-    data: { source: id },
+    data: { source: `/${id}` },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -382,6 +396,12 @@ beforeEach(() => {
   })
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
+  copyFileIntoKnowledgeBaseAtMock.mockImplementation(
+    async (_baseId: string, _sourcePath: string, relativePath: PosixRelativeFilePath) => relativePath
+  )
+  writeFileIntoKnowledgeBaseAtMock.mockImplementation(
+    async (_baseId: string, relativePath: PosixRelativeFilePath) => relativePath
+  )
   knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
     (id: string, type: 'url' | 'note', relativePath: PosixRelativeFilePath) =>
       type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)

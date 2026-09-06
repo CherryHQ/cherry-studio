@@ -1444,6 +1444,26 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
+  it('keeps a pinned session in its expanded agent group', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
+    expect(screen.getByText('Pinned session')).toBeInTheDocument()
+    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
+  })
+
   it('renders orphan sessions under the unlinked agent group without a virtual agent icon', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setupSessions({
@@ -2237,6 +2257,36 @@ describe('Sessions', () => {
 
     expect(menuContent).not.toHaveTextContent('Open in new tab')
     expect(menuContent).toHaveTextContent('Open in New Window')
+  })
+
+  it('keeps a pinned session aligned with its agent icon', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }]
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    // The leading slot is the horizontal alignment contract shared with the agent header icon.
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+  })
+
+  it('keeps the leading slot when agent icons are hidden', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.icon_type', 'none')
+    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
   })
 
   it('hides the inline delete action for pinned sessions', () => {
@@ -3172,6 +3222,42 @@ describe('Sessions', () => {
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
     )
+  })
+
+  it('rejects drops onto pinned sessions within an agent group', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+    startDraggingSession('session-a')
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: {
+          data: sortableData('item:session-pinned'),
+          id: 'item:session-pinned',
+          rect: { top: 10, height: 20 }
+        }
+      })
+    })
+
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
   })
 
   it('reorders workspace groups through the workspace order endpoint', async () => {

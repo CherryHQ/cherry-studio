@@ -39,6 +39,26 @@ function hasCacheControl(value: { providerOptions?: unknown }): boolean {
   )
 }
 
+function getCacheControl(value: { providerOptions?: unknown }): unknown {
+  return (value.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic?.cacheControl
+}
+
+function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
+  const controls: unknown[] = []
+  for (const tool of params.tools ?? []) {
+    if ('providerOptions' in tool && hasCacheControl(tool)) controls.push(getCacheControl(tool))
+  }
+  for (const message of params.prompt) {
+    if (hasCacheControl(message)) controls.push(getCacheControl(message))
+    if (typeof message.content !== 'string') {
+      for (const part of message.content) {
+        if ('providerOptions' in part && hasCacheControl(part)) controls.push(getCacheControl(part))
+      }
+    }
+  }
+  return controls
+}
+
 function countCacheMarkers(params: LanguageModelV3CallOptions): number {
   let count = 0
   for (const tool of params.tools ?? []) {
@@ -137,6 +157,28 @@ describe('transformAnthropicCacheParams', () => {
     )
 
     expect(countCacheMarkers(out)).toBe(1)
+  })
+
+  it('uses the configured one-hour lifetime for every emitted cache breakpoint', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))],
+        tools: [makeTool('mcp_tool', 6000)]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 1, ttl: '1h' })
+    )
+
+    expect(collectCacheControls(out)).toEqual([
+      { type: 'ephemeral', ttl: '1h' },
+      { type: 'ephemeral', ttl: '1h' },
+      { type: 'ephemeral', ttl: '1h' }
+    ])
+  })
+
+  it('preserves the implicit five-minute cache marker by default', async () => {
+    const out = await transform({ prompt: [textMessage('system', 'x '.repeat(3000))] })
+
+    expect(collectCacheControls(out)).toEqual([{ type: 'ephemeral' }])
   })
 
   it('uses tool definitions in the cumulative prefix gate for system messages', async () => {

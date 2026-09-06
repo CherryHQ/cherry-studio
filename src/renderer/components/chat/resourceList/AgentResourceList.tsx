@@ -44,10 +44,6 @@ const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 const AGENT_ENTITY_HIDE_FROM_LIST_ACTION_ID = 'agent-entity.hide-from-list'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
-type SessionListItem = AgentSessionEntity & {
-  pinned?: boolean
-}
-
 type AgentResourceListProps = {
   activeAgentId?: string | null
   dataEnabled?: boolean
@@ -92,8 +88,6 @@ export function AgentResourceList({
   const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
     isLoading,
     isLoadingAll,
     isFullyLoaded,
@@ -142,13 +136,6 @@ export function AgentResourceList({
     () => agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id)),
     [agents, hiddenProtectedAgentIdSet]
   )
-  const sessionItems = useMemo<SessionListItem[]>(
-    () =>
-      sessions
-        .filter((session) => !session.agentId || !hiddenProtectedAgentIdSet.has(session.agentId))
-        .map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [hiddenProtectedAgentIdSet, pinIdBySessionId, sessions]
-  )
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
@@ -196,9 +183,8 @@ export function AgentResourceList({
     [agentPinnedIdSet, assistantIconType, defaultModelId, handleCreateSession, t, visibleAgents]
   )
 
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
+    (session: AgentSessionEntity) => onSelectSession(session.id, session),
     [onSelectSession]
   )
   const reorderAgentEntity = useCallback(
@@ -216,8 +202,6 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
