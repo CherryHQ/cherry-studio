@@ -181,7 +181,8 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         focus: mocks.focus,
         setContent: mocks.setContent,
         setHardBreak: mocks.setHardBreak,
-        setNodeSelection: mocks.setNodeSelection
+        setNodeSelection: mocks.setNodeSelection,
+        setTextSelection: mocks.setTextSelection
       },
       chain: () => ({
         focus: () => ({
@@ -594,6 +595,27 @@ describe('ComposerSurface', () => {
     document.removeEventListener('paste', onDocument)
     viewDom.remove()
     vi.unstubAllGlobals()
+  })
+
+  it('does not replay a deferred token after the composer becomes read-only', () => {
+    let replayDeferredIntent: (() => void) | undefined
+    mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void) => {
+      replayDeferredIntent = callback
+      return () => {}
+    })
+    const deferredIntent = {
+      insertToken: {
+        token: { id: 'quote-1', kind: 'quote', label: 'Reference' } as never,
+        selection: { start: 0, end: 0 }
+      }
+    }
+
+    const view = render(<ComposerSurface {...baseProps} editable deferredIntent={deferredIntent} />)
+    view.rerender(<ComposerSurface {...baseProps} editable={false} deferredIntent={deferredIntent} />)
+    act(() => replayDeferredIntent?.())
+
+    expect(mocks.setTextSelection).not.toHaveBeenCalled()
+    expect(mocks.insertComposerToken).not.toHaveBeenCalled()
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {

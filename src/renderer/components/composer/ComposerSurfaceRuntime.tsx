@@ -2144,7 +2144,7 @@ export default function ComposerSurfaceRuntime({
       'composerDeferredIntent',
       () => {
         if (editor.isDestroyed) return
-        if (pendingToken) {
+        if (pendingToken && editableRef.current) {
           editor.commands.setTextSelection({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
