@@ -265,7 +265,8 @@ second selector resolution (P3 consumer; the fields are cheap to fill now).
 
 ## 7. Commit and PR split
 
-Implementation lands as three stacked PRs on top of this documentation PR. Every commit builds,
+Implementation lands as four stacked PRs on top of this documentation PR (PR D, the browser-data
+import, is specified in §10 and is independent of B and C). Every commit builds,
 lints and passes the listed tests on its own; conventional-commit scopes are the kebab-case module.
 
 ### PR A — `feat(browser-session): shared CDP session + snapshot engine` (no user-visible change)
@@ -404,7 +405,159 @@ are what the tool text must contain.
 Record the numbers of #10 and #12 in the PR description; they are the acceptance criteria for the
 session-management commit.
 
-## 10. Risks
+## 10. Importing external browser data
+
+Browser use is only useful on sites the user is already signed in to. The hidden MCP tabs use
+`persist:default`, which starts empty, so the user needs a way to bring login state over from
+the browser they actually use. This is a **user action** (credentials move), never a tool the
+model can call.
+
+### 10.1 Scope
+
+| Data | Import | Why |
+|---|---|---|
+| Cookies | yes | login state; what every site checks |
+| `localStorage` per origin | yes, from storage-state files only | SPA tokens (JWT in `localStorage`) — not readable from browser profiles without the browser's own LevelDB, so file import only |
+| Bookmarks | no (deferred) | Chrome `Bookmarks` is plain JSON and trivial to read, but no tool consumes it yet |
+| History | no | same, plus privacy cost with no consumer |
+| Passwords | never | Chrome `Login Data` / Firefox `key4.db`; an agent must not hold the user's password store |
+
+Two import paths, in order of preference:
+
+1. **Storage-state file** (portable, no decryption): Playwright `storageState` JSON
+   (`{ cookies: [{ name, value, domain, path, expires, httpOnly, secure, sameSite }], origins: [{ origin, localStorage: [{ name, value }] }] }`)
+   and Netscape `cookies.txt` (what curl, yt-dlp and the "Get cookies.txt" extensions emit). Works on every
+   OS and every browser, including ones we cannot decrypt.
+2. **Profile read** from a detected installed browser: Chromium family (Chrome, Edge, Brave, Chromium,
+   Arc) and Firefox. Copy the cookie database to a temp path first (the live file is locked while the
+   browser runs on Windows), open it read-only with the already installed `better-sqlite3`, decrypt
+   where needed, apply.
+
+### 10.2 Module layout and API
+
+```
+src/main/services/browser/import/
+  formats.ts            parseStorageState(json) / parseNetscape(text) → ImportedCookie[] + ImportedOrigin[]
+  chromiumProfile.ts    locate profiles, copy + read `Cookies`, decrypt `encrypted_value`
+  firefoxProfile.ts     locate profiles via profiles.ini, read `cookies.sqlite`
+  applyImport.ts        ImportedCookie[] → session.cookies.set, ImportedOrigin[] → DOMStorage via a GuestSession
+  index.ts              barrel
+src/shared/types/browserImport.ts        ImportedCookie, ImportSource, ImportResult (+ zod)
+src/shared/ipc/schemas/browser.ts        `browser.list_import_sources`, `browser.import_data`
+src/main/ipc/handlers/browser.ts         delegate to BrowserSessionService
+src/renderer/pages/settings/McpSettings/BrowserImportDialog.tsx   entry from the `@cherry/browser` card in BuiltinMcpServerList
+```
+
+```ts
+export interface ImportedCookie {
+  domain: string        // as stored, leading dot preserved
+  name: string; value: string; path: string
+  expires?: number      // unix seconds; absent = session cookie
+  secure: boolean; httpOnly: boolean
+  sameSite: 'unspecified' | 'no_restriction' | 'lax' | 'strict'   // Electron's vocabulary
+}
+export interface ImportSource {
+  id: string            // "chrome:Default", "firefox:abcd.default-release", "file"
+  browser: 'chrome' | 'edge' | 'brave' | 'chromium' | 'arc' | 'firefox' | 'file'
+  profileName: string
+  path: string
+  supported: boolean    // false with `reason` when we know decryption cannot work (§10.4)
+  reason?: 'app_bound_encryption' | 'locked' | 'keychain_denied'
+}
+export interface ImportResult { imported: number; skipped: number; origins: number; errors: string[] }
+```
+
+IpcApi routes (`defineRoute`, same style as `webview.ts`):
+
+| Route | Input | Output |
+|---|---|---|
+| `browser.list_import_sources` | `{}` | `ImportSource[]` — detected profiles for the current OS plus the `file` pseudo-source |
+| `browser.import_data` | `{ sourceId: string, filePath?: string, domains?: string[], partition?: 'persist:default' }` | `ImportResult` |
+
+`domains` filters by suffix match (`github.com` matches `.github.com` and `api.github.com`); the
+dialog offers "all" or a pasted list. Target partition is `persist:default` only; private mode never
+receives imports and the annotation/agent-pane partitions are not targets until P3 decides they should be.
+
+### 10.3 Readers
+
+**Storage-state / Netscape** (`formats.ts`): pure parsers, no I/O. Netscape lines are
+`domain \t includeSubdomains \t path \t secure \t expiry \t name \t value`; `#HttpOnly_` domain prefix
+marks httpOnly. sameSite defaults to `unspecified`.
+
+**Chromium family** (`chromiumProfile.ts`):
+
+| OS | Profile root | Cookie file |
+|---|---|---|
+| macOS | `~/Library/Application Support/{Google/Chrome, Microsoft Edge, BraveSoftware/Brave-Browser, Chromium, Arc/User Data}/<Profile>` | `<Profile>/Network/Cookies` (older builds: `<Profile>/Cookies`) |
+| Windows | `%LOCALAPPDATA%\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium}\User Data\<Profile>` | same |
+| Linux | `~/.config/{google-chrome, microsoft-edge, BraveSoftware/Brave-Browser, chromium}/<Profile>` | same |
+
+Profiles come from `Local State` → `profile.info_cache` (name per directory). Table `cookies`:
+`host_key, name, value, encrypted_value, path, expires_utc, is_secure, is_httponly, samesite, has_expires`.
+`expires_utc` is microseconds since 1601-01-01: `unix = expires_utc / 1e6 − 11644473600`.
+`samesite`: −1 → `unspecified`, 0 → `no_restriction`, 1 → `lax`, 2 → `strict`.
+
+Decryption of `encrypted_value` (prefix `v10`; `v11` on Linux keyrings):
+
+| OS | Key | Cipher |
+|---|---|---|
+| macOS | Keychain item "`<Browser> Safe Storage`" via `security find-generic-password -w -s "<Browser> Safe Storage"` (the OS prompts the user, naming the browser) → `pbkdf2(password, 'saltysalt', 1003, 16, sha1)` | AES-128-CBC, IV = 16 spaces, PKCS7 |
+| Linux | `v11`: libsecret / kwallet password, same PBKDF2 with 1 iteration; `v10`: literal `peanuts`, 1 iteration | same |
+| Windows | `v10`: DPAPI-protected key in `Local State` → `os_crypt.encrypted_key`, unprotected with `CryptUnprotectData` via `powershell -c [Security.Cryptography.ProtectedData]::Unprotect` (Electron's `safeStorage` holds Cherry's key, not Chrome's) | AES-256-GCM, 12-byte nonce after the prefix, 16-byte tag |
+| Windows, `v20` prefix | Chrome ≥ 127 app-bound encryption: the key is only released to Chrome's own elevated service | **not supported** → `reason: 'app_bound_encryption'`, the dialog points to the file path |
+
+Recent Chrome builds prepend `SHA-256(host_key)` (32 bytes) to the plaintext value; strip it when the
+first 32 bytes equal that hash. Cookies with an empty decrypted value are skipped and counted.
+
+**Firefox** (`firefoxProfile.ts`): `profiles.ini` → `Path` per profile (`Default=1` first); roots
+`~/Library/Application Support/Firefox/Profiles`, `%APPDATA%\Mozilla\Firefox\Profiles`, `~/.mozilla/firefox`.
+Table `moz_cookies`: `host, name, value, path, expiry (unix seconds), isSecure, isHttpOnly, sameSite`
+(0 → `no_restriction`, 1 → `lax`, 2 → `strict`). Values are plaintext.
+
+Every reader copies the database file to `application.getPath(<temp namespace>)` before opening
+(`readonly: true, fileMustExist: true`), deletes the copy in `finally`, and never logs a cookie value.
+
+### 10.4 Apply
+
+`applyImport.ts` maps each `ImportedCookie` to `session.fromPartition(partition).cookies.set({
+url: (secure ? 'https://' : 'http://') + domain.replace(/^\./, '') + path, name, value, domain, path,
+secure, httpOnly, expirationDate: expires, sameSite })`. Electron rejects `__Host-` / `__Secure-`
+cookies that are not `secure` + https and cookies whose `domain` does not match `url`; those are
+counted as `skipped` with the reason in `errors` (name and domain only). After the loop,
+`session.cookies.flushStore()`.
+
+`localStorage` entries (storage-state files only): for each origin, open a temporary hidden tab through
+`BrowserSessionService` on `about:blank` under that origin (`Page.navigate` to `origin + '/favicon.ico'`
+is enough to get a document), then `DOMStorage.setDOMStorageItem({ storageId: { securityOrigin, isLocalStorage: true }, key, value })`;
+close the tab. `DOMStorage.enable` / `setDOMStorageItem` join the allow-list.
+
+### 10.5 UI
+
+One dialog from the `@cherry/browser` card in `BuiltinMcpServerList.tsx` ("Import browser data"):
+a list of detected sources with their `supported` state and reason, a file picker for storage-state
+/ `cookies.txt`, an optional domain filter, and the result summary. Strings under
+`settings.mcp.browser_import.*` in `en-us.json`, synced with `pnpm i18n:sync`. No preference is
+stored; the import is a one-shot action.
+
+### 10.6 PR D — `feat(browser-import): import cookies and site storage from external browsers`
+
+| # | Commit | Files | Tests |
+|---|---|---|---|
+| D1 | `feat(browser-import): parse storage-state and Netscape cookie files` | `import/formats.ts`, `shared/types/browserImport.ts` | `formats.test.ts`: fixture files → cookies; `#HttpOnly_` prefix; malformed line skipped with an error entry; storage-state `origins` round-trip |
+| D2 | `feat(browser-import): apply imported cookies and storage to a partition` | `import/applyImport.ts`, allow-list | `applyImport.test.ts` with a fake `session.cookies`: url composition for leading-dot domains, `__Host-` on http skipped and reported, session cookie has no `expirationDate`, `flushStore` called once |
+| D3 | `feat(browser-import): read Chromium-family profiles` | `import/chromiumProfile.ts` | `chromiumProfile.test.ts`: sqlite fixture built in the test with the real `cookies` schema; `expires_utc` conversion; samesite map; `v10` decrypt against a fixture encrypted with password `test` and the documented KDF; SHA-256 prefix stripped; `v20` → `unsupported` without touching the keychain |
+| D4 | `feat(browser-import): read Firefox profiles` | `import/firefoxProfile.ts` | `firefoxProfile.test.ts`: `profiles.ini` parsing incl. `Default=1`; `moz_cookies` fixture |
+| D5 | `feat(browser-import): expose import routes and the settings dialog` | `ipc/schemas/browser.ts`, `ipc/handlers/browser.ts`, `BrowserImportDialog.tsx`, i18n | `schemas/__tests__` input validation; renderer test: sources render with reason text, file path submitted, result summary shown |
+
+Manual acceptance (add to §9): import from the local Chrome default profile with `domains: ['github.com']`,
+`open https://github.com` in the MCP browser → the snapshot shows the signed-in header; repeat with a
+`cookies.txt` exported from Firefox; on Windows with Chrome ≥ 127 the source shows the
+app-bound-encryption reason and the file path succeeds.
+
+Gotcha for the sqlite tests: `better-sqlite3` is rebuilt for Electron's ABI when the dev app runs,
+which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
+
+## 11. Risks
 
 - `DOMSnapshot.captureSnapshot` on very large pages can exceed 50 MB; the capture is bounded by the
   band filter only after the fact. Mitigation in A4: request `includeDOMRects` only, no text boxes,
@@ -416,3 +569,8 @@ session-management commit.
   skips sessions with `progressing` downloads.
 - `BrowserView` is deprecated but not removed in Electron 41; C5 is isolated so it can slip without
   blocking P0/P1.
+- Cookie decryption depends on browser internals that change without notice (app-bound encryption
+  on Windows, the SHA-256 value prefix). The readers fail closed to `unsupported` + the file path;
+  the file import is the contract, profile reading is best effort.
+- Imported cookies are credentials at rest in `persist:default`, shared by every MCP client
+  (see the browser server README note). The dialog says so; the private partition never receives them.

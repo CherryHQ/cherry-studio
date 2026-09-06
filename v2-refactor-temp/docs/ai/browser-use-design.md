@@ -191,6 +191,8 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   stale-ref errors with AX re-query by role+name+nth.
 - `find`, `console_messages`, `network_requests`; `BrowserView` → `WebContentsView`.
 - CDP allow-list + per-origin policy (Codex model).
+- Import login state (cookies, site storage) from the user's installed browser or a storage-state /
+  `cookies.txt` file into `persist:default`; user action only, never a tool (implementation doc §10).
 - Session registry: turn-scoped tab retention (`temporary` / `deliverable` / `handoff`), global guest
   budget with LRU eviction on a real timer, freeze + debugger detach for idle retained tabs (see
   "Browser session management").
