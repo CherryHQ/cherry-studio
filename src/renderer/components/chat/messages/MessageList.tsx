@@ -13,7 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { AgentLaunchIndexProvider, PartsProvider, useAgentLaunchIndex, usePartsMap } from './blocks/MessagePartsContext'
+import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -222,9 +222,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
   const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
-  // Provided by MessageListProvider, which derives it once per parts-map version — reading it
-  // here (above early returns) also keeps the index available below the memoized group layers.
-  const launchIndex = useAgentLaunchIndex()
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
   )
@@ -919,11 +916,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     </MessagesContainer>
   )
 
-  return (
-    <AgentLaunchIndexProvider value={launchIndex}>
-      <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
-    </AgentLaunchIndexProvider>
-  )
+  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
 }
 
 export default MessageList
