@@ -6,7 +6,6 @@ import type {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
@@ -73,7 +72,6 @@ const AssistantHistoryRecords = ({
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics, batchUpdateTopics } = useTopicMutations()
   const [exportMenuOptions] = useMultiplePreferences({
@@ -93,12 +91,6 @@ const AssistantHistoryRecords = ({
 
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
-  const renamingTopicIdSet = useMemo(
-    () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
-    [renamingTopics]
-  )
-  const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
-
   const topics = useMemo<HistoryTopicItem[]>(
     () =>
       optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
@@ -342,7 +334,7 @@ const AssistantHistoryRecords = ({
       return createTopicActionContext({
         exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
         isActiveInCurrentTab: false,
-        isRenaming: isTopicRenaming(topic.id),
+        isRenaming: false,
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
@@ -363,7 +355,6 @@ const AssistantHistoryRecords = ({
       handleClearMessages,
       handleDeleteTopicFromMenu,
       handlePinTopic,
-      isTopicRenaming,
       notesPath,
       t,
       topics.length
@@ -405,8 +396,13 @@ const AssistantHistoryRecords = ({
       rowHeight: 32,
       getSelectLabel: (topic: HistoryTopicItem) =>
         `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
-      getRowActions: (topic: HistoryTopicItem, openRename: (id: string, name: string) => void) => {
-        const contextOverride = { onStartRename: () => openRename(topic.id, topic.name ?? '') }
+      getRenameTopicId: (topic: HistoryTopicItem) => topic.id,
+      getRowActions: (
+        topic: HistoryTopicItem,
+        openRename: (id: string, name: string) => void,
+        { isRenaming }: { isRenaming: boolean }
+      ) => {
+        const contextOverride = { isRenaming, onStartRename: () => openRename(topic.id, topic.name ?? '') }
         const actions = topicMenuPreset.getActions(topic, contextOverride)
         return {
           actions,
