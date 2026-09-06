@@ -28,6 +28,16 @@ export interface TranslateSessionHandle extends TabSessionHandle {
    * rebuilds it in another window, which an `AbortController` could never survive.
    */
   addStream: (streamId: string) => () => void
+  /**
+   * How far the run has got, as accumulated text. The session holds it, not the page: with no
+   * page mounted the run keeps advancing, and after a remount a different page instance has to
+   * pick it up.
+   */
+  recordProgress: (accumulated: string) => void
+  /** Discard it, for a page that replaced the output outside a run. */
+  clearProgress: () => void
+  /** Follow it. The listener fires at once with the current value, then on every change. */
+  onProgress: (listener: (accumulated: string) => void) => () => void
 }
 
 /**
@@ -46,6 +56,8 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
     if (!tabSession) {
       throw new Error("Translate page rendered without ?tabSession= — the route's beforeLoad must mint it")
     }
+
+    const progressKey = `translate.stream_text.${tabSession}` as const
 
     return tabSessionRegistry.getOrCreate(tabSession, (notify) => {
       const streams = new Set<string>()
@@ -70,6 +82,17 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
             if (!cacheService.delete(key)) released = false
           }
           return released
+        },
+        recordProgress: (accumulated: string) => {
+          cacheService.set(progressKey, accumulated)
+        },
+        clearProgress: () => {
+          cacheService.set(progressKey, '')
+        },
+        onProgress: (listener: (accumulated: string) => void) => {
+          const emit = () => listener(cacheService.get(progressKey) ?? '')
+          emit()
+          return cacheService.subscribe(progressKey, emit)
         },
         addStream: (streamId: string) => {
           streams.add(streamId)

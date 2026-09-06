@@ -3,6 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -470,6 +471,9 @@ describe('TranslatePage', () => {
     // The session registry is a window-wide singleton; without this a run left over from the
     // previous test would make the next page mount already showing a translation in progress.
     tabSessionRegistry.sweep(new Set())
+    // The session records the run's progress straight into the cache service, so its store has to
+    // be reset too or one test's stream replays over the next page that mounts.
+    MockCacheUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.setCacheValue(`translate.input.${TEST_TAB_SESSION}`, '')

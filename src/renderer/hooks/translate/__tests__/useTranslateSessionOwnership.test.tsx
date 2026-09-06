@@ -52,11 +52,13 @@ const TARGET = {
 function pendingTranslateText() {
   let signal: AbortSignal | undefined
   let streamId: string | undefined
+  let report: ((text: string, done: boolean) => void) | undefined
   translateTextMock.mockImplementationOnce(
-    (_text, _lang, _onResponse, abortSignal, id) =>
+    (_text, _lang, onResponse, abortSignal, id) =>
       new Promise<string>((_resolve, reject) => {
         signal = abortSignal
         streamId = id
+        report = onResponse
         abortSignal?.addEventListener('abort', () => {
           const error = new Error('aborted')
           error.name = 'AbortError'
@@ -64,7 +66,7 @@ function pendingTranslateText() {
         })
       })
   )
-  return { getSignal: () => signal, getStreamId: () => streamId }
+  return { getSignal: () => signal, getStreamId: () => streamId, emitChunk: (text: string) => report?.(text, false) }
 }
 
 let sessionSeq = 0
@@ -116,6 +118,60 @@ describe('useTranslate with a tab session', () => {
     const second = renderHook(() => useTranslate({ owner: session }))
 
     expect(second.result.current.isTranslating).toBe(true)
+  })
+
+  it('reports progress to the page mounted now, not to the one that started the run', async () => {
+    // The run's chunk callback belongs to the mount that started it. Left as the only recipient,
+    // a page that remounts mid-run plays out its own stale copy alongside it.
+    const { emitChunk } = pendingTranslateText()
+    const session = newSession()
+    const first = renderHook(() => useTranslate({ owner: session }))
+    await act(async () => {
+      void first.result.current.translate('hello', TARGET)
+    })
+    act(() => emitChunk('partial'))
+    first.unmount()
+
+    const seen: string[] = []
+    const stopFollowing = session.onProgress((text) => seen.push(text))
+    expect(seen).toEqual(['partial'])
+
+    act(() => emitChunk('partial and more'))
+    expect(seen).toEqual(['partial', 'partial and more'])
+    stopFollowing()
+  })
+
+  it("clears the previous run's progress before the session reports busy", async () => {
+    // A page follows the run only while the session is busy, so it reads the progress on that
+    // transition. A clear landing after it would hand the new run the finished one's text.
+    const firstRun = pendingTranslateText()
+    const session = newSession()
+    const { result } = renderHook(() => useTranslate({ owner: session }))
+    await act(async () => {
+      void result.current.translate('one', TARGET)
+    })
+    act(() => firstRun.emitChunk('the first run'))
+    act(() => result.current.cancel())
+
+    let progress = ''
+    const stopFollowing = session.onProgress((text) => {
+      progress = text
+    })
+    expect(progress).toBe('the first run')
+
+    const progressWhenBusy: string[] = []
+    const stopWatching = session.subscribe(() => {
+      if (session.isBusy()) progressWhenBusy.push(progress)
+    })
+
+    pendingTranslateText()
+    await act(async () => {
+      void result.current.translate('two', TARGET)
+    })
+
+    expect(progressWhenBusy).toEqual([''])
+    stopWatching()
+    stopFollowing()
   })
 
   it('lets a remounted page cancel a run it never started', async () => {

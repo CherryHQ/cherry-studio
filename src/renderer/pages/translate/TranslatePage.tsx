@@ -1,6 +1,5 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
-import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -246,47 +245,34 @@ const TranslatePage: FC = () => {
 
   const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
   const [translateOutput, setTranslateOutput] = useCache(`translate.output.${session.id}`)
-  const [, setStreamText] = useCache(`translate.stream_text.${session.id}`)
   const [isDetecting, setIsDetecting] = useCache(`translate.detecting.${session.id}`)
-
-  // Resume the playout where the last mount left it instead of retyping the whole text: the run
-  // keeps writing `streamText` while this page is unmounted, and the effect below catches up.
-  const initialOutputRef = useRef(translateOutput)
-  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
-    onUpdate: setTranslateOutput,
-    initialText: initialOutputRef.current
-  })
-
-  // Catch the playout up once, on mount: a run that continued while this page was unmounted kept
-  // advancing `streamText`. Every later chunk arrives through `handleStreamText` instead, so
-  // re-running this on change would only replay text the page has already moved past.
-  const caughtUpRef = useRef(false)
-  useEffect(() => {
-    if (caughtUpRef.current) return
-    caughtUpRef.current = true
-    const pending = cacheService.get(`translate.stream_text.${session.id}`)
-    if (pending) smoothUpdate(pending, false)
-  }, [session.id, smoothUpdate])
-
-  const handleStreamText = useCallback(
-    (text: string, isComplete: boolean) => {
-      // Recorded first so the run keeps a durable trace even with nothing mounted, then played
-      // out directly — going only through the cache would add a render hop to every chunk.
-      setStreamText(text)
-      smoothUpdate(text, isComplete)
-    },
-    [setStreamText, smoothUpdate]
-  )
 
   const {
     translate: runTranslate,
     isTranslating,
     cancel
-  } = useTranslate({
-    loggerContext: 'TranslatePage',
-    onResponse: handleStreamText,
-    owner: session
+  } = useTranslate({ loggerContext: 'TranslatePage', owner: session })
+
+  // Resume the playout where the last mount left it rather than retyping the whole text, and take
+  // completion from the session: a run that outlived the previous mount reports neither to this
+  // one.
+  const initialOutputRef = useRef(translateOutput)
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    initialText: initialOutputRef.current,
+    streamDone: !isTranslating
   })
+
+  // Play out whatever the session's run has reached — on mount, catching up on progress made with
+  // no page mounted, and on every chunk after. Only while a run is in flight: outside one the
+  // recorded progress belongs to a finished run, and the output may since have been replaced.
+  useEffect(() => {
+    if (!isTranslating) return
+    return session.onProgress((pending) => {
+      if (pending) smoothUpdate(pending, false)
+    })
+  }, [isTranslating, session, smoothUpdate])
+
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -332,9 +318,6 @@ const TranslatePage: FC = () => {
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
     if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
-    // The fallback run's trace belongs to the mode being torn down — leaving it would let a
-    // remount replay it over the restored pre-PDF output.
-    setStreamText('')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
@@ -345,7 +328,7 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setStreamText, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -372,14 +355,9 @@ const TranslatePage: FC = () => {
   const handleInputChange = useCallback(
     (value: string) => {
       setTranslateInput(value)
-      if (isEmpty(value)) {
-        // Retire the stream trace with the draft, or a remount would replay it over the
-        // cleared output.
-        setStreamText('')
-        setTranslateOutput('')
-      }
+      if (isEmpty(value)) setTranslateOutput('')
     },
-    [setTranslateInput, setStreamText, setTranslateOutput]
+    [setTranslateInput, setTranslateOutput]
   )
 
   const onCopyInput = useCallback(async () => {
@@ -422,7 +400,6 @@ const TranslatePage: FC = () => {
     ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
-      setStreamText('')
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
@@ -453,17 +430,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [
-      addHistory,
-      autoCopy,
-      isTranslating,
-      runTranslate,
-      setOutputCopied,
-      setStreamText,
-      setTimeoutTimer,
-      smoothReset,
-      t
-    ]
+    [addHistory, autoCopy, isTranslating, runTranslate, setOutputCopied, setTimeoutTimer, smoothReset, t]
   )
 
   // Off the translation critical path: a failed detection or patch just leaves
@@ -638,9 +605,6 @@ const TranslatePage: FC = () => {
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
-    // The exchange replaces the output outside a run, so the old run's stream trace is stale —
-    // a remount would replay it over the swapped output.
-    setStreamText('')
   }, [
     isDetecting,
     safePersist,
@@ -648,7 +612,6 @@ const TranslatePage: FC = () => {
     setTargetLanguage,
     setTranslateInput,
     setTranslateOutput,
-    setStreamText,
     sourceLanguage,
     targetLanguage,
     translateInput,

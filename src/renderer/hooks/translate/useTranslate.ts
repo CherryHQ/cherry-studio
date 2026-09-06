@@ -61,6 +61,10 @@ export interface TranslateRunOwner {
   subscribe: (listener: () => void) => () => void
   /** Adopt a run by its stream id; the returned callback marks it finished. */
   addStream: (streamId: string) => () => void
+  /** Record the run's accumulated text, so it survives this component. */
+  recordProgress: (accumulated: string) => void
+  /** Discard the previous run's accumulated text. */
+  clearProgress: () => void
   /** End every run the owner holds. */
   cancel: () => void
 }
@@ -84,8 +88,8 @@ export interface UseTranslateOptions {
    *
    * Without one, this hook's contract is that a run ends with the component: unmounting aborts it.
    * An owner replaces exactly that — it decides when the run ends, and because this component may
-   * then miss part of the run, `isTranslating` is read from the owner rather than folded from the
-   * events this mount happened to see (#18885).
+   * then miss part of the run, both `isTranslating` and the run's accumulated text are read from
+   * the owner rather than folded from the events this mount happened to see (#18885).
    *
    * Omit it wherever the component genuinely is the run's owner — a popup or an overlay that the
    * user dismissed has no reason to keep translating.
@@ -160,6 +164,9 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       // (one translation per hook instance) and matches the existing stop-button
       // behaviour in TranslatePage.
       activeControllerRef.current?.abort()
+      // Before the owner reports busy, so a page that starts following the run on that transition
+      // cannot pick up the previous run's text.
+      owner?.clearProgress()
       const controller = new AbortController()
       activeControllerRef.current = controller
       activeAbortKeyRef.current = uuid()
@@ -171,15 +178,19 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
       if (!owner) setTranslating(true)
 
-      // Gate the progressive callback so a late `onResponse` from a
-      // cancelled / superseded run doesn't write into consumer state.
+      // Gate progress reporting so a late chunk from a cancelled / superseded run doesn't write
+      // into consumer state. The owner is told first and unconditionally after that gate: it is
+      // the only recipient that outlives this component, so a run that continues past an unmount
+      // still leaves a trace the next mount can read.
       const onResponse = optionsRef.current?.onResponse
-      const guardedOnResponse = onResponse
-        ? (chunkText: string, isComplete: boolean) => {
-            if (activeAbortKeyRef.current !== abortKey) return
-            onResponse(chunkText, isComplete)
-          }
-        : undefined
+      const reportProgress =
+        owner || onResponse
+          ? (chunkText: string, isComplete: boolean) => {
+              if (activeAbortKeyRef.current !== abortKey) return
+              owner?.recordProgress(chunkText)
+              onResponse?.(chunkText, isComplete)
+            }
+          : undefined
 
       const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
       const finishIfActive = () => {
@@ -192,7 +203,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal, streamId)
+        const result = await translateText(text, targetLanguage, reportProgress, controller.signal, streamId)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
