@@ -74,6 +74,25 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(model('deepseek-v3.2'), deepseek, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
   })
 
+  it('uses a supported provider default when checking endpoint-scoped tools', () => {
+    const deepseek = {
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    } as Provider
+    const flash = model('deepseek-v4-flash', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(isBuiltinWebSearchAvailable(flash, deepseek)).toBe(false)
+  })
+
   it('rejects non-chat models even when their ids are otherwise eligible', () => {
     const embedding = model('claude-sonnet-4-6', {
       capabilities: [MODEL_CAPABILITY.EMBEDDING]

@@ -1514,7 +1514,7 @@ describe('AiService tool approval', () => {
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
-  it('checks NewAPI chat models advertised with embeddings through text generation', async () => {
+  it('checks models with a canonical embedding endpoint through the embedding probe', async () => {
     const provider = makeProvider({
       id: 'new-api',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -1549,6 +1549,7 @@ describe('AiService tool approval', () => {
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
       const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      mockProviderGetByProviderId.mockReturnValue(provider)
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1556,10 +1557,19 @@ describe('AiService tool approval', () => {
 
       await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
-      expect(embedSpy).not.toHaveBeenCalled()
-      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+      expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+      expect(generateSpy).not.toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
+      mockProviderGetByProviderId.mockReturnValue({
+        id: 'test-provider',
+        name: 'Test Provider',
+        apiKeys: [],
+        authType: 'api-key',
+        reportsActualCost: false,
+        settings: {},
+        isEnabled: true
+      })
     }
   })
 

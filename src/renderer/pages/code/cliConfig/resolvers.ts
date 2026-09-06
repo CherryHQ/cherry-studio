@@ -80,13 +80,21 @@ function resolveSupportedEndpointType(
   const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
+  const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
 
   return (
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
+    (isSupported(provider.defaultChatEndpoint) &&
+    isModelCapable(provider.defaultChatEndpoint) &&
+    hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
       : undefined) ??
-    supportedEndpoints.find(hasEndpoint) ??
+    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
+    // endpointTypes is a capability constraint, not merely a preference. When
+    // none of the model's advertised protocols has a configured provider URL,
+    // keep the selected protocol within that declaration so the generated CLI
+    // config cannot claim support for a different wire format. The write path
+    // will report the missing endpoint as an actionable credential error.
+    (modelEndpointTypes?.length ? modelEndpointTypes.find(isSupported) : supportedEndpoints.find(hasEndpoint)) ??
     fallbackEndpoint
   )
 }

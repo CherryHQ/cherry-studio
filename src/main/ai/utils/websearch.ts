@@ -2,6 +2,7 @@ import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
 
@@ -195,10 +196,12 @@ export function buildProviderBuiltinWebSearchConfig(
       }
       return { openrouter: openrouterWebConfig }
     }
-    case 'cherryin': {
-      // cherryin proxies to a real endpoint forced via model.endpointTypes[0];
-      // map it to the AppProviderId whose web-search case applies.
-      const endpoint = model?.endpointTypes?.[0]
+    case 'cherryin':
+    case 'cherryin-chat': {
+      // CherryIN proxies to the same effective endpoint selected for the request.
+      // Keep this projection in lockstep with `resolveEffectiveEndpoint`: a
+      // supported provider default wins over the model registry's ordering.
+      const endpoint = model && provider ? resolveCanonicalEndpoint(provider, model).endpointType : undefined
       const proxied: AppProviderId | undefined =
         endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
           ? 'openai'

@@ -149,6 +149,25 @@ describe('resolveHermesProviderInfo', () => {
 })
 
 describe('resolvePiProviderInfo', () => {
+  it('prefers the provider default when the model advertises that endpoint capability', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'openai-responses',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://chat.example' },
+            'openai-responses': { baseUrl: 'https://responses.example' }
+          }
+        }),
+        ['openai-chat-completions', 'openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://responses.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
   it('prefers a model-supported endpoint and maps it to Pi API names', () => {
     expect(
       resolvePiProviderInfo(
@@ -164,6 +183,19 @@ describe('resolvePiProviderInfo', () => {
     ).toEqual({
       api: 'openai-responses',
       baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('keeps the model-advertised protocol when no configured CLI endpoint intersects it', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example' } } }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: '',
       endpointType: 'openai-responses'
     })
   })

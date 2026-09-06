@@ -105,7 +105,7 @@ describe('buildPiProviderInjection', () => {
     const provider = makeProvider({
       id: 'cherryin',
       name: 'CherryIN',
-      defaultChatEndpoint: 'openai-chat-completions',
+      defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
         'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
         'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
@@ -124,7 +124,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
   })
 
-  it('prefers Anthropic Messages when a Pi model also supports OpenAI Chat', () => {
+  it('honors the provider default when a Pi model supports OpenAI Chat and Anthropic Messages', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: {
@@ -136,8 +136,21 @@ describe('buildPiProviderInjection', () => {
 
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
-    expect(injection.providerConfig.api).toBe('anthropic-messages')
-    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/v1')
+  })
+
+  it('skips an unsupported provider default and preserves the Pi-compatible model endpoint', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: {
+        'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['ollama-chat', 'openai-chat-completions'] })
+
+    expect(buildPiProviderInjection(provider, model, REAL_KEY).providerConfig.api).toBe('openai-completions')
   })
 
   it('does not prefer Anthropic Messages for other endpoint combinations', () => {
@@ -604,6 +617,28 @@ describe('modelInjection service resolution', () => {
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
+  it('rejects an unsupported provider default instead of silently switching protocols', async () => {
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: 'p',
+      name: 'P',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'bedrock', baseUrl: 'https://gateway.example.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: 'p::m',
+      providerId: 'p',
+      name: 'M',
+      capabilities: [],
+      contextWindow: 128_000,
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    })
+
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
   it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
     serviceMocks.getByProviderId.mockResolvedValueOnce({
       id: CHERRY_CLOUD_PROVIDER_ID,
@@ -649,7 +684,7 @@ describe('modelInjection service resolution', () => {
       endpointTypes: ['openai-chat-completions', 'anthropic-messages']
     })
 
-    await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
   })
 
   it('rejects missing credentials and unsupported providers', async () => {

@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -84,6 +84,55 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
       preset('openai')
     )
     expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
+  })
+
+  it('uses the supported provider default for CherryIN instead of the registry endpoint order', () => {
+    const cherryin = {
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.cherryin.ai/v1' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.cherryin.ai/v1' }
+      }
+    } as Provider
+    const config = buildProviderBuiltinWebSearchConfig(
+      'cherryin',
+      webSearchConfig,
+      model({
+        id: 'cherryin::gpt-5',
+        providerId: 'cherryin',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      }),
+      cherryin
+    )
+
+    expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
+  })
+
+  it('uses the configured model endpoint when the CherryIN default config is missing', () => {
+    const cherryin = {
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.cherryin.ai/v1' }
+      }
+    } as Provider
+    const config = buildProviderBuiltinWebSearchConfig(
+      'cherryin',
+      webSearchConfig,
+      model({
+        id: 'cherryin::gpt-5',
+        providerId: 'cherryin',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      }),
+      cherryin
+    )
+
+    expect(config).toEqual({ 'openai-chat': { searchContextSize: 'medium' } })
   })
 })
 

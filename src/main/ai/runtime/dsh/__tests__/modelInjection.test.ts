@@ -199,6 +199,24 @@ describe('buildDshProviderInjection', () => {
 
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
   })
+
+  it('keeps runtime injection inside the DSH endpoint allowlist', () => {
+    const provider = {
+      ...nativeProvider,
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { adapterFamily: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT, ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.api).toBe('openai-responses')
+  })
 })
 
 describe('resolveDshProviderInjectionFromSnapshot', () => {

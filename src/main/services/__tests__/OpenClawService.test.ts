@@ -1392,6 +1392,39 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('syncs a supported provider default even when it is not the model first endpoint', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example.com' },
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://responses.example.com' }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+      )
+      const model = createModel({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'openai-response',
+          apiHost: 'https://responses.example.com',
+          models: [expect.objectContaining({ endpoint_type: 'openai-response' })]
+        }),
+        expect.objectContaining({ endpoint_type: 'openai-response' })
+      )
+    })
+
     it('excludes hidden models from the synced model list', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
