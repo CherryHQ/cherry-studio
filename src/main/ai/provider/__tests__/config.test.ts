@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
+import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -1527,6 +1528,64 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('NewAPI builder', () => {
+    it.each([
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ])('keeps the exact versioned base URL for %s when it ends with #', async (endpointType) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [endpointType]: {
+            baseUrl: 'https://gateway.example.com/custom/v4#',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [endpointType] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://gateway.example.com/custom/v4')
+    })
+
+    it('sends chat requests through the exact versioned base URL selected with #', async () => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://gateway.example.com/custom/v4#',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({ apiModelId: 'gpt-4o', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      const config = await providerToAiSdkConfig(provider, model)
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'chatcmpl-test',
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      const runtimeProvider = createNewApi({
+        ...(config.providerSettings as NewApiProviderSettings),
+        fetch: fetchSpy
+      })
+
+      await runtimeProvider.languageModel('gpt-4o').doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+      })
+
+      expect(fetchSpy.mock.calls[0][0]).toBe('https://gateway.example.com/custom/v4/chat/completions')
+    })
+
     it('uses the provider default anthropic endpoint when the model has no endpoint types', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
