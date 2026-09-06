@@ -163,9 +163,14 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes nine autonomy tools:
 
+- `cron` — create, list, update, or remove scheduled Agent jobs;
+- `notify` — send messages or supported workspace files through connected channels;
+- `config` — inspect and manage the current Agent's own configuration and channels;
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — page through one visible Session's turns, newest page first, using an opaque
+  cursor to continue into older history;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
@@ -174,6 +179,16 @@ and exposes five tools:
 - `session_create` — atomically create a same-Agent Session plus its first completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
+
+`session_read` is available only from an interactive user turn after the runtime verifies that its
+trusted current Session still belongs to the trusted Agent. Every call requires live user approval,
+including when the Agent otherwise runs in Full Access mode. The requested target must be an
+addressable Session: it must exist, belong to an Agent, and that Agent must not be soft-deleted;
+knowing an orphaned, deleted-Agent, or missing Session id does not expose its messages. The default
+page size is 10 and the accepted range is 1–100. Reads start at the newest page, return turns in
+chronological order within that page, and expose an opaque `next_cursor` that walks into older
+history. Tool output projects only text parts into `id`, `role`, `content`, and `createdAt`; it does
+not expose the stored message payload or non-text parts.
 
 `session_send` has one asynchronous contract:
 

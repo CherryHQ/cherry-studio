@@ -140,6 +140,8 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+  /** Require the Session to belong to an active Agent before exposing message content. */
+  addressableOnly?: boolean
 }
 
 type SaveAgentSessionMessageParams = {
@@ -522,13 +524,21 @@ export class AgentSessionMessageService {
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    const [session] = options.addressableOnly
+      ? database
+          .select({ id: sessionTable.id })
+          .from(sessionTable)
+          .innerJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
+          .where(eq(sessionTable.id, sessionId))
+          .limit(1)
+          .all()
+      : database.select({ id: sessionTable.id }).from(sessionTable).where(eq(sessionTable.id, sessionId)).limit(1).all()
+    if (!session) {
+      if (options.addressableOnly) {
+        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'The target Session is not addressable')
+      }
+      throw DataApiErrorFactory.notFound('Session', sessionId)
+    }
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {

@@ -1224,6 +1224,24 @@ describe('AgentSessionMessageService', () => {
     expect(result.nextCursor).toBe(`200:${ASSISTANT_MESSAGE_ID}`)
   })
 
+  it('keeps addressability validation inside cross-session message pagination', async () => {
+    await seedAgent('active-agent', 'Active Agent')
+    await seedAgent('deleted-agent', 'Deleted Agent', Date.now())
+    await seedSession({ id: 'active-session', agentId: 'active-agent', name: 'Active', orderKey: 'b0' })
+    await seedSession({ id: 'orphan-session', name: 'Orphan', orderKey: 'b1' })
+    await seedSession({ id: 'deleted-agent-session', agentId: 'deleted-agent', name: 'Deleted', orderKey: 'b2' })
+
+    expect(agentSessionMessageService.listSessionMessages('active-session', { addressableOnly: true })).toMatchObject({
+      items: []
+    })
+    expect(() =>
+      agentSessionMessageService.listSessionMessages('orphan-session', { addressableOnly: true })
+    ).toThrowError(expect.objectContaining({ code: 'TARGET_UNAVAILABLE' }))
+    expect(() =>
+      agentSessionMessageService.listSessionMessages('deleted-agent-session', { addressableOnly: true })
+    ).toThrowError(expect.objectContaining({ code: 'TARGET_UNAVAILABLE' }))
+  })
+
   it('anchors list pagination at messageId and continues older pages with cursor', async () => {
     const older = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
     const middle = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302'

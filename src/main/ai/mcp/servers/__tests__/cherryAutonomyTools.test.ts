@@ -24,6 +24,7 @@ const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
+const mockListSessionMessages = vi.fn()
 const mockSearchSessions = vi.fn()
 const mockSearchSessionMessages = vi.fn()
 const mockAcceptSessionDelivery = vi.fn()
@@ -67,6 +68,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     acceptSessionDelivery: mockAcceptSessionDelivery,
     createSessionWithDelivery: mockCreateSessionWithDelivery,
     listSessionDeliveries: mockListSessionDeliveries,
+    listSessionMessages: mockListSessionMessages,
     searchRanked: mockSearchSessionMessages
   }
 }))
@@ -124,6 +126,7 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
+const { AgentSessionDeliveryRoutingError } = await import('@data/services/AgentSessionMessageService')
 const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
 type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
@@ -165,6 +168,7 @@ describe('CherryAutonomyTools', () => {
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
+    mockListSessionMessages.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
     mockSearchSessionMessages.mockReturnValue([])
     mockListSessionDeliveries.mockReturnValue([])
@@ -174,12 +178,13 @@ describe('CherryAutonomyTools', () => {
   it('should list all tools', () => {
     const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
-    expect(tools).toHaveLength(8)
+    expect(tools).toHaveLength(9)
     expect(tools.map((t) => t.name)).toEqual([
       'cron',
       'notify',
       'config',
       'session_list',
+      'session_read',
       'session_search',
       'session_create',
       'session_deliveries',
@@ -209,7 +214,7 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
-    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
+    it.each(['session_list', 'session_read', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
       'denies %s from a headless turn before reading or mutating another Session',
       async (toolName) => {
         mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
@@ -234,6 +239,74 @@ describe('CherryAutonomyTools', () => {
         expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
       }
     )
+
+    it('reads an addressable Session page in chronological order', async () => {
+      mockListSessionMessages.mockReturnValue({
+        items: [
+          {
+            id: 'newer',
+            role: 'assistant',
+            data: { parts: [{ type: 'text', text: 'answer' }] },
+            createdAt: '2026-08-24T10:01:00.000Z'
+          },
+          {
+            id: 'older',
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'question' }] },
+            createdAt: '2026-08-24T10:00:00.000Z'
+          }
+        ],
+        nextCursor: 'older-cursor'
+      })
+
+      const result = await callTool(
+        createServer(),
+        { session_id: 'session_b', cursor: 'newer-cursor', limit: 2 },
+        'session_read'
+      )
+
+      expect(mockListSessionMessages).toHaveBeenCalledWith('session_b', {
+        cursor: 'newer-cursor',
+        limit: 2,
+        addressableOnly: true
+      })
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        sessionId: 'session_b',
+        turns: [
+          {
+            id: 'older',
+            role: 'user',
+            content: 'question',
+            createdAt: '2026-08-24T10:00:00.000Z'
+          },
+          {
+            id: 'newer',
+            role: 'assistant',
+            content: 'answer',
+            createdAt: '2026-08-24T10:01:00.000Z'
+          }
+        ],
+        next_cursor: 'older-cursor'
+      })
+    })
+
+    it('does not read an orphaned or deleted-Agent Session', async () => {
+      mockListSessionMessages.mockImplementation(() => {
+        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'The target Session is not addressable')
+      })
+
+      const result = await callTool(createServer(), { session_id: 'orphan' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        error: { code: 'TARGET_UNAVAILABLE' }
+      })
+      expect(mockListSessionMessages).toHaveBeenCalledWith('orphan', {
+        cursor: undefined,
+        limit: 10,
+        addressableOnly: true
+      })
+    })
 
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
