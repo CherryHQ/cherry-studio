@@ -360,8 +360,20 @@ export default defineProvider({
      * provider. Mainland-only lines (qwen-mt-image, wanx*) are absent internationally and stay out.
      * Blocks restate the full `imageGeneration` — the runtime replaces it wholesale.
      */
-    { apiModelId: 'qwen-image-3.0', imageGeneration: qwenImage3ImageGeneration, modelId: 'qwen-image-3-0' },
-    { apiModelId: 'qwen-image-3.0-pro', imageGeneration: qwenImage3ImageGeneration, modelId: 'qwen-image-3-0-pro' },
+    // Editing takes image input; base-row modalities are upstream-enriched and drift, so the
+    // painting attachment gate is pinned per preset (like wan2.7 below).
+    {
+      apiModelId: 'qwen-image-3.0',
+      imageGeneration: qwenImage3ImageGeneration,
+      inputModalities: ['text', 'image'],
+      modelId: 'qwen-image-3-0'
+    },
+    {
+      apiModelId: 'qwen-image-3.0-pro',
+      imageGeneration: qwenImage3ImageGeneration,
+      inputModalities: ['text', 'image'],
+      modelId: 'qwen-image-3-0-pro'
+    },
     {
       apiModelId: 'qwen-image-2.0-pro',
       capabilities: { force: ['image-generation'] },
@@ -409,6 +421,7 @@ export default defineProvider({
           }
         }
       },
+      inputModalities: ['text', 'image'],
       modelId: 'qwen-image-edit'
     },
     {
@@ -467,6 +480,9 @@ export default defineProvider({
           }
         }
       },
+      // t2i-only on an async endpoint that ignores images — pin text-only against the
+      // upstream base row, which wrongly carries image input.
+      inputModalities: ['text'],
       modelId: 'wan2-6-image'
     },
     {
