@@ -80,6 +80,7 @@ import {
   type GlobalSearchTimeFilter,
   useGlobalSearchPanelData
 } from './useGlobalSearchPanelData'
+import { useImeAwareDebouncedValue } from './useImeAwareDebouncedValue'
 
 type GlobalSearchPanelProps = {
   onClose: () => void
@@ -312,7 +313,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
-  const deferredQuery = useDeferredValue(query.trim())
+  // Debounce the backend query, freezing it during IME composition;
+  // `useDeferredValue` stays downstream to schedule heavy result renders.
+  const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
+    useImeAwareDebouncedValue(query.trim())
+  const deferredQuery = useDeferredValue(debouncedQuery)
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -812,6 +817,13 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       if (event.key === 'Enter') {
+        // Swallow Enter while the rendered results still belong to a previous
+        // query; read the input's DOM value, as the state can lag it by a frame.
+        const inputValue = event.currentTarget.value.trim()
+        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery) {
+          event.preventDefault()
+          return
+        }
         const item = keyboardItems.find((candidate) => candidate.id === activeItemId)
         if (!item) return
         event.preventDefault()
@@ -828,6 +840,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     },
     [
       activeItemId,
+      debouncedQuery,
+      deferredQuery,
       handleLoadMoreMessageResults,
       isMessageSearchMode,
       keyboardItems,
@@ -972,6 +986,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           <Input
             ref={inputRef}
             value={query}
+            {...searchInputCompositionHandlers}
             onChange={(event) => {
               const nextQuery = event.target.value.trimStart()
               setQuery(nextQuery)
