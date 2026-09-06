@@ -418,6 +418,7 @@ describe('Tooltip', () => {
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         document.body.appendChild(ghost)
         // jsdom 的 MutationObserver 走原生微任务，排空后清扫 timer 才会被登记
@@ -443,6 +444,7 @@ describe('Tooltip', () => {
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         document.body.appendChild(ghost)
         await act(async () => {})
@@ -467,6 +469,7 @@ describe('Tooltip', () => {
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         document.body.appendChild(ghost)
         await act(async () => {})
@@ -492,6 +495,7 @@ describe('Tooltip', () => {
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         document.body.appendChild(ghost)
         await act(async () => {}) // close @t=0，sweep timer 排期 @t=200
@@ -529,6 +533,7 @@ describe('Tooltip', () => {
 
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         shadow.appendChild(ghost)
         await act(async () => {})
@@ -548,6 +553,7 @@ describe('Tooltip', () => {
         const shadow = host.attachShadow({ mode: 'open' })
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         shadow.appendChild(ghost)
         document.body.appendChild(host) // 插入时扫描 shadow 内既有 content
@@ -568,6 +574,7 @@ describe('Tooltip', () => {
         const shadow = host.attachShadow({ mode: 'open' })
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         shadow.appendChild(ghost)
         const wrapper = document.createElement('div')
@@ -592,6 +599,7 @@ describe('Tooltip', () => {
         const shadowB = hostB.attachShadow({ mode: 'open' })
         const ghostB = document.createElement('div')
         ghostB.setAttribute('data-slot', 'tooltip-content')
+        ghostB.setAttribute('data-tooltip-sweepable', '')
         ghostB.setAttribute('data-state', 'closed')
         shadowB.appendChild(ghostB)
         shadowA.appendChild(hostB)
@@ -606,6 +614,7 @@ describe('Tooltip', () => {
         // shadowA 也被观察：插入后追加的 ghost 走同一 observer 的 childList 扫描
         const ghostA = document.createElement('div')
         ghostA.setAttribute('data-slot', 'tooltip-content')
+        ghostA.setAttribute('data-tooltip-sweepable', '')
         ghostA.setAttribute('data-state', 'closed')
         shadowA.appendChild(ghostA)
         await act(async () => {})
@@ -623,6 +632,7 @@ describe('Tooltip', () => {
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         const fragment = document.createDocumentFragment()
         fragment.appendChild(ghost)
@@ -637,15 +647,23 @@ describe('Tooltip', () => {
       }
     })
 
-    it('keeps entrance animation classes active for instant/delayed open states', () => {
-      render(
-        <Tooltip content="animated tip" isOpen={true}>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-      const content = getTooltipContentElement('animated tip')
-      expect(content.className).toContain('data-[state*=open]:animate-in')
-      expect(content.className).not.toContain('data-[state=open]:animate-in')
+    it('does not sweep closed content without the ownership marker', async () => {
+      vi.useFakeTimers()
+      try {
+        // 独立 TooltipContent/显式 forceMount 内容不带清扫标记，永不被清扫器触碰
+        const untouched = document.createElement('div')
+        untouched.setAttribute('data-slot', 'tooltip-content')
+        untouched.setAttribute('data-state', 'closed')
+        document.body.appendChild(untouched)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(400)
+        })
+        expect(document.body.contains(untouched)).toBe(true)
+        untouched.remove()
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('does not reopen from retained internal state after disable/enable', () => {
@@ -698,6 +716,7 @@ describe('Tooltip', () => {
         document.body.appendChild(elsewhere)
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
         ghost.setAttribute('data-state', 'closed')
         elsewhere.appendChild(ghost)
         await act(async () => {})

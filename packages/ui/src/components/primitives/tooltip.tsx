@@ -84,8 +84,9 @@ function useTooltipController(
  * 孤儿清扫器（模块级，单例）：Radix portal content 在重挂风暴中可能失去 React owner 而
  * 永久残留。观察 data-state 生命周期：closed 连续存活超过清扫延迟即移除。不依赖任何实例
  * （实例卸载会取消其 timer，故清扫必须与实例生命周期解耦），覆盖所有 portal 容器
- * （body 下钻，含自定义 TooltipContent portalContainer）。正常实例与 peer 的退出窗口
- * （150ms）远短于清扫延迟，不会误删。
+ * （body 下钻，含自定义 TooltipContent portalContainer）。只清扫渲染时带
+ * data-tooltip-sweepable 的内容（即本组件门控渲染的内容）；独立 TooltipContent 与显式
+ * forceMount 内容不受影响。正常实例与 peer 的退出窗口（150ms）远短于清扫延迟，不会误删。
  */
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
@@ -110,7 +111,9 @@ function setupTooltipOrphanSweeper(): void {
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
         const target = mutation.target as Element
-        if (target.getAttribute('data-slot') === 'tooltip-content') maybeSweep(target)
+        if (target.getAttribute('data-slot') === 'tooltip-content' && target.hasAttribute('data-tooltip-sweepable')) {
+          maybeSweep(target)
+        }
         continue
       }
       for (const node of mutation.addedNodes) {
@@ -120,7 +123,10 @@ function setupTooltipOrphanSweeper(): void {
         // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
         if (isElement && element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
         if (isElement) {
-          if (element.getAttribute('data-slot') === 'tooltip-content') {
+          if (
+            element.getAttribute('data-slot') === 'tooltip-content' &&
+            element.hasAttribute('data-tooltip-sweepable')
+          ) {
             maybeSweep(element)
             continue
           }
@@ -131,7 +137,10 @@ function setupTooltipOrphanSweeper(): void {
         }
         // 后代中的 content 与已挂 shadow root 的嵌套宿主（wrapper 一次性插入时宿主不是 added node）
         for (const descendant of element.querySelectorAll('*')) {
-          if (descendant.getAttribute('data-slot') === 'tooltip-content') {
+          if (
+            descendant.getAttribute('data-slot') === 'tooltip-content' &&
+            descendant.hasAttribute('data-tooltip-sweepable')
+          ) {
             maybeSweep(descendant)
           } else if (descendant.shadowRoot) {
             scanShadowTree(descendant.shadowRoot)
@@ -145,7 +154,7 @@ function setupTooltipOrphanSweeper(): void {
   function scanShadowTree(root: ShadowRoot): void {
     ensureObserved(root)
     for (const el of root.querySelectorAll('*')) {
-      if (el.getAttribute('data-slot') === 'tooltip-content') {
+      if (el.getAttribute('data-slot') === 'tooltip-content' && el.hasAttribute('data-tooltip-sweepable')) {
         maybeSweep(el)
       } else if (el.shadowRoot) {
         scanShadowTree(el.shadowRoot)
@@ -240,6 +249,7 @@ function TooltipContent({
       <RadixPortal container={container} forceMount>
         <RadixContent
           data-slot="tooltip-content"
+          data-tooltip-sweepable
           sideOffset={sideOffset}
           forceMount
           className={cn(contentStyles, className)}
@@ -348,6 +358,7 @@ export const Tooltip = ({
           <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined} forceMount>
             <RadixContent
               data-slot="tooltip-content"
+              data-tooltip-sweepable
               forceMount
               side={side}
               align={align}
