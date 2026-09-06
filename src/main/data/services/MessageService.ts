@@ -54,6 +54,7 @@ import { isAssistantActivityTransition, isConversationActivityRole } from './uti
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
+import { releaseTransientFileRetention, replaceTransientFileRetention } from './utils/transientFileRetention'
 
 const logger = loggerService.withContext('DataApi:MessageService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -279,7 +280,7 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+export function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
   const refs = extractChatMessageFileRefs(data)
@@ -362,6 +363,25 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
+  /**
+   * Retain files referenced by an in-memory temporary message until its owner
+   * is either discarded or promoted to FK-backed chat-message refs.
+   */
+  retainTemporaryMessageFileRefs(messageId: string, data: MessageData): void {
+    replaceTransientFileRetention(
+      messageId,
+      extractChatMessageFileRefs(data).map(({ fileEntryId }) => fileEntryId)
+    )
+  }
+
+  releaseTemporaryMessageFileRefs(messageId: string): void {
+    releaseTransientFileRetention(messageId)
+  }
+
+  replaceFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+    replaceChatMessageFileRefsTx(tx, messageId, data)
+  }
+
   purgeByTopicIdsTx(tx: DbOrTx, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return

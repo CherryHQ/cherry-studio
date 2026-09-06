@@ -10,6 +10,10 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import {
+  releaseTransientFileRetention,
+  replaceTransientFileRetention
+} from '@data/services/utils/transientFileRetention'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
@@ -344,6 +348,28 @@ describe('entryCleanup', () => {
     expect(report.deleted).toBe(0)
     expect(fileEntryService.findById(id)).not.toBeNull()
     spy.mockRestore()
+  })
+
+  it('rechecks transient retention immediately before deleting a discovered candidate', async () => {
+    const id = nthId(130)
+    await seedInternal(id, 'delete_when_unreferenced')
+    const deps = makeDeps()
+    const findCandidates = deps.fileEntryService.findCleanupCandidates.bind(deps.fileEntryService)
+    vi.spyOn(deps.fileEntryService, 'findCleanupCandidates').mockImplementation((options) => {
+      const candidates = findCandidates(options)
+      replaceTransientFileRetention('temporary-message', [id])
+      return candidates
+    })
+
+    try {
+      const report = await runEntryCleanup(deps)
+
+      expect(report.skippedRefsReappeared).toBe(1)
+      expect(report.deleted).toBe(0)
+      expect(fileEntryService.findById(id)).not.toBeNull()
+    } finally {
+      releaseTransientFileRetention('temporary-message')
+    }
   })
 
   it('counts failed and preserves the entry when a candidate throws (retried next pass)', async () => {
