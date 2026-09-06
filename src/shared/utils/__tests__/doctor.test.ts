@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  DOCTOR_CHECK_CATALOG,
-  type DoctorCheckId,
-  doctorFixMeta,
-  type DoctorReport,
-  isDoctorFixRequest,
-  projectDoctorReport
-} from '../doctor'
+import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
+import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
