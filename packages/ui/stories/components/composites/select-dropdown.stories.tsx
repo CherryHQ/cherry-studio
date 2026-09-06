@@ -11,7 +11,7 @@ const meta: Meta<typeof SelectDropdown> = {
     docs: {
       description: {
         component:
-          'A generic popover-based select that lets callers render their own trigger preview and item rows. Supports removal, empty state, and virtualization for long lists.'
+          'A generic popover-based select that lets callers render their own trigger preview and item rows. Supports empty state and virtualization for long lists.'
       }
     }
   },
@@ -54,31 +54,6 @@ export const Default: Story = {
           )}
           renderTriggerLeading={<Bot size={12} className="text-muted-foreground" />}
           placeholder="Select a model"
-        />
-      </div>
-    )
-  }
-}
-
-export const Removable: Story = {
-  render: function RemovableExample() {
-    const [items, setItems] = useState(models.slice(0, 4))
-    const [selected, setSelected] = useState<string | null>(items[0]?.id ?? null)
-    return (
-      <div className="w-72">
-        <SelectDropdown<Model>
-          items={items}
-          selectedId={selected}
-          onSelect={setSelected}
-          onRemove={(id) => {
-            setItems((prev) => prev.filter((m) => m.id !== id))
-            if (selected === id) setSelected(null)
-          }}
-          removeLabel="Remove"
-          renderSelected={(item) => <span className="truncate">{item.name}</span>}
-          renderItem={(item) => <span className="truncate">{item.name}</span>}
-          emptyText="No models left"
-          placeholder="Pick a model"
         />
       </div>
     )
