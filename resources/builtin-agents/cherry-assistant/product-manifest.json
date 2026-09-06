@@ -462,7 +462,7 @@
     }
   ],
   "providers": {
-    "version": "59131e948f7383f7",
+    "version": "22701761fbb01bcd",
     "count": 62,
     "entries": [
       {
@@ -607,7 +607,7 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qwen AI Platform"
       },
       {
         "id": "stepfun",
