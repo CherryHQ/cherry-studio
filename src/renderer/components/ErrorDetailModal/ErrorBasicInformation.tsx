@@ -6,7 +6,11 @@ import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DiagnosticsPanel } from '../DiagnosticsPanel'
-import type { DiagnosticReportConfig } from './diagnosticReportDescription'
+import {
+  type DiagnosticReportConfig,
+  type DiagnosticReportDescriptionLabels,
+  diagnosticReportFields
+} from './diagnosticReportDescription'
 
 interface ErrorBasicInformationProps {
   readonly diagnosisContext?: DiagnosisContext
@@ -15,15 +19,6 @@ interface ErrorBasicInformationProps {
   readonly onCopy: () => void
   readonly onViewDetails: () => void
   readonly viewDetailsButtonRef?: Ref<HTMLButtonElement>
-}
-
-type BasicField = readonly [label: string, value: string | number]
-
-function basicField(label: string, value: unknown): BasicField | undefined {
-  if (typeof value === 'number') return [label, value]
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized ? [label, normalized] : undefined
 }
 
 export function ErrorBasicInformation({
@@ -35,15 +30,19 @@ export function ErrorBasicInformation({
   viewDetailsButtonRef
 }: ErrorBasicInformationProps) {
   const { t } = useTranslation()
-  const errorRecord = error as Record<string, unknown> | undefined
-  const fields = [
-    basicField(t('error.diagnostic_report.location'), diagnosticReport?.location ?? diagnosisContext?.errorSource),
-    basicField(t('error.provider'), diagnosisContext?.providerName),
-    basicField(t('error.modelId'), diagnosisContext?.modelId),
-    basicField(t('error.name'), error?.name),
-    basicField(t('error.statusCode'), errorRecord?.status ?? errorRecord?.statusCode),
-    basicField(t('error.message'), error?.message)
-  ].filter((field): field is BasicField => field !== undefined)
+  const labels = {
+    errorMessage: t('error.message'),
+    errorName: t('error.name'),
+    location: t('error.diagnostic_report.location'),
+    model: t('error.modelId'),
+    provider: t('error.provider'),
+    statusCode: t('error.statusCode')
+  } satisfies DiagnosticReportDescriptionLabels
+  const fields = diagnosticReportFields({
+    diagnosisContext,
+    error,
+    location: diagnosticReport?.location ?? diagnosisContext?.errorSource
+  })
 
   return (
     <DiagnosticsPanel
@@ -77,11 +76,11 @@ export function ErrorBasicInformation({
       bodyClassName="px-4 pb-4">
       {fields.length > 0 ? (
         <dl className="overflow-hidden rounded-lg border border-border bg-background text-xs">
-          {fields.map(([label, value]) => (
+          {fields.map(({ id, value }) => (
             <div
-              key={label}
+              key={id}
               className="grid gap-x-4 gap-y-1 border-border border-t px-4 py-3 first:border-t-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
-              <dt className="font-medium">{label}</dt>
+              <dt className="font-medium">{labels[id]}</dt>
               <dd className="selectable min-w-0 break-words">{value}</dd>
             </div>
           ))}

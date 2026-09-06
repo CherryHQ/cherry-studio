@@ -23,15 +23,27 @@ interface BuildDiagnosticReportDescriptionInput extends DiagnosticReportConfig {
   labels: DiagnosticReportDescriptionLabels
 }
 
+interface DiagnosticReportFieldsInput {
+  diagnosisContext?: DiagnosisContext
+  error?: SerializedError
+  location?: string
+}
+
+type DiagnosticReportField = {
+  id: keyof DiagnosticReportDescriptionLabels
+  value: string | number
+}
+
 function nonEmptyText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : undefined
 }
 
-function appendLine(lines: string[], label: string, value: unknown) {
-  const text = typeof value === 'number' ? String(value) : nonEmptyText(value)
-  if (text) lines.push(`${label}: ${text}`)
+function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown): DiagnosticReportField | undefined {
+  if (typeof value === 'number') return { id, value }
+  const text = nonEmptyText(value)
+  return text ? { id, value: text } : undefined
 }
 
 function truncateUtf8(value: string): string {
@@ -49,21 +61,32 @@ function truncateUtf8(value: string): string {
   return result.endsWith('\r') ? result.slice(0, -1) : result
 }
 
+export function diagnosticReportFields({
+  diagnosisContext,
+  error,
+  location
+}: DiagnosticReportFieldsInput): DiagnosticReportField[] {
+  const errorRecord = error as Record<string, unknown> | undefined
+
+  return [
+    diagnosticReportField('location', location),
+    diagnosticReportField('provider', diagnosisContext?.providerName),
+    diagnosticReportField('model', diagnosisContext?.modelId),
+    diagnosticReportField('errorName', error?.name),
+    diagnosticReportField('statusCode', errorRecord?.status ?? errorRecord?.statusCode),
+    diagnosticReportField('errorMessage', error?.message)
+  ].filter((field): field is DiagnosticReportField => field !== undefined)
+}
+
 export function buildDiagnosticReportDescription({
   diagnosisContext,
   error,
   labels,
   location
 }: BuildDiagnosticReportDescriptionInput): string {
-  const lines: string[] = []
-  const errorRecord = error as Record<string, unknown> | undefined
-
-  appendLine(lines, labels.location, location)
-  appendLine(lines, labels.provider, diagnosisContext?.providerName)
-  appendLine(lines, labels.model, diagnosisContext?.modelId)
-  appendLine(lines, labels.errorName, error?.name)
-  appendLine(lines, labels.statusCode, errorRecord?.status ?? errorRecord?.statusCode)
-  appendLine(lines, labels.errorMessage, error?.message)
+  const lines = diagnosticReportFields({ diagnosisContext, error, location }).map(
+    ({ id, value }) => `${labels[id]}: ${value}`
+  )
 
   return truncateUtf8(lines.join('\n'))
 }
