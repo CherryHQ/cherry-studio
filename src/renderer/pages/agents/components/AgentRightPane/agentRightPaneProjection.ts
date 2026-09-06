@@ -286,9 +286,14 @@ export function resolveFlowToolCallId(
  */
 function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
-  // The trailer explicitly names the id, so any length is legitimate (short ids / task ids are
-  // not a reason to drop the launch identity; the round-split gate compares exact equality).
-  if (typeof output === 'string') return /\bagent_?[Ii]d[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
+  if (typeof output === 'string') {
+    // Only launch-receipt text contributes an identity; prose that merely contains an
+    // `agentId:` token would otherwise split an unrelated flow timeline.
+    if (!output.startsWith(LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX)) return undefined
+    // The trailer explicitly names the id, so any length is legitimate (short ids / task ids are
+    // not a reason to drop the launch identity; the round-split gate compares exact equality).
+    return /\bagent_?[Ii]d[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
+  }
   if (isRecord(output)) {
     // Workflow/local launches carry the same identity under `taskId`.
     const direct = output.agentId ?? output.agent_id ?? output.taskId
@@ -306,7 +311,10 @@ function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): b
 /** The request to show between rounds — the sent message, falling back to its summary. */
 function getResumeReceiptPromptText(part: CherryMessagePart): string | undefined {
   const input = (part as { input?: unknown }).input
-  const prompt = isRecord(input) ? (input.message ?? input.summary) : undefined
+  if (!isRecord(input)) return undefined
+  // A blank message must not mask a non-empty summary as the round prompt.
+  const message = typeof input.message === 'string' && input.message.trim() ? input.message : undefined
+  const prompt = message ?? input.summary
   return typeof prompt === 'string' && prompt.trim() ? prompt.trim() : undefined
 }
 
