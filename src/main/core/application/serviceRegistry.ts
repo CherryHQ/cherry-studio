@@ -52,7 +52,6 @@ import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
-import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
@@ -64,6 +63,8 @@ import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
+import { PdfTranslationService } from '@main/services/translate/PdfTranslationService'
+import { TranslateService } from '@main/services/translate/TranslateService'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
@@ -142,6 +143,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  TranslateService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,

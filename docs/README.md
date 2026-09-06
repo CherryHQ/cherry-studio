@@ -42,7 +42,7 @@
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
-| [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
+| [Text Translation](./references/ai/translation.md) | The two text translation entry points — translate.open for callers that know their target language, translate.task.* for the Main-owned chain that survives a window detach — and Home message persistence ownership |
 
 ### API Gateway
 

@@ -165,8 +165,6 @@ export type UseCacheSchema = {
   'translate.input.${tabSession}': string
   /** Output text as displayed. Written only by a mounted page, from the run's text held by its session */
   'translate.output.${tabSession}': string
-  /** Whether detecting source language or not */
-  'translate.detecting.${tabSession}': boolean
 
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
@@ -255,7 +253,6 @@ export const DefaultUseCache: UseCacheSchema = {
   // Translate page state management
   'translate.input.${tabSession}': '',
   'translate.output.${tabSession}': '',
-  'translate.detecting.${tabSession}': false,
 
   'painting.generation.${paintingId}': null,
 

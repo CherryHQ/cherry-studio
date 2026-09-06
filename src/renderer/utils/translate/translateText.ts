@@ -7,17 +7,13 @@ import { v4 as uuid } from 'uuid'
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
-/**
- * Mint the id main will key the stream by. Exported so a caller that has to outlive this call —
- * a tab session holding the run for its Stop button — can hold the id it will abort by.
- */
-export const createTranslateStreamId = (): string => `${TRANSLATE_STREAM_PREFIX}${uuid()}`
+/** Mint the id main keys this stream by. */
+const createTranslateStreamId = (): string => `${TRANSLATE_STREAM_PREFIX}${uuid()}`
 
 /**
  * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
  * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
  * display (see `useSmoothStream`). `signal` aborts via the `ai.stream.abort` route.
- * Pass `streamId` (from `createTranslateStreamId`) to abort the run by id from elsewhere.
  */
 export const translateText = async (
   text: string,
