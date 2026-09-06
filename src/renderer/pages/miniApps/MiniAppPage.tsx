@@ -125,10 +125,10 @@ const MiniAppPage: FC = () => {
   const handleClose = useCallback(() => {
     if (!appId || !app) return
     const tabs = tabsContext?.tabs ?? []
-    // Delegate eviction to the surrounding TabsContext when available. The main
-    // window's AppShell wraps `closeTab` with keep-alive and split orphan
-    // handling, so doing it here as well would duplicate webview-state and
-    // keep-alive updates. Detached windows have no such wrapper and fall
+    // Delegate eviction to the surrounding TabsContext when available. Both
+    // AppShell and SubWindowAppShell wrap `closeTab` with keep-alive and split
+    // orphan handling, so doing it here as well would duplicate webview-state
+    // and keep-alive updates. Isolated surfaces without a TabsContext fall
     // through to `closeMiniApp`, which cleans its own pool.
     const tabId = currentTabId && currentTab && isMiniAppTabUrl(currentTab.url, app.appId) ? currentTabId : null
     if (tabId && closeTab) {
