@@ -2554,12 +2554,9 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    // flowMessageIdsByToolCallId and persistedFlowMessageIds are deliberately kept: both record
-    // session facts (which tool call owns which row, and that the row already exists) that do not
-    // change at a connection boundary. Clearing only the persisted gate would buffer resumed
-    // chunks for an existing row into pendingBackgroundFlowChunks forever.
-    entry.pendingBackgroundFlowChunks?.clear()
-    entry.pendingRecoveryFlowChunks?.clear()
+    // Anchors and chunk buffers survive the reset: anchors are session facts, buffered chunks are
+    // output the DB never received, and a host-row miss is a snapshot a later flush invalidates.
+    entry.checkedFlowHostMisses?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
