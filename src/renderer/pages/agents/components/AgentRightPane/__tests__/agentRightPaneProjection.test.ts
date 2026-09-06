@@ -215,6 +215,43 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // Workflow/local launches identify themselves by `taskId`; continuations for those launches
+  // must split rounds exactly like agent-id launches.
+  it('splits rounds for a structured taskId launch receipt', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch the workflow' },
+        { status: 'async_launched', taskId: 'task-77' }
+      ),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'task-77', message: 'Continue' },
+        { success: true, resumedAgentId: 'task-77' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Continue'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
   // Production ordering: the host row (holding both rounds) predates the receipt row, so position
   // alone puts the resume prompt AFTER all content. Runtime-tagged parts must win.
   it('splits rounds by runtime markers even when the receipt row comes last', () => {
