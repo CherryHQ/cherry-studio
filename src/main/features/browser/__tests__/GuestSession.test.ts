@@ -80,27 +80,27 @@ describe('GuestSession command lifetime', () => {
         Promise<Protocol.Page.GetFrameTreeResponse>
       >()
       expectTypeOf(session.send('Runtime.enable')).toEqualTypeOf<Promise<void>>()
-      session.send('Network.enable')
-      session.send('Network.enable', { maxTotalBufferSize: 1024 }, { deadline: 100 })
-      session.send('Page.captureScreenshot', { format: 'png' })
+      void session.send('Network.enable')
+      void session.send('Network.enable', { maxTotalBufferSize: 1024 }, { deadline: 100 })
+      void session.send('Page.captureScreenshot', { format: 'png' })
       // @ts-expect-error Misspelled protocol methods must fail compilation.
-      session.send('Page.navigte', { url: 'https://example.com' })
+      void session.send('Page.navigte', { url: 'https://example.com' })
       // @ts-expect-error Valid CDP methods outside the whitelist remain unavailable.
-      session.send('Target.createTarget', { url: 'https://example.com' })
+      void session.send('Target.createTarget', { url: 'https://example.com' })
       // @ts-expect-error A required parameter object cannot be omitted.
-      session.send('Page.navigate')
+      void session.send('Page.navigate')
       // @ts-expect-error Required parameter fields cannot be omitted.
-      session.send('Page.navigate', {})
+      void session.send('Page.navigate', {})
       // @ts-expect-error Parameters must match the selected method.
-      session.send('Input.insertText', { text: 123 })
+      void session.send('Input.insertText', { text: 123 })
       // @ts-expect-error Parameters from another method cannot widen inference.
-      session.send('Input.insertText', { url: 'https://example.com' })
+      void session.send('Input.insertText', { url: 'https://example.com' })
       // @ts-expect-error No-parameter commands reject arbitrary parameter objects.
-      session.send('Page.getFrameTree', {})
+      void session.send('Page.getFrameTree', {})
       // @ts-expect-error Official protocol enums constrain field values.
-      session.send('Page.captureScreenshot', { format: 'gif' })
+      void session.send('Page.captureScreenshot', { format: 'gif' })
       // @ts-expect-error Callers cannot override the protocol's response type.
-      session.send<{ invented: true }>('Page.getFrameTree')
+      void session.send<{ invented: true }>('Page.getFrameTree')
     })
   })
 
