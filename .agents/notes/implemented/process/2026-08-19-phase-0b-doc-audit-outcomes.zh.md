@@ -6,7 +6,7 @@ Status: implemented
 
 ## Problem
 
-Phase 0b 审计发现有两处实现需要偏离[原始文档治理提案](../../proposed/process/2026-08-18-docs-governance-and-spec-workflow.zh.md)。
+Phase 0b 审计发现有两处实现需要偏离[原始文档治理提案](../../proposed/process/2026-08-18-docs-governance-and-spec-workflow.md)。
 提议中的 Chat adapter 与 UI 约定描述了从未落地的 API 和所有权边界。提案
 还要求把所有带域前缀的存量文件名改名,但完成后的树中仍有 24 个此类文件。
 
@@ -38,3 +38,7 @@ basename 保持稳定。新增或被改名的文档采用域内最短且无歧�
 - Chat reference 只映射已落地的模块与契约。
 - Phase 0b 期间保持现有 reference 链接稳定。
 - 接受 24 个存量带前缀 basename;无冗余前缀规则在文档新增或改名时生效。
+
+## Verification
+
+- Regression — `pnpm docs:check`:封闭域树、frontmatter sources、链接和生成索引继续与审计后的语料一致。

@@ -8,3 +8,7 @@ gh-pr-review
 vercel-react-best-practices
 cherry-pr-test
 cherry-electron-dev
+agent-notes
+docs-governance
+translate-docs
+find-simplifications

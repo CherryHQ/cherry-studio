@@ -176,6 +176,20 @@ canonical definition in `SKILL.md` § Scope derivation, which names and
 owns `SMALL_SCOPE`. Do not use GitHub's summary counts
 or a module-merge heuristic as a substitute.
 
+When the PR head contains `scripts/change-scope.mjs`, collect one versioned scope report from the exact review worktree:
+
+```bash
+node scripts/change-scope.mjs --base origin/{BASE_BRANCH} --head {HEAD_SHA}
+```
+
+If it also contains `scripts/find-affected-docs.mjs` and `docs/sources-index.json`, run:
+
+```bash
+node scripts/find-affected-docs.mjs --base origin/{BASE_BRANCH} --head {HEAD_SHA} --json
+```
+
+Every returned document requires semantic inspection against the changed behavior. A prefix match or an unchanged candidate doc is not itself a finding. For a pre-adoption PR without the scope script, keep the exact merge-base diff above as the scope report and use the existing manual reference routing.
+
 ---
 
 ## Step 3: Review
@@ -228,6 +242,17 @@ Coordinator duties around the selected engine:
    compare against the current reviewer's pending draft to avoid adding a second
    draft comment, but never describe that draft as submitted or visible to
    others.
+
+### Agent Note / Spec review
+
+Read the PR body's `Agent Note`, `Spec PR`, and `Acceptance criteria` fields.
+
+- An `N/A` is valid only for a local/mechanical change with no durable decision. Report qualifying changes that evade the note threshold.
+- For a Spec implementation, query the Spec PR reviews and require an `APPROVED` review whose `commit_id` equals its current head. Verify the implementation PR contains that approved Spec through its base/ancestry.
+- Check every claimed AC against an observable result and actual evidence. Intermediate stack layers cover only their declared ACs; the final layer covers the complete set.
+- A proposed note is an approved target, not a frozen implementation. A factual implementation detail may differ and must be reflected in the final note. A change to behavior, ownership, ACs, alternatives, or risks belongs on the Spec branch and requires re-approval.
+- Implemented notes describe shipped reality in present tense. Never require a worse implementation merely to preserve stale note prose.
+- Verify every new note searched for existing owners and handled partial/full supersession without erasing unique rationale.
 
 **Output rule**: only present the final confirmed issues to the user. Do not
 output analysis process, exclusion reasoning, or issues that were considered

@@ -62,6 +62,7 @@
       "!**/tailwind.css",
       "!**/package.json",
       "!src/renderer/routeTree.gen.ts",
+      "!docs/sources-index.json",
       "!.zed/**",
       "!v2-refactor-temp/**"
     ],

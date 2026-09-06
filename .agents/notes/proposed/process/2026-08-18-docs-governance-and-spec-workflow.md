@@ -94,24 +94,29 @@ A follow-up consumer of `sources`: intersecting a PR's diff paths with all `sour
 
 Decision records live in `.agents/notes/{lifecycle}/{class}/yyyy-mm-dd-topic.md`:
 
-- **Lifecycle**: `proposed/` (reviewed before implementation) → `implemented/` (shipped, kept current with reality) or `rejected/` (declined; kept while the rationale prevents a tempting mistake). The dsh `archived/` tier is deferred until volume warrants it.
+- **Lifecycle**: `proposed/` (an approved target whose implementation is incomplete) → `implemented/` (shipped, kept current with reality) or `rejected/` (explicitly declined by a human; kept while its rationale prevents a tempting mistake). The dsh `archived/` tier is deferred until volume warrants it.
 - **Class**: `feature`, `bug-fix`, `simplification`, `architecture`, `process`, `testing`. There is deliberately no `refactor` class — `simplification` covers it, discriminated by "does observable behavior change?".
-- **Format**: header block (`# Agent Note: <title>`, `Status: <lifecycle>`), then `## Problem`, `## Proposal` (proposed) or `## Decision` (implemented, present tense), bespoke sections, a **mandatory `## Alternatives considered`**, then `## Acceptance criteria` + `## Risks` (proposed) or `## Consequences` (implemented). A decision recorded without what it beat invites re-litigation.
+- **Format**: header block, `Problem`, lifecycle-specific decision sections, mandatory `Alternatives considered`, and actual `Verification` for implemented notes. Proposed acceptance criteria use contiguous `AC` IDs and observable results rather than implementation tasks.
 - A decision is never edited into a different decision: supersede with a new note and cross-link.
-- **Threshold** (deliberate deviation from dsh, which requires a note for every non-trivial PR): a note is required only for **decisions a maintainer may reasonably revisit** — architectural choices, cross-module contracts, data/on-disk/wire formats, process changes, and declined approaches. Cherry Studio's routine-fix volume makes a per-PR mandate a tax, not a record.
-- Spec-first features: substantial feature work starts as a `proposed/` note, reviewed before implementation, verified against its own acceptance criteria, then rewritten into `implemented/` when it ships. This note is the first instance of that loop.
+- **Threshold**: every PR declares an Agent Note or explicit `N/A`, but a note is required only for a decision a maintainer may reasonably revisit. A simple bug fix that restores an existing contract uses `N/A`; a repair with durable failure, compatibility, concurrency, ownership, or alternative-selection rationale writes an implemented `bug-fix` note in the same PR.
+- **Spec-first stack**: substantial feature, architecture, process, and simplification work begins with a bottom Spec PR. Its current head needs explicit human Approval before implementation branches stack above it; a material Spec edit requires re-approval. The final implementation layer rewrites the note as implemented and maps every AC to real evidence.
+- **Rejection**: discussion and `CHANGES_REQUESTED` do not trigger rejection. Only an explicit human decision may move a Spec to `rejected/`; a low-value abandoned exploration is closed without merging repository noise.
 
-The format gate (a port of dsh's `verify-agent-note-format`) lands in Phase 1 alongside the full `.agents/notes/README.md` ruleset.
+The full rules live in `.agents/notes/README.md`; subtree `AGENTS.md` files load lifecycle instructions automatically, while `verify-agent-note-format` gates the machine-checkable skeleton.
 
 ### P5 — Bilingual pairing
 
 Every in-scope document is an English/Chinese pair plus a consistency sidecar: `foo.md` + `foo.zh.md` + `foo.i18n.yaml` recording the git blob hash of each side as of the last confirmed-consistent state (a port of dsh's `verify-translation-pairing`). Either language may be authored first; an out-of-sync pair is repaired by patching the counterpart against the edited side's diff, never by re-translating whole files.
 
-Scope rolls out by discovery root — a deliberate deviation from dsh's no-rollout-list stance: `.agents/notes/**` and root `CONTRIBUTING.md` first (new corpora are born bilingual), extending to `docs/**` only after the Phase 3 backfill. `docs/i18n/terminology.md` becomes the doc-translation terminology source, seeded from `scripts/i18n-glossary.json` (whose `terms` block is currently five entries and unenforced — it needs growth, but the vocabulary choices it records, e.g. Provider=提供商, Agent=智能体, carry over).
+Scope rolls out by discovery root — a deliberate deviation from dsh's no-rollout-list stance: active `.agents/notes/**`, root `CONTRIBUTING.md`, and new `docs/i18n/**` governance first, extending to the audited documentation corpus only after the final translation backfill. `scripts/i18n-glossary.json` remains the machine terminology owner; `docs/i18n/terminology.md` is its generated bilingual agent view.
+
+The routine gate checks hashes, switchers, Markdown structure, and Cherry frontmatter. A staged-index mode prevents partial commits. Merge drivers, snapshot refs, translation brief generation, and automated semantic translation remain deferred until a measured need exists.
 
 ### P6 — Skills
 
-Cherry versions of the dsh process skills, adapted to this repo's domains: a find-simplifications skill (turns "clean this up" into evidence-backed proposed notes; survey domains become renderer hooks, the four data layers, IPC, lifecycle services, v1-migration residue), a doc-standards/prose-standard skill (hierarchy detail rules, tutorial/reference classification, slop checklist), and the `gh-pr-review` reverse-lookup integration from P3.
+Four public skills make the policy operational: `agent-notes`, `docs-governance`, `translate-docs`, and `find-simplifications`. Root and subtree instructions route ordinary work into them without relying on memory.
+
+One zero-dependency `change:scope` report owns base/head resolution and committed/staged/unstaged/untracked paths. `docs:affected`, PR creation, PR review, and post-stack validation consume it. The generated `docs/sources-index.json` maps source prefixes to candidate docs; `gh-pr-review` treats matches as mandatory semantic inspection, never as an automatic CI failure.
 
 ### Rollout
 
@@ -119,10 +124,9 @@ Cherry versions of the dsh process skills, adapted to this repo's domains: a fin
 |---|---|---|
 | 0a (this PR) | This proposal; `.agents/notes/` skeleton with stub README | Review of this note is the decision |
 | 0b | Per-domain move + audit PRs: relocate, rename, fact-check every claim against code, rewrite or delete. **The gates land last, after the final move**, together with the frontmatter for the whole corpus — `verify-doc-structure` reads the entire `references/` root and `verify-doc-frontmatter` every reference doc, so neither can be green while the tree is half-migrated, and a staged-enforcement allowlist would be more machinery than the short migration is worth | `docs:check-links` green per move PR; full `pnpm docs:check` green once the gates land; moved docs' claims verified against `src/` |
-| 1 | Full `.agents/notes/README.md` ruleset + format gate + backfilled seed notes (bilingual) | Format gate green on all notes |
-| 2 | Pairing gate port; discovery roots `.agents/notes` + `CONTRIBUTING.md`; `CONTRIBUTING.zh.md` | `verify-translation-pairing` green |
-| 3 | Translation backfill of audited-current docs only; extend pairing scope to `docs/**` | Corpus-wide pairing green |
-| 4 | Process skills + `gh-pr-review` sources integration | Skill review |
+| 1 | Full Agent Note rules, lifecycle instructions, AC/Verification format, and format gate | Format gate green on all notes |
+| 2 | Pairing + staged guard, documentation governance, change scope, sources review, PR template, and four public process skills | `pnpm docs:check`, focused script tests, and `pnpm skills:check` green |
+| 3 | Final translation backfill of audited-current docs; expand pairing roots and localized generated navigation | Corpus-wide pairing green |
 
 Quality precedes translation throughout: a doc is audited current before it is paired, because translating rot bakes it into two languages at double the correction cost.
 
@@ -138,13 +142,13 @@ Quality precedes translation throughout: a doc is audited current before it is p
 
 ## Acceptance criteria
 
-- `references/` top level is a closed set of domain directories, each with a README home; `verify-doc-structure` green.
-- The three dead/duplicate docs are deleted; every surviving reference doc's claims verified against current code.
-- Every `references/**` doc carries `description` + existing `sources`; `verify-doc-frontmatter` green.
-- `docs/README.md` is generated; `gen-doc-index --check` green.
-- CI runs `pnpm docs:check` — verified by the `basic-checks` job in `.github/workflows/ci.yml` invoking it, not merely by the `ci:basic-check` script listing it.
-- `.agents/notes/` holds this note plus backfilled seeds, bilingual, format-gate green.
-- `.agents/notes/**` and `CONTRIBUTING.md` pass the pairing gate; after Phase 3, `docs/**` does too.
+- AC1 — `references/` is a closed domain tree whose surviving claims were audited against current code. (verification: docs gate)
+- AC2 — Reference and contrib frontmatter drives generated human and source-prefix indexes without hand-maintained drift. (verification: script tests + docs gate)
+- AC3 — Agent Notes enforce lifecycle-specific format, observable AC IDs, actual verification, explicit rejection, and supersession rules. (verification: script tests + docs gate)
+- AC4 — Active notes, `CONTRIBUTING`, and documentation-governance prose pass complete bilingual pairing in both worktree and staged-index modes. (verification: pairing tests + docs gate + pre-commit hook)
+- AC5 — One explicit change-scope report feeds affected-doc review, PR creation/review, and stack revalidation without guessing a base. (verification: script tests + skill review)
+- AC6 — PR templates and review workflows carry Agent Note/N/A, Spec approval, covered AC IDs, actual Verification, and implemented-note reality. (verification: skill and template review)
+- AC7 — Phase 3 can expand discovery roots and translate the audited corpus without replacing Phase 2's pairing, terminology, or workflow architecture. (verification: docs gate)
 
 ## Risks
 
