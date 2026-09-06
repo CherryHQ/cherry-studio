@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
+  isRegistryProvider: vi.fn(),
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
@@ -57,7 +58,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
+  providerRegistryService: {
+    resolveReasoningProfile: mocks.resolveReasoningProfile,
+    isRegistryProvider: mocks.isRegistryProvider
+  }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -145,6 +149,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       format: 'anthropic',
       wire: REASONING_FORMAT_PROFILES.anthropic.wire
     })
+    mocks.isRegistryProvider.mockReturnValue(false)
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -591,7 +596,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
   })
 
-  it('passes app attribution and provider extra headers to direct SDK requests with provider overrides', async () => {
+  it('passes explicit provider headers to direct SDK requests with case-insensitive overrides', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
@@ -632,9 +637,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
-    )
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
     expect(request?.usageCapture).toEqual({
       owner: 'agent-sdk',
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
@@ -652,6 +655,21 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ]
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('keeps app attribution on direct SDK requests for a canonical registry provider', async () => {
+    mocks.isRegistryProvider.mockReturnValue(true)
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      presetProviderId: 'anthropic',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
+    )
   })
 
   it('routes an OpenCode Go OpenAI-compatible model through the gateway despite its Anthropic endpoint', async () => {

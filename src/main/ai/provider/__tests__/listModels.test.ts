@@ -17,20 +17,28 @@ const {
   getAuthHeadersMock,
   getCopilotTokenMock,
   aiSdkGetFromApiMock,
-  aiSdkPostJsonToApiMock
+  aiSdkPostJsonToApiMock,
+  isRegistryProviderMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
   getAuthConfigMock: vi.fn(),
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
   aiSdkGetFromApiMock: vi.fn(),
-  aiSdkPostJsonToApiMock: vi.fn()
+  aiSdkPostJsonToApiMock: vi.fn(),
+  isRegistryProviderMock: vi.fn<(providerId: string) => boolean>()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
     getAuthConfig: getAuthConfigMock
+  }
+}))
+
+vi.mock('@main/data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    isRegistryProvider: isRegistryProviderMock
   }
 }))
 
@@ -61,6 +69,7 @@ const { listModels } = await import('../listModels')
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  isRegistryProviderMock.mockImplementation((providerId) => providerId === 'openai')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
@@ -1111,5 +1120,30 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     )
 
     expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
+  })
+
+  it('omits automatic attribution for a custom provider while preserving auth and user headers', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-tokenrhythm')
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'deepseek-v4-flash' }] } })
+
+    await listModels(
+      makeProvider({
+        id: 'custom-tokenrhythm',
+        presetProviderId: 'openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://tokenrhythm.studio/v1' }
+        },
+        settings: { extraHeaders: { 'X-Custom': 'keep' } }
+      })
+    )
+
+    const request = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: HeadersInit }
+    const headers = new Headers(request.headers)
+    expect(headers.get('authorization')).toBe('Bearer sk-tokenrhythm')
+    expect(headers.get('x-api-key')).toBe('sk-tokenrhythm')
+    expect(headers.get('x-custom')).toBe('keep')
+    expect(headers.has('http-referer')).toBe(false)
+    expect(headers.has('x-title')).toBe(false)
   })
 })
