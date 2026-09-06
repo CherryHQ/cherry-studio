@@ -110,6 +110,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         setRetainedBundleId(null)
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
+        toast.error(t('settings.about.diagnostics.upload.errors.discard_failed'))
         return false
       } finally {
         if (mountedRef.current) setOperationStatus('idle')

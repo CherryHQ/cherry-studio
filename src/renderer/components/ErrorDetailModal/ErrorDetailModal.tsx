@@ -607,7 +607,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </ErrorDetailContainer>
 
       {diagnosticReport && onOpenDiagnosticReport ? (
-        <div role="group" aria-label={t('error.detail')} className="flex justify-end">
+        <div className="flex justify-end">
           <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
             <FileUp size={14} />
             {t('error.diagnostic_report.action')}

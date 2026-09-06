@@ -48,6 +48,13 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 2, size: '2 KB' })).toBe('2 files, about 2 KB')
   })
 
+  it('uses singular and plural Doctor problem summaries in English', async () => {
+    await i18n.changeLanguage('en-US')
+
+    expect(i18n.t('settings.doctor.summary.problems', { count: 1 })).toBe('1 item needs attention')
+    expect(i18n.t('settings.doctor.summary.problems', { count: 2 })).toBe('2 items need attention')
+  })
+
   it('distinguishes quick basic checks from full checks in English and Simplified Chinese', async () => {
     await i18n.changeLanguage('en-US')
     expect(i18n.t('settings.doctor.actions.run_basic')).toBe('Quick basic checks')

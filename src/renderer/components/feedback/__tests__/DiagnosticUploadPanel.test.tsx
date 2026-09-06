@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.sources.logs.title': 'App logs',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
     'settings.about.diagnostics.upload.actions.consent_upload': 'Submit diagnostic report',
+    'settings.about.diagnostics.upload.errors.discard_failed': 'Could not close the problem report. Try again.',
     'settings.about.diagnostics.upload.errors.save_failed': 'Could not save the diagnostic report',
     'settings.about.diagnostics.upload.manual.title': 'Diagnostic report was not submitted',
     'settings.about.diagnostics.upload.unknown.description':
@@ -611,6 +612,26 @@ describe('DiagnosticUploadPanel', () => {
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith('Another diagnostic bundle operation is already in progress')
     )
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('keeps a retained upload accessible and reports a discard failure', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'diagnostics.bundle.discard_upload') throw new Error('discard failed')
+      return undefined
+    })
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={onOpenChange} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    await closeResultDialog(user)
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Could not close the problem report. Try again.'))
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })

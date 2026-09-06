@@ -1,4 +1,4 @@
-import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -238,26 +238,60 @@ describe('useDoctorController', () => {
     expect(result.current.session.revealedEvidence).toEqual(['runtime-claude-login'])
   })
 
-  it('runs low-risk fixes directly and keeps the backend result authoritative', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+  it('keeps the shared Doctor report authoritative until the cache publishes a fixed result', async () => {
+    const warning = {
+      id: 'permission-screen-capture',
+      status: 'warn',
+      durationMs: 1,
+      attribution: 'user-fixable',
+      detail: { variant: 'denied' },
+      actions: [{ kind: 'fix', fixId: 'request' }]
+    } satisfies DoctorCheckResult
+    const completed = completedDoctorState()
+    if (completed.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = {
+      ...completed,
+      report: {
+        ...completed.report,
+        results: [warning],
+        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+      }
+    }
     mocks.request.mockResolvedValue({
-      status: 'requires_relaunch',
+      status: 'fixed',
       result: { id: 'permission-screen-capture', status: 'pass', durationMs: 1 }
     })
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { rerender, result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+
+    expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'warn' })
 
     await act(async () =>
-      result.current.executeAction('permission-screen-capture', { kind: 'fix', fixId: 'request' }, 'run-1')
+      result.current.executeAction(
+        'permission-screen-capture',
+        { kind: 'fix', fixId: 'request' },
+        completed.report.runId
+      )
     )
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
-      runId: 'run-1',
+      runId: completed.report.runId,
       checkId: 'permission-screen-capture',
       fixId: 'request'
     })
-    expect(result.current.viewModel.rows).toEqual([])
-    expect(result.current.session.relaunchRequired).toBe(true)
-    expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.relaunch_required')
+    expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'warn' })
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.fix_completed')
+
+    mocks.doctorState = {
+      ...completed,
+      report: {
+        ...completed.report,
+        results: [{ id: 'permission-screen-capture', status: 'pass', durationMs: 1 }],
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    rerender()
+
+    expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'pass' })
   })
 
   it.each(['quick', 'live'] as const)('cancels an active %s run', async (tier) => {
