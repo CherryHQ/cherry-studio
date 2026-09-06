@@ -2,6 +2,8 @@ import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
+import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
@@ -169,6 +171,39 @@ describe('toModelMessages', () => {
     })
     expect(JSON.stringify(model)).not.toContain(imageData)
     expect(messages).toEqual(originalMessages)
+  })
+
+  it('replays a malformed stored tool_search result without making the topic unsendable', async () => {
+    const toolSearch = createToolSearchTool(new ToolRegistry(), new Set(), new Set())
+    const model = await toModelMessages(
+      [
+        ui('assistant', [
+          {
+            type: 'tool-tool_search',
+            toolCallId: 'search-1',
+            state: 'output-available',
+            input: {},
+            output: { content: [{ type: 'text', text: 'Process started' }], metadata: {} }
+          }
+        ]),
+        ui('user', [{ type: 'text', text: 'continue' }], 'u1')
+      ],
+      undefined,
+      { tool_search: toolSearch }
+    )
+
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [
+        expect.objectContaining({
+          toolName: 'tool_search',
+          output: {
+            type: 'text',
+            value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+          }
+        })
+      ]
+    })
   })
 
   it('replays a completed legacy MCP tool name unchanged', async () => {
