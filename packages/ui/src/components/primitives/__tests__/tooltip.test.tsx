@@ -519,6 +519,48 @@ describe('Tooltip', () => {
       }
     })
 
+    it('sweeps a ghost rendered into an attached shadow root', async () => {
+      vi.useFakeTimers()
+      try {
+        const host = document.createElement('div')
+        const shadow = host.attachShadow({ mode: 'open' })
+        document.body.appendChild(host) // 宿主插入时已挂 shadow root → 观察并扫描
+        await act(async () => {})
+
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        shadow.appendChild(ghost)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(shadow.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps a ghost already inside the shadow when the host enters the tree', async () => {
+      vi.useFakeTimers()
+      try {
+        const host = document.createElement('div')
+        const shadow = host.attachShadow({ mode: 'open' })
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-state', 'closed')
+        shadow.appendChild(ghost)
+        document.body.appendChild(host) // 插入时扫描 shadow 内既有 content
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(300)
+        })
+        expect(shadow.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('sweeps ghosts rendered into a custom portal container', async () => {
       vi.useFakeTimers()
       try {

@@ -84,6 +84,7 @@ function useTooltipController(
  */
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
+  const observedRoots = new WeakSet<Document | ShadowRoot>()
   const maybeSweep = (node: Element) => {
     // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
     const previous = pending.get(node)
@@ -114,20 +115,23 @@ function setupTooltipOrphanSweeper(): void {
         if (element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
         if (element.getAttribute('data-slot') === 'tooltip-content') {
           maybeSweep(element)
-        } else {
-          element.querySelectorAll?.('[data-slot="tooltip-content"]').forEach(maybeSweep)
+          continue
         }
+        // body 观察无法穿透 shadow boundary：宿主若已挂 shadow root，连其内容一并纳入清扫
+        if (element.shadowRoot) {
+          ensureObserved(element.shadowRoot)
+          element.shadowRoot.querySelectorAll('[data-slot="tooltip-content"]').forEach(maybeSweep)
+        }
+        element.querySelectorAll?.('[data-slot="tooltip-content"]').forEach(maybeSweep)
       }
     }
   })
-  if (document.body) {
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-state']
-    })
+  function ensureObserved(root: Document | ShadowRoot): void {
+    if (observedRoots.has(root)) return
+    observedRoots.add(root)
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] })
   }
+  ensureObserved(document)
 }
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   setupTooltipOrphanSweeper()
