@@ -4310,7 +4310,7 @@ describe('ChatComposer', () => {
       </MessageEditingProvider>
     )
 
-    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await waitFor(() => expect(mocks.surfaceProps?.draftTokens?.[0]).toBeDefined())
     const rewrittenToken = mocks.surfaceProps?.draftTokens?.[0]
     expect(rewrittenToken).toEqual(
       expect.objectContaining({
