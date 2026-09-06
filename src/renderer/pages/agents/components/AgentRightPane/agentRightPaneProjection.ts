@@ -288,7 +288,7 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
   // The trailer explicitly names the id, so any length is legitimate (short ids / task ids are
   // not a reason to drop the launch identity; the round-split gate compares exact equality).
-  if (typeof output === 'string') return /agentId[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
+  if (typeof output === 'string') return /\bagent_?[Ii]d[:\s]+([a-zA-Z0-9-]+)/.exec(output)?.[1]
   if (isRecord(output)) {
     // Workflow/local launches carry the same identity under `taskId`.
     const direct = output.agentId ?? output.agent_id ?? output.taskId
