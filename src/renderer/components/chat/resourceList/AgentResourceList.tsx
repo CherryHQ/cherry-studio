@@ -47,10 +47,6 @@ const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
-type SessionListItem = AgentSessionEntity & {
-  pinned?: boolean
-}
-
 type AgentResourceListProps = {
   activeAgentId?: string | null
   activeSessionId?: string | null
@@ -97,7 +93,6 @@ export function AgentResourceList({
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
-    pinIdBySessionId,
     isLoading,
     isLoadingAll,
     isFullyLoaded,
@@ -131,10 +126,6 @@ export function AgentResourceList({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
   const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
-  )
   const getAgentEntityId = useCallback(
     (agentId: string | null | undefined) => {
       if (!agentId) return SESSION_UNKNOWN_AGENT_GROUP_ID
@@ -144,8 +135,8 @@ export function AgentResourceList({
     [agentIdSet, hasLoadedAgentMetadata]
   )
   const hasUnlinkedAgentSessions = useMemo(
-    () => sessionItems.some((session) => getAgentEntityId(session.agentId) === SESSION_UNKNOWN_AGENT_GROUP_ID),
-    [getAgentEntityId, sessionItems]
+    () => sessions.some((session) => getAgentEntityId(session.agentId) === SESSION_UNKNOWN_AGENT_GROUP_ID),
+    [getAgentEntityId, sessions]
   )
   const createSessionForAgent = useCallback(
     (agentId: string) =>
@@ -211,12 +202,8 @@ export function AgentResourceList({
     ]
   }, [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, hasUnlinkedAgentSessions, t])
 
-  const getSessionAgentId = useCallback(
-    (session: SessionListItem) => getAgentEntityId(session.agentId),
-    [getAgentEntityId]
-  )
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
+    (session: AgentSessionEntity) => onSelectSession(session.id, session),
     [onSelectSession]
   )
   const loadLatestSessionForAgent = useCallback(
@@ -241,8 +228,6 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentEntityId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
@@ -535,10 +520,11 @@ export function AgentResourceList({
 
   const handleSelectedEntityClick = useCallback(
     (item: ResourceEntityRailItem) => {
-      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return handleSelect(item)
+      const hasSession = sessions.some((session) => getAgentEntityId(session.agentId) === item.id)
+      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID || !hasSession) return handleSelect(item)
       return onSelectedAgentClick?.()
     },
-    [handleSelect, onSelectedAgentClick]
+    [getAgentEntityId, handleSelect, onSelectedAgentClick, sessions]
   )
 
   return (

@@ -314,7 +314,7 @@ function createUnifiedPanelRootSearchItems(
   ancestorLauncherIds.add(launcher.id)
 
   const customPanelItems = (launcher.rootSearchItems ?? [])
-    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && !item.fixedToBottom && Boolean(item.action))
+    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && Boolean(item.action))
     .map(asUnifiedPanelRootSearchItem)
   const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
     const childAncestorLauncherIds = new Set(ancestorLauncherIds)
@@ -506,13 +506,6 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
-  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
-  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
-  // fixedToBottom items would bypass the category filter and still render, so drop them here.
-  const isCategoryView = (options.initialSearchText ?? '').length > 0
-  const additionalItems = isCategoryView
-    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
-    : options.additionalItems
   // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
   // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
   const leadingItems = options.excludedLauncherIds
@@ -523,7 +516,7 @@ export function createUnifiedQuickPanelOpenOptions(
     ...tagUnifiedPanelSectionItems(leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
-    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]

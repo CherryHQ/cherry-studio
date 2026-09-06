@@ -897,26 +897,6 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('navigates a message-only viewer of the same app back to the app entry', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'viewer',
-      type: 'route',
-      url: '/app/agents?sessionId=session-1&view=message',
-      title: 'Session 1'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('viewer', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
-  })
-
   it('clears route-specific metadata when reusing the active tab', () => {
     mocks.sidebarFavorites = [appFavorite('translate')]
     mocks.activeTab = {

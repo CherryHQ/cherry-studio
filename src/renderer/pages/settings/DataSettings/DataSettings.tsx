@@ -12,7 +12,8 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import type { AppRouter } from '@renderer/types/router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
@@ -20,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
 import { DATA_PANEL_KEYS, type DataPanelKey, DEFAULT_DATA_PANEL } from './dataPanels'
+
+const dataRouteApi = getRouteApi('/settings/data')
 
 const ExportMenuOptions = lazy(() => import('./ExportMenuSettings'))
 const JoplinSettings = lazy(() => import('./JoplinSettings'))
@@ -46,10 +49,9 @@ const DataSettings: FC = () => {
   // The URL is the single source of truth for the active panel (search jumps
   // arrive as /settings/data?panel=<key>; menu clicks write it back with
   // replace). Unknown values were already dropped by the route schema.
-  const search = useSearch({ strict: false })
+  const search = dataRouteApi.useSearch<AppRouter>()
   const rawPanel = typeof search.panel === 'string' ? search.panel : undefined
-  const panelParam =
-    rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? (rawPanel as DataPanelKey) : undefined
+  const panelParam = rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? rawPanel : undefined
   const menu = panelParam ?? DEFAULT_DATA_PANEL
 
   const menuItems: DataMenuItem[] = [

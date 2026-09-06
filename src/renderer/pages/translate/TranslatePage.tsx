@@ -11,7 +11,6 @@ import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/Mo
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -69,7 +68,6 @@ import type {
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
-import { usePacedMarkdownOutput } from './usePacedMarkdownOutput'
 import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
@@ -77,7 +75,6 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -135,6 +132,7 @@ const useBabelDoc = (enabled: boolean) => {
 
   return { availability, installing, install, refresh }
 }
+
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -221,7 +219,6 @@ const TranslatePage: FC = () => {
     update: { showErrorToast: false, rethrowError: false }
   })
   const { notesPath } = useNotesSettings()
-  const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
@@ -232,14 +229,11 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const translateReasoning = useTranslateReasoningEffort()
-
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
-
   const {
     translate: runTranslate,
     isTranslating,
@@ -248,8 +242,6 @@ const TranslatePage: FC = () => {
     loggerContext: 'TranslatePage',
     onResponse: smoothUpdate
   })
-
-  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -657,39 +649,7 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  // Input-side pacing: usePacedMarkdownOutput coalesces stream frames into
-  // one emission per interval; this effect renders the latest emission.
-  const pacedOutput = usePacedMarkdownOutput(translateOutput)
-
-  useEffect(() => {
-    if (!enableMarkdown || !pacedOutput) {
-      setRenderedMarkdown('')
-      return
-    }
-    let cancelled = false
-    let retryTimer: number | null = null
-    let retried = false
-    const render = async () => {
-      try {
-        const markdown = await shikiMarkdownIt(pacedOutput)
-        if (!cancelled) setRenderedMarkdown(markdown)
-      } catch (error) {
-        logger.error('Markdown render failed.', error as Error)
-        // One retry so a failed final render doesn't leave stale content behind.
-        if (!retried) {
-          retried = true
-          retryTimer = window.setTimeout(() => {
-            if (!cancelled) void render()
-          }, 500)
-        }
-      }
-    }
-    void render()
-    return () => {
-      cancelled = true
-      if (retryTimer !== null) window.clearTimeout(retryTimer)
-    }
-  }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
+  const translateReasoning = useTranslateReasoningEffort()
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
@@ -1100,7 +1060,6 @@ const TranslatePage: FC = () => {
                         <TranslateOutputPane
                           ref={outputTextRef}
                           translatedContent={translateOutput}
-                          renderedMarkdown={renderedMarkdown}
                           enableMarkdown={enableMarkdown}
                           translating={isTranslating || isDetecting || isPdfTextExtracting}
                           copied={copied}
@@ -1147,7 +1106,6 @@ const TranslatePage: FC = () => {
               <TranslateOutputPane
                 ref={outputTextRef}
                 translatedContent={translateOutput}
-                renderedMarkdown={renderedMarkdown}
                 enableMarkdown={enableMarkdown}
                 translating={isTranslating || isDetecting}
                 copied={copied}

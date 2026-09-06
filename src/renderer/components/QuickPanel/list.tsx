@@ -1,10 +1,11 @@
-import { Kbd, NormalTooltip } from '@cherrystudio/ui'
+import { Button, Kbd, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
 import { type ReactElement, type ReactNode, type Ref, useState } from 'react'
 
 import { QUICK_PANEL_ROW_HEIGHT } from './heights'
+import type { QuickPanelFooterAction } from './types'
 
 const QUICK_PANEL_KBD_CLASS =
   'min-w-0 rounded-sm bg-muted! px-1 py-0.5 font-normal text-[11px] text-muted-foreground! leading-none'
@@ -21,22 +22,34 @@ export interface QuickPanelRowData {
   disabled?: boolean
   isSelected?: boolean
   isMenu?: boolean
-  fixedToBottom?: boolean
 }
 
 interface QuickPanelFooterProps {
+  actions?: QuickPanelFooterAction[]
+  activeActionId?: string
   title?: ReactNode
   showPageHint?: boolean
   assistiveKey?: string
   assistiveKeyActive?: boolean
   confirmLabel?: ReactNode
+  compact?: boolean
   className?: string
   containerRef?: Ref<HTMLDivElement>
+  onAction?: (action: QuickPanelFooterAction) => void
+  onActionFocus?: (action: QuickPanelFooterAction) => void
 }
 
 interface QuickPanelReadOnlyHeaderProps {
+  containerRef?: Ref<HTMLDivElement>
   title?: ReactNode
   onClose: () => void
+}
+
+interface QuickPanelFooterHintProps {
+  children: ReactNode
+  compact: boolean
+  label: ReactNode
+  testId: string
 }
 
 interface QuickPanelRowProps<T extends QuickPanelRowData> {
@@ -97,12 +110,36 @@ export function moveQuickPanelSelectableIndex(
   return indexes[Math.min(Math.max(nextPosition, 0), indexes.length - 1)]
 }
 
+function QuickPanelFooterHint({ children, compact, label, testId }: QuickPanelFooterHintProps) {
+  const hint = (
+    <span
+      aria-label={compact && typeof label === 'string' ? label : undefined}
+      className="inline-flex items-center gap-1"
+      data-testid={testId}>
+      {children}
+    </span>
+  )
+
+  return compact ? (
+    <NormalTooltip content={label} side="top" sideOffset={6}>
+      {hint}
+    </NormalTooltip>
+  ) : (
+    hint
+  )
+}
+
 export function QuickPanelFooter({
+  actions = [],
+  activeActionId,
   assistiveKey,
   assistiveKeyActive = false,
   className,
+  compact = false,
   confirmLabel,
   containerRef,
+  onAction,
+  onActionFocus,
   showPageHint = false,
   title
 }: QuickPanelFooterProps) {
@@ -110,42 +147,82 @@ export function QuickPanelFooter({
     <div
       ref={containerRef}
       data-testid="quick-panel-footer"
-      className={cn('flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]', className)}>
-      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
-        {title || ''}
+      className={cn('flex w-full items-center gap-2 px-3 pt-2 pb-[5px]', className)}>
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
+          {title || ''}
+        </div>
+        <div
+          className="flex shrink-0 flex-nowrap items-center justify-start gap-1"
+          data-testid="quick-panel-footer-actions">
+          {actions.map((action) => (
+            <NormalTooltip key={action.id} content={action.tooltip ?? action.ariaLabel} side="top" sideOffset={6}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={action.ariaLabel}
+                aria-current={activeActionId === action.id ? 'true' : undefined}
+                disabled={action.disabled}
+                className={cn(
+                  'h-6 max-w-full shrink-0 gap-1 text-[12px] text-muted-foreground',
+                  compact ? 'px-1' : 'px-1.5',
+                  activeActionId === action.id && 'bg-accent text-accent-foreground'
+                )}
+                onFocus={() => onActionFocus?.(action)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onAction?.(action)
+                }}>
+                {action.icon ? <span className="shrink-0 [&>svg]:size-3.5">{action.icon}</span> : null}
+                <span className={cn('truncate', compact && 'sr-only')}>{action.label}</span>
+              </Button>
+            </NormalTooltip>
+          ))}
+        </div>
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
+      <div
+        className={cn(
+          'ml-auto flex shrink-0 items-center justify-end text-[12px] text-muted-foreground',
+          compact ? 'gap-1' : 'gap-4'
+        )}>
+        <QuickPanelFooterHint compact={compact} label={t('settings.quickPanel.close')} testId="quick-panel-hint-close">
           <Kbd className={QUICK_PANEL_KBD_CLASS}>Esc</Kbd>
-          <span>{t('settings.quickPanel.close')}</span>
-        </span>
+          {!compact ? <span>{t('settings.quickPanel.close')}</span> : null}
+        </QuickPanelFooterHint>
 
-        <span className="inline-flex items-center gap-1">
+        <QuickPanelFooterHint
+          compact={compact}
+          label={t('settings.quickPanel.select')}
+          testId="quick-panel-hint-select">
           <Kbd className={QUICK_PANEL_KBD_CLASS}>▲▼</Kbd>
-          <span>{t('settings.quickPanel.select')}</span>
-        </span>
+          {!compact ? <span>{t('settings.quickPanel.select')}</span> : null}
+        </QuickPanelFooterHint>
 
         {assistiveKey && showPageHint ? (
-          <span className="inline-flex items-center gap-1">
+          <QuickPanelFooterHint compact={compact} label={t('settings.quickPanel.page')} testId="quick-panel-hint-page">
             <Kbd className={cn(QUICK_PANEL_KBD_CLASS, assistiveKeyActive && 'text-foreground!')}>{assistiveKey}</Kbd>
             <span>+</span>
             <Kbd className={QUICK_PANEL_KBD_CLASS}>▲▼</Kbd>
-            <span>{t('settings.quickPanel.page')}</span>
-          </span>
+            {!compact ? <span>{t('settings.quickPanel.page')}</span> : null}
+          </QuickPanelFooterHint>
         ) : null}
 
-        <span className="inline-flex items-center gap-1">
+        <QuickPanelFooterHint
+          compact={compact}
+          label={confirmLabel ?? t('settings.quickPanel.confirm')}
+          testId="quick-panel-hint-confirm">
           <Kbd className={QUICK_PANEL_KBD_CLASS}>Tab/↩︎</Kbd>
-          <span>{confirmLabel ?? t('settings.quickPanel.confirm')}</span>
-        </span>
+          {!compact ? <span>{confirmLabel ?? t('settings.quickPanel.confirm')}</span> : null}
+        </QuickPanelFooterHint>
       </div>
     </div>
   )
 }
 
-export function QuickPanelReadOnlyHeader({ onClose, title }: QuickPanelReadOnlyHeaderProps) {
+export function QuickPanelReadOnlyHeader({ containerRef, onClose, title }: QuickPanelReadOnlyHeaderProps) {
   return (
-    <div className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[7px]">
+    <div ref={containerRef} className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[7px]">
       <div className="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-[13px] text-foreground">
         {title || ''}
       </div>
@@ -175,9 +252,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   rowRef,
   selected = false
 }: QuickPanelRowProps<T>) {
-  // Read-only panels stay non-interactive, except pinned footer actions (e.g. "open config"), which
-  // remain clickable so a status panel can still expose its one affordance.
-  const isReadOnlyLocked = readOnly && !item.fixedToBottom
+  const isReadOnlyLocked = readOnly
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const suffixContent = item.suffix ? (
     item.suffix
