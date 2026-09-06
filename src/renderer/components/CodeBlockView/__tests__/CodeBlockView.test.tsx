@@ -44,6 +44,19 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('CodeBlockView', () => {
+  it('keeps the sticky toolbar attached to the message scroll container', () => {
+    render(
+      <CodeBlockView language="javascript" editable={false}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    const codeBlock = screen.getByLabelText('Code viewer').closest('[data-ui~="part:code-block"]')
+
+    expect(codeBlock).toHaveClass('overflow-clip')
+    expect(codeBlock).not.toHaveClass('overflow-hidden')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(navigator, 'clipboard', {
