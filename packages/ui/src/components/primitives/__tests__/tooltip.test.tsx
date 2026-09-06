@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import {
   NormalTooltip,
+  STALE_OPEN_SWEEP_MS,
   Tooltip,
   TOOLTIP_EXIT_ANIMATION_MS,
   TooltipContent,
@@ -439,26 +440,107 @@ describe('Tooltip', () => {
       }
     })
 
-    it('sweeps a ghost even after its owner instance unmounted', async () => {
+    // 真实卸载遗留链：content 节点被外部移动后再卸载（React 对已被移走的 portal 子节点静默
+    // 跳过移除，jsdom/React 19 实测不抛错），留下无 owner 的 open 残骸 → 重检周期后清扫。
+    // 这取代手工造节点——后者与卸载的 Tooltip 无关，证明不了真实 portal remnant 被清理。
+    it('sweeps a real ghost left by unmounting a tooltip whose content moved away', async () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <Tooltip content="ghost-tip" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        const content = screen.getByRole('tooltip').closest('[data-slot="tooltip-content"]') as HTMLElement
+        const elsewhere = document.createElement('div')
+        document.body.appendChild(elsewhere)
+        elsewhere.appendChild(content) // 模拟 virtua 移动 DOM：content 脱离 React 管理的 portal 子树
+        await act(async () => {}) // 排空 MutationObserver 微任务，登记清扫 timer
+        view.unmount()
+        // 残骸真实存在于移动目标容器中（React 静默跳过移除）
+        expect(elsewhere.contains(content)).toBe(true)
+
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 100)
+        })
+        // open 态残骸无 trigger 引用 → 清扫
+        expect(elsewhere.contains(content)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps orphaned open content that lost its trigger reference', async () => {
       vi.useFakeTimers()
       try {
         const ghost = document.createElement('div')
         ghost.setAttribute('data-slot', 'tooltip-content')
         ghost.setAttribute('data-tooltip-sweepable', '')
-        ghost.setAttribute('data-state', 'closed')
+        ghost.setAttribute('data-state', 'instant-open')
+        const span = document.createElement('span')
+        span.id = 'orphan-content-1'
+        span.setAttribute('role', 'tooltip')
+        ghost.appendChild(span)
         document.body.appendChild(ghost)
         await act(async () => {})
 
-        const view = render(
-          <Tooltip content="owner" isOpen={true}>
+        // 重检周期内不清扫
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS - 100)
+        })
+        expect(document.body.contains(ghost)).toBe(true)
+        // 周期到仍无任何 trigger 引用 → 移除
+        act(() => {
+          vi.advanceTimersByTime(200)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not sweep open content still referenced by its trigger', () => {
+      vi.useFakeTimers()
+      try {
+        render(
+          <Tooltip content="live-tip" isOpen={true}>
             <button type="button">Trigger</button>
           </Tooltip>
         )
-        view.unmount()
+        // Radix open 契约：trigger 的 aria-describedby 指向 content 内 role=tooltip span 的 id
+        const trigger = document.querySelector('[data-slot="tooltip-trigger"]')
+        expect(trigger?.getAttribute('aria-describedby')).toBeTruthy()
+
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
         })
-        expect(document.body.contains(ghost)).toBe(false)
+        // 引用仍在 → 续期重检而非清扫
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+        expect(trigger?.getAttribute('aria-describedby')).toBeTruthy()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('renders forceMount content through the TooltipRoot gate even when closed', () => {
+      vi.useFakeTimers()
+      try {
+        render(
+          <TooltipRoot open={false}>
+            <TooltipTrigger asChild>
+              <button type="button">Trigger</button>
+            </TooltipTrigger>
+            <TooltipContent forceMount>fm-tip</TooltipContent>
+          </TooltipRoot>
+        )
+        const content = getTooltipContentElement('fm-tip')
+        expect(content).toHaveAttribute('data-state', 'closed')
+        // 显式 forceMount 内容由用户持有生命周期：不带清扫标记，永不被清扫器触碰
+        expect(content).not.toHaveAttribute('data-tooltip-sweepable')
+        act(() => {
+          vi.advanceTimersByTime(500)
+        })
+        expect(getTooltipContentElement('fm-tip')).toBeInTheDocument()
       } finally {
         vi.useRealTimers()
       }

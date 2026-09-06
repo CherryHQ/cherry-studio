@@ -52,6 +52,8 @@ function useTooltipUnmountDelay(open: boolean): boolean {
 
 /** 清扫延迟 = 退出动画窗口 + 余量：正常实例在退出窗口内自行卸载，此期间不触发清扫。 */
 const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
+/** open 态重检周期：打开的内容无法仅凭 data-state 区分活实例与残骸，需周期性核对 trigger 引用。 */
+export const STALE_OPEN_SWEEP_MS = 3000
 
 /**
  * 受控 + 挂载生命周期：受控（controlledOpen 非空）时外部权威、内部状态不参与；
@@ -82,11 +84,12 @@ function useTooltipController(
 
 /**
  * 孤儿清扫器（模块级，单例）：Radix portal content 在重挂风暴中可能失去 React owner 而
- * 永久残留。观察 data-state 生命周期：closed 连续存活超过清扫延迟即移除。不依赖任何实例
- * （实例卸载会取消其 timer，故清扫必须与实例生命周期解耦），覆盖所有 portal 容器
- * （body 下钻，含自定义 TooltipContent portalContainer）。只清扫渲染时带
- * data-tooltip-sweepable 的内容（即本组件门控渲染的内容）；独立 TooltipContent 与显式
- * forceMount 内容不受影响。正常实例与 peer 的退出窗口（150ms）远短于清扫延迟，不会误删。
+ * 永久残留。closed 连续存活超过清扫延迟即移除；open 态（instant-open/delayed-open）无法
+ * 仅凭 data-state 区分活实例与残骸，周期性核对 trigger 引用（Radix 打开时 trigger 的
+ * aria-describedby 指向 content 内 role=tooltip span 的 id；残骸无任何引用）：超过一个
+ * 重检周期仍无引用即移除，仍被引用则续期。不依赖任何实例生命周期（实例卸载会取消其
+ * timer，故清扫必须与实例生命周期解耦）。只清扫渲染时带 data-tooltip-sweepable 的内容
+ * （即本组件非显式 forceMount 的门控渲染内容）；显式 forceMount 内容由用户持有，不受影响。
  */
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
@@ -95,17 +98,42 @@ function setupTooltipOrphanSweeper(): void {
     // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
     const previous = pending.get(node)
     if (previous != null) window.clearTimeout(previous)
-    if (node.getAttribute('data-state') !== 'closed') {
+    const state = node.getAttribute('data-state')
+    if (state === 'closed') {
+      pending.set(
+        node,
+        window.setTimeout(() => {
+          pending.delete(node)
+          if (node.isConnected && node.getAttribute('data-state') === 'closed') node.remove()
+        }, TOOLTIP_SWEEP_DELAY_MS)
+      )
+    } else if (state) {
+      // open 态：无 trigger 引用 = 失去活跃 owner 的残骸；仍被引用则续期重检
+      // （覆盖「打开后超过一个周期才失去 owner」的残骸，而非只清扫打开瞬间即孤儿的内容）
+      pending.set(
+        node,
+        window.setTimeout(() => {
+          if (!node.isConnected) {
+            pending.delete(node)
+            return
+          }
+          if (node.getAttribute('data-state') === 'closed') {
+            pending.delete(node)
+            maybeSweep(node) // 刚关闭，重新走 closed 窗口
+            return
+          }
+          const tooltipId = node.querySelector('[role="tooltip"]')?.getAttribute('id')
+          if (tooltipId && !document.querySelector(`[aria-describedby~="${tooltipId}"]`)) {
+            pending.delete(node)
+            node.remove()
+            return
+          }
+          maybeSweep(node)
+        }, STALE_OPEN_SWEEP_MS)
+      )
+    } else {
       pending.delete(node)
-      return
     }
-    pending.set(
-      node,
-      window.setTimeout(() => {
-        pending.delete(node)
-        if (node.isConnected && node.getAttribute('data-state') === 'closed') node.remove()
-      }, TOOLTIP_SWEEP_DELAY_MS)
-    )
   }
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
@@ -235,21 +263,23 @@ function TooltipContent({
   children,
   portalContainer,
   showArrow = true,
+  forceMount,
   ...props
 }: TooltipContentProps) {
   const defaultPortalContainer = usePortalContainer()
   const contentVisible = React.use(TooltipOverlayContext)
-  if (contentVisible === false) return null
+  // 显式 forceMount 保留 Radix 公共契约（closed 也常驻 DOM），豁免 150ms 门控
+  if (contentVisible === false && !forceMount) return null
   const container = portalContainer ?? defaultPortalContainer ?? undefined
   const arrow = showArrow ? <RadixArrow width={12} height={6} className={arrowStyles} /> : null
   // 有 overlay context（TooltipRoot 组合）时挂载由门控接管：forceMount + 150ms 退出窗口；
-  // 独立使用保持 Radix 原生 presence 卸载。
+  // 显式 forceMount 内容由用户持有生命周期，不带清扫标记；独立使用保持 Radix 原生 presence 卸载。
   if (contentVisible !== null) {
     return (
       <RadixPortal container={container} forceMount>
         <RadixContent
           data-slot="tooltip-content"
-          data-tooltip-sweepable
+          data-tooltip-sweepable={forceMount ? undefined : ''}
           sideOffset={sideOffset}
           forceMount
           className={cn(contentStyles, className)}
@@ -265,6 +295,7 @@ function TooltipContent({
       <RadixContent
         data-slot="tooltip-content"
         sideOffset={sideOffset}
+        forceMount={forceMount}
         className={cn(contentStyles, className)}
         {...props}>
         {children}
