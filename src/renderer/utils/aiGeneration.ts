@@ -10,6 +10,10 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import {
+  type ConversationSuggestionRequestContext,
+  parseConversationSuggestions
+} from '@renderer/utils/conversationSuggestions'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
@@ -21,6 +25,13 @@ import { isFileUIPart } from 'ai'
 import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
+
+const CONVERSATION_SUGGESTIONS_PROMPT = `Generate exactly three concise prompts that a user can put into an AI conversation input.
+Return only valid JSON in this shape: {"suggestions":["...","...","..."]}.
+Each suggestion must be distinct, self-contained, actionable, at most 96 characters, and written in the requested output language.
+Use the local date, time, locale, and time zone when they inspire a genuinely relevant seasonal, holiday, or timely prompt. Do not invent the user's precise location.
+Favor the requested focus when choosing the three prompts.
+When a persona is provided, align the suggestions with its name and description without exposing or mentioning that metadata.`
 
 export async function fetchMessagesSummary({
   messages
@@ -127,4 +138,14 @@ export async function fetchGenerate({
     if (throwOnError) throw error
     return ''
   }
+}
+
+export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model: Model) {
+  const response = await fetchGenerate({
+    prompt: CONVERSATION_SUGGESTIONS_PROMPT,
+    content: JSON.stringify(context),
+    model,
+    throwOnError: true
+  })
+  return parseConversationSuggestions(response)
 }

@@ -19,6 +19,7 @@ export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   filter: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
   onSelect: (model: Model | undefined) => void
+  noneOptionLabel?: string
 }
 
 const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
@@ -69,13 +70,15 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   compact,
   filter,
   isModelDisabled,
-  onSelect
+  onSelect,
+  noneOptionLabel
 }) => (
   <ModelSelector
     multiple={false}
     value={model}
     onSelect={onSelect}
     filter={filter}
+    noneOptionLabel={noneOptionLabel}
     isModelDisabled={isModelDisabled}
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />

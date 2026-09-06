@@ -19,6 +19,7 @@ import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
+import { knowledgeBaseToComposerToken } from '../chatComposerTokens'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -204,6 +205,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    FILL_CHAT_COMPOSER: 'FILL_CHAT_COMPOSER',
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     SEND_MESSAGE: 'SEND_MESSAGE'
@@ -1351,6 +1353,106 @@ describe('ChatComposer', () => {
       mocks.eventListeners.get('FOCUS_CHAT_COMPOSER')?.({ topicId: 'topic-1' })
     })
     expect(mocks.focusComposer).toHaveBeenCalledTimes(1)
+  })
+
+  it('fills only the current topic draft while preserving its tokens and without sending', async () => {
+    const onSend = vi.fn()
+    const knowledgeToken = {
+      ...knowledgeBaseToComposerToken({ id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase),
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const tokens: ComposerSerializedToken[] = [knowledgeToken]
+    mocks.getDraft.mockReturnValue({ text: knowledgeToken.promptText, tokens })
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'other-topic', text: 'Ignore me' })
+    })
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({
+      text: `${knowledgeToken.promptText} Use this prompt`,
+      tokens
+    })
+    expect(mocks.surfaceProps?.text).toBe(`${knowledgeToken.promptText} Use this prompt`)
+    expect(onSend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.focusComposer).toHaveBeenCalledWith('end'))
+  })
+
+  it('does not replace typed draft text when a suggestion is clicked', async () => {
+    mocks.getDraft.mockReturnValue({ text: 'already typed', tokens: [] })
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).not.toBe('Use this prompt')
+  })
+
+  it('fills an empty parked draft while input history is previewed', async () => {
+    const onSend = vi.fn()
+    seedInputHistory(['previous chat prompt'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous chat prompt')
+    })
+
+    await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
+    mocks.replaceDraft.mockClear()
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
+    })
+
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Use this prompt', tokens: [] })
+    expect(mocks.surfaceProps?.text).toBe('Use this prompt')
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('does not replace a typed parked draft while input history is previewed', async () => {
+    seedInputHistory(['previous chat prompt'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('already typed')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('already typed'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous chat prompt')
+    })
+
+    await waitFor(() => expect(mocks.eventListeners.has('FILL_CHAT_COMPOSER')).toBe(true))
+    mocks.replaceDraft.mockClear()
+    act(() => {
+      mocks.eventListeners.get('FILL_CHAT_COMPOSER')?.({ topicId: 'topic-1', text: 'Use this prompt' })
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('previous chat prompt')
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

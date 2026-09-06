@@ -201,6 +201,20 @@
       "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "chat.suggestions.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Generate starter prompts for empty Chat and Agent conversations; off by default to avoid background paid generation"
+    },
+    {
+      "targetKey": "chat.suggestions.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Conversation suggestions model UniqueModelId; null falls back to chat.default_model_id"
+    },
+    {
       "targetKey": "chat.retry.enabled",
       "type": "boolean",
       "defaultValue": false,
