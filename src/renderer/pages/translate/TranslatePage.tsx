@@ -35,12 +35,7 @@ import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
-import {
-  createInputScrollHandler,
-  createOutputScrollHandler,
-  determineTargetLanguage,
-  UNKNOWN_LANG_CODE
-} from '@renderer/utils/translate'
+import { createInputScrollHandler, createOutputScrollHandler } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
   BABELDOC_MINIMUM_VERSION,
@@ -56,6 +51,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { determineTargetLanguage, UNKNOWN_LANG_CODE } from '@shared/utils/translateLanguage'
 import { getRouteApi } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'

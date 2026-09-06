@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/ai/prompts'
 import {
   type AutoDetectionMethod,
@@ -13,6 +12,7 @@ import {
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { isQwenMTModel } from '@shared/utils/model'
+import { UNKNOWN_LANG_CODE } from '@shared/utils/translateLanguage'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
