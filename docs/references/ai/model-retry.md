@@ -83,9 +83,10 @@ retryable errors (such as 503/529) before cross-model fallback begins.
 createRetryableModel({
   model: base,
   retries: [
-    // same-model retry on retryable errors. maxAttempts = max_attempts + 1
-    // (ai-retry counts the original call, so the pref reads as the number of
-    // RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
+    // API-key failover consumes 401/429 first; same-model retry handles the
+    // remaining retryable errors (such as 503/529). maxAttempts =
+    // max_attempts + 1 (ai-retry counts the original call, so the pref reads as
+    // the number of RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
     error.isRetryable(true).retry({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
     // fallbacks are lazy, error-only Retryable fns. Successful resolution is
     // memoized; a null result is retried on a later failure.
