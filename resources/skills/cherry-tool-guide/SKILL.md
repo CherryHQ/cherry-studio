@@ -1,7 +1,7 @@
 ---
 name: cherry-tool-guide
 description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, coordinating or delegating across Agent Sessions, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, skill, or MCP-server-registration capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Cherry Tool Guide
@@ -43,7 +43,7 @@ parameter names, enums, and required fields. Read it before every call.
   the session's approval mode. Call them only once the user's intent is clear; if approval is
   declined, stop and report — do not retry the same effect through another route.
 - **Intent still gates auto-approved effects.** Memory writes, schedule changes,
-  notifications, and agent/channel configuration may execute without an approval card.
+  notifications, agent/channel configuration, and same-Agent Session renames may execute without an approval card.
   Do not call them merely because they are available; first make sure the user requested
   the effect or it is necessary to complete an already-approved task.
 
@@ -61,7 +61,7 @@ parameter names, enums, and required fields. Read it before every call.
 | Schedule a recurring / future task | `mcp__cherry-tools__cron` (Cherry scheduling only) | [autonomy.md](references/autonomy.md) |
 | Proactively message the user or send a file | `mcp__cherry-tools__notify` | [autonomy.md](references/autonomy.md) |
 | Inspect / connect / repair IM channels, rename agent | `mcp__cherry-tools__config` | [autonomy.md](references/autonomy.md) |
-| Find, create, message, or inspect work across Agent Sessions | `mcp__cherry-tools__session_list` / `session_search` / `session_create` / `session_send` / `session_deliveries` | [sessions.md](references/sessions.md) |
+| Find, rename, create, message, or inspect work across Agent Sessions | `mcp__cherry-tools__session_list` / `session_search` / `session_rename` / `session_create` / `session_send` / `session_deliveries` | [sessions.md](references/sessions.md) |
 | Generate an image | `mcp__cherry-tools__generate_image` (needs a painting model) | [outputs.md](references/outputs.md) |
 | Declare final deliverable file(s) | `mcp__cherry-tools__report_artifacts` | [outputs.md](references/outputs.md) |
 | Run JS/TS or Python, invoke a one-off package, search local code/files | bundled `bun`, `uv` / `uvx`, or `rg` according to task lifetime | [cli.md](references/cli.md) |

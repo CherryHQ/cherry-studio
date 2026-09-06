@@ -12,8 +12,8 @@
  * only `(args, signal)`. Domain tools that act on behalf of the session's agent are
  * split into sibling providers this server merely aggregates and dispatches to by
  * protocol — it stays unaware of their domain logic:
- * - {@link CherryAutonomyTools} (`…__cron`, `…__notify`, `…__config`) — schedules,
- *   notifies, and self-configures the agent.
+ * - {@link CherryAutonomyTools} — schedules, notifies, self-configures, and coordinates
+ *   the agent's Sessions.
  * - {@link CherryKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  * - {@link CherryCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —

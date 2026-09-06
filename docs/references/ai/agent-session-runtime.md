@@ -7,6 +7,9 @@ sources:
   - src/main/ai/runtime/pi
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
+  - src/main/data/services/AgentSessionService.ts
+  - src/shared/ai/agentSessionDelivery.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - packages/dsh-bridge/src/plugin.ts
 ---
@@ -163,7 +166,7 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes six tools:
 
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
@@ -171,6 +174,8 @@ and exposes five tools:
   filters are applied before either search limit. The final limit counts distinct Sessions, each
   Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
   hits instead of overloading an empty message-match list;
+- `session_rename` — rename the display title of a Session owned by the current Agent and mark it
+  as manually named, without changing its id, workspace, history, or routing;
 - `session_create` — atomically create a same-Agent Session plus its first completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
@@ -193,6 +198,13 @@ durable request reaches `accepted`; it never waits for scheduling or target exec
 `session_create` reuses the same completion-request path after creating the same-Agent Session. The
 model is not a tool argument because Sessions use their owning Agent's model.
 
+`session_rename` accepts a `session_id` and a trimmed, non-empty `title` of at most 255 characters.
+The host atomically matches both the Session id and the trusted current Agent id before updating the
+display name. Missing, orphaned, and foreign-Agent Sessions therefore fail identically. Renaming
+sets `isNameManuallyEdited` so automatic naming cannot overwrite the chosen title. It does not
+alter Session identity, workspace, messages, history, or delivery routing; display snapshots already
+stored on delivery envelopes remain frozen at their original values.
+
 ### Deliberate security ceiling
 
 `session_send` and `session_create` always require a live per-call user approval because both start
@@ -200,6 +212,10 @@ another Agent Session turn. A headless delivery, channel turn, scheduled turn, o
 without an approval responder is denied before either tool runs. Runtime-generated completion
 results do not call a model tool and route only to the immutable sender Session stored on the
 accepted request.
+
+`session_rename` is an auto-approved display-metadata operation, like Agent configuration rename,
+but remains interactive-only and current-Agent-owned. Tool availability is not intent: the Agent
+must rename only when required by the user's active task.
 
 This deliberately limits the first version to one user-approved delegation hop. A Session started
 by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
@@ -209,10 +225,11 @@ speculative ACL subsystem. Upgrade only when the product requires unattended mul
 collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
 ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
-List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
-scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
-but still require a live approval for delegation. Knowing a Session or message id never grants
-access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+List, search, rename, send, create, and delivery-query access share one authorization boundary.
+Channel, scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover
+Sessions but still require a live approval for delegation. Knowing a Session or message id never
+grants access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor;
+rename writes additionally require ownership by the trusted current Agent.
 
 ### Durable row shape
 
@@ -827,6 +844,8 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
 - interactive `session_send` and `session_create` request approval, while headless calls are denied
   and runtime-generated completion delivery remains allowed;
+- `session_rename` tests pin same-Agent ownership, input boundaries, the manual-name marker,
+  unchanged `lastActivityAt`, and headless denial;
 - concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
   CAS owner before producing one send;
-- list, search, send, and deliveries queries enforce the same visibility rules.
+- list, search, rename, send, and deliveries queries enforce the same authorization boundary.

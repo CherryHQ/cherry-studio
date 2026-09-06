@@ -740,6 +740,24 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
+  renameOwned(params: { sessionId: string; expectedAgentId: string; name: string }): AgentSessionEntity {
+    const [updated] = withSqliteErrors(
+      () =>
+        application
+          .get('DbService')
+          .getDb()
+          .update(sessionsTable)
+          .set({ name: params.name, isNameManuallyEdited: true })
+          .where(and(eq(sessionsTable.id, params.sessionId), eq(sessionsTable.agentId, params.expectedAgentId)))
+          .returning({ id: sessionsTable.id })
+          .all(),
+      defaultHandlersFor('Session', params.sessionId)
+    )
+    if (!updated) throw DataApiErrorFactory.notFound('Session', params.sessionId)
+    this.notifyReadModelChange([params.sessionId], 'projection')
+    return this.getById(params.sessionId)
+  }
+
   updateTx(
     tx: DbOrTx,
     id: string,
