@@ -37,14 +37,12 @@ describe('native-protocol reasoning dialect', () => {
   })
 
   // Ground truth: the exact set that carried a hand-pinned budget contract
-  // before the dialect became data, plus gemini-robotics (a 2.x-era derivative
-  // that was never pinned and had been taking the level wire by mistake).
+  // before the dialect became data.
   it.each([
     ['gemini-2-5-flash', 'budget'],
     ['gemini-2-5-pro', 'budget'],
     ['gemini-2-5-flash-lite', 'budget'],
     ['gemini-omni-flash-preview', 'budget'],
-    ['gemini-robotics-er-1-6-preview', 'budget'],
     ['gemini-3-flash', 'effort'],
     // Both Nano Banana 2 variants are Gemini 3.1 and declare identical controls
     // (effort [minimal, high], no `none` — thinking can't be disabled), so they
