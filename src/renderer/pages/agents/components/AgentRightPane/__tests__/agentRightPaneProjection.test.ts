@@ -275,6 +275,34 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  // The CLI's `done.`-prefixed receipt wording is used by real sessions; its launches must split
+  // resumed rounds exactly like the `Async agent launched successfully.` form.
+  it('splits rounds for a done-prefixed textual launch receipt', () => {
+    const launchOutput = "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-77', message: 'Continue' },
+        { success: true, resumedAgentId: 'agent-77' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+  })
+
   // A continuation whose message is blank must still show the sent summary between rounds.
   it('falls back to the summary when the resume message is blank', () => {
     const launchOutput =
