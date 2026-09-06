@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
+  getFirstUserMessage: vi.fn(),
   updateSession: vi.fn()
 }))
 
@@ -68,6 +69,12 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
+    getFirstUserMessage: mocks.getFirstUserMessage
+  }
+}))
+
 const { TopicNamingService } = await import('../TopicNamingService')
 
 // Read the renderer catalog from disk rather than importing it, so the main/preload
@@ -104,6 +111,11 @@ function mockRenameInputs() {
     id: 'message-1',
     role: 'user',
     data: { parts: [{ type: 'text', text: 'Hello there' }] }
+  })
+  mocks.getFirstUserMessage.mockReturnValue({
+    id: 'user-1',
+    role: 'user',
+    data: { parts: [{ type: 'text', text: 'User request' }] }
   })
   mocks.generateText.mockResolvedValue({ text: 'Generated Title' })
 }
@@ -591,6 +603,48 @@ describe('TopicNamingService', () => {
     })
   })
 
+  it('uses the first persisted user message to authorize naming after a different retry prompt', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'Initial request',
+      isNameManuallyEdited: false
+    })
+    mocks.getFirstUserMessage.mockReturnValue({
+      id: 'user-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'Initial request' }] }
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'Try again', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Recovered response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: expect.stringContaining('"mainText":"Try again"') })
+    )
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it.each([
+    ['truncated first-message title', 'x'.repeat(50), false, `${'x'.repeat(50)} later content`, true],
+    ['generated title', 'Generated Title', false, 'First user text', false],
+    ['manual title', 'Manual Title', true, 'First user text', false]
+  ])('reports a %s as auto-naming eligible: %s', (_case, name, isNameManuallyEdited, firstUserText, expected) => {
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', name, isNameManuallyEdited })
+    mocks.getFirstUserMessage.mockReturnValue({
+      id: 'user-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: firstUserText }] }
+    })
+
+    expect(createService().canAutoNameAgentSession('session-1')).toBe(expected)
+  })
+
   it('allows summary rename after first-message extraction and summary extraction see the same message data', async () => {
     const userMessageData = {
       parts: [
@@ -618,6 +672,11 @@ describe('TopicNamingService', () => {
       agentId: 'agent-1',
       name: 'first line second line',
       isNameManuallyEdited: false
+    })
+    mocks.getFirstUserMessage.mockReturnValue({
+      id: 'user-1',
+      role: 'user',
+      data: userMessageData
     })
     mocks.generateText.mockResolvedValue({ text: 'Generated Title' })
 

@@ -84,6 +84,7 @@ export interface AgentRuntimeUserInput {
    *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
   headless?: boolean
   messageSnapshot?: MessageSnapshot
+  shouldAutoName?: boolean
 }
 
 /**

@@ -62,6 +62,7 @@ export type ValidatedAgentDispatch = {
   userMessageParts: CherryMessagePart[]
   deliveryMessage?: AgentSessionMessageEntity
   shouldAutoNameInitialTurn: boolean
+  shouldAutoName: boolean
 }
 
 export type PersistedAgentDispatch = {
@@ -138,6 +139,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
+    const shouldAutoName = shouldAutoNameInitialTurn || topicNamingService.canAutoNameAgentSession(sessionId)
     return {
       sessionId,
       topicId: req.topicId,
@@ -163,7 +165,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
       ...(deliveryMessage ? { deliveryMessage } : {}),
-      shouldAutoNameInitialTurn
+      shouldAutoNameInitialTurn,
+      shouldAutoName
     }
   }
 
@@ -252,7 +255,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
-        shouldAutoName: validated.shouldAutoNameInitialTurn
+        shouldAutoName: validated.shouldAutoName
       })
     } catch (error) {
       turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
@@ -326,7 +329,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode
+        fastMode: validated.fastMode,
+        shouldAutoName: validated.shouldAutoName
       })
 
       return {

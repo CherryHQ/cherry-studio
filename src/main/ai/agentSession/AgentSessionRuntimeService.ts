@@ -157,7 +157,7 @@ export interface BeginAgentSessionTurnInput {
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
   messageSnapshot?: MessageSnapshot
-  /** Only an untouched session's initial turn may run the two-stage automatic naming flow. */
+  /** Whether this turn may complete the session's pending automatic naming flow. */
   shouldAutoName?: boolean
 }
 
@@ -198,7 +198,7 @@ type AgentSessionTurn = {
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
-  /** Whether this initial turn owns the session's one automatic AI naming attempt. */
+  /** Whether this dispatch found the session eligible for automatic naming. */
   shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -213,6 +213,8 @@ type AgentSessionTurn = {
 
 type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
+  /** Whether this queued turn may complete the session's pending automatic naming flow. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
@@ -825,6 +827,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
+      shouldAutoName?: boolean
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
@@ -869,6 +872,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry)?.redirect?.({
         message,
         systemReminder: true,
+        ...(opts.shouldAutoName ? { shouldAutoName: true } : {}),
         ...(headless ? { headless } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
       })
@@ -887,6 +891,7 @@ export class AgentSessionRuntimeService extends BaseService {
         knowledgeBaseIds,
         fastMode,
         steer: true,
+        ...(opts.shouldAutoName ? { shouldAutoName: true } : {}),
         ...(headless ? { headless } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
@@ -1727,6 +1732,7 @@ export class AgentSessionRuntimeService extends BaseService {
               knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
               fastMode: this.currentTurn(entry)?.fastMode ?? false,
               steer: true,
+              ...(input.shouldAutoName ? { shouldAutoName: true } : {}),
               ...(input.headless ? { headless: true } : {}),
               ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
             }
@@ -2660,6 +2666,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless,
+      shouldAutoName: pendingTurn.shouldAutoName === true,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
@@ -2943,6 +2950,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless,
+      shouldAutoName: transition.inputs.some((input) => input.shouldAutoName === true),
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
@@ -3084,6 +3092,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const userText = extractMessageText(userMessage)
     const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
+          currentTurn.shouldAutoName = false
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
       : undefined

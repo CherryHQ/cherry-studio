@@ -99,7 +99,7 @@ const baseTurnInput = {
 }
 const switchedModelId = 'claude-code::claude-opus-4-5' as any
 
-function userMessage(id: string, knowledgeBaseIds: string[] = []) {
+function userMessage(id: string, knowledgeBaseIds: string[] = [], text = 'hello') {
   return {
     id,
     topicId: 'agent-session:session-1',
@@ -107,7 +107,7 @@ function userMessage(id: string, knowledgeBaseIds: string[] = []) {
     role: 'user',
     data: {
       parts: [
-        { type: 'text', text: 'hello' },
+        { type: 'text', text },
         ...(knowledgeBaseIds.length ? [{ type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }] : [])
       ]
     },
@@ -910,7 +910,10 @@ describe('AgentSessionRuntimeService', () => {
 
       // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
       // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
-      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      service.enqueueUserMessage('session-1', userMessage('user-2'), {
+        messageSnapshot: followUpSnapshot,
+        shouldAutoName: true
+      })
       expect(connection.redirect).toHaveBeenCalled()
       expect(entry.pendingTurns).toEqual([])
 
@@ -918,7 +921,7 @@ describe('AgentSessionRuntimeService', () => {
       // The driver echoes the redirected input verbatim, so its attributes ride the round-trip.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-boundary',
-        inputs: [{ message: userMessage('user-2'), systemReminder: true, messageSnapshot: followUpSnapshot }]
+        inputs: [connection.redirect.mock.calls[0][0]]
       })
       service.markTurnTerminal('session-1', 'success', sourceTurnId)
       await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
@@ -927,6 +930,18 @@ describe('AgentSessionRuntimeService', () => {
         .map((call) => call[0].message)
         .filter((m: any) => m.role === 'assistant')
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+
+      const continuation = mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]
+      await persistenceListener(continuation).onDone({
+        status: 'success',
+        isTopicDone: true,
+        finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+      })
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
+        id: 'assistant-2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'recovered' }]
+      })
       void service.closeSession('session-1')
     })
 
@@ -989,14 +1004,17 @@ describe('AgentSessionRuntimeService', () => {
       entry.connectionModelId = baseTurnInput.modelId
       entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
 
-      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+      service.enqueueUserMessage('session-1', userMessage('user-2'), {
+        messageSnapshot: followUpSnapshot,
+        shouldAutoName: true
+      })
       expect(connection.redirect).toHaveBeenCalled()
 
       // Turn ended before the steer landed → requeued; the driver echoes the redirected input
       // (including its attributes), and the requeued turn must still freeze the follow-up snapshot.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'steer-undelivered',
-        inputs: [{ message: userMessage('user-2'), messageSnapshot: followUpSnapshot }]
+        inputs: [connection.redirect.mock.calls[0][0]]
       })
       service.markTurnTerminal('session-1', 'success')
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1005,6 +1023,18 @@ describe('AgentSessionRuntimeService', () => {
         .map((call) => call[0].message)
         .filter((m: any) => m.role === 'assistant')
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+
+      const queuedTurn = mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]
+      await persistenceListener(queuedTurn).onDone({
+        status: 'success',
+        isTopicDone: true,
+        finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+      })
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
+        id: 'assistant-2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'recovered' }]
+      })
     })
 
     it('opens an unmarked queued busy follow-up as interactive', async () => {
@@ -3305,6 +3335,115 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
+  })
+
+  it('carries automatic naming eligibility into queued turn persistence', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    service.enqueueUserMessage('session-1', userMessage('user-2', [], 'Try again'), { shouldAutoName: true })
+    service.markTurnTerminal('session-1', 'success')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const startedTurn = mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]
+    expect(startedTurn).toBeDefined()
+    await persistenceListener(startedTurn).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+    })
+
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'Try again', {
+      id: 'assistant-2',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'recovered' }]
+    })
+  })
+
+  it.each(['paused', 'error'] as const)(
+    'auto-names an eligible retry after the first assistant turn is %s',
+    async (status) => {
+      const service = new AgentSessionRuntimeService()
+      const first = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1'),
+        shouldAutoName: true
+      })
+
+      if (status === 'paused') {
+        await persistenceListener(first).onPaused({ status, isTopicDone: true, finalMessage: undefined })
+        terminalListener(first).onPaused({ status, isTopicDone: true })
+      } else {
+        const error = { name: 'Error', message: 'first turn failed' }
+        await persistenceListener(first).onError({ status, isTopicDone: true, error, finalMessage: undefined })
+        terminalListener(first).onError({ status, isTopicDone: true, error })
+      }
+
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2', [], 'Try again'),
+        shouldAutoName: true
+      })
+      await persistenceListener(second).onDone({
+        status: 'success',
+        isTopicDone: true,
+        finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+      })
+
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledOnce()
+      expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'Try again', {
+        id: 'assistant-2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'recovered' }]
+      })
+    }
+  )
+
+  it('does not let receive-only persistence consume a later user turn naming retry', async () => {
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: userMessage('user-1', [], 'Initial request'),
+      shouldAutoName: true
+    })
+    const entry = getEntry(service)
+
+    const error = { name: 'Error', message: 'first turn failed' }
+    await persistenceListener(first).onError({ status: 'error', isTopicDone: true, error, finalMessage: undefined })
+    terminalListener(first).onError({ status: 'error', isTopicDone: true, error })
+
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+    ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    const receiveOnly = mocks.startRuntimeTurn.mock.calls[0][0]
+    await persistenceListener(receiveOnly).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'wake-1', role: 'assistant', parts: [{ type: 'text', text: 'background output' }] }
+    })
+    expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
+
+    terminalListener(receiveOnly).onDone({ status: 'success', isTopicDone: true })
+    const retry = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2', [], 'Try again'),
+      shouldAutoName: true
+    })
+    await persistenceListener(retry).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'recovered' }] }
+    })
+
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledOnce()
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'Try again', {
+      id: 'assistant-2',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'recovered' }]
+    })
   })
 
   it('persists empty paused terminals to the active assistant placeholder', async () => {
