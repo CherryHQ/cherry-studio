@@ -160,7 +160,7 @@ export class TranslateTask implements StreamListener {
   // ── StreamListener ────────────────────────────────────────────────
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
-    if (isTextDelta(chunk)) this.accumulated += chunk.delta
+    if (chunk.type === 'text-delta') this.accumulated += chunk.delta
     this.forwarder?.onChunk(chunk, sourceModelId, anchorMessageId, attemptId)
   }
 
@@ -239,8 +239,4 @@ export class TranslateTask implements StreamListener {
   ): void {
     application.get('IpcApiService').send(this.senderId, event as never, payload as never)
   }
-}
-
-function isTextDelta(chunk: UIMessageChunk): chunk is UIMessageChunk & { delta: string } {
-  return (chunk as { type?: string }).type === 'text-delta' && typeof (chunk as { delta?: unknown }).delta === 'string'
 }
