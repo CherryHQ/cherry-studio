@@ -5144,6 +5144,7 @@
   "translate.error.failed": "翻訳に失敗しました",
   "translate.error.languages_load_failed": "言語の読み込みに失敗しました。一部の機能が利用できない場合があります。",
   "translate.error.not_configured": "翻訳モデルが設定されていません",
+  "translate.error.not_supported": "Qwen MT は選択した翻訳先の言語をサポートしていません",
   "translate.exchange.label": "入力言語と出力言語を入れ替える",
   "translate.files.drag_text": "ここにドラッグ＆ドロップしてください",
   "translate.files.error.check_type": "ファイルタイプの確認中にエラーが発生しました",

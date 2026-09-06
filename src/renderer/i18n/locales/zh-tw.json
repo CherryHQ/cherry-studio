@@ -5144,6 +5144,7 @@
   "translate.error.failed": "翻譯失敗",
   "translate.error.languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
   "translate.error.not_configured": "翻譯模型未設定",
+  "translate.error.not_supported": "Qwen MT 不支援所選的目標語言",
   "translate.exchange.label": "交換來源語言與目標語言",
   "translate.files.drag_text": "拖曳到此處",
   "translate.files.error.check_type": "檢查檔案類型時發生錯誤",

@@ -40,6 +40,107 @@ import { WebContentsListener } from '../../ai/streamManager'
 const logger = loggerService.withContext('TranslateService')
 
 const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
+const NOT_SUPPORTED_ERROR = 'translate.error.not_supported'
+
+const QWEN_MT_TARGET_LANGUAGES: Readonly<Record<string, string>> = {
+  en: 'English',
+  ru: 'Russian',
+  ja: 'Japanese',
+  ko: 'Korean',
+  es: 'Spanish',
+  fr: 'French',
+  pt: 'Portuguese',
+  de: 'German',
+  it: 'Italian',
+  th: 'Thai',
+  vi: 'Vietnamese',
+  id: 'Indonesian',
+  ms: 'Malay',
+  ar: 'Arabic',
+  hi: 'Hindi',
+  he: 'Hebrew',
+  my: 'Burmese',
+  ta: 'Tamil',
+  ur: 'Urdu',
+  bn: 'Bengali',
+  pl: 'Polish',
+  nl: 'Dutch',
+  ro: 'Romanian',
+  tr: 'Turkish',
+  km: 'Khmer',
+  lo: 'Lao',
+  yue: 'Cantonese',
+  cs: 'Czech',
+  el: 'Greek',
+  sv: 'Swedish',
+  hu: 'Hungarian',
+  da: 'Danish',
+  fi: 'Finnish',
+  uk: 'Ukrainian',
+  bg: 'Bulgarian',
+  sr: 'Serbian',
+  te: 'Telugu',
+  af: 'Afrikaans',
+  hy: 'Armenian',
+  as: 'Assamese',
+  ast: 'Asturian',
+  eu: 'Basque',
+  be: 'Belarusian',
+  bs: 'Bosnian',
+  ca: 'Catalan',
+  ceb: 'Cebuano',
+  hr: 'Croatian',
+  arz: 'Egyptian Arabic',
+  et: 'Estonian',
+  gl: 'Galician',
+  ka: 'Georgian',
+  gu: 'Gujarati',
+  is: 'Icelandic',
+  jv: 'Javanese',
+  kn: 'Kannada',
+  kk: 'Kazakh',
+  lv: 'Latvian',
+  lt: 'Lithuanian',
+  lb: 'Luxembourgish',
+  mk: 'Macedonian',
+  mai: 'Maithili',
+  mt: 'Maltese',
+  mr: 'Marathi',
+  acm: 'Mesopotamian Arabic',
+  ary: 'Moroccan Arabic',
+  ars: 'Najdi Arabic',
+  ne: 'Nepali',
+  az: 'North Azerbaijani',
+  apc: 'North Levantine Arabic',
+  uz: 'Northern Uzbek',
+  nb: 'Norwegian Bokmål',
+  nn: 'Norwegian Nynorsk',
+  oc: 'Occitan',
+  or: 'Odia',
+  pag: 'Pangasinan',
+  scn: 'Sicilian',
+  sd: 'Sindhi',
+  si: 'Sinhala',
+  sk: 'Slovak',
+  sl: 'Slovenian',
+  ajp: 'South Levantine Arabic',
+  sw: 'Swahili',
+  tl: 'Tagalog',
+  acq: 'Ta’izzi-Adeni Arabic',
+  sq: 'Tosk Albanian',
+  aeb: 'Tunisian Arabic',
+  vec: 'Venetian',
+  war: 'Waray',
+  cy: 'Welsh',
+  fa: 'Western Persian'
+}
+
+function resolveQwenMtTargetLanguage(language: TranslateLanguage): string | undefined {
+  if (language.langCode === 'zh-cn') return 'Chinese'
+  if (language.langCode === 'zh-tw') return 'Traditional Chinese'
+  if (language.langCode === 'zh-yue') return 'Cantonese'
+  return QWEN_MT_TARGET_LANGUAGES[language.langCode.split('-')[0]]
+}
 
 /**
  * Namespaced prefix every translate stream uses for its `streamId` /
@@ -107,7 +208,7 @@ export class TranslateService {
     }
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
     const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
-    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
+    const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model, targetLanguage)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
 
@@ -150,7 +251,10 @@ export class TranslateService {
    * re-projects against the endpoint the request actually uses. #19693 is the
    * exit — it moves this gate inside the pipeline, where both are known.
    */
-  resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
+  resolveRequestParameters(
+    model: Model,
+    targetLanguage?: TranslateLanguage
+  ): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')
     const reasoningEffort = preferenceService.get('feature.translate.reasoning_effort')
     const settings = {
@@ -163,12 +267,23 @@ export class TranslateService {
     const reasoning = { kind: reasoningKindFor(reasoningEffort, model) }
     const temperature = getTemperature(settings, model, reasoning)
     const topP = getTopP(settings, model, reasoning)
+    let providerOptions: CallOverrides['providerOptions']
+    if (targetLanguage && isQwenMTModel(model)) {
+      const targetLang = resolveQwenMtTargetLanguage(targetLanguage)
+      if (!targetLang) throw new Error(NOT_SUPPORTED_ERROR)
+      providerOptions = {
+        [model.providerId]: {
+          translation_options: { source_lang: 'auto', target_lang: targetLang }
+        }
+      }
+    }
 
     return {
       reasoningEffort,
       callOverrides: {
         ...(temperature !== undefined && { temperature }),
-        ...(topP !== undefined && { topP })
+        ...(topP !== undefined && { topP }),
+        ...(providerOptions && { providerOptions })
       }
     }
   }

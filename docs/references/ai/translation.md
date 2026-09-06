@@ -84,6 +84,10 @@ not configure. (Layout-preserving PDF translation does not go through this
 route: `PdfTranslationService` drives BabelDoc via the API gateway and reads
 none of `feature.translate.*`.)
 
+Qwen-MT receives the source text directly plus provider-scoped
+`translation_options` with automatic source detection and the mapped target
+language. Unsupported target languages fail before the stream is opened.
+
 ## Home message persistence
 
 Home chat owns the message projection through its existing chat write boundary:

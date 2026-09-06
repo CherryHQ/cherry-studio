@@ -5144,6 +5144,7 @@
   "translate.error.failed": "Traducerea a eșuat",
   "translate.error.languages_load_failed": "Nu s-au putut încărca limbile de traducere. Este posibil ca unele funcționalități să nu fie disponibile.",
   "translate.error.not_configured": "Modelul de traducere nu este configurat",
+  "translate.error.not_supported": "Qwen MT nu acceptă limba țintă selectată",
   "translate.exchange.label": "Schimbă limbile sursă și țintă",
   "translate.files.drag_text": "Trage aici",
   "translate.files.error.check_type": "A apărut o eroare la verificarea tipului de fișier",

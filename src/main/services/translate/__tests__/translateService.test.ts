@@ -195,6 +195,63 @@ describe('translateService.open', () => {
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
   })
 
+  it('sends the Qwen MT target language through DashScope provider options', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'dashscope::qwen-mt-turbo')
+    getByKeyMock.mockReturnValue({
+      id: 'dashscope::qwen-mt-turbo',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-turbo',
+      name: 'Qwen MT Turbo'
+    })
+    getByLangCodeMock.mockReturnValue({
+      ...TARGET,
+      langCode: 'zh-cn',
+      value: 'Chinese (Simplified)'
+    })
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-mt',
+      text: '原文',
+      targetLangCode: 'zh-cn'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: '原文',
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            dashscope: {
+              translation_options: {
+                source_lang: 'auto',
+                target_lang: 'Chinese'
+              }
+            }
+          }
+        })
+      })
+    )
+  })
+
+  it('rejects a Qwen MT target language that the model does not support', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'dashscope::qwen-mt-turbo')
+    getByKeyMock.mockReturnValue({
+      id: 'dashscope::qwen-mt-turbo',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-turbo',
+      name: 'Qwen MT Turbo'
+    })
+    getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'eo', value: 'Esperanto' })
+
+    expect(() =>
+      translateService.open(fakeSender, {
+        streamId: 'translate:qwen-mt-unsupported',
+        text: 'source',
+        targetLangCode: 'eo' as any
+      })
+    ).toThrow('translate.error.not_supported')
+    expect(streamPromptMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a streamId that does not carry the translate prefix', async () => {
     expect(() =>
       translateService.open(fakeSender, {

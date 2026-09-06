@@ -5144,6 +5144,7 @@
   "translate.error.failed": "Translation failed",
   "translate.error.languages_load_failed": "Failed to load translate languages. Some features may be unavailable.",
   "translate.error.not_configured": "Translation model is not configured",
+  "translate.error.not_supported": "Qwen MT does not support the selected target language",
   "translate.exchange.label": "Swap the source and target languages",
   "translate.files.drag_text": "Drop here",
   "translate.files.error.check_type": "An error occurred while checking the file type",

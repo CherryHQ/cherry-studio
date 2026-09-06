@@ -19,8 +19,8 @@ renderer translateText
 ```
 
 Translation has no assistant, message history, tools, or chat
-`RequestFeature` stack. Qwen-MT receives raw text; other models receive the
-configured translation prompt.
+`RequestFeature` stack. Qwen-MT receives raw text plus its provider-scoped
+`translation_options`; other models receive the configured translation prompt.
 
 `translateService` remains a direct-import singleton. It owns no long-lived
 resource or persistent side effect; the lifecycle-owned IpcApi layer owns route
@@ -43,8 +43,6 @@ removed rather than optimized as an external store or Cache entry.
 
 ## Open questions
 
-- **Qwen-MT target language.** Current code sends raw text without a
-  `providerOptions.dashscope.translation_options.target_lang` override.
 - **Source-language detection.** `useDetectLang` remains renderer-owned.
 - **Translation history.** Text translation does not currently write
   `translate_history` rows.

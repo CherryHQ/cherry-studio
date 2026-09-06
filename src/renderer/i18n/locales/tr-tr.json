@@ -5144,6 +5144,7 @@
   "translate.error.failed": "Çeviri başarısız oldu",
   "translate.error.languages_load_failed": "Çeviri dilleri yüklenemedi. Bazı özellikler kullanılamayabilir.",
   "translate.error.not_configured": "Çeviri modeli yapılandırılmamış",
+  "translate.error.not_supported": "Qwen MT seçilen hedef dili desteklemiyor",
   "translate.exchange.label": "Kaynak ve hedef dilleri değiştir",
   "translate.files.drag_text": "Buraya bırakın",
   "translate.files.error.check_type": "Dosya türü kontrol edilirken bir hata oluştu",

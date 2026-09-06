@@ -5144,6 +5144,7 @@
   "translate.error.failed": "翻译失败",
   "translate.error.languages_load_failed": "翻译模块初始化失败，部分功能可能不可用",
   "translate.error.not_configured": "翻译模型未配置",
+  "translate.error.not_supported": "Qwen MT 不支持所选目标语言",
   "translate.exchange.label": "交换源语言与目标语言",
   "translate.files.drag_text": "拖放到此处",
   "translate.files.error.check_type": "检查文件类型时发生错误",
