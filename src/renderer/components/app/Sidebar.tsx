@@ -8,7 +8,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { tabSessionIdFromUrl, tabSessionRegistry, withoutTabSession } from '@renderer/services/TabSessionRegistry'
+import { tabSessionIdFromUrl, tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
 import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -16,6 +16,7 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isSamePage,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -205,8 +206,7 @@ export default function Sidebar({
         // conversation, and re-entering through the route interceptor would just rebind
         // it. Apps without sub-instances keep exact-URL matching.
         const isActiveTarget =
-          !!activeTab &&
-          (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : withoutTabSession(activeTab.url) === path)
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : isSamePage(activeTab.url, path))
         if (isActiveTarget) return
       }
 
