@@ -4,6 +4,21 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { getApplicationIdMock } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getApplicationId: getApplicationIdMock
+}))
+
+vi.mock('@main/core/platform', () => ({
+  isDev: false,
+  isLinux: false,
+  isMac: true,
+  isWin: false
+}))
+
 const { SelectionService } = await import('../SelectionService')
 
 // Reach the protected onAllReady/activate without widening the public surface.
@@ -189,5 +204,67 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
     await svc._doInit()
 
     expect(suspendPool).not.toHaveBeenCalled()
+  })
+})
+
+describe('SelectionService macOS toolbar', () => {
+  const createToolbarHarness = () => {
+    const svc = new SelectionService()
+    const toolbarWindow = {
+      isDestroyed: vi.fn(() => false),
+      setBounds: vi.fn(),
+      setFocusable: vi.fn(),
+      setPosition: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
+      showInactive: vi.fn()
+    }
+    const access = svc as unknown as {
+      toolbarWindow: typeof toolbarWindow
+      calculateToolbarPosition: () => { x: number; y: number }
+      getToolbarRealSize: () => { toolbarWidth: number; toolbarHeight: number }
+      showToolbarAtPosition: (point: { x: number; y: number }, orientation: string, programName: string) => void
+    }
+    access.toolbarWindow = toolbarWindow
+    vi.spyOn(access, 'calculateToolbarPosition').mockReturnValue({ x: 10, y: 20 })
+    vi.spyOn(access, 'getToolbarRealSize').mockReturnValue({ toolbarWidth: 100, toolbarHeight: 40 })
+
+    return { access, toolbarWindow }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    ['global', 'com.kangfenmao.CherryStudio'],
+    ['China', 'com.cherryai.cherrystudio.cn']
+  ])('preserves selection inside the %s edition', (_edition, applicationId) => {
+    getApplicationIdMock.mockReturnValue(applicationId)
+    const { access, toolbarWindow } = createToolbarHarness()
+
+    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', applicationId)
+
+    expect(toolbarWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+    expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+
+  it('treats the other edition as an external app', () => {
+    getApplicationIdMock.mockReturnValue('com.kangfenmao.CherryStudio')
+    const { access, toolbarWindow } = createToolbarHarness()
+
+    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.cherryai.cherrystudio.cn')
+
+    expect(toolbarWindow.setFocusable).toHaveBeenCalledWith(false)
+    expect(toolbarWindow.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
+    expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
   })
 })

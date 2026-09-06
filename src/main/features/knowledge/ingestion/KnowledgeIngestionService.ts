@@ -23,7 +23,7 @@ import {
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
-import { classifyKnowledgeItemSource } from '../items'
+import { classifyKnowledgeItemReacquireSource } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -35,7 +35,7 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '../pathStorage'
-import { planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
+import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
@@ -67,7 +67,12 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
  * not the full `KnowledgeIngestionService`.
  */
 export interface KnowledgeItemScheduler {
-  scheduleItem(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
+  scheduleItem(
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
+    parentJobId?: string | null,
+    options?: KnowledgeSourcePlanOptions
+  ): Promise<void>
   scheduleIndexing(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
   scheduleFileProcessingCheck(
     baseId: KnowledgeBaseId,
@@ -275,7 +280,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   async scheduleItem(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
-    parentJobId: string | null = null
+    parentJobId: string | null = null,
+    options: KnowledgeSourcePlanOptions = {}
   ): Promise<void> {
     const base = knowledgeBaseService.getById(baseId)
     const item = knowledgeItemService.getById(itemId)
@@ -286,10 +292,31 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return
     }
 
-    const plan = planKnowledgeItemSource(base, item)
+    const plan = planKnowledgeItemSource(base, item, options)
     if (plan.kind === 'invalid') {
       knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
       return
+    }
+
+    // A reindex just replaced this file's bytes. When the plan is not going to regenerate its
+    // processed artifact — the base's processor was removed, or the item arrived from a restore
+    // already carrying one — that artifact describes content the file no longer has, and indexing
+    // it would quietly rebuild search from the pre-refresh document. Unpin it (and reclaim its
+    // bytes, now that nothing reserves the path) so the index reads the refreshed file instead.
+    if (options.forceFileReprocess && plan.kind === 'index-documents' && item.type === 'file') {
+      const staleRelativePath = item.data.indexedRelativePath
+      if (staleRelativePath) {
+        knowledgeItemService.clearIndexedRelativePath(itemId)
+        await deleteKnowledgeItemFilesBestEffort(
+          baseId,
+          [{ type: 'file', data: { relativePath: staleRelativePath } }],
+          {
+            baseId,
+            itemId,
+            staleRelativePath
+          }
+        )
+      }
     }
 
     const jobManager = application.get('JobManager')
@@ -476,15 +503,15 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const rootIdSet = new Set(rootItemIds)
     const roots = subtreeItems.filter((item) => rootIdSet.has(item.id))
 
-    // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
-    // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-    // front. Only the root's own source matters: a directory is rescanned from data.source and its
-    // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
-    // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
-    // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
+    // Reindex re-acquires from the real source and then deletes the subtree's vectors
+    // (reindexSubtreeJobHandler), so a root whose source is gone would lose its vectors with nothing
+    // to rebuild from — reject up front. Only the root's own source matters: a directory is rescanned
+    // from data.source and its children recreated, a file leaf re-copies its own data.source, and
+    // note/url re-acquire from the DB / network. A v1-migrated folder child reindexed on its own is a
+    // file root pointing at a path outside any base, so this rejects it too. Distinguish a genuinely
     // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
     // which should retry rather than be destroyed).
-    const sourceStates = await Promise.all(roots.map((root) => classifyKnowledgeItemSource(baseId, root)))
+    const sourceStates = await Promise.all(roots.map((root) => classifyKnowledgeItemReacquireSource(root)))
 
     const missingSourceItemIds: string[] = []
     const unverifiableSourceItemIds: string[] = []

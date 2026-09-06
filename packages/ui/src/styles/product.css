@@ -47,6 +47,7 @@
   --highlight-foreground: var(--foreground);
   --highlight: var(--cs-amber-200);
   --highlight-accent: var(--cs-orange-400);
+  --markdown-important: var(--cs-violet-600);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
@@ -74,6 +75,7 @@
   --highlight-foreground: var(--foreground);
   --highlight: var(--cs-amber-900);
   --highlight-accent: var(--cs-orange-800);
+  --markdown-important: var(--cs-violet-400);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);

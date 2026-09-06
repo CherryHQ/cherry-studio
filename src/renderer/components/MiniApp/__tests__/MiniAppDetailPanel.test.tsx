@@ -1,6 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
+import type { Model } from '@shared/data/types/model'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,15 +9,35 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.
-const { request, activity } = vi.hoisted(() => ({
-  request: vi.fn(),
-  activity: { entries: [] as unknown[], bytes: 0, days: 0 }
-}))
+const { request, activity, selectableModels } = vi.hoisted(() => {
+  const model = (providerId: string, name: string): Model => ({
+    id: `${providerId}::mini-app-test`,
+    providerId,
+    name,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  })
+  return {
+    request: vi.fn(),
+    activity: { entries: [] as unknown[], bytes: 0, days: 0 },
+    selectableModels: [model('openai', 'Regular chat model')]
+  }
+})
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 // An independently tested child: the real selector needs the portal container the
 // global `@cherrystudio/ui` stand-in does not provide (same boundary ContextManagementSettings draws).
 vi.mock('@renderer/components/DefaultModelSelector', () => ({
-  DefaultModelSelector: () => <div data-testid="model-selector" />
+  DefaultModelSelector: ({ filter }: { filter: (model: Model) => boolean }) => (
+    <div data-testid="model-selector">
+      {selectableModels.filter(filter).map((model) => (
+        <button key={model.providerId} type="button">
+          {model.name}
+        </button>
+      ))}
+    </div>
+  )
 }))
 vi.mock('@renderer/components/icons/MiniAppLogoAvatar', () => ({
   default: ({ logo }: { logo: unknown }) => <img alt="" data-testid="detail-logo" data-logo={String(logo)} />
@@ -234,6 +255,13 @@ describe('activity log', () => {
 })
 
 describe('MiniAppDetailPanel', () => {
+  it('offers regular chat models from the default model catalog', async () => {
+    await open()
+
+    const selector = within(screen.getByTestId('model-slot-default'))
+    expect(selector.getByRole('button', { name: 'Regular chat model' })).toBeInTheDocument()
+  })
+
   it('offers a web app both an update check and a package replacement', async () => {
     // A package handed over by the user may replace ANY app — the version decides whether
     // that is an upgrade or a reinstall, and the source is re-pinned to what they chose.
