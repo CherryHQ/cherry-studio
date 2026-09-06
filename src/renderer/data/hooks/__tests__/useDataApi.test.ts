@@ -596,6 +596,16 @@ describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
     }
   })
 
+  it('rejects parallel loading for cursor-paginated queries', () => {
+    if ((false as boolean) === true) {
+      void useInfiniteQuery('/topics/:topicId/messages', {
+        params: { topicId: '' },
+        // @ts-expect-error - each page key depends on the previous page cursor
+        swrOptions: { parallel: true }
+      })
+    }
+  })
+
   it('useInfiniteFlatItems infers the page item type', () => {
     if ((false as boolean) === true) {
       const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
@@ -945,6 +955,62 @@ describe('useInfiniteQuery integration', () => {
       _l: 1
     })
     expect(cache.has(oldSecondPageKey)).toBe(false)
+  })
+
+  it('does not synchronize page caches from an async write superseded by a newer write', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    let resolveStaleWrite!: (pages: BranchMessagesResponse[]) => void
+    const stalePages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'stale-page' }),
+      activeNodeId: index === 0 ? 'stale-newest' : 'stale-older'
+    }))
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+    const staleWriteValue = new Promise<BranchMessagesResponse[]>((resolve) => {
+      resolveStaleWrite = resolve
+    })
+
+    let staleWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      staleWrite = result.current.writeCache(staleWriteValue)
+    })
+    await act(async () => {
+      await result.current.writeCache(latestPages)
+    })
+    await act(async () => {
+      resolveStaleWrite(stalePages)
+      await staleWrite
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    const staleSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'stale-page' }])
+    expect(cache.get(infiniteKey)?.data).toBe(latestPages)
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
+    expect(cache.has(staleSecondPageKey)).toBe(false)
   })
 
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {

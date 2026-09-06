@@ -537,6 +537,44 @@ describe('useAgentSessionParts', () => {
     expect(live.getIds()).toEqual(['message-1'])
   })
 
+  it('keeps concurrent DELETE outcomes isolated across different message ids', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1'), sessionMessageRow('message-2')])
+    let rejectFirstDelete!: (error: Error) => void
+    live.trigger
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectFirstDelete = reject
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    let firstDelete!: Promise<void>
+    let secondDelete!: Promise<void>
+    act(() => {
+      firstDelete = result.current.deleteMessage('message-1')
+      secondDelete = result.current.deleteMessage('message-2')
+    })
+    expect(live.trigger).toHaveBeenCalledOnce()
+
+    let outcomes!: PromiseSettledResult<void>[]
+    await act(async () => {
+      rejectFirstDelete(new Error('first delete failed'))
+      outcomes = await Promise.allSettled([firstDelete, secondDelete])
+    })
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        status: 'rejected',
+        reason: expect.objectContaining({ message: 'first delete failed' })
+      }),
+      expect.objectContaining({ status: 'fulfilled' })
+    ])
+    expect(live.trigger).toHaveBeenCalledTimes(2)
+    expect(live.getIds()).toEqual(['message-1'])
+  })
+
   it('applies a late DELETE success to the session where deletion began', async () => {
     const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
     live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])

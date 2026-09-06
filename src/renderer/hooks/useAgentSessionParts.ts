@@ -124,6 +124,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     limit: PAGE_SIZE
   })
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
+  const deleteQueueRef = useRef<Promise<void> | null>(null)
   const locallyRemovedIdsRef = useRef({ ids: new Set<string>(), sessionId })
   if (locallyRemovedIdsRef.current.sessionId !== sessionId) {
     locallyRemovedIdsRef.current = { ids: new Set<string>(), sessionId }
@@ -273,16 +274,20 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       if (inFlightDelete) return inFlightDelete
       if (!pages.some((page) => page.items.some((item) => item.id === messageId))) return
 
-      const deletePromise = (async () => {
+      const performDelete = async () => {
         await deleteMessageTrigger({ params: { sessionId, messageId } })
         locallyRemovedIds.add(messageId)
         await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
-      })()
+      }
+      const previousDelete = deleteQueueRef.current
+      const deletePromise = previousDelete ? previousDelete.catch(() => undefined).then(performDelete) : performDelete()
+      deleteQueueRef.current = deletePromise
       inFlightDeletePromisesRef.current.set(deleteKey, deletePromise)
       try {
         await deletePromise
       } finally {
         inFlightDeletePromisesRef.current.delete(deleteKey)
+        if (deleteQueueRef.current === deletePromise) deleteQueueRef.current = null
       }
     },
     [deleteMessageTrigger, locallyRemovedIds, pages, sessionId, writeSessionMessagesCache]

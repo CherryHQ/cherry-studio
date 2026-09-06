@@ -252,7 +252,7 @@ type InfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & 
   query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
   limit?: number
   enabled?: boolean
-  swrOptions?: SWRInfiniteConfiguration
+  swrOptions?: Omit<SWRInfiniteConfiguration, 'parallel'>
 }
 
 type InfiniteCacheValue<TResponse> = Parameters<SWRInfiniteKeyedMutator<TResponse[]>>[0]
@@ -869,7 +869,8 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   const swrOptions = useMemo(
     () => ({
       ...DEFAULT_SWR_OPTIONS,
-      ...options?.swrOptions
+      ...options?.swrOptions,
+      parallel: false
     }),
     [options?.swrOptions]
   )
@@ -969,6 +970,8 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
         } as never
       )) as ResponseForPath<TPath, 'GET'>[] | undefined
       if (!Array.isArray(pages)) return pages
+      // SWR returns superseded async values without committing them; only mirror the committed aggregate.
+      if (cache.get(infiniteCacheKey)?.data !== pages) return pages
 
       const collectPageEntries = (cachedPages: Page[] | undefined) => {
         const entries: Array<{ key: InfiniteQueryKey; page: Page; serializedKey: string }> = []
