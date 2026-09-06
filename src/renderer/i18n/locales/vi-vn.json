@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Hàng ngày",
   "agent.tasks.schedule.hour": "Giờ",
   "agent.tasks.schedule.hourly": "Hàng giờ",
+  "agent.tasks.schedule.hours": "Giờ",
   "agent.tasks.schedule.interval": "Khoảng thời gian tùy chỉnh",
   "agent.tasks.schedule.intervalMinutes": "Khoảng thời gian",
   "agent.tasks.schedule.invalid": "Nhập tần suất thực thi hợp lệ.",

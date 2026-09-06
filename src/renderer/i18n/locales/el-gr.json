@@ -342,6 +342,7 @@
   "agent.tasks.schedule.daily": "Καθημερινά",
   "agent.tasks.schedule.hour": "Ώρα",
   "agent.tasks.schedule.hourly": "Ωριαίος",
+  "agent.tasks.schedule.hours": "Ώρες",
   "agent.tasks.schedule.interval": "Προσαρμοσμένο διάστημα",
   "agent.tasks.schedule.intervalMinutes": "Διάστημα",
   "agent.tasks.schedule.invalid": "Εισάγετε μια έγκυρη συχνότητα εκτέλεσης.",
