@@ -36,5 +36,20 @@ export const agentSessionTable = sqliteTable(
   ]
 )
 
+export const agentTaskSessionTable = sqliteTable(
+  'agent_task_session',
+  {
+    sessionId: text()
+      .primaryKey()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    taskId: text()
+      .notNull()
+      .references(() => jobScheduleTable.id, { onDelete: 'cascade' })
+  },
+  (t) => [index('agent_task_session_task_id_idx').on(t.taskId)]
+)
+
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
+export type AgentTaskSessionRow = typeof agentTaskSessionTable.$inferSelect
+export type InsertAgentTaskSessionRow = typeof agentTaskSessionTable.$inferInsert

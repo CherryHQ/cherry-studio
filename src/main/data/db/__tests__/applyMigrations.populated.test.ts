@@ -649,8 +649,88 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('recovers scheduled session provenance from surviving jobs', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_powerful_lily_hollister'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-task-source', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-task-source', 'Workspace', '/tmp/task-source', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+
+    const trigger = JSON.stringify({ kind: 'interval', ms: 60_000 })
+    const template = JSON.stringify({ agentId: 'agent-task-source' })
+    const catchUpPolicy = JSON.stringify({ kind: 'skip-missed' })
+    const insertSchedule = sqlite.prepare(
+      `INSERT INTO job_schedule
+        (id, type, name, trigger, job_input_template, enabled, catch_up_policy, metadata, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, '{}', ?, ?)`
+    )
+    insertSchedule.run('schedule-from-job', 'agent.task', 'from-job', trigger, template, catchUpPolicy, now, now)
+    insertSchedule.run('schedule-sticky', 'agent.task', 'sticky', trigger, template, catchUpPolicy, now, now)
+    insertSchedule.run('schedule-other', 'dummy.other', 'other', trigger, template, catchUpPolicy, now, now)
+
+    const insertSession = sqlite.prepare(
+      `INSERT INTO agent_session
+        (id, agent_id, name, workspace_id, task_schedule_id, order_key, last_activity_at, created_at, updated_at)
+       VALUES (?, 'agent-task-source', ?, 'workspace-task-source', ?, ?, ?, ?, ?)`
+    )
+    insertSession.run('session-from-job', 'From job', null, 'a0', now, now, now)
+    insertSession.run('session-sticky', 'Sticky', 'schedule-sticky', 'a1', now, now, now)
+    insertSession.run('session-unrelated', 'Unrelated', null, 'a2', now, now, now)
+
+    const insertJob = sqlite.prepare(
+      `INSERT INTO job
+        (id, type, status, queue, schedule_id, scheduled_at, input, output, created_at, updated_at)
+       VALUES (?, ?, 'completed', 'agent.task', ?, ?, '{}', ?, ?, ?)`
+    )
+    insertJob.run(
+      'job-recovers-session',
+      'agent.task',
+      'schedule-from-job',
+      now,
+      JSON.stringify({ sessionId: 'session-from-job', result: 'done' }),
+      now,
+      now
+    )
+    insertJob.run(
+      'job-does-not-overwrite-sticky',
+      'agent.task',
+      'schedule-from-job',
+      now,
+      JSON.stringify({ sessionId: 'session-sticky' }),
+      now,
+      now
+    )
+    insertJob.run(
+      'job-wrong-type',
+      'dummy.other',
+      'schedule-other',
+      now,
+      JSON.stringify({ sessionId: 'session-unrelated' }),
+      now,
+      now
+    )
+    insertJob.run('job-corrupt-output', 'agent.task', 'schedule-from-job', now, '{broken', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT session_id, task_id FROM agent_task_session ORDER BY session_id').all()).toEqual([
+      { session_id: 'session-from-job', task_id: 'schedule-from-job' },
+      { session_id: 'session-sticky', task_id: 'schedule-sticky' }
+    ])
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job
