@@ -41,7 +41,7 @@ export const SubWindowAppShell = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [openedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const [, setMiniAppShow] = useCache('mini_app.show')
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
+  const [, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   const takeClearingSplitId = useCallback(
     (closedIds: readonly string[]): string | undefined => {
@@ -55,9 +55,7 @@ export const SubWindowAppShell = () => {
         }
       }
       if (!closingMiniAppFound) return undefined
-      const hasSurvivingMiniAppTab = tabs.some(
-        (t) => !closedIds.includes(t.id as string) && miniAppIdFromTabUrl(t.url) !== null
-      )
+      const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
       if (hasSurvivingMiniAppTab) return undefined
       const id = splitMiniAppId
       setSplitOpen(false)
