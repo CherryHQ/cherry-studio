@@ -35,15 +35,15 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 
 describe('shared model capability helpers', () => {
   describe('resolveUniqueModelId', () => {
-    it('preserves migrated snapshot IDs that are already unique', () => {
+    it('treats an ambiguous separator-containing snapshot ID as raw', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-a::model-a' })).toBe(
-        'provider-a::model-a'
+        'provider-a::provider-a::model-a'
       )
     })
 
-    it('uses the provider encoded in a migrated snapshot ID', () => {
+    it('keeps the snapshot provider for a separator-containing raw model ID', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-b', id: 'provider-a::model-a' })).toBe(
-        'provider-a::model-a'
+        'provider-b::provider-a::model-a'
       )
     })
 
@@ -51,13 +51,17 @@ describe('shared model capability helpers', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'model?legacy-route' })).toBeUndefined()
     })
 
-    it('recognizes raw and migrated snapshots for the same model', () => {
+    it('keeps separator-containing raw snapshots distinct from other provider models', () => {
       expect(
         areDifferentModelIdentities(
-          { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'model-a' } },
-          { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' } }
+          { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'provider-b::model-a' } },
+          { modelId: null, modelSnapshot: { provider: 'provider-b', id: 'model-a' } }
         )
-      ).toBe(false)
+      ).toBe(true)
+    })
+
+    it('does not forward malformed separator-containing snapshots', () => {
+      expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-b::model?invalid' })).toBeUndefined()
     })
 
     it('matches migrated snapshots to authoritative IDs', () => {

@@ -14,16 +14,26 @@
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { createUniqueModelId, isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  MODEL_CAPABILITY,
+  parseUniqueModelId,
+  UniqueModelIdSchema
+} from '@shared/data/types/model'
+
+function asUniqueModelId(value: unknown): UniqueModelId | undefined {
+  const parsed = UniqueModelIdSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
 
 /** Resolve the stored model ID, falling back to its creation-time snapshot. */
 export function resolveUniqueModelId(
   modelId: string | null | undefined,
   modelSnapshot: { id: string; provider: string } | null | undefined
 ): UniqueModelId | undefined {
-  if (isUniqueModelId(modelId)) return modelId
+  const uniqueModelId = asUniqueModelId(modelId)
+  if (uniqueModelId) return uniqueModelId
   if (!modelSnapshot) return undefined
-  if (isUniqueModelId(modelSnapshot.id)) return modelSnapshot.id
 
   try {
     return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
@@ -37,9 +47,29 @@ interface ModelIdentityReference {
   modelSnapshot: { id: string; provider: string } | null | undefined
 }
 
-/** Resolve persisted references without reinterpreting snapshot IDs. */
+/** Resolve related references, using authoritative IDs to disambiguate migrated snapshots. */
 export function resolveUniqueModelIds(references: readonly ModelIdentityReference[]): Array<UniqueModelId | undefined> {
-  return references.map(({ modelId, modelSnapshot }) => resolveUniqueModelId(modelId, modelSnapshot))
+  const authoritativeIds = new Set(
+    references.flatMap(({ modelId }) => {
+      const uniqueModelId = asUniqueModelId(modelId)
+      return uniqueModelId ? [uniqueModelId] : []
+    })
+  )
+
+  return references.map(({ modelId, modelSnapshot }) => {
+    const uniqueModelId = asUniqueModelId(modelId)
+    if (uniqueModelId) return uniqueModelId
+
+    const snapshotId = asUniqueModelId(modelSnapshot?.id)
+    if (
+      snapshotId &&
+      authoritativeIds.has(snapshotId) &&
+      parseUniqueModelId(snapshotId).providerId === modelSnapshot?.provider
+    ) {
+      return snapshotId
+    }
+    return resolveUniqueModelId(modelId, modelSnapshot)
+  })
 }
 
 /** Return true only when two persisted references identify distinct models. */
