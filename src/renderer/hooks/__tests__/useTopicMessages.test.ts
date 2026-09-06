@@ -229,7 +229,7 @@ describe('useTopicMessages', () => {
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
 
-  it('groups a legacy pre-composed snapshot with its authoritative model reply', () => {
+  it('keeps separator-containing raw snapshots distinct from authoritative model replies', () => {
     const authoritativeReply = {
       ...createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z'),
       messageSnapshot: {
@@ -267,10 +267,7 @@ describe('useTopicMessages', () => {
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
-    expect(result.current.uiMessages.map((message) => message.id)).toEqual([authoritativeReply.id])
-    expect(result.current.siblingsMap[authoritativeReply.id].map((message) => message.id)).toEqual([
-      authoritativeReply.id,
-      legacyReply.id
-    ])
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([authoritativeReply.id, legacyReply.id])
+    expect(Object.keys(result.current.siblingsMap)).toEqual([])
   })
 })

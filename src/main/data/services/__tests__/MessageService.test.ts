@@ -2472,7 +2472,7 @@ describe('MessageService', () => {
         messageSnapshot: {
           id: 'assistant-1',
           name: 'Assistant',
-          model: { id: 'provider-a::model-a', name: 'Separator Model', provider: 'provider-a' }
+          model: { id: 'provider-a::model-A', name: 'Separator Model', provider: 'provider-a' }
         }
       })
       const selectedReply = messageService.create(topicId, {
@@ -2481,10 +2481,11 @@ describe('MessageService', () => {
         data: mainText('plain model answer'),
         status: 'success',
         siblingsGroupId: 7,
+        modelId: createUniqueModelId('provider-a', 'model-A'),
         messageSnapshot: {
           id: 'assistant-1',
           name: 'Assistant',
-          model: { id: 'model-a', name: 'Plain Model', provider: 'provider-a' }
+          model: { id: 'model-A', name: 'Authoritative Model', provider: 'provider-a' }
         }
       })
 

@@ -186,7 +186,7 @@ export interface CherryUIMessageMetadata {
   /** Non-zero for messages in an edit/resend, regeneration, or multi-model cohort. */
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
-  modelId?: string
+  modelId?: string | null
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */

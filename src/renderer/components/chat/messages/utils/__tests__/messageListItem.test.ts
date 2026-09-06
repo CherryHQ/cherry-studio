@@ -148,9 +148,14 @@ describe('getDirectAssistantModelsByUserId', () => {
 
     expect(modelsByUserId.get('user-1')).toEqual([
       expect.objectContaining({ id: 'provider-a::model-a', name: 'Model A', providerId: 'provider-a' }),
+      expect.objectContaining({
+        id: 'provider-a::provider-a::model-a',
+        name: 'Model A',
+        providerId: 'provider-a'
+      }),
       expect.objectContaining({ id: 'provider-b::model-b', name: 'Model B', providerId: 'provider-b' })
     ])
-    expect(modelsByUserId.get('user-1')).toHaveLength(2)
+    expect(modelsByUserId.get('user-1')).toHaveLength(3)
   })
 
   it('reuses the derived map when only live message metadata changes', () => {

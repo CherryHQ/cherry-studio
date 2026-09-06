@@ -24,7 +24,7 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { areDifferentModelIdentities } from '@shared/utils/model'
+import { findNewestDifferentModelReference } from '@shared/utils/model'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
@@ -40,27 +40,26 @@ function branchWithoutIds(
       return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
     }
 
-    const differentModelReplies = siblingsGroup.filter((sibling) =>
-      areDifferentModelIdentities(
-        { modelId: item.message.modelId, modelSnapshot: item.message.messageSnapshot?.model },
-        { modelId: sibling.modelId, modelSnapshot: sibling.messageSnapshot?.model }
-      )
+    const replacementReference = findNewestDifferentModelReference(
+      { modelId: item.message.modelId, modelSnapshot: item.message.messageSnapshot?.model },
+      siblingsGroup.map((sibling) => ({
+        id: sibling.id,
+        createdAt: sibling.createdAt,
+        modelId: sibling.modelId,
+        modelSnapshot: sibling.messageSnapshot?.model
+      }))
     )
 
     if (
       item.message.id !== activeNodeId ||
       item.message.role !== 'assistant' ||
       item.message.siblingsGroupId === 0 ||
-      differentModelReplies.length === 0
+      !replacementReference
     ) {
       return []
     }
 
-    const message = differentModelReplies.reduce((newest, sibling) =>
-      sibling.createdAt > newest.createdAt || (sibling.createdAt === newest.createdAt && sibling.id > newest.id)
-        ? sibling
-        : newest
-    )
+    const message = siblingsGroup.find((sibling) => sibling.id === replacementReference.id)!
     const remainingSiblings = siblingsGroup.filter((sibling) => sibling.id !== message.id)
     return [{ message, ...(remainingSiblings.length > 0 ? { siblingsGroup: remainingSiblings } : {}) }]
   })

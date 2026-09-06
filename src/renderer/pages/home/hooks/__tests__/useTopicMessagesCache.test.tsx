@@ -75,10 +75,16 @@ describe('useTopicMessagesCache', () => {
   })
 
   it('distinguishes raw snapshot model IDs that contain the provider separator', () => {
-    const selectedReply = message('answer-plain', 'assistant', '2026-08-28T00:00:02.000Z', null, {
-      id: 'model-a',
-      provider: 'provider-a'
-    })
+    const selectedReply = message(
+      'answer-authoritative',
+      'assistant',
+      '2026-08-28T00:00:02.000Z',
+      'provider-a::model-a',
+      {
+        id: 'model-a',
+        provider: 'provider-a'
+      }
+    )
     const survivingReply = message('answer-separator', 'assistant', '2026-08-28T00:00:01.000Z', null, {
       id: 'provider-a::model-a',
       provider: 'provider-a'

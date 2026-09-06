@@ -45,9 +45,9 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
-import { areDifferentModelIdentities } from '@shared/utils/model'
+import { findNewestDifferentModelReference } from '@shared/utils/model'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -2029,6 +2029,7 @@ export class MessageService {
             const survivingReplies = tx
               .select({
                 id: messageTable.id,
+                createdAt: messageTable.createdAt,
                 modelId: messageTable.modelId,
                 messageSnapshot: messageTable.messageSnapshot
               })
@@ -2043,13 +2044,15 @@ export class MessageService {
                   isNull(messageTable.deletedAt)
                 )
               )
-              .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
               .all()
-            const survivingReply = survivingReplies.find((reply) =>
-              areDifferentModelIdentities(
-                { modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model },
-                { modelId: reply.modelId, modelSnapshot: reply.messageSnapshot?.model }
-              )
+            const survivingReply = findNewestDifferentModelReference(
+              { modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model },
+              survivingReplies.map((reply) => ({
+                id: reply.id,
+                createdAt: timestampToISO(reply.createdAt),
+                modelId: reply.modelId,
+                modelSnapshot: reply.messageSnapshot?.model
+              }))
             )
             newActiveNodeId = survivingReply?.id ?? parentFallback
           } else {

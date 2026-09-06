@@ -3,6 +3,7 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import {
   areDifferentModelIdentities,
   deriveModelGroupName,
+  findNewestDifferentModelReference,
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -59,7 +60,7 @@ describe('shared model capability helpers', () => {
       ).toBe(true)
     })
 
-    it('uses an authoritative ID to align related legacy pre-composed snapshots', () => {
+    it('keeps separator-containing raw snapshots distinct from authoritative IDs', () => {
       const references = [
         {
           modelId: 'provider-a::model-a',
@@ -71,8 +72,8 @@ describe('shared model capability helpers', () => {
         }
       ] as const
 
-      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::model-a'])
-      expect(areDifferentModelIdentities(references[0], references[1])).toBe(false)
+      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::provider-a::model-a'])
+      expect(areDifferentModelIdentities(references[0], references[1])).toBe(true)
     })
 
     it('preserves authoritative IDs for raw model IDs containing the separator', () => {
@@ -97,6 +98,22 @@ describe('shared model capability helpers', () => {
           { modelId: null, modelSnapshot: { provider: 'provider-b', id: 'model#legacy-route' } }
         )
       ).toBe(false)
+    })
+
+    it('selects the newest different-model reference with an ID tie-breaker', () => {
+      const reference = {
+        id: 'selected',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        modelId: 'provider-a::model-a',
+        modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+      }
+      const candidates = [
+        { ...reference, id: 'same-model-newest', createdAt: '2026-01-01T00:00:03.000Z' },
+        { ...reference, id: 'different-b', createdAt: '2026-01-01T00:00:02.000Z', modelId: 'provider-b::model-b' },
+        { ...reference, id: 'different-c', createdAt: '2026-01-01T00:00:02.000Z', modelId: 'provider-c::model-c' }
+      ]
+
+      expect(findNewestDifferentModelReference(reference, candidates)).toEqual(candidates[2])
     })
   })
 

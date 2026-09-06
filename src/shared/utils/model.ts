@@ -36,22 +36,9 @@ interface ModelIdentityReference {
   modelSnapshot: { id: string; provider: string } | null | undefined
 }
 
-/** Resolve related references, using authoritative IDs to recognize legacy snapshots. */
+/** Resolve persisted references without reinterpreting snapshot IDs. */
 export function resolveUniqueModelIds(references: readonly ModelIdentityReference[]): Array<UniqueModelId | undefined> {
-  const authoritativeIds = new Set(references.flatMap(({ modelId }) => (isUniqueModelId(modelId) ? [modelId] : [])))
-
-  return references.map(({ modelId, modelSnapshot }) => {
-    if (isUniqueModelId(modelId)) return modelId
-    if (
-      modelSnapshot &&
-      isUniqueModelId(modelSnapshot.id) &&
-      authoritativeIds.has(modelSnapshot.id) &&
-      parseUniqueModelId(modelSnapshot.id).providerId === modelSnapshot.provider
-    ) {
-      return modelSnapshot.id
-    }
-    return resolveUniqueModelId(modelId, modelSnapshot)
-  })
+  return references.map(({ modelId, modelSnapshot }) => resolveUniqueModelId(modelId, modelSnapshot))
 }
 
 /** Return true only when two persisted references identify distinct models. */
@@ -60,6 +47,30 @@ export function areDifferentModelIdentities(left: ModelIdentityReference, right:
   if (leftModelId === undefined || rightModelId === undefined) return false
 
   return leftModelId !== rightModelId
+}
+
+interface OrderedModelIdentityReference extends ModelIdentityReference {
+  id: string
+  createdAt: string
+}
+
+/** Select the newest candidate with a distinct resolvable model identity. */
+export function findNewestDifferentModelReference<TCandidate extends OrderedModelIdentityReference>(
+  reference: ModelIdentityReference,
+  candidates: readonly TCandidate[]
+): TCandidate | undefined {
+  let newest: TCandidate | undefined
+  for (const candidate of candidates) {
+    if (!areDifferentModelIdentities(reference, candidate)) continue
+    if (
+      !newest ||
+      candidate.createdAt > newest.createdAt ||
+      (candidate.createdAt === newest.createdAt && candidate.id > newest.id)
+    ) {
+      newest = candidate
+    }
+  }
+  return newest
 }
 
 /** Check if model has reasoning capability */
