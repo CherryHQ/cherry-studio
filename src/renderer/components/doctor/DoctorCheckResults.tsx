@@ -18,24 +18,33 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import {
   defaultExpandedDoctorDomains,
   DOCTOR_CHECK_CONTENT,
   DOCTOR_DOMAIN_LABEL_KEYS,
-  DOCTOR_FIX_LABEL_KEYS,
   DOCTOR_NAVIGATION_LABEL_KEYS,
   DOCTOR_STATUS_LABEL_KEYS,
-  isDoctorRowExpandedByDefault
+  isDoctorRowExpandedByDefault,
+  resolveDoctorFixLabel
 } from '@renderer/utils/doctor'
-import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest } from '@shared/types/doctor'
+import type { DoctorAction, DoctorCheckId, DoctorCheckResult } from '@shared/types/doctor'
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+type DoctorFixTargetNameResolver = (target: string) => string | undefined
+
+function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
+  const { mcpServers } = useMcpServers()
+  return useCallback((target) => mcpServers.find((server) => server.id === target)?.name, [mcpServers])
+}
 
 export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
   const { viewModel } = controller
   const defaultExpandedDomains = defaultExpandedDoctorDomains(viewModel.groups)
+  const resolveFixTargetName = useDoctorFixTargetName()
 
   return (
     <Accordion
@@ -72,7 +81,11 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
                 collapsible
                 defaultValue={`doctor-${defaultRow?.id ?? group.rows[0]?.id}`}
                 className="rounded-lg border border-border px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-                <DoctorCheckList controller={controller} rows={group.rows} />
+                <DoctorCheckListItems
+                  controller={controller}
+                  rows={group.rows}
+                  resolveFixTargetName={resolveFixTargetName}
+                />
               </Accordion>
             </AccordionContent>
           </AccordionItem>
@@ -89,10 +102,28 @@ export function DoctorCheckList({
   readonly controller: DoctorController
   readonly rows?: DoctorController['viewModel']['rows']
 }) {
+  const resolveFixTargetName = useDoctorFixTargetName()
+  return <DoctorCheckListItems controller={controller} rows={rows} resolveFixTargetName={resolveFixTargetName} />
+}
+
+function DoctorCheckListItems({
+  controller,
+  resolveFixTargetName,
+  rows
+}: {
+  readonly controller: DoctorController
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
+  readonly rows: DoctorController['viewModel']['rows']
+}) {
   return (
     <>
       {rows.map((row) => (
-        <DoctorCheckListItem key={row.id} controller={controller} row={row} />
+        <DoctorCheckListItem
+          key={row.id}
+          controller={controller}
+          resolveFixTargetName={resolveFixTargetName}
+          row={row}
+        />
       ))}
     </>
   )
@@ -100,9 +131,11 @@ export function DoctorCheckList({
 
 function DoctorCheckListItem({
   controller,
+  resolveFixTargetName,
   row
 }: {
   readonly controller: DoctorController
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const { t } = useTranslation()
@@ -122,7 +155,12 @@ function DoctorCheckListItem({
       <AccordionContent className="space-y-2 pb-3 pl-6">
         <CheckDescription result={row.result} />
         <DoctorCheckEvidence controller={controller} row={row} />
-        <DoctorCheckActions controller={controller} row={row} className="flex flex-wrap justify-end gap-2" />
+        <DoctorCheckActions
+          controller={controller}
+          resolveFixTargetName={resolveFixTargetName}
+          row={row}
+          className="flex flex-wrap justify-end gap-2"
+        />
       </AccordionContent>
     </AccordionItem>
   )
@@ -232,10 +270,12 @@ function DoctorCheckEvidence({
 function DoctorCheckActions({
   className,
   controller,
+  resolveFixTargetName,
   row
 }: {
   readonly className: string
   readonly controller: DoctorController
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const { t } = useTranslation()
@@ -246,7 +286,14 @@ function DoctorCheckActions({
 
   return (
     <div className={className}>
-      <DoctorActionButton controller={controller} row={row} action={primaryAction} primary runId={runId} />
+      <DoctorActionButton
+        controller={controller}
+        resolveFixTargetName={resolveFixTargetName}
+        row={row}
+        action={primaryAction}
+        primary
+        runId={runId}
+      />
       {row.actions.length > 1 ? (
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
@@ -261,7 +308,7 @@ function DoctorCheckActions({
                 key={`${action.kind}-${index}`}
                 disabled={row.actionsDisabled || controller.isInteracting}
                 onSelect={() => void controller.executeAction(row.id, action, runId)}>
-                {actionLabel(t, controller, row.id, action)}
+                {actionLabel(t, row.id, action, resolveFixTargetName)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -275,12 +322,14 @@ function DoctorActionButton({
   action,
   controller,
   primary,
+  resolveFixTargetName,
   row,
   runId
 }: {
   readonly action: DoctorAction
   readonly controller: DoctorController
   readonly primary?: boolean
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly row: DoctorController['viewModel']['rows'][number]
   readonly runId?: string
 }) {
@@ -296,7 +345,7 @@ function DoctorActionButton({
       loading={loading}
       disabled={disabled}
       onClick={() => void controller.executeAction(row.id, action, runId)}>
-      {actionLabel(t, controller, row.id, action)}
+      {actionLabel(t, row.id, action, resolveFixTargetName)}
     </Button>
   )
 }
@@ -364,36 +413,17 @@ function ConfirmationPanel({
   )
 }
 
-function fixLabel(
-  t: ReturnType<typeof useTranslation>['t'],
-  request: DoctorFixRequest,
-  mcpServerName?: string
-): string {
-  const labels = DOCTOR_FIX_LABEL_KEYS[request.checkId] as Readonly<Record<string, string>>
-  if (request.checkId === 'mcp-servers-connected' && !mcpServerName) {
-    return t('settings.doctor.fixes.restart_mcp_generic')
-  }
-  return t(labels[request.fixId], mcpServerName ? { name: mcpServerName } : undefined)
-}
-
 function actionLabel(
   t: ReturnType<typeof useTranslation>['t'],
-  controller: DoctorController,
   checkId: DoctorCheckId,
-  action: DoctorAction
+  action: DoctorAction,
+  resolveFixTargetName: DoctorFixTargetNameResolver
 ): string {
   switch (action.kind) {
-    case 'fix':
-      return fixLabel(
-        t,
-        {
-          runId: '',
-          checkId,
-          fixId: action.fixId,
-          ...(action.target ? { target: action.target } : {})
-        } as DoctorFixRequest,
-        controller.mcpServerName(action.target)
-      )
+    case 'fix': {
+      const label = resolveDoctorFixLabel(checkId, action, resolveFixTargetName)
+      return t(label.key, label.params)
+    }
     case 'navigate':
       return t(DOCTOR_NAVIGATION_LABEL_KEYS[action.target])
     case 'open_path':
