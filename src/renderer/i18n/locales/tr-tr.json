@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "Uzak sunucunun temel URL'si",
   "settings.mcp.builtinServers": "Yerleşik Sunucular",
   "settings.mcp.builtinServersDescriptions.brave_search": "Hem web hem de yerel arama işlevleri sunan, Brave Search API ile entegre bir MCP sunucu uygulaması. BRAVE_API_KEY ortam değişkeninin yapılandırılmasını gerektirir",
-  "settings.mcp.builtinServersDescriptions.browser": "Chrome DevTools Protocol aracılığıyla başlıksız bir Electron penceresini kontrol edin. Araçlar: URL açma, tek satırlık JS yürütme, oturumu sıfırlama.",
+  "settings.mcp.builtinServersDescriptions.browser": "Sayfa anlık görüntüleriyle gezinin, öğelere tıklayıp metin girin, sekmeler arasında geçiş yapın ve iletişim kutularını yönetin. Varsayılan olarak arka planda çalışır.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Harita arama, fiyat tahmini, sipariş yönetimi ve sürücü takibi dâhil araç çağırma hizmetleri sunan DiDi MCP sunucusu. Yalnızca Çin ana karasında kullanılabilir. DIDI_API_KEY ortam değişkeninin yapılandırılması gerekir",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify'ın MCP sunucusu uygulaması, Dify ile etkileşim kurmak için basit bir API sağlar. Dify Key'in yapılandırılması gerekir",
   "settings.mcp.builtinServersDescriptions.fetch": "URL'deki web içeriğini almak için MCP sunucusu",

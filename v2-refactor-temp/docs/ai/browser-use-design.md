@@ -14,29 +14,26 @@ Implementation detail (files, APIs, commit split, test plan) for P0/P1 is in
 
 PR1 (PR A), [#20128](https://github.com/CherryHQ/cherry-studio/pull/20128), implements the
 shared CDP engine and annotation export migration on `browser-use-engine`; it is open, not merged.
-The engine now provides document-bound refs, bounded AX/DOM snapshots and diffs, dialog interruption,
-and managed/borrowed ownership with resource budgets. The existing MCP controller still uses its old
-implementation, so the tool table below remains the current user-facing surface.
+The engine provides document-bound refs, bounded AX/DOM snapshots and diffs, dialog interruption,
+and managed/borrowed ownership with resource budgets.
 
-The next stack layer is PR2 (PR B), `browser-use-mcp`, based on `browser-use-engine`: move the MCP
-adapter into the browser feature, route its tabs through the service, and expose snapshot/action tools.
-`upload_file` is deferred until MCP calls carry a trusted session working directory. Turn-scoped
-retention likewise requires upstream session identity and a turn-ended signal; neither is available
-from the current server-wide MCP client. See the implementation plan for delivery boundaries.
+PR2 (PR B) is implemented on `browser-use-mcp`, based on `browser-use-engine`: the MCP adapter now
+lives in the browser feature, its tabs use the shared service, and snapshot/action tools are exposed.
+`upload_file` remains deferred until MCP calls carry a trusted session working directory. Turn-scoped
+retention likewise requires upstream session identity and a turn-ended signal. See the implementation
+plan for the remaining PR C/D boundaries.
 
-## Current state — `src/main/ai/mcp/servers/browser/`
+## Current state — `src/main/features/browser/mcp/`
 
-| Dimension | Today |
+| Dimension | PR2 behavior |
 |---|---|
-| Tool surface | 8 tools: `open` / `execute` / `screenshot` / `snapshot` / `list_tabs` / `switch_tab` / `close_tab` / `reset` (`tools/registry.ts`) |
-| Page representation | Hand-rolled in-page DOM walk (`tools/snapshot.ts`) emitting `[n] button: …`; **the numbers are decorative — no tool consumes them** |
-| Actions | Only `execute` (`Runtime.evaluate` of arbitrary JS). Click = `.click()`, typing = assigning `value`; no real input events |
-| CDP | `Page.enable` / `Runtime.enable` / `Runtime.evaluate` / `Page.captureScreenshot` only (`controller.ts:127-128, 702, 896`) |
-| Host | Hidden `BrowserWindow` + `BrowserView` tabs (deprecated API) with a custom tab bar; `persist:default` / `private` partitions |
-| Robustness | Waits only for `did-finish-load`/`dom-ready`; no dialog / file-chooser / download handling (a page `alert()` hangs `Runtime.evaluate`); no new-tab follow; no stale-element semantics |
-| Frames / observability / vision | None (no OOPIF, no console/network tools, screenshot only, no coordinate actions) |
-
-This is "fetch + arbitrary JS", not browser use.
+| Tool surface | 18 tools: existing open/execute/screenshot/tab/reset tools plus actionable snapshot, click/type/hover/scroll/press_key/select_option, history, wait_for and handle_dialog |
+| Page representation | Main-process AX + DOM snapshot with actionable `eN` refs, diff output by default, scope by ref and 40,000-character cap |
+| Actions | Real mouse/key input and verified typing; native select events; reported synthetic fallback for covered left single clicks |
+| CDP | Shared `GuestSession` ownership, command allow-list, cancellation and deadlines |
+| Host | Hidden `BrowserWindow` + `BrowserView` tabs; `persist:default` / `private` partitions; BrowserView replacement is PR C |
+| Robustness | Navigation/network settling, dialog interruption/watchdog, originating-guest download updates, popup tab IDs, strict explicit tab targeting, global guest budgets |
+| Still pending | Upload authorization, OOPIF, inspection/WebMCP tools, retained-tab freezing, visible-pane control and coordinate actions |
 
 ## What "browser use" converged on (9 projects read from source)
 
@@ -115,7 +112,7 @@ PR1 moves annotation capture into `features/browser/snapshot/describeElement.ts`
 `GuestSession` own the attach/detach lifecycle for both capture paths. Multiple consumers of the
 same borrowed guest share one debugger; releasing an annotation export cannot detach another
 consumer's session. DevTools or an externally attached debugger still produces `debugger_unavailable`.
-The legacy MCP controller is migrated in PR2 before it starts using the shared snapshots and actions.
+PR2 migrates the legacy MCP controller onto these shared snapshots and actions.
 
 **Two addressing schemes to reconcile**
 
@@ -141,15 +138,15 @@ selectors through the existing isolated-world capture. Region annotations would 
 
 **Ordering consequence for the roadmap**
 
-PR1 has completed the shared engine and annotation migration. PR2 can now replace the MCP
-controller's direct debugger ownership with `GuestSession` without creating a second attach path.
+PR1 completed the shared engine and annotation migration. PR2 now uses `GuestSession` for
+the MCP controller as well, removing its independent debugger attach path.
 
 ## Browser session management (performance)
 
 Session management is needed, but as **ownership + retention rules + a resource budget**, not
 as heavy infrastructure. Idle tabs are the smaller cost; snapshot capture is the larger one.
 
-**Problems today**
+**Problems addressed by PR1/PR2**
 
 - `CdpBrowserController` is instantiated **per MCP connection** (`server.ts:10`, disposed on
   disconnect); `maxWindows = 5` and `idleTimeoutMs = 5 min` are per controller. Two agent sessions
@@ -177,7 +174,7 @@ as heavy infrastructure. Idle tabs are the smaller cost; snapshot capture is the
 PR1 implements a registry keyed by `webContents.id`, ownership/refcounts, a 60-second sweep,
 4 managed guests per creator and 8 globally, and a 5-minute temporary idle timeout. Busy guests
 and deliverables are protected; borrowed pages are never closed, frozen or budget-counted. These
-budgets begin governing MCP tabs only after PR2 migrates the controller. The table below describes
+budgets now govern MCP tabs through the PR2 controller migration. The table below describes
 the longer-term design: true turn boundaries, retained-tab freezing and memory-based policy are
 not delivered by PR1.
 

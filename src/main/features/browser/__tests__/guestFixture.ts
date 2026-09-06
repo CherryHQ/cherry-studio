@@ -23,6 +23,7 @@ export function createGuest(id = 1) {
   const events = new EventEmitter()
   const mock = Object.assign(events, {
     id,
+    session: new EventEmitter(),
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
     isDevToolsOpened: vi.fn(() => false),

@@ -1,11 +1,16 @@
+import { once } from 'node:events'
+
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
+import type { Protocol } from 'devtools-protocol'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 import type TurndownService from 'turndown'
 
+import type { BrowserSessionService } from '../BrowserSessionService'
+import { BrowserSessionError } from '../session/BrowserSessionError'
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
@@ -18,8 +23,11 @@ import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
  */
 export class CdpBrowserController {
   private windows: Map<string, WindowInfo> = new Map()
-  private readonly maxWindows: number
-  private readonly idleTimeoutMs: number
+  private readonly owner = `mcp:${randomUUID()}`
+  private disposed = false
+  private closing?: Promise<void>
+  private creatingTabs = 0
+  private readonly openingWindows = new Map<string, Promise<WindowInfo>>()
   private turndownServicePromise?: Promise<TurndownService>
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
@@ -35,10 +43,7 @@ export class CdpBrowserController {
     }
   }
 
-  constructor(options?: { maxWindows?: number; idleTimeoutMs?: number }) {
-    this.maxWindows = options?.maxWindows ?? 5
-    this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
-
+  constructor(private readonly service: BrowserSessionService) {
     nativeTheme.on('updated', this.handleThemeUpdated)
   }
 
@@ -52,9 +57,35 @@ export class CdpBrowserController {
    * Removes the global nativeTheme listener and closes all windows.
    * Must be called when the owning MCP server connection closes; safe to call more than once.
    */
-  public async dispose(): Promise<void> {
-    nativeTheme.removeListener('updated', this.handleThemeUpdated)
-    await this.reset()
+  public dispose(): Promise<void> {
+    if (this.closing) return this.closing
+    this.disposed = true
+    this.closing = Promise.resolve().then(async () => {
+      nativeTheme.removeListener('updated', this.handleThemeUpdated)
+      await Promise.allSettled(this.openingWindows.values())
+      const windows = [...this.windows.values()]
+      const pending = windows.flatMap((info) => [...info.tabs.values()].flatMap((tab) => [tab.ready, tab.popup]))
+      const controller = new AbortController()
+      const closed = Promise.allSettled(
+        windows.flatMap((info) => {
+          const contents = [...info.tabs.values()].map((tab) => tab.view.webContents)
+          if (info.tabBarView) contents.push(info.tabBarView.webContents)
+          return [
+            ...contents
+              .filter((guest) => !guest.isDestroyed())
+              .map((guest) => once(guest, 'destroyed', { signal: controller.signal })),
+            ...(info.window.isDestroyed() ? [] : [once(info.window, 'closed', { signal: controller.signal })])
+          ]
+        })
+      )
+      try {
+        await this.reset()
+        await Promise.allSettled([...pending, closed])
+      } finally {
+        controller.abort()
+      }
+    })
+    return this.closing
   }
 
   private getWindowKey(privateMode: boolean): string {
@@ -71,44 +102,37 @@ export class CdpBrowserController {
     }
   }
 
-  private touchWindow(windowKey: string) {
-    const windowInfo = this.windows.get(windowKey)
-    if (windowInfo) windowInfo.lastActive = Date.now()
-  }
-
   private touchTab(windowKey: string, tabId: string) {
     const windowInfo = this.windows.get(windowKey)
     if (windowInfo) {
       const tab = windowInfo.tabs.get(tabId)
-      if (tab) tab.lastActive = Date.now()
-      windowInfo.lastActive = Date.now()
+      if (tab) {
+        tab.session.lastActive = Date.now()
+      }
     }
   }
 
   private closeTabInternal(windowInfo: WindowInfo, tabId: string) {
-    try {
-      const tab = windowInfo.tabs.get(tabId)
-      if (!tab) return
+    const tab = windowInfo.tabs.get(tabId)
+    if (tab) this.service.closeGuest(tab.view.webContents)
+  }
 
-      if (!tab.view.webContents.isDestroyed()) {
-        if (tab.view.webContents.debugger.isAttached()) {
-          tab.view.webContents.debugger.detach()
-        }
+  private destroyTab(windowInfo: WindowInfo, tabId: string) {
+    const tab = windowInfo.tabs.get(tabId)
+    if (!tab) return
+    windowInfo.tabs.delete(tabId)
+    if (!windowInfo.window.isDestroyed()) windowInfo.window.removeBrowserView(tab.view)
+    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close({ waitForBeforeUnload: false })
+    if (windowInfo.activeTabId === tabId) {
+      windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
+      const next = windowInfo.activeTabId && windowInfo.tabs.get(windowInfo.activeTabId)
+      if (next && !windowInfo.window.isDestroyed()) {
+        windowInfo.window.setTopBrowserView(next.view)
+        this.updateViewBounds(windowInfo)
       }
-
-      // Remove view from window
-      if (!windowInfo.window.isDestroyed()) {
-        windowInfo.window.removeBrowserView(tab.view)
-      }
-
-      // Destroy the view using safe cast
-      const viewWithDestroy = tab.view as BrowserView & { destroy?: () => void }
-      if (viewWithDestroy.destroy) {
-        viewWithDestroy.destroy()
-      }
-    } catch (error) {
-      logger.warn('Error closing tab', { error, windowKey: windowInfo.windowKey, tabId })
     }
+    this.sendTabBarUpdate(windowInfo)
+    if (!windowInfo.tabs.size && !this.creatingTabs) this.closeWindow(windowInfo)
   }
 
   // All controller-initiated window closes go through WindowManager, which owns
@@ -116,62 +140,6 @@ export class CdpBrowserController {
   private closeWindow(windowInfo: WindowInfo) {
     if (!windowInfo.window.isDestroyed()) {
       application.get('WindowManager').close(windowInfo.windowId)
-    }
-  }
-
-  private async ensureDebuggerAttached(dbg: Electron.Debugger, sessionKey: string) {
-    if (!dbg.isAttached()) {
-      try {
-        logger.info('Attaching debugger', { sessionKey })
-        dbg.attach('1.3')
-        await dbg.sendCommand('Page.enable')
-        await dbg.sendCommand('Runtime.enable')
-        logger.info('Debugger attached and domains enabled')
-      } catch (error) {
-        logger.error('Failed to attach debugger', { error })
-        throw error
-      }
-    }
-  }
-
-  private sweepIdle() {
-    const now = Date.now()
-    const windowKeys = Array.from(this.windows.keys())
-    for (const windowKey of windowKeys) {
-      const windowInfo = this.windows.get(windowKey)
-      if (!windowInfo) continue
-      if (now - windowInfo.lastActive > this.idleTimeoutMs) {
-        const tabIds = Array.from(windowInfo.tabs.keys())
-        for (const tabId of tabIds) {
-          this.closeTabInternal(windowInfo, tabId)
-        }
-        this.closeWindow(windowInfo)
-        this.windows.delete(windowKey)
-      }
-    }
-  }
-
-  private evictIfNeeded(newWindowKey: string) {
-    if (this.windows.size < this.maxWindows) return
-    let lruKey: string | null = null
-    let lruTime = Number.POSITIVE_INFINITY
-    for (const [key, windowInfo] of this.windows.entries()) {
-      if (key === newWindowKey) continue
-      if (windowInfo.lastActive < lruTime) {
-        lruTime = windowInfo.lastActive
-        lruKey = key
-      }
-    }
-    if (lruKey) {
-      const windowInfo = this.windows.get(lruKey)
-      if (windowInfo) {
-        for (const [tabId] of windowInfo.tabs.entries()) {
-          this.closeTabInternal(windowInfo, tabId)
-        }
-        this.closeWindow(windowInfo)
-      }
-      this.windows.delete(lruKey)
-      logger.info('Evicted window to respect maxWindows', { evicted: lruKey })
     }
   }
 
@@ -377,6 +345,9 @@ export class CdpBrowserController {
     win.on('closed', () => {
       const windowInfo = this.windows.get(windowKey)
       if (windowInfo) {
+        this.windows.delete(windowKey)
+        if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed())
+          windowInfo.tabBarView.webContents.close({ waitForBeforeUnload: false })
         const tabIds = Array.from(windowInfo.tabs.keys())
         for (const tabId of tabIds) {
           this.closeTabInternal(windowInfo, tabId)
@@ -389,14 +360,31 @@ export class CdpBrowserController {
   }
 
   private async getOrCreateWindow(privateMode: boolean, showWindow = false): Promise<WindowInfo> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    const key = this.getWindowKey(privateMode)
+    let pending = this.openingWindows.get(key)
+    if (!pending) {
+      pending = this.createOrReuseWindow(privateMode, showWindow)
+      this.openingWindows.set(key, pending)
+    }
+    try {
+      const info = await pending
+      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+      if (showWindow) info.window.show()
+      return info
+    } finally {
+      if (this.openingWindows.get(key) === pending) this.openingWindows.delete(key)
+    }
+  }
+
+  private async createOrReuseWindow(privateMode: boolean, showWindow = false): Promise<WindowInfo> {
     await this.ensureAppReady()
-    this.sweepIdle()
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
 
     const windowKey = this.getWindowKey(privateMode)
 
     let windowInfo = this.windows.get(windowKey)
     if (!windowInfo) {
-      this.evictIfNeeded(windowKey)
       const { window, windowId } = await this.createBrowserWindow(windowKey, privateMode, showWindow)
       windowInfo = {
         windowKey,
@@ -405,7 +393,6 @@ export class CdpBrowserController {
         windowId,
         tabs: new Map(),
         activeTabId: null,
-        lastActive: Date.now(),
         tabBarView: undefined
       }
       this.windows.set(windowKey, windowInfo)
@@ -424,7 +411,6 @@ export class CdpBrowserController {
       windowInfo.window.show()
     }
 
-    this.touchWindow(windowKey)
     return windowInfo
   }
 
@@ -438,16 +424,9 @@ export class CdpBrowserController {
       windowInfo.tabBarView.setBounds({ x: 0, y: 0, width, height: TAB_BAR_HEIGHT })
     }
 
-    // Update active tab view bounds
-    if (windowInfo.activeTabId) {
-      const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
-      if (activeTab && !activeTab.view.webContents.isDestroyed()) {
-        activeTab.view.setBounds({
-          x: 0,
-          y: TAB_BAR_HEIGHT,
-          width,
-          height: Math.max(0, height - TAB_BAR_HEIGHT)
-        })
+    for (const tab of windowInfo.tabs.values()) {
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.setBounds({ x: 0, y: TAB_BAR_HEIGHT, width, height: Math.max(0, height - TAB_BAR_HEIGHT) })
       }
     }
   }
@@ -460,6 +439,7 @@ export class CdpBrowserController {
    */
   public async createTab(privateMode = false, showWindow = false): Promise<{ tabId: string; view: BrowserView }> {
     const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const tabId = randomUUID()
     const partition = this.getPartition(privateMode)
 
@@ -474,6 +454,7 @@ export class CdpBrowserController {
       }
     })
 
+    const [width, height] = windowInfo.window.getContentSize()
     view.webContents.setUserAgent(userAgent)
 
     const windowKey = windowInfo.windowKey
@@ -482,20 +463,7 @@ export class CdpBrowserController {
     view.webContents.on('did-finish-load', () => logger.info(`did-finish-load`, { windowKey, tabId }))
     view.webContents.on('did-fail-load', (_e, code, desc) => logger.warn('Navigation failed', { code, desc }))
 
-    view.webContents.on('destroyed', () => {
-      windowInfo.tabs.delete(tabId)
-      if (windowInfo.activeTabId === tabId) {
-        windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
-        if (windowInfo.activeTabId) {
-          const newActiveTab = windowInfo.tabs.get(windowInfo.activeTabId)
-          if (newActiveTab && !windowInfo.window.isDestroyed()) {
-            windowInfo.window.addBrowserView(newActiveTab.view)
-            this.updateViewBounds(windowInfo)
-          }
-        }
-      }
-      this.sendTabBarUpdate(windowInfo)
-    })
+    view.webContents.on('destroyed', () => this.destroyTab(windowInfo, tabId))
 
     view.webContents.on('page-title-updated', (_event, title) => {
       tabInfo.title = title
@@ -512,43 +480,78 @@ export class CdpBrowserController {
       this.sendTabBarUpdate(windowInfo)
     })
 
-    // Handle new window requests (e.g., target="_blank" links) - open in new tab instead
     view.webContents.setWindowOpenHandler(({ url }) => {
-      // Create a new tab and navigate to the URL
-      this.createTab(privateMode, true)
-        .then(({ tabId: newTabId }) => {
-          return this.switchTab(privateMode, newTabId).then(() => {
-            const newTab = windowInfo.tabs.get(newTabId)
-            if (newTab && !newTab.view.webContents.isDestroyed()) {
-              void newTab.view.webContents.loadURL(url)
-            }
+      let safeUrl: string
+      try {
+        safeUrl = sanitizeRemoteUrl(url)
+      } catch {
+        return { action: 'deny' }
+      }
+      tabInfo.popup = this.createTab(privateMode, false)
+        .then(async ({ tabId: newTabId }) => {
+          await this.switchTab(privateMode, newTabId)
+          const { session } = await this.getSession(privateMode, newTabId)
+          await session.run(async () => {
+            const { settleAction } = await import('../actions/settle')
+            await settleAction(session, () => session.send('Page.navigate', { url: safeUrl }))
           })
+          return newTabId
         })
         .catch((error) => {
           logger.warn('Failed to open link in new tab', { error, url })
+          return undefined
         })
       return { action: 'deny' }
     })
 
+    this.creatingTabs++
+    let session
+    try {
+      session = this.service.acquire(view.webContents, this.owner, {
+        ownership: 'managed',
+        close: () => this.destroyTab(windowInfo, tabId)
+      })
+    } catch (error) {
+      view.webContents.close({ waitForBeforeUnload: false })
+      if (!windowInfo.tabs.size) this.closeWindow(windowInfo)
+      throw error
+    } finally {
+      this.creatingTabs--
+    }
+    const ready = session.run(() => view.webContents.loadURL('about:blank'))
     const tabInfo: TabInfo = {
+      session,
+      ready,
       id: tabId,
       view,
       url: '',
-      title: '',
-      lastActive: Date.now()
+      title: ''
     }
 
     windowInfo.tabs.set(tabId, tabInfo)
 
+    windowInfo.window.addBrowserView(view)
+    view.setBounds({ x: 0, y: TAB_BAR_HEIGHT, width, height: Math.max(0, height - TAB_BAR_HEIGHT) })
+    const active = windowInfo.activeTabId && windowInfo.tabs.get(windowInfo.activeTabId)
+    if (active) windowInfo.window.setTopBrowserView(active.view)
+
     // Set as active tab and add to window
     if (!windowInfo.activeTabId || windowInfo.tabs.size === 1) {
       windowInfo.activeTabId = tabId
-      windowInfo.window.addBrowserView(view)
+      windowInfo.window.setTopBrowserView(view)
       this.updateViewBounds(windowInfo)
     }
 
     this.sendTabBarUpdate(windowInfo)
     logger.info('Created new tab', { windowKey, tabId, privateMode })
+    try {
+      // Chromium needs a document before enabling CDP domains on a fresh BrowserView.
+      await ready
+      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    } catch (error) {
+      this.closeTabInternal(windowInfo, tabId)
+      throw error
+    }
     return { tabId, view }
   }
 
@@ -565,6 +568,8 @@ export class CdpBrowserController {
     newTab?: boolean,
     showWindow = false
   ): Promise<{ tabId: string; tab: TabInfo }> {
+    if (tabId && !this.windows.get(this.getWindowKey(privateMode))?.tabs.has(tabId))
+      throw new BrowserSessionError('not_found')
     const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
 
     // If newTab is requested, create a fresh tab
@@ -580,15 +585,18 @@ export class CdpBrowserController {
     if (tabId) {
       const tab = windowInfo.tabs.get(tabId)
       if (tab && !tab.view.webContents.isDestroyed()) {
+        await tab.ready
         this.touchTab(windowInfo.windowKey, tabId)
         return { tabId, tab }
       }
+      throw new BrowserSessionError('not_found')
     }
 
     // Use active tab or create new one
     if (windowInfo.activeTabId) {
       const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
       if (activeTab && !activeTab.view.webContents.isDestroyed()) {
+        await activeTab.ready
         this.touchTab(windowInfo.windowKey, windowInfo.activeTabId)
         return { tabId: windowInfo.activeTabId, tab: activeTab }
       }
@@ -618,59 +626,18 @@ export class CdpBrowserController {
     url = sanitizeRemoteUrl(url)
 
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
-    const view = tab.view
-    const windowKey = this.getWindowKey(privateMode)
-
-    logger.info('Loading URL', { url, windowKey, tabId: actualTabId, privateMode })
-    const { webContents } = view
-    this.touchTab(windowKey, actualTabId)
-
-    let resolved = false
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    let onFinish: () => void
-    let onDomReady: () => void
-    let onFail: (_event: Electron.Event, code: number, desc: string) => void
-
-    const cleanup = () => {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
-      webContents.removeListener('did-finish-load', onFinish)
-      webContents.removeListener('did-fail-load', onFail)
-      webContents.removeListener('dom-ready', onDomReady)
-    }
-
-    const loadPromise = new Promise<void>((resolve, reject) => {
-      onFinish = () => {
-        if (resolved) return
-        resolved = true
-        cleanup()
-        resolve()
-      }
-      onDomReady = () => {
-        if (resolved) return
-        resolved = true
-        cleanup()
-        resolve()
-      }
-      onFail = (_event: Electron.Event, code: number, desc: string) => {
-        if (resolved) return
-        resolved = true
-        cleanup()
-        reject(new Error(`Navigation failed (${code}): ${desc}`))
-      }
-      webContents.once('did-finish-load', onFinish)
-      webContents.once('dom-ready', onDomReady)
-      webContents.once('did-fail-load', onFail)
+    const webContents = tab.view.webContents
+    await tab.session.run(async () => {
+      const { settleAction } = await import('../actions/settle')
+      await settleAction(
+        tab.session,
+        async () => {
+          const result = await tab.session.send('Page.navigate', { url }, { deadline: Date.now() + timeout })
+          if (result.errorText) throw new Error(result.errorText)
+        },
+        { deadline: Date.now() + timeout }
+      )
     })
-
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      timeoutHandle = setTimeout(() => reject(new Error('Navigation timed out')), timeout)
-    })
-
-    try {
-      await Promise.race([view.webContents.loadURL(url), loadPromise, timeoutPromise])
-    } finally {
-      cleanup()
-    }
 
     const currentUrl = webContents.getURL()
     const title = webContents.getTitle()
@@ -690,42 +657,35 @@ export class CdpBrowserController {
    * @param tabId - Optional specific tab ID to target; if omitted, uses the active tab
    * @returns The result value from the evaluated code, or null if no value returned
    */
-  public async execute(code: string, timeout = 5000, privateMode = false, tabId?: string) {
-    const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
-    const windowKey = this.getWindowKey(privateMode)
-    this.touchTab(windowKey, actualTabId)
-    const dbg = tab.view.webContents.debugger
+  public async takeNewTabId(privateMode: boolean | undefined, tabId: string) {
+    const tab = this.windows.get(this.getWindowKey(privateMode ?? false))?.tabs.get(tabId)
+    const popup = tab?.popup
+    if (tab) tab.popup = undefined
+    return popup
+  }
 
-    await this.ensureDebuggerAttached(dbg, windowKey)
+  public async getSession(privateMode = false, tabId?: string) {
+    const target = await this.getTab(privateMode, tabId)
+    return { tabId: target.tabId, session: target.tab.session }
+  }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const evalPromise = dbg.sendCommand('Runtime.evaluate', {
-      expression: code,
-      awaitPromise: true,
-      returnByValue: true
+  public async execute(code: string, timeout = 5000, privateMode = false, tabId?: string, signal?: AbortSignal) {
+    const { session } = await this.getSession(privateMode, tabId)
+    return session.run(async () => {
+      const result = await session.send(
+        'Runtime.evaluate',
+        {
+          expression: code,
+          awaitPromise: true,
+          returnByValue: true,
+          timeout
+        },
+        { deadline: Date.now() + timeout, signal }
+      )
+      if (result.exceptionDetails)
+        throw new Error(result.exceptionDetails.exception?.description ?? 'Script evaluation failed')
+      return result.result?.value ?? result.result?.description ?? null
     })
-
-    try {
-      const result = await Promise.race([
-        evalPromise,
-        new Promise((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error('Execution timed out')), timeout)
-        })
-      ])
-
-      const evalResult = result
-
-      if (evalResult?.exceptionDetails) {
-        const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'
-        logger.warn('Runtime.evaluate raised exception', { message })
-        throw new Error(message)
-      }
-
-      const value = evalResult?.result?.value ?? evalResult?.result?.description ?? null
-      return value
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
-    }
   }
 
   public async reset(privateMode?: boolean, tabId?: string) {
@@ -749,7 +709,7 @@ export class CdpBrowserController {
           if (windowInfo.activeTabId) {
             const newActiveTab = windowInfo.tabs.get(windowInfo.activeTabId)
             if (newActiveTab && !windowInfo.window.isDestroyed()) {
-              windowInfo.window.addBrowserView(newActiveTab.view)
+              windowInfo.window.setTopBrowserView(newActiveTab.view)
               this.updateViewBounds(windowInfo)
             }
           }
@@ -808,12 +768,6 @@ export class CdpBrowserController {
   ): Promise<{ tabId: string; content: string | object }> {
     const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow)
 
-    const { tab } = await this.getTab(privateMode, tabId, false, showWindow)
-    const dbg = tab.view.webContents.debugger
-    const windowKey = this.getWindowKey(privateMode)
-
-    await this.ensureDebuggerAttached(dbg, windowKey)
-
     let expression: string
     const root = selector
       ? `(document.querySelector(${JSON.stringify(selector)}) || document.body)`
@@ -827,42 +781,27 @@ export class CdpBrowserController {
       expression = `${root}.outerHTML`
     }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    try {
-      const result = (await Promise.race([
-        dbg.sendCommand('Runtime.evaluate', {
-          expression,
-          returnByValue: true
-        }),
-        new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error('Fetch content timed out')), timeout)
+    const rawContent = String((await this.execute(expression, timeout, privateMode, tabId)) ?? '')
+
+    let content: string | object
+    if (format === 'markdown') {
+      content = (await this.getTurndownService()).turndown(rawContent)
+    } else if (format === 'json') {
+      try {
+        content = JSON.parse(rawContent)
+      } catch (parseError) {
+        logger.warn('JSON parse failed, returning raw content', {
+          url,
+          contentLength: rawContent.length,
+          error: parseError
         })
-      ])) as { result?: { value?: string } }
-
-      const rawContent = result?.result?.value ?? ''
-
-      let content: string | object
-      if (format === 'markdown') {
-        content = (await this.getTurndownService()).turndown(rawContent)
-      } else if (format === 'json') {
-        try {
-          content = JSON.parse(rawContent)
-        } catch (parseError) {
-          logger.warn('JSON parse failed, returning raw content', {
-            url,
-            contentLength: rawContent.length,
-            error: parseError
-          })
-          content = { data: rawContent }
-        }
-      } else {
-        content = rawContent
+        content = { data: rawContent }
       }
-
-      return { tabId, content }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+    } else {
+      content = rawContent
     }
+
+    return { tabId, content }
   }
 
   /**
@@ -877,15 +816,10 @@ export class CdpBrowserController {
     privateMode = false,
     tabId?: string
   ): Promise<string> {
-    const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
-    const windowKey = this.getWindowKey(privateMode)
-    this.touchTab(windowKey, actualTabId)
-    const dbg = tab.view.webContents.debugger
-
-    await this.ensureDebuggerAttached(dbg, windowKey)
+    const { session } = await this.getSession(privateMode, tabId)
 
     const format = options.format ?? 'png'
-    const params: Record<string, unknown> = {
+    const params: Protocol.Page.CaptureScreenshotRequest = {
       format,
       captureBeyondViewport: options.fullPage ?? false
     }
@@ -893,7 +827,7 @@ export class CdpBrowserController {
       params.quality = options.quality
     }
 
-    const result = (await dbg.sendCommand('Page.captureScreenshot', params)) as { data: string }
+    const result = await session.run(() => session.send('Page.captureScreenshot', params))
     return result.data
   }
 
@@ -935,19 +869,11 @@ export class CdpBrowserController {
     const tab = windowInfo.tabs.get(tabId)
     if (!tab) throw new Error(`Tab ${tabId} not found`)
 
-    // Remove previous active tab view (but NOT the tabBarView)
-    if (windowInfo.activeTabId && windowInfo.activeTabId !== tabId) {
-      const prevTab = windowInfo.tabs.get(windowInfo.activeTabId)
-      if (prevTab && !windowInfo.window.isDestroyed()) {
-        windowInfo.window.removeBrowserView(prevTab.view)
-      }
-    }
-
     windowInfo.activeTabId = tabId
 
     // Add the new active tab view
     if (!windowInfo.window.isDestroyed()) {
-      windowInfo.window.addBrowserView(tab.view)
+      windowInfo.window.setTopBrowserView(tab.view)
       this.updateViewBounds(windowInfo)
     }
 

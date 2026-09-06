@@ -15,11 +15,12 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | Layer | Base | Status and scope |
 |---|---|---|
 | PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
-| PR2 / B — `browser-use-mcp` | `browser-use-engine` | Next: MCP migration, snapshot/action tools, dialog/download results |
+| PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
 | PR C | PR B | Planned: inspection, ref recovery, WebMCP, retained-tab freezing, WebContentsView |
 | PR D | PR A | Planned independent branch: browser-data import (§10) |
 
-Sections below distinguish the implemented engine from planned adapter/action APIs. `upload_file`
+PR B is implemented on `browser-use-mcp`; its publication is separate from #20128.
+Sections below distinguish delivered PR A/B contracts from planned PR C/D work. `upload_file`
 is excluded from PR B until MCP calls carry trusted session/workdir context (§4); true per-turn
 retention has the same upstream identity dependency. P0/P1 are roadmap milestones, not PR numbers.
 
@@ -40,8 +41,9 @@ retention has the same upstream identity dependency. P0/P1 are roadmap milestone
 
 ## 2. Module layout
 
-Target layout after PRs B/C. PR A contains the service, main-only contracts, session and snapshot
-modules; `actions/`, `mcp/` and the WebMCP script below are planned.
+Layout through PR B, with PR C additions marked by their later commit groups. PR A contains
+the service, main-only contracts, session and snapshot modules; PR B adds `actions/` and `mcp/`.
+The WebMCP script, inspection tools and retained-tab freezing remain planned.
 
 ```
 src/main/features/browser/browserUse.ts     main-only ref / snapshot / ownership / command types + zod schemas
@@ -53,7 +55,7 @@ src/main/features/browser/
   session/
     GuestSession.ts                         one per webContents: debugger, refs, dialog, downloads, retention
     BrowserSessionError.ts                  typed command/session failures
-    cdpAllowList.ts                         Set<string> of permitted CDP methods
+    cdpAllowList.ts                         Typed CDP method whitelist and argument tuples
   snapshot/
     captureSnapshot.ts                      CDP calls → raw AX + DOM snapshot
     buildSnapshotTree.ts                    raw → SnapshotNode[] (visibility, interactivity, viewport filter)
@@ -138,9 +140,9 @@ export interface BrowserActionResult {
 export type TabRetention = 'temporary' | 'deliverable' | 'handoff'
 ```
 
-Tool input schemas follow the existing convention in the MCP adapter's `tools/*.ts`: a hand-written
-MCP `inputSchema` JSON next to the zod schema that parses `args`. PR B adds these schemas and
-contract tests in the adapter. PR A exports only `browserRefSchema` and `snapshotOptionsSchema`
+Tool input schemas in the MCP adapter's `tools/*.ts` are Zod schemas passed to
+`McpServer.registerTool()`. The SDK generates the advertised JSON schemas and validates
+arguments from the same definitions. PR B checks the adapter through an in-memory MCP transport. PR A exports only `browserRefSchema` and `snapshotOptionsSchema`
 (`full`, `scope`, integer `maxChars` from 256 to 40 000; unknown fields rejected). The table below
 is the planned tool surface, with C-only tools and deferred uploads delivered separately.
 
@@ -237,7 +239,7 @@ export class GuestSession {
   lastActive: number
 
   // debugger
-  send<T>(method: string, params?: object, options?: CommandOptions): Promise<T>   // attaches lazily; rejects `not_allowed` if not in cdpAllowList
+  send<M extends CdpMethod>(method: M, ...args: CdpCommandArgs<NoInfer<M>>): Promise<ProtocolMapping.Commands[M]['returnType']>
   isAvailable(): boolean                                  // false while DevTools is open or attach failed
 
   // document + refs
@@ -266,7 +268,10 @@ buffers, `freeze`/`thaw`, and `listWebTools`/`callWebTool` with the new-document
 not PR A APIs. Download events must be attributed to their originating guest on the shared Electron
 session; unrelated guests' downloads must never enter a tab's result.
 
-`cdpAllowList.ts` currently permits only PR A's capture/dialog methods. Each subsequent PR adds
+`cdpAllowList.ts` permits the delivered capture, action and dialog methods. Its literal list is checked
+against `ProtocolMapping.Commands` from the pinned, type-only `devtools-protocol` dependency.
+`GuestSession.send()` uses that mapping for required/optional inputs and inferred results, while
+retaining the runtime whitelist check. Each subsequent PR adds
 only the commands its implementation consumes; action, Network, WebMCP and import commands are
 not pre-authorized.
 
@@ -308,7 +313,7 @@ becomes the primary policy and the model only sees the reported dialog.
    `[e12] button "Submit" (disabled)` / `heading "Pricing" (level=2)` / `[e13] link "Docs" (href=/docs)`; textbox values as `value="…"` truncated at 80 chars. Header line `url · title · N interactive / M total`. Cap 40 000 chars, closing with `… (K more nodes below; use scroll, scope, or find)`.
 4. `diffSnapshot`: key each line by `backendNodeId`. Output = header + lines that are new (prefixed `*`) or whose text changed, plus `- N nodes removed`. Fall back to the full text when more than 60 % of the lines changed or the `documentId` differs. Unchanged snapshot → `(no change)`.
 
-The remaining algorithms in §5.2–§5.7 are planned for PRs B/C. PR A also suppresses password
+PR B implements §5.2–§5.6; the WebMCP algorithm in §5.7 remains planned for PR C. PR A also suppresses password
 values/descendants and sanitizes data URLs and URL credentials in snapshot text and metadata.
 
 ### 5.2 Target resolution (`actions/resolveTarget.ts`)
@@ -394,15 +399,46 @@ it does not validate the future MCP adapter, action tools, or large-page perform
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
-| B0 | `refactor(browser-mcp): move the MCP server into features/browser` | `git mv src/main/ai/mcp/servers/browser src/main/features/browser/mcp`; `factory.ts` → `application.get('BrowserSessionService').createMcpServer()`; `BrowserSessionService.createMcpServer()` | `servers/__tests__/browser.test.ts` moves to `features/browser/__tests__/mcp/` unchanged; `factory` test asserts the browser entry resolves through DI |
+| B0 | `refactor(browser-mcp): move the MCP server into features/browser` | `git mv src/main/ai/mcp/servers/browser src/main/features/browser/mcp`; `factory.ts` → `application.get('BrowserSessionService').createMcpServer()`; `BrowserSessionService.createMcpServer()` | `features/browser/__tests__/mcp/browser.test.ts` exercises the real service, factory and MCP transport |
 | B1 | `refactor(browser-mcp): route controller CDP calls through BrowserSessionService` | `mcp/controller.ts` (drop `ensureDebuggerAttached`, `dbg.sendCommand`), `mcp/server.ts` (owner = `mcp:<uuid>`; `onclose` → `endTurn` + release) | the moved controller test adapted: the fake debugger is now reached via the service |
-| B2 | `feat(browser-mcp): serve snapshot from the accessibility engine with diff by default` | `tools/snapshot.ts`, `tools/result.ts` | `tools/__tests__/snapshot.test.ts`: `full`, `scope`, `(no change)`, cap |
-| B3 | `feat(browser-mcp): add click, hover and scroll` | `actions/{resolveTarget,mouse}.ts`, `tools/interact.ts` | `resolveTarget.test.ts`, `mouse.test.ts` (§8.2) |
-| B4 | `feat(browser-mcp): add type and press_key` | `actions/keyboard.ts` | `keyboard.test.ts` |
-| B5 | `feat(browser-mcp): add select_option` | `actions/forms.ts` | `forms.test.ts`: values/labels, unknown options, input/change events |
-| B6 | `feat(browser-mcp): add go_back, go_forward, wait_for and action settling` | `actions/settle.ts`, `tools/navigate.ts` | `settle.test.ts` with fake timers |
-| B7 | `feat(browser-mcp): surface dialogs and downloads, add handle_dialog` | `GuestSession.ts` listeners, `tools/dialog.ts` | `GuestSession.test.ts` dialog cases; `dialog.test.ts` |
+| B2 | `feat(browser-mcp): serve snapshot from the accessibility engine with diff by default` | `tools/snapshot.ts`, `tools/result.ts` | `__tests__/mcp/browser.test.ts` plus the shared snapshot tests: envelopes, diff, stale refs, options and caps |
+| B3 | `feat(browser-mcp): add click, hover and scroll` | `actions/{resolveTarget,mouse}.ts`, `tools/interact.ts` | `__tests__/actions.test.ts`: geometry, descendant hit testing, real and synthetic clicks, covered hover |
+| B4 | `feat(browser-mcp): add type and press_key` | `actions/keyboard.ts` | `__tests__/actions.test.ts`: input retry, email append, newline handling and key chords |
+| B5 | `feat(browser-mcp): add select_option` | `actions/forms.ts` | `__tests__/actions.test.ts`: atomic selection and input/change events |
+| B6 | `feat(browser-mcp): add go_back, go_forward, wait_for and action settling` | `actions/settle.ts`, `tools/navigate.ts` | `__tests__/actions.test.ts` and `__tests__/mcp/browser.test.ts`; real Electron history/wait/popup smoke |
+| B7 | `feat(browser-mcp): surface dialogs and downloads, add handle_dialog` | `GuestSession.ts` listeners, `tools/dialog.ts` | `__tests__/GuestSession.test.ts`, `__tests__/downloads.test.ts`; real Electron dialog/download smoke |
 | B8 | `docs(browser-mcp): document the browser-use tool set` | `features/browser/mcp/README.md`, `settings.mcp.builtinServersDescriptions.browser` in `en-us.json` + `pnpm i18n:sync` + translations | `pnpm lint` (i18n check) |
+
+PR B implementation notes:
+
+- `BrowserSessionService.createMcpServer()` owns server cleanup; shutdown dependencies order
+  MCP runtime → browser service → WindowManager. Per-tab operations are serialized and new
+  BrowserViews load `about:blank` before CDP initialization. Concurrent window creation is coalesced.
+- Dynamic servers/controllers share an idempotent close promise. Disconnect starts cleanup;
+  the service retains the server until transport, controller and tool handlers settle. Stop
+  releases remaining guest leases before reporting close failures. Guest disposal is synchronous:
+  it cancels queued work and pending waits, without promising cancellation inside Chromium.
+- Actions and snapshots use separate `async-mutex` locks; delays use Node's cancellable timers.
+  CDP-specific deadlines, dialog interruption, detach handling and reference epochs stay in `GuestSession`.
+- All background tabs stay attached behind the active view and receive viewport bounds. Explicit missing tab IDs fail without creating
+  a replacement window; budget eviction closes the guest and the final host/tab-bar resources.
+- New tool schemas are generated from Zod. Snapshot/action envelopes carry bounded snapshot text,
+  typed errors, dialog/download updates and popup `newTabId`; legacy open/execute/image outputs remain.
+- Download reporting preserves Electron's existing save flow. No automatic download directory or
+  upload capability is added. A stopped download navigation settles without claiming a new document.
+- Annotation tests retain the real event emitter while substituting lifecycle/container ownership.
+
+PR B validation:
+
+- 152 focused tests passed across 13 files covering the browser engine/actions, MCP adapter/factory,
+  MCP runtime lifecycle and webview annotation integration.
+- `pnpm lint` and `pnpm docs:check` passed. The full test suite was intentionally skipped under
+  the workspace's local validation override.
+- A real Electron instance and MCP SDK transport passed 29 interaction steps using
+  `tests/fixtures/browser-use/interaction.html`: snapshot/diff, form and email input, selection,
+  mouse/keyboard/scroll, screenshot, download completion, covered-click fallback, fetch settling,
+  dialog interruption/resolution, submit navigation, stale refs, history/wait, popup readiness and
+  background-tab snapshots. Synthetic protocol and download handlers existed only in the smoke harness.
 
 ### PR C — `feat(browser-mcp): P1 stability, inspection and WebMCP`
 
@@ -420,7 +456,7 @@ per-turn; trusted runtime workdir context and `upload_file`; per-origin CDP poli
 
 ## 8. Automated test plan
 
-PR A results are recorded in §7. The following checklist also includes future PR B/C coverage;
+PR A/B results are recorded in §7. The following checklist also includes future coverage;
 planned fixtures and test files are not evidence that those checks have run.
 
 Projects come from `vitest.config.*`: `main` (node), `shared`, `preload`, `renderer` (jsdom).
@@ -451,8 +487,8 @@ same pattern as today's `servers/__tests__/browser.test.ts`):
 - attaches once across many `send` calls; `attach` throwing → `isAvailable() === false` and `send` rejects `debugger_unavailable`;
 - `send('Target.createTarget')` rejects `not_allowed` without touching the debugger;
 - `Page.frameNavigated` for the main frame changes `documentId`, `resolveRef` of an old ref throws `stale_ref`; a sub-frame navigation does not; after navigation the next allocated ref is numerically higher than every ref of the previous document (no reuse);
-- `Page.javascriptDialogOpening` sets `pendingDialog`; the next `send('Runtime.evaluate')` rejects `dialog_open`; `Page.handleJavaScriptDialog` clears it;
-- an in-flight `send('Runtime.evaluate')` whose fake never replies settles with `dialog_open` as soon as `Page.javascriptDialogOpening` fires; the late reply is ignored; a pending dialog is dismissed after `DIALOG_TIMEOUT_MS` (fake timers) (managed only); once-only reporting is a PR B test;
+- `Page.javascriptDialogOpening` sets `pendingDialog`; the next `send('Runtime.evaluate', { expression: '1' })` rejects `dialog_open`; `Page.handleJavaScriptDialog` clears it;
+- an in-flight `send('Runtime.evaluate', { expression: '1' })` whose fake never replies settles with `dialog_open` as soon as `Page.javascriptDialogOpening` fires; the late reply is ignored; a pending dialog is dismissed after `DIALOG_TIMEOUT_MS` (fake timers) (managed only); once-only reporting is a PR B test;
 - a `borrowed` session with refcount 0 is detached, never closed or frozen, and `acquire` with the other ownership throws;
 - `will-download` items appear once in `takeDownloads()` and are then gone;
 - `debugger` `detach` event (DevTools opened) flips `isAvailable()`; the next `send` re-attaches when possible.

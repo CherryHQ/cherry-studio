@@ -13,19 +13,7 @@ export const resetToolDefinition = {
   name: 'reset',
   description:
     'Close browser windows and clear state. Call when done browsing to free resources. Omit all parameters to close everything.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      privateMode: {
-        type: 'boolean',
-        description: 'true=reset private window only, false=reset normal window only, omit=reset all'
-      },
-      tabId: {
-        type: 'string',
-        description: 'Close specific tab only (requires privateMode to be set)'
-      }
-    }
-  }
+  inputSchema: ResetSchema
 }
 
 export async function handleReset(controller: CdpBrowserController, args: unknown) {

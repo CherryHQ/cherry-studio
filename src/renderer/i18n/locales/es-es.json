@@ -4028,7 +4028,7 @@
   "settings.mcp.baseUrlTooltip": "Dirección URL remota",
   "settings.mcp.builtinServers": "Servidores integrados",
   "settings.mcp.builtinServersDescriptions.brave_search": "Una implementación de servidor MCP que integra la API de búsqueda de Brave, proporcionando funciones de búsqueda web y búsqueda local. Requiere configurar la variable de entorno BRAVE_API_KEY",
-  "settings.mcp.builtinServersDescriptions.browser": "Controla una ventana Electron headless mediante Chrome DevTools Protocol. Herramientas: abrir URL, ejecutar JS de una línea, reiniciar sesión.",
+  "settings.mcp.builtinServersDescriptions.browser": "Explora páginas con instantáneas, haz clic y escribe en los elementos, navega entre pestañas y gestiona diálogos. Se ejecuta en segundo plano de forma predeterminada.",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "Servidor DiDi MCP que proporciona servicios de transporte incluyendo búsqueda de mapas, estimación de precios, gestión de pedidos y seguimiento de conductores. Disponible solo en China Continental. Requiere configurar la variable de entorno DIDI_API_KEY",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Implementación del servidor MCP de Dify, que proporciona una API sencilla para interactuar con Dify. Se requiere configurar la clave de Dify.",
   "settings.mcp.builtinServersDescriptions.fetch": "Servidor MCP para obtener el contenido de la página web de una URL",
