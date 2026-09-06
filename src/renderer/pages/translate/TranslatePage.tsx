@@ -322,6 +322,15 @@ const TranslatePage: FC = () => {
   const isProgrammaticScroll = useRef(false)
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
   const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
+  const releasePdfJobRef = useRef<(() => void) | undefined>(undefined)
+  const handlePdfJobChange = useCallback(
+    (jobId: string | null) => {
+      releasePdfJobRef.current?.()
+      releasePdfJobRef.current = jobId ? session.addPdfJob(jobId) : undefined
+    },
+    [session]
+  )
+
   const pdfTextRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
@@ -1047,6 +1056,7 @@ const TranslatePage: FC = () => {
               }
               onClose={resetPdfMode}
               onHandleChange={handlePdfHandleChange}
+              onJobChange={handlePdfJobChange}
               onStatusChange={handlePdfStatusChange}
               onInstallBabelDoc={() => void babelDoc.install()}
               onBabelDocUnavailable={babelDoc.refresh}

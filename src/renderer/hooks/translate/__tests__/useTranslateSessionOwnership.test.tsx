@@ -153,6 +153,30 @@ describe('useTranslateTask', () => {
     expect(requestsFor('translate.task.cancel')[0][1]).toEqual({ taskId: 'task-1' })
   })
 
+  it('ends a running PDF job when the session is released', async () => {
+    // #20114: the PDF view used to cancel its job on unmount, so hiding or hibernating the tab
+    // killed a translation the user started. The tab is what should end it.
+    const session = newSession()
+    session.addPdfJob('pdf-job-1')
+
+    act(() => {
+      tabSessionRegistry.sweep(new Set())
+    })
+
+    expect(requestsFor('translate.pdf.cancel')[0][1]).toEqual({ jobId: 'pdf-job-1' })
+  })
+
+  it('reports a running PDF job as busy, so navigation will not replace the tab', async () => {
+    const session = newSession()
+    expect(session.isBusy()).toBe(false)
+
+    const finish = session.addPdfJob('pdf-job-2')
+    expect(session.isBusy()).toBe(true)
+
+    finish()
+    expect(session.isBusy()).toBe(false)
+  })
+
   it('keeps two sessions independent', async () => {
     // #18879: a translation in one tab must not put the other one in a running state.
     const sessionA = newSession()

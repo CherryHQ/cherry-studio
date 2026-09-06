@@ -62,6 +62,8 @@ interface PdfTranslationViewProps {
   restoredOutput?: PdfTranslationOutput | null
   onClose: () => void
   onHandleChange: (handle: PdfTranslationHandle | null) => void
+  /** Reports the running job so the tab session can end it; `null` once it is over. */
+  onJobChange: (jobId: string | null) => void
   onStatusChange: (status: PdfTranslationStatus) => void
   onInstallBabelDoc: () => void
   onBabelDocUnavailable: () => void
@@ -182,6 +184,7 @@ const PdfTranslationView = ({
   restoredOutput,
   onClose,
   onHandleChange,
+  onJobChange,
   onStatusChange,
   onInstallBabelDoc,
   onBabelDocUnavailable
@@ -194,10 +197,14 @@ const PdfTranslationView = ({
   const [progress, setProgress] = useState<PdfTranslationUiProgress | null>(null)
   const activeJobIdRef = useRef<string | null>(null)
 
+  const onJobChangeRef = useRef(onJobChange)
+  onJobChangeRef.current = onJobChange
+
   const cancel = useCallback(() => {
     const jobId = activeJobIdRef.current
     if (!jobId) return
     activeJobIdRef.current = null
+    onJobChangeRef.current(null)
     setPhase('idle')
     setProgress(null)
     requestCancel(jobId, 'Failed to cancel PDF translation')
@@ -209,6 +216,7 @@ const PdfTranslationView = ({
 
       const jobId = uuid()
       activeJobIdRef.current = jobId
+      onJobChangeRef.current(jobId)
       // Drop the previous result: it outranks the running phase in `getResultState`,
       // so leaving it would pin the pane to the stale PDF for the whole new run. The
       // artifact itself stays — it is a history entry now, not scratch output.
@@ -235,6 +243,7 @@ const PdfTranslationView = ({
           // entry, it just is not what this pane should show.
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
+          onJobChangeRef.current(null)
           setOutput(result)
           setProgress(null)
           setPhase('success')
@@ -243,6 +252,7 @@ const PdfTranslationView = ({
         .catch((cause) => {
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
+          onJobChangeRef.current(null)
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
           if (
             normalized instanceof IpcError &&
@@ -285,16 +295,9 @@ const PdfTranslationView = ({
   const running = isRunningPhase(phase)
   useEffect(() => onStatusChange({ phase, running }), [onStatusChange, phase, running])
 
-  useEffect(
-    () => () => {
-      const activeJobId = activeJobIdRef.current
-      activeJobIdRef.current = null
-      if (activeJobId) {
-        requestCancel(activeJobId, 'Failed to cancel PDF translation on unmount')
-      }
-    },
-    []
-  )
+  // No unmount cancel: this view is not the job's owner. Hiding a tab tears its effects down and
+  // hibernating one unmounts it outright, neither of which should end a translation the user
+  // started — the tab session holds the job id and ends it when the tab does (#20114).
 
   const close = useCallback(() => {
     cancel()

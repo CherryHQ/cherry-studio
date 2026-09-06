@@ -24,6 +24,11 @@ export interface TranslateSessionHandle extends TabSessionHandle {
   addTask: (taskId: string) => () => void
   /** The task this session follows, if any — what a page re-attaches by after coming back. */
   currentTaskId: () => string | undefined
+  /**
+   * Adopt a layout-preserving PDF translation by its job id. Same reason as {@link addTask}: the
+   * job runs in main and outlives the view that started it, so the tab is what should end it.
+   */
+  addPdfJob: (jobId: string) => () => void
 }
 
 /**
@@ -45,17 +50,24 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
 
     return tabSessionRegistry.getOrCreate(tabSession, (notify) => {
       const tasks = new Set<string>()
+      const pdfJobs = new Set<string>()
+      /** Both kinds run in main and are ended by id; only the route differs. */
+      const cancelById = (route: 'translate.task.cancel' | 'translate.pdf.cancel', ids: Set<string>) => {
+        for (const id of ids) {
+          const input = route === 'translate.task.cancel' ? { taskId: id } : { jobId: id }
+          void ipcApi.request(route, input as never).catch((error: unknown) => {
+            // Already settled or gone — main drives the final state through its events.
+            logger.debug('Cancel request failed', { route, id, error })
+          })
+        }
+        ids.clear()
+      }
       return {
-        isBusy: () => tasks.size > 0,
+        isBusy: () => tasks.size > 0 || pdfJobs.size > 0,
         cancel: () => {
-          if (tasks.size === 0) return
-          for (const taskId of tasks) {
-            void ipcApi.request('translate.task.cancel', { taskId }).catch((error: unknown) => {
-              // Already settled or gone — main drives the final state through the task events.
-              logger.debug('Task cancel request failed', { taskId, error })
-            })
-          }
-          tasks.clear()
+          if (tasks.size === 0 && pdfJobs.size === 0) return
+          cancelById('translate.task.cancel', tasks)
+          cancelById('translate.pdf.cancel', pdfJobs)
           notify()
         },
         release: () => {
@@ -73,6 +85,13 @@ export function useTranslateSession(tabSession: string | undefined): TranslateSe
           notify()
           return () => {
             if (tasks.delete(taskId)) notify()
+          }
+        },
+        addPdfJob: (jobId: string) => {
+          pdfJobs.add(jobId)
+          notify()
+          return () => {
+            if (pdfJobs.delete(jobId)) notify()
           }
         }
       }
