@@ -84,16 +84,23 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       checkScrollability()
     }
 
-    const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(checkScrollability)
+
+    if (resizeObserver) {
+      resizeObserver.observe(scrollElement)
+    } else {
+      window.addEventListener('resize', checkScrollability)
+    }
 
     scrollElement.addEventListener('scroll', handleScroll)
-    window.addEventListener('resize', checkScrollability)
 
     return () => {
-      resizeObserver.disconnect()
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      } else {
+        window.removeEventListener('resize', checkScrollability)
+      }
       scrollElement.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', checkScrollability)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
