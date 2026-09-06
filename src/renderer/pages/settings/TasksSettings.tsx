@@ -1055,11 +1055,11 @@ const TaskDetail: FC<{
             <TabsTrigger value="general">{t('settings.general.title')}</TabsTrigger>
             <TabsTrigger value="history">{t('agent.tasks.logs.label')}</TabsTrigger>
           </TabsList>
-          <TabsContent value="prompt">
+          <TabsContent value="prompt" className="min-w-0">
             <SettingDivider />
-            <Item variant="muted">
-              <ItemContent>
-                <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">
+            <Item variant="muted" className="min-w-0 max-w-full">
+              <ItemContent className="min-w-0">
+                <ItemDescription className="wrap-anywhere line-clamp-none min-w-0 max-w-full whitespace-pre-wrap">
                   {task.prompt}
                 </ItemDescription>
               </ItemContent>
