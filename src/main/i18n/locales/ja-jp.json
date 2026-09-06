@@ -32,6 +32,7 @@
   "appMenu.copy": "コピー",
   "appMenu.cut": "切り取り",
   "appMenu.delete": "削除",
+  "appMenu.doctor": "システム診断",
   "appMenu.documentation": "ドキュメント",
   "appMenu.edit": "編集",
   "appMenu.feedback": "フィードバック",
