@@ -17,6 +17,13 @@ describe('parseChatRouteSearch', () => {
     })
   })
 
+  it('keeps the topic of a tab restored with the legacy message-only view param', () => {
+    expect(parseChatRouteSearch({ topicId: 'topic-1', view: 'message' })).toEqual({
+      assistantId: undefined,
+      topicId: 'topic-1'
+    })
+  })
+
   it('drops non-string assistantId values', () => {
     expect(parseChatRouteSearch({ assistantId: 7 })).toEqual({
       assistantId: undefined,

@@ -27,6 +27,14 @@ describe('parseAgentRouteSearch', () => {
     })
   })
 
+  it('keeps the session of a tab restored with the legacy message-only view param', () => {
+    expect(parseAgentRouteSearch({ sessionId: 'session-1', view: 'message' })).toEqual({
+      agentId: undefined,
+      intent: undefined,
+      sessionId: 'session-1'
+    })
+  })
+
   it('drops non-string agentId values', () => {
     expect(parseAgentRouteSearch({ agentId: 7 })).toEqual({
       agentId: undefined,

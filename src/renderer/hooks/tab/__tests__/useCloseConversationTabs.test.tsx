@@ -42,6 +42,15 @@ describe('findClosableConversationTabIds', () => {
     ])
   })
 
+  it('matches a tab restored with the legacy message-only view param by its conversation key', () => {
+    const tabs: Tab[] = [
+      { id: 'legacy', type: 'route', url: '/app/chat?topicId=topic-a&view=message', title: 'Topic A' },
+      { id: 'active', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' }
+    ]
+
+    expect(findClosableConversationTabIds(tabs, 'active', 'assistants', ['topic-a'])).toEqual(['legacy'])
+  })
+
   it.each(activeConversationCases)('keeps the active matching %s tab open', (_label, appId, key, baseUrl, queryKey) => {
     const tabs: Tab[] = [
       { id: 'active', type: 'route', url: `${baseUrl}?${queryKey}=${key}`, title: 'Active' },

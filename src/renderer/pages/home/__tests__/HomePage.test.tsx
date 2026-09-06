@@ -96,9 +96,6 @@ const homeMocks = vi.hoisted(() => ({
   reuseOrCreateTopic: vi.fn(),
   navigate: vi.fn(),
   routeSearch: {} as Record<string, unknown>,
-  // Topics resolvable by id through `useTopicById` (resume-by-last-used reads it); an id
-  // missing from the map behaves like a deleted topic.
-  topicsById: new Map<string, Topic>(),
   setShowSidebar: vi.fn(),
   topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
@@ -293,12 +290,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
         error: homeMocks.activeTopicError,
         topicSource: homeMocks.activeTopicSource
       }
-    },
-    useTopicById: (topicId?: string) => ({
-      topic: topicId ? homeMocks.topicsById.get(topicId) : undefined,
-      isLoading: false,
-      error: undefined
-    })
+    }
   }
 })
 
@@ -699,7 +691,6 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
-    homeMocks.topicsById.clear()
     // HomePage writes its write-only persist keys (topic expansion, global-search
     // recents) straight through cacheService, bypassing the hook mock below.
     MockCacheUtils.resetMocks()

@@ -247,10 +247,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
-    useSession: () => ({
-      session: undefined,
-      isLoading: false
-    }),
     useUpdateSession: () => ({
       updateSession: agentPageMocks.updateSession,
       setSessionWorkspace: agentPageMocks.setSessionWorkspace
