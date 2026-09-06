@@ -243,6 +243,62 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // Prose that merely contains an `agentId:` token is not a launch receipt — it must not create
+  // a fake continuation boundary inside an unrelated flow timeline.
+  it('does not split rounds when text only mentions an agent id token', () => {
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Audit the review' },
+        'The report quoted "agentId: af5051807ed7aaa30" in passing.'
+      ),
+      textPart('Findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Continue' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      textPart('More findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant'
+    ])
+  })
+
+  // A continuation whose message is blank must still show the sent summary between rounds.
+  it('falls back to the summary when the resume message is blank', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', summary: 'Finish the review', message: '   ' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Finish the review'])
+  })
+
   // Workflow/local launches identify themselves by `taskId`; continuations for those launches
   // must split rounds exactly like agent-id launches.
   it('splits rounds for a structured taskId launch receipt', () => {
