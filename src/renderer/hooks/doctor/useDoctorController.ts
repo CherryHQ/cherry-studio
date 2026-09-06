@@ -4,25 +4,22 @@ import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { buildDoctorViewModel, canCancelDoctorRun, DOCTOR_CHECK_CONTENT } from '@renderer/utils/doctor'
+import { buildDoctorViewModel, canCancelDoctorRun } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
   type DoctorCheckId,
+  doctorCheckTitleKey,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
+  type DoctorPanel,
   type DoctorRunTier,
   type DoctorState
 } from '@shared/types/doctor'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  createDoctorSession,
-  type DoctorInteraction,
-  type DoctorPanel,
-  doctorSessionReducer
-} from './doctorSessionReducer'
+import { createDoctorSession, doctorSessionReducer } from './doctorSessionReducer'
 
 const logger = loggerService.withContext('DoctorController')
 const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
@@ -223,7 +220,7 @@ export function useDoctorController({
             session.descriptionDraft.trim() ||
             t('settings.doctor.report.check_description', {
               checkId,
-              title: t(DOCTOR_CHECK_CONTENT[checkId].title)
+              title: t(doctorCheckTitleKey(checkId))
             })
           if (onReportProblem) {
             onReportProblem(reportDescription)
@@ -324,4 +321,3 @@ export function useDoctorController({
 }
 
 export type DoctorController = ReturnType<typeof useDoctorController>
-export type { DoctorInteraction, DoctorPanel }

@@ -1,6 +1,6 @@
 import { Accordion, Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
-import { DoctorCheckList, DoctorCheckNotices } from '@renderer/components/doctor'
+import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
@@ -102,7 +102,7 @@ export function ErrorDiagnosticsPanel({
               cachedDiagnosis={cachedDiagnosis}
             />
           ) : null}
-          {controller.viewModel.rows.length > 0 ? <DoctorCheckList controller={controller} /> : null}
+          {controller.viewModel.rows.length > 0 ? <DoctorCheckAccordionItems controller={controller} /> : null}
         </Accordion>
       ) : null}
 

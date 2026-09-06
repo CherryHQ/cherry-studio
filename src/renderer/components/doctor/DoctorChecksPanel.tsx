@@ -17,7 +17,8 @@ import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { DOCTOR_CHECK_CONTENT, DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
+import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
+import { doctorCheckTitleKey } from '@shared/types/doctor'
 import { ChevronDown, Copy, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,7 +55,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             chrome: t('settings.doctor.copy.chrome'),
             v8: t('settings.doctor.copy.v8')
           },
-          title: (id) => t(DOCTOR_CHECK_CONTENT[id].title),
+          title: (id) => t(doctorCheckTitleKey(id)),
           status: (status) => t(DOCTOR_STATUS_LABEL_KEYS[status]),
           boolean: (value) => t(value ? 'settings.doctor.copy.yes' : 'settings.doctor.copy.no')
         })
