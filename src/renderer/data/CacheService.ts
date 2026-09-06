@@ -1179,8 +1179,72 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
-        // Update persist cache (other windows only update memory, not localStorage)
-        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+        const persistKey = message.key as RendererPersistCacheKey
+        // Follow-up queues are a per-conversation map persisted under one key;
+        // two windows queuing to different conversations can broadcast whole-map
+        // values that are each stale for the other's entry. Merge per-conversation
+        // so concurrent writes do not clobber each other. Deletions use a null
+        // tombstone (see useFollowupQueue persistState) so the merge can
+        // propagate them without resurrecting stale entries. Same-scope
+        // concurrent enqueues union items by id to avoid losing one window's
+        // queued message.
+        if (
+          persistKey === 'ui.composer.followup_queue' &&
+          this.persistCache.has(persistKey) &&
+          message.value !== undefined &&
+          typeof message.value === 'object' &&
+          !Array.isArray(message.value)
+        ) {
+          const existing = this.persistCache.get(persistKey) as Record<string, unknown>
+          if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+            const incoming = message.value as Record<string, unknown>
+            const merged: Record<string, unknown> = { ...existing }
+            for (const [convKey, incomingVal] of Object.entries(incoming)) {
+              // Incoming null is a tombstone: ensure it deletes the entry.
+              if (incomingVal === null) {
+                delete merged[convKey]
+                continue
+              }
+
+              const existingVal = merged[convKey]
+
+              // If local side already holds a tombstone (null), keep it and do not
+              // resurrect the entry from a potentially stale incoming snapshot.
+              if (existingVal === null) {
+                continue
+              }
+
+              if (
+                existingVal &&
+                typeof existingVal === 'object' &&
+                !Array.isArray(existingVal) &&
+                incomingVal &&
+                typeof incomingVal === 'object' &&
+                !Array.isArray(incomingVal)
+              ) {
+                const existingEntry = existingVal as { items?: unknown; paused?: unknown }
+                const incomingEntry = incomingVal as { items?: unknown; paused?: unknown }
+                if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
+                  const byId = new Map<string, unknown>()
+                  for (const it of existingEntry.items as Array<{ id?: string }>) {
+                    if (it && typeof it.id === 'string') byId.set(it.id, it)
+                  }
+                  for (const it of incomingEntry.items as Array<{ id?: string }>) {
+                    if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
+                  }
+                  merged[convKey] = { ...incomingEntry, items: Array.from(byId.values()) }
+                  continue
+                }
+              }
+
+              merged[convKey] = incomingVal
+            }
+            this.persistCache.set(persistKey, merged as never)
+            this.notifySubscribers(message.key)
+            return
+          }
+        }
+        this.persistCache.set(persistKey, message.value)
         this.notifySubscribers(message.key)
       }
     })

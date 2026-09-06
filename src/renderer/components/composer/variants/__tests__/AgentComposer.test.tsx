@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   getPhysicalPath: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
+  persistCache: new Map<string, unknown>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
   updateAgent: vi.fn(),
@@ -284,7 +285,7 @@ vi.mock('@renderer/ipc', () => ({
 // useAgentSessionSlashCommands now observes the shared slash-command catalog via
 // useSharedCacheValue (globally mocked); with no catalog seeded the composer
 // falls back to the builtin list. This inline cacheService only serves the
-// remaining typed-draft, casual queue, and subscribe consumers.
+// remaining typed-draft, casual queue, subscribe, and followup-queue (persist) consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     get: vi.fn(() => undefined),
@@ -293,6 +294,12 @@ vi.mock('@data/CacheService', () => ({
     getCasual: vi.fn(() => ''),
     hasCasual: vi.fn(() => false),
     setCasual: vi.fn(),
+    getPersist: vi.fn((key: string) => mocks.persistCache.get(key) ?? {}),
+    setPersist: vi.fn((key: string, value: unknown) => {
+      const prev = mocks.persistCache.get(key) ?? {}
+      const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(prev) : value
+      mocks.persistCache.set(key, next)
+    }),
     subscribe: vi.fn(() => () => {})
   }
 }))
@@ -802,6 +809,7 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
+    mocks.persistCache.clear()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()

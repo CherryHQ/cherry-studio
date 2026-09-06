@@ -85,7 +85,7 @@ import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
@@ -1507,8 +1507,12 @@ const AgentComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup
   } = useFollowupQueue({
     scopeKey: sessionTopicId,
     isFulfilled: sessionFulfilled,
@@ -1564,7 +1568,10 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
+        if (!enqueueFollowup(draft, payload)) {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1782,6 +1789,11 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
+                  onClearAll={clearFollowups}
+                  failedItemId={failedFollowupId}
+                  onRetryFailed={retryFailedFollowup}
+                  onSkipFailed={skipFailedFollowup}
+                  onAbortQueue={clearFollowups}
                 />
               ) : undefined}
             </>
