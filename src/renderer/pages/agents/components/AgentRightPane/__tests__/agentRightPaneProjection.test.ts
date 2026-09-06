@@ -184,6 +184,37 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // Short agent ids (e.g. `agent-77`) used to fail the 16-character length floor and merge every
+  // continuation into the original round; the trailer names the id, so length is not a signal.
+  it('splits rounds for a resumed agent with a short id', () => {
+    const launchOutput = 'Async agent launched successfully.\nagentId: agent-77 (internal metadata - do not mention.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-77', message: 'Continue' },
+        { success: true, resumedAgentId: 'agent-77' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Continue'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
   // Production ordering: the host row (holding both rounds) predates the receipt row, so position
   // alone puts the resume prompt AFTER all content. Runtime-tagged parts must win.
   it('splits rounds by runtime markers even when the receipt row comes last', () => {
