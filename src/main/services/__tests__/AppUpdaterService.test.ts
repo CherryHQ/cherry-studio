@@ -148,6 +148,28 @@ describe('AppUpdaterService', () => {
     appUpdater = new AppUpdaterService()
   })
 
+  describe('read-only update query', () => {
+    it('reports an available release without using the application updater or analytics', async () => {
+      releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })
+      await expect(appUpdater.queryUpdateAvailability()).resolves.toEqual({
+        status: 'available',
+        currentVersion: '1.0.0',
+        version: '2.0.0'
+      })
+      expect(releaseNotesUpdaterInstances[0]).toMatchObject({ autoDownload: false, autoInstallOnAppQuit: false })
+      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+      expect(trackAppUpdateMock).not.toHaveBeenCalled()
+    })
+
+    it('does not turn a failed or unsupported updater query into an up-to-date result', async () => {
+      releaseNotesCheckMock.mockRejectedValueOnce(new Error('HTTP 503'))
+      await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('HTTP 503')
+      releaseNotesCheckMock.mockResolvedValueOnce(null)
+      await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('did not produce a result')
+    })
+  })
+
   describe('managed update feed', () => {
     it('uses the latest channel and global region outside China', async () => {
       await (appUpdater as any).configureUpdaterForCheck()

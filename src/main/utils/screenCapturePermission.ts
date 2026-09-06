@@ -14,7 +14,7 @@ import { shell, systemPreferences } from 'electron'
 
 const logger = loggerService.withContext('screenCapturePermission')
 
-export type ScreenCapturePermissionStatus = 'authorized' | 'not-determined' | 'denied'
+export type ScreenCapturePermissionStatus = 'authorized' | 'not-determined' | 'denied' | 'restricted'
 
 /** macOS System Settings pane for screen recording. */
 const SCREEN_CAPTURE_SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
@@ -26,14 +26,14 @@ const SCREEN_CAPTURE_SETTINGS_URL = 'x-apple.systempreferences:com.apple.prefere
  * distinguishes 'not-determined' — the native `CGPreflightScreenCaptureAccess`
  * used by the request side is a bool and cannot express it.
  *
- * 'restricted' (MDM policy) folds into 'denied': the user cannot grant it, so
- * every caller must treat it exactly like a refusal.
+ * 'restricted' identifies a policy restriction that a permission prompt cannot fix.
  */
 export function getScreenCapturePermissionStatus(): ScreenCapturePermissionStatus {
   if (!isMac) return 'authorized'
   const status = systemPreferences.getMediaAccessStatus('screen')
   if (status === 'granted') return 'authorized'
   if (status === 'not-determined') return 'not-determined'
+  if (status === 'restricted') return 'restricted'
   return 'denied'
 }
 

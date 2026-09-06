@@ -34,6 +34,7 @@ export interface LogRecord {
   readonly stack?: string
   /** Serialized remainder of the line (context, data, merged caller fields), truncated. */
   readonly detail?: string
+  readonly truncated?: true
   readonly source?: { readonly file: string; readonly line: number }
 }
 

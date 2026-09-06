@@ -32,10 +32,12 @@ class RegionService {
   private inflight: Promise<string> | null = null
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
-  async getCountry(): Promise<string> {
+  async getCountry(signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
     const cached = this.getCachedCountry()
     if (cached) return cached
     const proxyKey = application.get('ProxyService').appliedProxyKey
+    if (signal) return this.detectAndCache(proxyKey, signal)
 
     // Dedup concurrent detections — callers share one in-flight request.
     this.inflight ??= this.detectAndCache(proxyKey).finally(() => {
@@ -52,29 +54,30 @@ class RegionService {
   }
 
   /** True when the egress country resolves to China. */
-  async isInChina(): Promise<boolean> {
-    const country = await this.getCountry()
+  async isInChina(signal?: AbortSignal): Promise<boolean> {
+    const country = await this.getCountry(signal)
     return country.toLowerCase() === 'cn'
   }
 
-  private async detectAndCache(proxyKey: string | null): Promise<string> {
+  private async detectAndCache(proxyKey: string | null, signal?: AbortSignal): Promise<string> {
     try {
-      const country = await this.fetchCountry()
+      const country = await this.fetchCountry(signal)
       application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       return country
     } catch (error) {
+      signal?.throwIfAborted()
       logger.error('Failed to get IP address information:', error as Error)
       return DEFAULT_COUNTRY
     }
   }
 
-  private async fetchCountry(): Promise<string> {
+  private async fetchCountry(signal?: AbortSignal): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
     try {
       const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
-        signal: controller.signal
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
       })
 
       if (!response.ok) {

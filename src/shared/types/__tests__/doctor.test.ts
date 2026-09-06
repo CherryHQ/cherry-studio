@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorCheckId,
-  doctorFixMeta,
   type DoctorReport,
   isDoctorFixRequest,
   projectDoctorReport
@@ -23,22 +22,24 @@ describe('DOCTOR_CHECK_CATALOG', () => {
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
   })
-
-  it('exposes fix metadata the dialog needs before offering the button', () => {
-    expect(doctorFixMeta('config-boot-config-valid', 'repair')).toEqual({
-      id: 'repair',
-      risk: 'low',
-      reversible: true,
-      relaunch: true
-    })
-  })
 })
 
 describe('isDoctorFixRequest', () => {
   const valid = { runId: 'run-1', checkId: 'config-boot-config-valid', fixId: 'repair' }
+  it('requires targets only for targeted fixes and rejects retired destructive fixes', () => {
+    expect(isDoctorFixRequest({ ...valid, target: 'unexpected' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: undefined })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'mcp-servers-connected', fixId: 'restart' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-disk-space', fixId: 'cleanup' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-diagnostic-data-size', fixId: 'clear' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'config-hardware-acceleration', fixId: 'enable' })).toBe(false)
+  })
 
   it('accepts a fix the catalog declares for that check, bound to a run', () => {
     expect(isDoctorFixRequest(valid)).toBe(true)
+    expect(
+      isDoctorFixRequest({ runId: 'run-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 'server-1' })
+    ).toBe(true)
   })
 
   it('rejects a declared fix id aimed at a check that does not offer it', () => {
@@ -49,6 +50,8 @@ describe('isDoctorFixRequest', () => {
     expect(isDoctorFixRequest({ checkId: valid.checkId, fixId: valid.fixId })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, runId: '' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, checkId: 'nope' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: '' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: 1 })).toBe(false)
     expect(isDoctorFixRequest(null)).toBe(false)
     expect(isDoctorFixRequest('config-boot-config-valid')).toBe(false)
   })

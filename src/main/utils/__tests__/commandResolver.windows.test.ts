@@ -1,7 +1,15 @@
-import { execFileSync, spawn } from 'child_process'
+import type * as UtilModule from 'node:util'
+
+import { execFile, execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import which from 'which'
+
+const asyncExec = vi.hoisted(() => vi.fn())
+vi.mock('node:util', async (importOriginal) => {
+  const actual = await importOriginal<typeof UtilModule>()
+  return { ...actual, promisify: (fn: typeof execFile) => (fn === execFile ? asyncExec : actual.promisify(fn)) }
+})
 
 vi.mock('child_process')
 vi.mock('fs')
@@ -16,6 +24,7 @@ describe('findCommandInShellEnv on Windows', () => {
     vi.mocked(which).mockReset()
     vi.mocked(which.sync).mockReset()
     vi.mocked(execFileSync).mockReset()
+    asyncExec.mockReset()
     vi.mocked(fs.existsSync).mockReset().mockReturnValue(false)
   })
 
@@ -58,15 +67,13 @@ describe('findCommandInShellEnv on Windows', () => {
     await expect(result).resolves.toBe('C:\\Tools\\tool.exe')
   })
 
-  it('returns null when PATH lookup exceeds the command timeout', async () => {
+  it('reports a query failure when PATH lookup exceeds the command timeout', async () => {
     vi.useFakeTimers()
     vi.mocked(which).mockReturnValue(new Promise<never>(() => {}))
-    const settled = vi.fn()
-
-    void findCommandInShellEnv('npx', { PATH: '\\\\offline-server\\tools' }).then(settled)
+    const pending = findCommandInShellEnv('npx', { PATH: '\\\\offline-server\\tools' })
+    const rejected = expect(pending).rejects.toThrow('Timed out')
     await vi.advanceTimersByTimeAsync(5000)
-
-    expect(settled).toHaveBeenCalledWith(null)
+    await rejected
   })
 
   it('finds a Unicode executable synchronously through PATH lookup', () => {
@@ -113,9 +120,9 @@ describe('findCommandInShellEnv on Windows', () => {
     const nodePath = 'D:\\开发工具\\mise\\installs\\node\\node.exe'
     vi.mocked(which).mockResolvedValue([misePath] as never)
     vi.mocked(fs.existsSync).mockImplementation((candidate) => candidate === nodePath)
-    vi.mocked(execFileSync).mockImplementation((command, args) => {
+    asyncExec.mockImplementation(async (command, args) => {
       if (command === misePath && (args as string[])[0] === 'which') {
-        return nodePath
+        return { stdout: nodePath, stderr: '' }
       }
       throw new Error('unexpected command')
     })
@@ -123,7 +130,43 @@ describe('findCommandInShellEnv on Windows', () => {
     const result = await findViaMise('node', { Path: 'D:\\开发工具\\mise' })
 
     expect(result).toBe(nodePath)
-    expect(execFileSync).toHaveBeenCalledTimes(1)
+    expect(asyncExec).toHaveBeenCalledTimes(1)
     expect(which.sync).not.toHaveBeenCalled()
+  })
+})
+
+describe('Windows mise lookup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(which).mockResolvedValue(['C:\\tools\\mise.exe'] as never)
+  })
+  it('uses the asynchronous child API and preserves the lookup environment', async () => {
+    asyncExec.mockImplementation(async (_file, _args, options) => {
+      expect(options.env).toEqual({ PATH: 'C:\\tools' })
+      return { stdout: 'C:\\tools\\node.exe\n', stderr: '' }
+    })
+    await expect(findViaMise('node', { PATH: 'C:\\tools' })).resolves.toBe('C:\\tools\\node.exe')
+    expect(fs.existsSync).toHaveBeenCalledWith('C:\\tools\\node.exe')
+  })
+
+  it('propagates cancellation into the pending mise process', async () => {
+    const controller = new AbortController()
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    asyncExec.mockImplementation((_file, _args, options) => {
+      const result = new Promise((_resolve, reject) =>
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+      )
+      started()
+      return result
+    })
+    const pending = findViaMise('node', { PATH: 'C:\\tools' }, controller.signal)
+    await ready
+    const rejected = expect(pending).rejects.toThrow()
+    controller.abort()
+    await rejected
   })
 })

@@ -19,15 +19,13 @@ describe('screen capture permission', () => {
     openExternal.mockClear()
   })
 
-  // 'restricted' is the MDM case: the user cannot grant it, so folding it into anything
-  // other than 'denied' would send them to a System Settings toggle they cannot flip.
-  it('maps the Electron media-access status onto the permission tri-state', () => {
+  it('preserves policy restrictions separately from user denial', () => {
     getMediaAccessStatus.mockReturnValue('not-determined')
     expect(getScreenCapturePermissionStatus()).toBe('not-determined')
     getMediaAccessStatus.mockReturnValue('granted')
     expect(getScreenCapturePermissionStatus()).toBe('authorized')
     getMediaAccessStatus.mockReturnValue('restricted')
-    expect(getScreenCapturePermissionStatus()).toBe('denied')
+    expect(getScreenCapturePermissionStatus()).toBe('restricted')
   })
 
   // The scheme is not in ALLOWED_EXTERNAL_PROTOCOLS, so routing this through the
