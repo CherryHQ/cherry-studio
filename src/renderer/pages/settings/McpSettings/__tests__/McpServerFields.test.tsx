@@ -118,8 +118,14 @@ describe('resolveMcpConfigTransportType', () => {
     expect(resolveMcpConfigTransportType('inMemory', '@cherry/mcp-auto-install')).toBe('stdio')
   })
 
-  it('keeps other built-in servers on the in-memory configuration', () => {
-    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory')).toBe('inMemory')
+  it('keeps implemented built-in servers in memory when a legacy command remains', () => {
+    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory', 'npx')).toBe('inMemory')
+  })
+
+  it('does not let a legacy command override a higher-priority endpoint', () => {
+    expect(resolveMcpConfigTransportType('inMemory', 'Legacy server', 'npx', 'https://example.com/mcp')).toBe(
+      'inMemory'
+    )
   })
 
   it('exposes stdio configuration for legacy command-backed servers', () => {
