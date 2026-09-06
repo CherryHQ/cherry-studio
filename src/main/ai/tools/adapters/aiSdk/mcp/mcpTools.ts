@@ -5,9 +5,10 @@ import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
-import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
+import { type JSONSchema7, type Tool } from 'ai'
 
 import { getRequestContext } from '../context'
+import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
@@ -40,7 +41,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     metadata: { cherry: { tool: metadata } },
-    inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
+    inputSchema: createMcpInputSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, options) => {
       const { toolCallId, abortSignal } = options
@@ -140,12 +141,18 @@ export async function syncMcpToolsToRegistry(
       const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
+      const freshEntries: ToolEntry[] = []
+      const freshServerNames = new Set<string>()
       for (const mcpTool of scopedTools) {
         // A wire id encodes serverId + protocol tool name, so a repeat can only be the
         // same identity listed twice by one server. First wins.
-        if (freshNames.has(mcpTool.id)) continue
-        reg.register(toEntry(mcpTool, server))
-        freshNames.add(mcpTool.id)
+        if (freshNames.has(mcpTool.id) || freshServerNames.has(mcpTool.id)) continue
+        freshEntries.push(toEntry(mcpTool, server))
+        freshServerNames.add(mcpTool.id)
+      }
+      for (const entry of freshEntries) {
+        reg.register(entry)
+        freshNames.add(entry.name)
       }
       refreshedNamespaces.add(namespace)
     } catch (error) {

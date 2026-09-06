@@ -390,15 +390,15 @@ describe('useHealthCheck', () => {
     expect(readModelHealthStatus(rerankModel.id)).toMatchObject({ model: rerankModel })
   })
 
-  it('clears results left in the cache by a previous mount', async () => {
+  it('clears cached results on unmount so a later mount never renders them', async () => {
     checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
     const { result, unmount } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
     await act(async () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
     })
-    unmount()
+    expect(readStatuses()).not.toEqual([])
 
-    renderHook(() => useHealthCheck('openai', getCredentialsState()))
+    unmount()
     expect(readStatuses()).toEqual([])
   })
 

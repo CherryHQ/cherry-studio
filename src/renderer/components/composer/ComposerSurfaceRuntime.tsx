@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
@@ -44,7 +45,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
@@ -2296,17 +2297,22 @@ export default function ComposerSurfaceRuntime({
           ref={frameRef}
           data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn(
+            'group/composer-editor relative flex min-w-0 flex-1 overflow-hidden transition-[height] ease-out',
+            editingState && 'mt-2'
+          )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
           <EditorContent
             editor={editor}
+            className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
           />
+          <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
           <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
@@ -2359,6 +2365,7 @@ export default function ComposerSurfaceRuntime({
           : {})
       }}>
       <div className="w-full">
+        <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}

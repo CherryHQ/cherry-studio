@@ -116,6 +116,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.input.focus',
+    titleKey: 'settings.shortcuts.focus_input',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'I'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.context.toggle_new',
     titleKey: 'settings.shortcuts.toggle_new_context',
     categoryKey: 'settings.shortcuts.chat',
