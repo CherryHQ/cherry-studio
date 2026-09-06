@@ -736,6 +736,25 @@ describe('agent right pane projections', () => {
     expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
   })
 
+  // A done-prefixed receipt with no detached child parts must not surface its internal
+  // metadata (agent id, SendMessage instructions) as assistant content.
+  it('hides a done-prefixed receipt when the launch has no detached child parts', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+    )
+    const parts = [selected]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(JSON.stringify(projection)).not.toContain('agent-77')
+    expect(JSON.stringify(projection)).not.toContain('SendMessage')
+    expect(JSON.stringify(projection)).not.toContain('done.')
+  })
+
   it.each(['async_launched', 'remote_launched'] as const)(
     'hides a structured %s receipt without borrowing task status',
     (status) => {
