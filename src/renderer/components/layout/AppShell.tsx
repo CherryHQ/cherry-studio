@@ -80,9 +80,7 @@ export const AppShell = () => {
         }
       }
       if (!closingMiniAppFound) return undefined
-      const hasSurvivingMiniAppTab = tabs.some(
-        (t) => !closedIds.includes(t.id as string) && miniAppIdFromTabUrl(t.url) !== null
-      )
+      const hasSurvivingMiniAppTab = tabs.some((t) => !closedIds.includes(t.id) && miniAppIdFromTabUrl(t.url) !== null)
       if (hasSurvivingMiniAppTab) return undefined
       const id = splitMiniAppId
       setSplitOpen(false)
