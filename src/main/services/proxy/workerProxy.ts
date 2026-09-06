@@ -19,7 +19,7 @@ export type WorkerProxyConfiguration =
  *
  * Two consumption modes:
  * 1. Baked into an eval'd `worker_threads` source string via `${configureWorkerProxy.toString()}`
- *    (see `ai/inference/inferenceWorkerSource.ts`) — today's only consumer.
+ *    (see `ai/localModel/runtime/worker/workerCore.ts`) — today's only consumer.
  * 2. Imported directly by a future Electron `utilityProcess` entry bundle and called with the
  *    snapshot from its init message.
  *

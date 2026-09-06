@@ -161,7 +161,9 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
+    // two adjacent files can round to the same ino.
+    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code

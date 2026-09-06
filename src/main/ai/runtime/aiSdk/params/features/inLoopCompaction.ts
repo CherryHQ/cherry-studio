@@ -1,7 +1,8 @@
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
- * about-to-send prompt in place when it crosses 80% of the model's context
- * window. The aiCore context module does the work via
+ * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
+ * the input room (window minus this request's output reservation). The aiCore
+ * context module does the work via
  * `compactModelMessages` — it splits only on turn boundaries (never orphans a
  * tool result), preserves `system` verbatim, and returns
  * `[...system, <summary>, ...recent turns]`.
@@ -25,8 +26,7 @@ import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
@@ -174,8 +174,8 @@ export const inLoopCompactionFeature: RequestFeature = {
         scope.endpointType
       )
     )
-    const trigger = Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
+    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.

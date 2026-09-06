@@ -39,7 +39,6 @@ const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
-const PDF_PAGE_FOREGROUND = 'CanvasText'
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
 type PdfJsLinkService = InstanceType<typeof PDFLinkService>
@@ -233,10 +232,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
     if (pdfViewer) {
-      pdfViewer.pageColors = {
-        ...(background ? { background } : {}),
-        foreground: PDF_PAGE_FOREGROUND
-      }
+      pdfViewer.pageColors = background ? { background } : null
     }
     applyViewerBackground(background)
   }, [applyViewerBackground, background])
@@ -368,10 +364,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
         linkService,
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE,
-        pageColors: {
-          ...(backgroundRef.current ? { background: backgroundRef.current } : {}),
-          foreground: PDF_PAGE_FOREGROUND
-        },
+        ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
         supportsPinchToZoom: true
       }
       pdfViewer = new PDFViewer(viewerOptions)

@@ -20,7 +20,7 @@ export interface PermissionLeafItem {
 /**
  * The Android-style permission list shared by the consent card and the detail panel: one
  * namespace per row — title, an (i) for what it means, then its leaves inline, each a
- * checkbox + label unit. Technical names stay out of the text and appear on hover.
+ * checkbox + label unit.
  */
 export const PermissionChecklist: FC<{
   items: PermissionLeafItem[]
@@ -62,28 +62,27 @@ export const PermissionChecklist: FC<{
               {leaves.map((leaf) => {
                 const item = byKey.get(leaf)!
                 return (
-                  <Tooltip key={leaf} content={leaf}>
-                    <label
-                      className={cn(
-                        // Block-level on purpose: an inline-flex label sits on the line's baseline, and an empty
-                        // (unticked) checkbox has a different baseline from a ticked one — the row would jump.
-                        'flex items-center gap-1.5 text-sm',
-                        item.fixed ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer'
-                      )}>
-                      <Checkbox
-                        size="sm"
-                        checked={item.checked}
-                        disabled={disabled || item.fixed}
-                        // The technical id would OVERRIDE the visible label for screen-reader
-                        // and voice-control users (WCAG 2.5.3), and the visible label alone is
-                        // ambiguous — "Read", "Write" and "Delete" each name two leaves in
-                        // different namespaces. The qualified form contains the visible word.
-                        aria-label={permissionLabel(t, leaf)}
-                        onCheckedChange={(checked) => onToggle(leaf, checked === true)}
-                      />
-                      <span>{permissionLeafLabel(t, leaf)}</span>
-                    </label>
-                  </Tooltip>
+                  <label
+                    key={leaf}
+                    className={cn(
+                      // Block-level on purpose: an inline-flex label sits on the line's baseline, and an empty
+                      // (unticked) checkbox has a different baseline from a ticked one — the row would jump.
+                      'flex items-center gap-1.5 text-sm',
+                      item.fixed ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer'
+                    )}>
+                    <Checkbox
+                      size="sm"
+                      checked={item.checked}
+                      disabled={disabled || item.fixed}
+                      // The technical id would OVERRIDE the visible label for screen-reader
+                      // and voice-control users (WCAG 2.5.3), and the visible label alone is
+                      // ambiguous — "Read", "Write" and "Delete" each name two leaves in
+                      // different namespaces. The qualified form contains the visible word.
+                      aria-label={permissionLabel(t, leaf)}
+                      onCheckedChange={(checked) => onToggle(leaf, checked === true)}
+                    />
+                    <span>{permissionLeafLabel(t, leaf)}</span>
+                  </label>
                 )
               })}
             </div>

@@ -161,6 +161,10 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 vi.mock('../ChatContent', async () => {
   const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
     '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -197,6 +201,10 @@ vi.mock('../components/ChatNavbar', () => ({
       {conversationControls}
     </div>
   )
+}))
+
+vi.mock('../components/TopicBranchSwitcher', () => ({
+  default: () => null
 }))
 
 vi.mock('../components/TopicRightPane', () => {

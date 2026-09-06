@@ -11,6 +11,7 @@ const fixedSamplingParameterSupport = {
 export default openaiCompatible({
   id: 'moonshot',
   name: 'Moonshot AI',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.moonshot.cn',
   reasoningFormat: {
     type: 'openai-chat',
@@ -41,7 +42,9 @@ export default openaiCompatible({
     // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
     // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
     { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
-    ...['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
+    // Moonshot's provider wire only carries `thinking.type`, so these SKUs need their own contract
+    // for a chosen tier to reach the request at all.
+    ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
       modelId,
       parameterSupport: fixedSamplingParameterSupport,
       reasoningContracts: {

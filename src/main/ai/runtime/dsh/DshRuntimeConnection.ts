@@ -21,6 +21,7 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -58,11 +59,15 @@ import {
   warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
-import { captureDshConnectionSnapshot, DshInvalidConnectionSnapshotError } from './dshConnectionSignature'
+import {
+  captureDshConnectionSnapshot,
+  type DshConnectionSnapshot,
+  DshInvalidConnectionSnapshotError
+} from './dshConnectionSignature'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
-import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot } from './modelInjection'
+import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot, usesDshGateway } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
 
@@ -214,12 +219,32 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
+    const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
+      try {
+        return await resolveDshProviderInjectionFromSnapshot(
+          this.input.sessionId,
+          snapshot.provider,
+          snapshot.model,
+          snapshot.enabledApiKeys,
+          this.input.reasoningEffort ?? 'default'
+        )
+      } catch (error) {
+        if (error instanceof ApiGatewayNotRunningError) {
+          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+        }
+        throw error
+      }
+    }
+
     const discoverySnapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
+    // connection is built from the exact provider/model facts protected by the final check.
+    if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
     await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
@@ -236,22 +261,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // dsh has no native permission modes; the bridge plugin enforces the pushed policy.
     this.permissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    let injection: DshProviderInjection
-    try {
-      injection = await resolveDshProviderInjectionFromSnapshot(
-        this.input.sessionId,
-        snapshot.provider,
-        snapshot.model,
-        snapshot.enabledApiKeys,
-        this.input.reasoningEffort ?? 'default'
-      )
-    } catch (error) {
-      // Same prompt path as claude: the renderer offers to enable the disabled gateway.
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    }
+    const injection = await resolveInjection(snapshot)
     this.modelId = injection.modelId
     this.contextWindow = injection.modelConfig.contextWindow
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
@@ -344,6 +354,18 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onGuardCheck: async (toolName, args, cwd) => {
+          const decision = await evaluateUserDataSqliteGuard({
+            runtime: 'dsh',
+            toolName,
+            args,
+            cwd,
+            workspacePath: this.workspacePath
+          })
+          if (!decision) return { kind: 'allow' }
+          logger.info('Blocked a write to user data SQLite', { sessionId: this.input.sessionId, toolName })
+          return { kind: 'deny', ...decision }
+        },
         onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
       await this.bridge.listen()

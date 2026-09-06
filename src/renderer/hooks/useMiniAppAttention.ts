@@ -1,8 +1,9 @@
 import { cacheService } from '@data/CacheService'
-import { useSharedCacheValue } from '@data/hooks/useCache'
+import { useSharedCacheSelector, useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
+import { isEqual } from 'es-toolkit/compat'
 import { useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppAttention')
@@ -21,7 +22,11 @@ export function useMiniAppAttention(): CacheMiniAppAttention[] {
 
 /** This app's dot and its reasons, or `undefined` when it has none. */
 export function useMiniAppAttentionFor(appId: string): CacheMiniAppAttention | undefined {
-  return useMiniAppAttention().find((entry) => entry.appId === appId)
+  return useSharedCacheSelector(
+    ['mini_app.attention'],
+    ([attention]) => (attention ?? NO_ATTENTION).find((entry) => entry.appId === appId),
+    isEqual
+  )
 }
 
 export function useMiniAppAttentionSync(): void {

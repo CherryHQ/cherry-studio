@@ -11,7 +11,9 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ImageBlock from '../blocks/ImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
+import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -25,6 +27,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import MessageAttachments from './MessageAttachments'
 import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -353,6 +356,8 @@ const UserBubbleMessage = ({
   const openUserProfile = useCallback(() => {
     void actions.openUserProfile?.()
   }, [actions])
+  const messageParts = useMessageParts(message.id)
+  const attachments = getHoistedAttachments(messageParts, message)
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -363,16 +368,32 @@ const UserBubbleMessage = ({
               <AgentSessionDeliveryBadge delivery={message.delivery} />
             </div>
           )}
+          {(attachments.images.length > 0 || attachments.files.length > 0) && (
+            <div className="flex max-w-full flex-col items-end">
+              {attachments.images.length > 0 && (
+                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
+              )}
+              {attachments.files.map((file) => (
+                <MessageAttachments
+                  key={file.key}
+                  handle={file.handle}
+                  name={file.name}
+                  ext={file.ext}
+                  createdAt={message.createdAt}
+                />
+              ))}
+            </div>
+          )}
           <Scrollbar
             data-ui="part:message-content"
-            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,
               overflowY: 'visible'
             }}>
             <MessageErrorBoundary>
-              <MessageContent message={message} />
+              <MessageContent message={message} hoistAttachments />
             </MessageErrorBoundary>
           </Scrollbar>
         </div>

@@ -70,7 +70,7 @@ interface TabToneProps {
  */
 const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
 const DEFAULT_TAB_ICON_SIZE = 14
-const MINI_APP_TAB_ICON_SIZE = 25
+const MINI_APP_TAB_ICON_SIZE = 18
 
 function getTabIconSize(tab: Pick<Tab, 'url'>): number {
   return tab.url.startsWith(MINI_APP_ROUTE_PREFIX) ? MINI_APP_TAB_ICON_SIZE : DEFAULT_TAB_ICON_SIZE
@@ -147,7 +147,8 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
+  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -608,7 +609,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
@@ -923,7 +924,11 @@ export const AppShellTabBar = ({
           data-testid="app-shell-tab-strip"
           style={
             isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+              ? {
+                  paddingLeft: isFocusedTab
+                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                }
               : undefined
           }
           onMouseEnter={() => {

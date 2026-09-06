@@ -97,7 +97,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', resume: 'sdk-1', spawnClaudeCodeProcess },
+      options: { model: 'sonnet', resume: 'sdk-1', spawnClaudeCodeProcess: expect.any(Function) },
       initializeTimeoutMs: undefined
     })
     expect(warm.close).not.toHaveBeenCalled()
@@ -116,9 +116,24 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await Promise.resolve()
 
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', spawnClaudeCodeProcess },
+      options: { model: 'sonnet', spawnClaudeCodeProcess: expect.any(Function) },
       initializeTimeoutMs: undefined
     })
+    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
+    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(spawnClaudeCodeProcess)
+  })
+
+  it('keeps process diagnostics isolated between warm queries', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    startupMock.mockResolvedValueOnce(warmQuery()).mockResolvedValueOnce(warmQuery())
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-2', options: { model: 'sonnet' } as any })
+    const first = await manager.consume({ key: 'session-1', options: { model: 'sonnet' } as any })
+    const second = await manager.consume({ key: 'session-2', options: { model: 'sonnet' } as any })
+
+    expect(first?.processDiagnostics).not.toBe(second?.processDiagnostics)
+    expect(first?.processDiagnostics.reference).not.toBe(second?.processDiagnostics.reference)
   })
 
   it('waits for every warm cleanup in closeAll', async () => {
@@ -395,6 +410,27 @@ describe('ClaudeCodeWarmQueryManager', () => {
       key: 'session-1',
       options: { model: 'sonnet' } as any,
       credentialsFingerprint: 'set-2'
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('discards a warm query when the connection rebuild signature changes', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-2'
     })
 
     expect(consumed).toBeUndefined()

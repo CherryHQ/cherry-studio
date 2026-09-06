@@ -76,6 +76,17 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
+  it('keeps AMD GPU Cloud in the twentieth slot used to seed new profiles', () => {
+    expect(PROVIDERS[19]?.id).toBe('radeon-cloud')
+    expect(providers[19]?.id).toBe('radeon-cloud')
+  })
+
+  it('classifies every source provider by supported application edition', () => {
+    for (const provider of PROVIDERS) {
+      expect(provider.availableInEditions).toContain('global')
+    }
+  })
+
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {
     const missing = PROVIDERS.filter((p) => !providerById.has(p.id)).map((p) => p.id)
     expect(missing).toEqual([]) // src has a provider data/ doesn't → run `pnpm generate`

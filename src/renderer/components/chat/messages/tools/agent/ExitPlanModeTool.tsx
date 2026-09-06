@@ -1,4 +1,4 @@
-import { Markdown } from '@cherrystudio/ui'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
@@ -38,7 +38,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <Markdown id="exit-plan-mode">{truncatedContent}</Markdown>
+        <StaticMarkdown>{truncatedContent}</StaticMarkdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )
