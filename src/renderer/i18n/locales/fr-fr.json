@@ -608,6 +608,7 @@
   "chat.input.file_error": "Erreur lors du traitement du fichier",
   "chat.input.file_not_supported": "Le modèle ne prend pas en charge ce type de fichier",
   "chat.input.file_not_supported_count": "{{count}} fichiers non pris en charge",
+  "chat.input.focus_hint": "pour activer",
   "chat.input.followup_queue.edit": "Modifier",
   "chat.input.followup_queue.pause": "Mettre en pause l'envoi automatique",
   "chat.input.followup_queue.remove": "Retirer",

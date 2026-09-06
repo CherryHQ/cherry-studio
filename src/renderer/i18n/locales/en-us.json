@@ -608,6 +608,7 @@
   "chat.input.file_error": "Error processing file",
   "chat.input.file_not_supported": "Model does not support this file type",
   "chat.input.file_not_supported_count": "{{count}} files are not supported",
+  "chat.input.focus_hint": "to focus",
   "chat.input.followup_queue.edit": "Edit",
   "chat.input.followup_queue.pause": "Pause auto-send",
   "chat.input.followup_queue.remove": "Remove",

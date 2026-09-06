@@ -608,6 +608,7 @@
   "chat.input.file_error": "Eroare la procesarea fișierului",
   "chat.input.file_not_supported": "Modelul nu acceptă acest tip de fișier",
   "chat.input.file_not_supported_count": "{{count}} fișiere nu sunt acceptate",
+  "chat.input.focus_hint": "pentru focalizare",
   "chat.input.followup_queue.edit": "Editează",
   "chat.input.followup_queue.pause": "Pauză trimitere automată",
   "chat.input.followup_queue.remove": "Elimină",

@@ -608,6 +608,7 @@
   "chat.input.file_error": "Σφάλμα κατά την επεξεργασία του αρχείου",
   "chat.input.file_not_supported": "Το μοντέλο δεν υποστηρίζει αυτό το είδος αρχείων",
   "chat.input.file_not_supported_count": "{{count}} αρχεία δεν υποστηρίζονται",
+  "chat.input.focus_hint": "για εστίαση",
   "chat.input.followup_queue.edit": "Επεξεργασία",
   "chat.input.followup_queue.pause": "Παύση αυτόματης αποστολής",
   "chat.input.followup_queue.remove": "Αφαίρεση",

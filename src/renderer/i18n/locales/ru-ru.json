@@ -608,6 +608,7 @@
   "chat.input.file_error": "Ошибка обработки файла",
   "chat.input.file_not_supported": "Модель не поддерживает этот тип файла",
   "chat.input.file_not_supported_count": "{{count}} файлов не поддерживаются",
+  "chat.input.focus_hint": "для фокуса",
   "chat.input.followup_queue.edit": "Редактировать",
   "chat.input.followup_queue.pause": "Приостановить автоматическую отправку",
   "chat.input.followup_queue.remove": "Удалить",
