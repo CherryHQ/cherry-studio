@@ -26,10 +26,10 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { parseTranslateRouteSearch } from '@renderer/pages/translate/routeSearch'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
+import type { AppRouter } from '@renderer/types/router'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
@@ -56,7 +56,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
-import { useSearch } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -81,6 +81,8 @@ import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
 const logger = loggerService.withContext('TranslatePage')
+// `getRouteApi` rather than the route's own `Route`: the route file imports this page.
+const translateRouteApi = getRouteApi('/app/translate')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 const useBabelDoc = (enabled: boolean) => {
@@ -240,7 +242,7 @@ const TranslatePage: FC = () => {
   // Every translate tab shares this route url, so the session id in `?tabSession=` is the only
   // thing telling two of them apart — it keys this page's whole draft (#18879). The route mints
   // it before the page mounts, so it is always present here.
-  const { tabSession } = parseTranslateRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const { tabSession } = translateRouteApi.useSearch<AppRouter>()
   const session = useTranslateSession(tabSession)
 
   const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
