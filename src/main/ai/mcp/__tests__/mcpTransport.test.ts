@@ -20,7 +20,9 @@ vi.mock('@application', async () => {
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: async () => ({ PATH: '/shell/bin' }),
-  getRawShellEnv: async () => ({ PATH: '/shell/bin' })
+  getRawShellEnv: async () => ({ PATH: '/shell/bin' }),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',

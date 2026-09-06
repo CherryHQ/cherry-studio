@@ -358,20 +358,17 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Cherry-managed shims remain reachable as PATH tails; Cherry's
       // MISE vars are added only where the user has no mise of their own
       // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
-      const rawMiseEnv = Object.fromEntries(
-        Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_'))
-      )
+      const rawMiseEnv = Object.fromEntries(Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_')))
       const hasUserMiseInPath =
         (loginPath ?? '').split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise')) ||
-        Object.keys(rawShellEnv).some((key) => key.toLowerCase() === 'path' && (rawShellEnv[key] ?? '').toLowerCase().includes('mise'))
+        Object.keys(rawShellEnv).some(
+          (key) => key.toLowerCase() === 'path' && (rawShellEnv[key] ?? '').toLowerCase().includes('mise')
+        )
       const hasUserMise = Object.keys(rawMiseEnv).length > 0 || hasUserMiseInPath
       const cherryToolDirs = getBinarySearchDirs()
       const bundledGitDir = getBundledGitDir()
       const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
-      const binaryExecutionEnv = mergePathSuffixes(
-        loginPath !== undefined ? { PATH: loginPath } : {},
-        tailDirs
-      )
+      const binaryExecutionEnv = mergePathSuffixes(loginPath !== undefined ? { PATH: loginPath } : {}, tailDirs)
       const cherryMiseEnv = getBinaryExecutionEnv()
       const miseEnv = hasUserMise ? rawMiseEnv : cherryMiseEnv
       // Complete replacement env — deliberate credential scope: the child sees

@@ -170,9 +170,7 @@ async function createStdio(
   const rawShellEnv = await getRawShellEnv()
   const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
   const rawPath = getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>) ?? ''
-  const hasUserMiseInPath = rawPath
-    .split(isWin ? ';' : ':')
-    .some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseInPath = rawPath.split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise'))
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
   const cherryToolDirs = getBinarySearchDirs()
   const bundledGitDir = getBundledGitDir()

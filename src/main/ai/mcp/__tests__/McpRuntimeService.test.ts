@@ -34,7 +34,9 @@ const shellEnvMock = vi.hoisted(() => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: shellEnvMock.getShellEnv,
-  getRawShellEnv: shellEnvMock.getRawShellEnv
+  getRawShellEnv: shellEnvMock.getRawShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
 
 const commandResolverMock = vi.hoisted(() => ({
