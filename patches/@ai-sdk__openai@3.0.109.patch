@@ -1,17 +1,17 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9af5b4c95 100644
+index 48ea06e..c6c8dde 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -737,7 +737,7 @@ var OpenAIChatLanguageModel = class {
-       // messages:
-       messages
-     };
+@@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+@@ -2025,7 +2025,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
          import_v48.z.object({
@@ -21,24 +21,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
            revised_prompt: import_v48.z.string().nullish()
          })
        ),
-@@ -1753,13 +1754,15 @@ var modelMaxImagesPerCall = {
-   "gpt-image-1": 10,
-   "gpt-image-1-mini": 10,
-   "gpt-image-1.5": 10,
-+  "gpt-image-2": 10,
-   "chatgpt-image-latest": 10
- };
- var defaultResponseFormatPrefixes = [
-   "chatgpt-image-",
-   "gpt-image-1-mini",
-   "gpt-image-1.5",
--  "gpt-image-1"
-+  "gpt-image-1",
-+  "gpt-image-2"
- ];
- function hasDefaultResponseFormat(modelId) {
-   return defaultResponseFormatPrefixes.some(
-@@ -1843,7 +1846,11 @@ var OpenAIImageModel = class {
+@@ -2213,7 +2214,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -51,20 +34,20 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
          warnings,
          usage: response2.usage != null ? {
            inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
-@@ -1899,7 +1906,11 @@ var OpenAIImageModel = class {
+@@ -2280,7 +2285,11 @@ var OpenAIImageModel = class {
        fetch: this.config.fetch
      });
      return {
 -      images: response.data.map((item) => item.b64_json),
 +      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === "string") return [item.b64_json];
-+        if (typeof item.url === "string") return [item.url];
-+        return [];
-+      }),
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -2756,9 +2767,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3443,9 +3452,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -76,11 +59,11 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
                  ...phase != null && { phase }
                });
                break;
-@@ -3002,6 +3015,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3724,6 +3735,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
-+                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
 +                  input.push({
 +                    type: "reasoning",
 +                    summary: [],
@@ -89,30 +72,30 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3249,7 +3268,8 @@ async function convertToOpenAIResponsesInput({
+@@ -4020,7 +4037,8 @@ ${text}`,
  }
- var openaiResponsesReasoningProviderOptionsSchema = import_v420.z.object({
-   itemId: import_v420.z.string().nullish(),
--  reasoningEncryptedContent: import_v420.z.string().nullish()
-+  reasoningEncryptedContent: import_v420.z.string().nullish(),
-+  rawReasoningContent: import_v420.z.boolean().nullish()
+ var openaiResponsesReasoningProviderOptionsSchema = import_v421.z.object({
+   itemId: import_v421.z.string().nullish(),
+-  reasoningEncryptedContent: import_v421.z.string().nullish()
++  reasoningEncryptedContent: import_v421.z.string().nullish(),
++  rawReasoningContent: import_v421.z.boolean().nullish()
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -3778,6 +3798,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
-         summary_index: import_v421.z.number(),
-         delta: import_v421.z.string()
+@@ -4658,6 +4676,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+         summary_index: import_v422.z.number(),
+         delta: import_v422.z.string()
        }),
-+      import_v421.z.object({
-+        type: import_v421.z.literal("response.reasoning_text.delta"),
-+        item_id: import_v421.z.string(),
-+        delta: import_v421.z.string()
++      import_v422.z.object({
++        type: import_v422.z.literal("response.reasoning_text.delta"),
++        item_id: import_v422.z.string(),
++        delta: import_v422.z.string()
 +      }),
-       import_v421.z.object({
-         type: import_v421.z.literal("response.reasoning_summary_part.done"),
-         item_id: import_v421.z.string(),
-@@ -3878,7 +3903,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
-                       index: import_v421.z.number()
+       import_v422.z.object({
+         type: import_v422.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v422.z.string(),
+@@ -4752,7 +4775,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+                       index: import_v422.z.number()
                      })
                    ])
 -                )
@@ -120,16 +103,16 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
                })
              )
            }),
-@@ -4812,7 +4837,7 @@ var OpenAIResponsesLanguageModel = class {
-         }
-       }
-     };
+@@ -5960,7 +5983,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6105,6 +6130,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7411,6 +7434,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -148,19 +131,19 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335c1deac09 100644
+index 2648382..cb43aa5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -728,7 +728,7 @@ var OpenAIChatLanguageModel = class {
-       // messages:
-       messages
-     };
+@@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
+@@ -2056,7 +2056,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
          z8.object({
@@ -170,24 +153,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
            revised_prompt: z8.string().nullish()
          })
        ),
-@@ -1768,13 +1769,15 @@ var modelMaxImagesPerCall = {
-   "gpt-image-1": 10,
-   "gpt-image-1-mini": 10,
-   "gpt-image-1.5": 10,
-+  "gpt-image-2": 10,
-   "chatgpt-image-latest": 10
- };
- var defaultResponseFormatPrefixes = [
-   "chatgpt-image-",
-   "gpt-image-1-mini",
-   "gpt-image-1.5",
--  "gpt-image-1"
-+  "gpt-image-1",
-+  "gpt-image-2"
- ];
- function hasDefaultResponseFormat(modelId) {
-   return defaultResponseFormatPrefixes.some(
-@@ -1858,7 +1861,11 @@ var OpenAIImageModel = class {
+@@ -2247,7 +2248,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -200,20 +166,20 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
          warnings,
          usage: response2.usage != null ? {
            inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
-@@ -1914,7 +1921,11 @@ var OpenAIImageModel = class {
+@@ -2314,7 +2319,11 @@ var OpenAIImageModel = class {
        fetch: this.config.fetch
      });
      return {
 -      images: response.data.map((item) => item.b64_json),
 +      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === "string") return [item.b64_json];
-+        if (typeof item.url === "string") return [item.url];
-+        return [];
-+      }),
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -2833,9 +2844,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3541,9 +3550,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -225,11 +191,11 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
                  ...phase != null && { phase }
                });
                break;
-@@ -3079,6 +3092,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3822,6 +3833,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
-+                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
 +                  input.push({
 +                    type: "reasoning",
 +                    summary: [],
@@ -238,30 +204,30 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3326,7 +3345,8 @@ async function convertToOpenAIResponsesInput({
+@@ -4118,7 +4135,8 @@ ${text}`,
  }
- var openaiResponsesReasoningProviderOptionsSchema = z20.object({
-   itemId: z20.string().nullish(),
--  reasoningEncryptedContent: z20.string().nullish()
-+  reasoningEncryptedContent: z20.string().nullish(),
-+  rawReasoningContent: z20.boolean().nullish()
+ var openaiResponsesReasoningProviderOptionsSchema = z21.object({
+   itemId: z21.string().nullish(),
+-  reasoningEncryptedContent: z21.string().nullish()
++  reasoningEncryptedContent: z21.string().nullish(),
++  rawReasoningContent: z21.boolean().nullish()
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -3855,6 +3875,11 @@ var openaiResponsesChunkSchema = lazySchema19(
-         summary_index: z21.number(),
-         delta: z21.string()
+@@ -4759,6 +4777,11 @@ var openaiResponsesChunkSchema = lazySchema20(
+         summary_index: z22.number(),
+         delta: z22.string()
        }),
-+      z21.object({
-+        type: z21.literal("response.reasoning_text.delta"),
-+        item_id: z21.string(),
-+        delta: z21.string()
++      z22.object({
++        type: z22.literal("response.reasoning_text.delta"),
++        item_id: z22.string(),
++        delta: z22.string()
 +      }),
-       z21.object({
-         type: z21.literal("response.reasoning_summary_part.done"),
-         item_id: z21.string(),
-@@ -3955,7 +3980,7 @@ var openaiResponsesResponseSchema = lazySchema19(
-                       index: z21.number()
+       z22.object({
+         type: z22.literal("response.reasoning_summary_part.done"),
+         item_id: z22.string(),
+@@ -4853,7 +4876,7 @@ var openaiResponsesResponseSchema = lazySchema20(
+                       index: z22.number()
                      })
                    ])
 -                )
@@ -269,16 +235,16 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
                })
              )
            }),
-@@ -4891,7 +4916,7 @@ var OpenAIResponsesLanguageModel = class {
-         }
-       }
-     };
+@@ -6066,7 +6089,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6184,6 +6209,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7517,6 +7540,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -297,19 +263,19 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e613025a06a07 100644
+index e5b1f96..ab28d81 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -764,7 +764,7 @@ var OpenAIChatLanguageModel = class {
-       // messages:
-       messages
-     };
+@@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+@@ -2060,7 +2060,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
          import_v48.z.object({
@@ -319,24 +285,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
            revised_prompt: import_v48.z.string().nullish()
          })
        ),
-@@ -1780,13 +1781,15 @@ var modelMaxImagesPerCall = {
-   "gpt-image-1": 10,
-   "gpt-image-1-mini": 10,
-   "gpt-image-1.5": 10,
-+  "gpt-image-2": 10,
-   "chatgpt-image-latest": 10
- };
- var defaultResponseFormatPrefixes = [
-   "chatgpt-image-",
-   "gpt-image-1-mini",
-   "gpt-image-1.5",
--  "gpt-image-1"
-+  "gpt-image-1",
-+  "gpt-image-2"
- ];
- function hasDefaultResponseFormat(modelId) {
-   return defaultResponseFormatPrefixes.some(
-@@ -1870,7 +1873,11 @@ var OpenAIImageModel = class {
+@@ -2248,7 +2249,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -349,20 +298,20 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
          warnings,
          usage: response2.usage != null ? {
            inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
-@@ -1926,7 +1933,11 @@ var OpenAIImageModel = class {
+@@ -2315,7 +2320,11 @@ var OpenAIImageModel = class {
        fetch: this.config.fetch
      });
      return {
 -      images: response.data.map((item) => item.b64_json),
 +      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === "string") return [item.b64_json];
-+        if (typeof item.url === "string") return [item.url];
-+        return [];
-+      }),
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -2698,9 +2709,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3387,9 +3396,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -374,11 +323,11 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
                  ...phase != null && { phase }
                });
                break;
-@@ -2944,6 +2957,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3668,6 +3679,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
-+                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
 +                  input.push({
 +                    type: "reasoning",
 +                    summary: [],
@@ -387,30 +336,30 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3191,7 +3210,8 @@ async function convertToOpenAIResponsesInput({
+@@ -3964,7 +3981,8 @@ ${text}`,
  }
- var openaiResponsesReasoningProviderOptionsSchema = import_v416.z.object({
-   itemId: import_v416.z.string().nullish(),
--  reasoningEncryptedContent: import_v416.z.string().nullish()
-+  reasoningEncryptedContent: import_v416.z.string().nullish(),
-+  rawReasoningContent: import_v416.z.boolean().nullish()
+ var openaiResponsesReasoningProviderOptionsSchema = import_v417.z.object({
+   itemId: import_v417.z.string().nullish(),
+-  reasoningEncryptedContent: import_v417.z.string().nullish()
++  reasoningEncryptedContent: import_v417.z.string().nullish(),
++  rawReasoningContent: import_v417.z.boolean().nullish()
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -3720,6 +3740,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
-         summary_index: import_v417.z.number(),
-         delta: import_v417.z.string()
+@@ -4602,6 +4620,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+         summary_index: import_v418.z.number(),
+         delta: import_v418.z.string()
        }),
-+      import_v417.z.object({
-+        type: import_v417.z.literal("response.reasoning_text.delta"),
-+        item_id: import_v417.z.string(),
-+        delta: import_v417.z.string()
++      import_v418.z.object({
++        type: import_v418.z.literal("response.reasoning_text.delta"),
++        item_id: import_v418.z.string(),
++        delta: import_v418.z.string()
 +      }),
-       import_v417.z.object({
-         type: import_v417.z.literal("response.reasoning_summary_part.done"),
-         item_id: import_v417.z.string(),
-@@ -3820,7 +3845,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils24.lazySchema)(
-                       index: import_v417.z.number()
+       import_v418.z.object({
+         type: import_v418.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v418.z.string(),
+@@ -4696,7 +4719,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
+                       index: import_v418.z.number()
                      })
                    ])
 -                )
@@ -418,16 +367,16 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
                })
              )
            }),
-@@ -5073,7 +5098,7 @@ var OpenAIResponsesLanguageModel = class {
-         }
-       }
-     };
+@@ -6228,7 +6251,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6366,6 +6391,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7679,6 +7702,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -446,19 +395,19 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e6130
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe9cd7493b 100644
+index 714e237..a14b186 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -720,7 +720,7 @@ var OpenAIChatLanguageModel = class {
-       // messages:
-       messages
-     };
+@@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
+@@ -2048,7 +2048,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
          z8.object({
@@ -468,24 +417,7 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
            revised_prompt: z8.string().nullish()
          })
        ),
-@@ -1760,13 +1761,15 @@ var modelMaxImagesPerCall = {
-   "gpt-image-1": 10,
-   "gpt-image-1-mini": 10,
-   "gpt-image-1.5": 10,
-+  "gpt-image-2": 10,
-   "chatgpt-image-latest": 10
- };
- var defaultResponseFormatPrefixes = [
-   "chatgpt-image-",
-   "gpt-image-1-mini",
-   "gpt-image-1.5",
--  "gpt-image-1"
-+  "gpt-image-1",
-+  "gpt-image-2"
- ];
- function hasDefaultResponseFormat(modelId) {
-   return defaultResponseFormatPrefixes.some(
-@@ -1850,7 +1853,11 @@ var OpenAIImageModel = class {
+@@ -2239,7 +2240,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -498,20 +430,20 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
          warnings,
          usage: response2.usage != null ? {
            inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
-@@ -1906,7 +1913,11 @@ var OpenAIImageModel = class {
+@@ -2306,7 +2311,11 @@ var OpenAIImageModel = class {
        fetch: this.config.fetch
      });
      return {
 -      images: response.data.map((item) => item.b64_json),
 +      images: response.data.flatMap((item) => {
-+        if (typeof item.b64_json === "string") return [item.b64_json];
-+        if (typeof item.url === "string") return [item.url];
-+        return [];
-+      }),
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -2724,9 +2735,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3432,9 +3441,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -523,11 +455,11 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
                  ...phase != null && { phase }
                });
                break;
-@@ -2970,6 +2983,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3713,6 +3724,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
-+                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
 +                  input.push({
 +                    type: "reasoning",
 +                    summary: [],
@@ -536,30 +468,30 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3217,7 +3236,8 @@ async function convertToOpenAIResponsesInput({
+@@ -4009,7 +4026,8 @@ ${text}`,
  }
- var openaiResponsesReasoningProviderOptionsSchema = z16.object({
-   itemId: z16.string().nullish(),
--  reasoningEncryptedContent: z16.string().nullish()
-+  reasoningEncryptedContent: z16.string().nullish(),
-+  rawReasoningContent: z16.boolean().nullish()
+ var openaiResponsesReasoningProviderOptionsSchema = z17.object({
+   itemId: z17.string().nullish(),
+-  reasoningEncryptedContent: z17.string().nullish()
++  reasoningEncryptedContent: z17.string().nullish(),
++  rawReasoningContent: z17.boolean().nullish()
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -3746,6 +3766,11 @@ var openaiResponsesChunkSchema = lazySchema15(
-         summary_index: z17.number(),
-         delta: z17.string()
+@@ -4650,6 +4668,11 @@ var openaiResponsesChunkSchema = lazySchema16(
+         summary_index: z18.number(),
+         delta: z18.string()
        }),
-+      z17.object({
-+        type: z17.literal("response.reasoning_text.delta"),
-+        item_id: z17.string(),
-+        delta: z17.string()
++      z18.object({
++        type: z18.literal("response.reasoning_text.delta"),
++        item_id: z18.string(),
++        delta: z18.string()
 +      }),
-       z17.object({
-         type: z17.literal("response.reasoning_summary_part.done"),
-         item_id: z17.string(),
-@@ -3846,7 +3871,7 @@ var openaiResponsesResponseSchema = lazySchema15(
-                       index: z17.number()
+       z18.object({
+         type: z18.literal("response.reasoning_summary_part.done"),
+         item_id: z18.string(),
+@@ -4744,7 +4767,7 @@ var openaiResponsesResponseSchema = lazySchema16(
+                       index: z18.number()
                      })
                    ])
 -                )
@@ -567,16 +499,16 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
                })
              )
            }),
-@@ -5129,7 +5154,7 @@ var OpenAIResponsesLanguageModel = class {
-         }
-       }
-     };
+@@ -6309,7 +6332,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
 -    if (isReasoningModel) {
 +    if (modelCapabilities.isReasoningModel) {
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -6422,6 +6447,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7760,6 +7783,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -595,10 +527,10 @@ index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe
                if (store) {
                  controller.enqueue({
 diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
-index 96077d47c9e104143430d261e040b9ae89340940..31417bad69cc06d5213be0b17b3ef08aa6d77671 100644
+index e5bda94..f31c9ff 100644
 --- a/src/chat/openai-chat-language-model.ts
 +++ b/src/chat/openai-chat-language-model.ts
-@@ -180,7 +180,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+@@ -211,7 +211,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
  
      // remove unsupported settings for reasoning models
      // see https://platform.openai.com/docs/guides/reasoning#limitations
@@ -608,7 +540,7 @@ index 96077d47c9e104143430d261e040b9ae89340940..31417bad69cc06d5213be0b17b3ef08a
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
-index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+index de779ca..14b7247 100644
 --- a/src/image/openai-image-api.ts
 +++ b/src/image/openai-image-api.ts
 @@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
@@ -622,23 +554,23 @@ index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2
          }),
        ),
 diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
-index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb7adb4edd 100644
+index 41b81b2..f0858ff 100644
 --- a/src/image/openai-image-model.ts
 +++ b/src/image/openai-image-model.ts
-@@ -116,7 +116,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+@@ -132,7 +132,11 @@ export class OpenAIImageModel implements ImageModelV3 {
        });
  
        return {
 -        images: response.data.map(item => item.b64_json),
 +        images: response.data.flatMap(item => {
-+          if (typeof item.b64_json === 'string') return [item.b64_json];
-+          if (typeof item.url === 'string') return [item.url];
-+          return [];
-+        }),
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
          warnings,
          usage:
            response.usage != null
-@@ -178,7 +182,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+@@ -207,7 +211,11 @@ export class OpenAIImageModel implements ImageModelV3 {
      });
  
      return {
@@ -652,10 +584,10 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
        usage:
          response.usage != null
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
-index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d774aecbb 100644
+index 5c27d8f..c5f0bbf 100644
 --- a/src/responses/convert-to-openai-responses-input.ts
 +++ b/src/responses/convert-to-openai-responses-input.ts
-@@ -191,9 +191,14 @@ export async function convertToOpenAIResponsesInput({
+@@ -514,9 +514,14 @@ export async function convertToOpenAIResponsesInput({
                }
  
                input.push({
@@ -670,7 +602,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
                  ...(phase != null && { phase }),
                });
  
-@@ -538,6 +543,17 @@ export async function convertToOpenAIResponsesInput({
+@@ -955,6 +960,17 @@ export async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts,
                    });
@@ -688,7 +620,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
                  } else {
                    warnings.push({
                      type: 'other',
-@@ -848,6 +864,7 @@ export async function convertToOpenAIResponsesInput({
+@@ -1335,6 +1351,7 @@ export async function convertToOpenAIResponsesInput({
  const openaiResponsesReasoningProviderOptionsSchema = z.object({
    itemId: z.string().nullish(),
    reasoningEncryptedContent: z.string().nullish(),
@@ -697,10 +629,10 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b61187cb4f2b 100644
+index aef872b..b34fcfd 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
-@@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+@@ -1206,6 +1206,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
          summary_index: z.number(),
          delta: z.string(),
        }),
@@ -712,7 +644,7 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b611
        z.object({
          type: z.literal('response.reasoning_summary_part.done'),
          item_id: z.string(),
-@@ -1111,7 +1116,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+@@ -1327,7 +1332,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
                          index: z.number(),
                        }),
                      ]),
@@ -722,10 +654,10 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b611
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828b14018cb 100644
+index 485880b..e25dd4f 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
-@@ -358,7 +358,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -436,7 +436,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
  
      // remove unsupported settings for reasoning models
      // see https://platform.openai.com/docs/guides/reasoning#limitations
@@ -734,7 +666,7 @@ index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828
        // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
-@@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -2243,6 +2243,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });

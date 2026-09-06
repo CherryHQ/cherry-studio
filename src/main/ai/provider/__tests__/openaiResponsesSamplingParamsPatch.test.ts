@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the sampling-parameter hunk in patches/@ai-sdk__openai@3.0.53.patch.
+ * Guards the sampling-parameter hunk in patches/@ai-sdk__openai@3.0.109.patch.
  * `forceReasoning` exists to make the adapter emit `reasoning` for models its
  * own id allowlist does not recognize — Cherry sets it for every Responses
  * request. Upstream also let it drive "OpenAI reasoning models reject
