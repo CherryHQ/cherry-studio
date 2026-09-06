@@ -4552,6 +4552,7 @@
   "settings.provider.cherry_cloud.logout_failed": "Could not log out. Please try again.",
   "settings.provider.cherry_cloud.sign_in_failed": "Sign-in failed. Please try again.",
   "settings.provider.cherry_cloud.signing_in": "Waiting for browser authorization…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "Acceleration domain",
   "settings.provider.cherryin.api_host.international": "International domain",
   "settings.provider.claude_code.agent_only_note": "The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",

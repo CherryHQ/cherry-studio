@@ -1,8 +1,11 @@
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
+import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import { type CSSProperties, type ReactElement, type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -29,48 +32,27 @@ const uiMocks = vi.hoisted(() => ({
   contextMenuOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  MenuItem: ({
-    icon,
-    label,
-    onClick,
-    onMouseDown,
-    onAuxClick,
-    className,
-    active
-  }: {
-    icon?: ReactNode
-    label: string
-    onClick?: () => void
-    onMouseDown?: (e: React.MouseEvent) => void
-    onAuxClick?: (e: React.MouseEvent) => void
-    className?: string
-    active?: boolean
-  }) => (
-    <button
-      type="button"
-      data-active={active ? 'true' : 'false'}
-      className={className}
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      onAuxClick={onAuxClick}>
-      {icon}
-      <span>{label}</span>
-    </button>
-  ),
-  Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
-    uiMocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
-    const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+vi.mock('@cherrystudio/ui', async () => {
+  const menuList = await vi.importActual<typeof MenuListModule>('@cherrystudio/ui/components/composites/menu-list')
+  const popover = await vi.importActual<typeof PopoverModule>('@cherrystudio/ui/components/primitives/popover')
 
-    return (
-      <div>
-        {items.map((item: any) => (
-          <div key={getKey(item)}>{renderItem(item)}</div>
-        ))}
-      </div>
-    )
+  return {
+    ...menuList,
+    ...popover,
+    Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
+      uiMocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
+      const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+
+      return (
+        <div>
+          {items.map((item: any) => (
+            <div key={getKey(item)}>{renderItem(item)}</div>
+          ))}
+        </div>
+      )
+    }
   }
-}))
+})
 
 vi.mock('../Tooltip', () => ({
   SidebarTooltip: ({ children }: { children: ReactNode }) => children
@@ -351,6 +333,79 @@ describe('Sidebar resize handle', () => {
     await user.click(headerAction)
 
     expect(onHeaderClick).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false, anchorsHeaderRow: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false, anchorsHeaderRow: true },
+    { name: 'floating', width: 0, isFloating: true, anchorsHeaderRow: true }
+  ])('anchors the account panel to the correct $name header boundary', ({ width, isFloating, anchorsHeaderRow }) => {
+    render(
+      <Sidebar
+        width={width}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        title="User"
+        logo={<span>avatar</span>}
+        onHeaderClick={vi.fn()}
+        isFloating={isFloating}
+        renderHeaderAnchor={(anchor: ReactElement) => <div data-testid="header-anchor">{anchor}</div>}
+      />
+    )
+
+    const anchor = screen.getByTestId('header-anchor')
+    const headerAction = screen.getByRole('button', { name: /User$/ })
+
+    if (anchorsHeaderRow) {
+      expect(anchor.firstElementChild).toContainElement(headerAction)
+      expect(anchor.firstElementChild).toHaveClass('px-2')
+    } else {
+      expect(anchor.firstElementChild).toBe(headerAction)
+      expect(anchor.parentElement).toHaveClass('justify-center')
+    }
+  })
+
+  it('exposes the account menu state and restores focus to its header trigger', async () => {
+    const user = userEvent.setup()
+
+    function AccountSidebar() {
+      const [open, setOpen] = useState(false)
+
+      return (
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          active={{ activeItem: 'chat' }}
+          entries={entries}
+          title="User"
+          logo={<span>avatar</span>}
+          onHeaderClick={() => setOpen(!open)}
+          renderHeaderTrigger={(trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+          renderHeaderAnchor={(anchor: ReactElement) => (
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverAnchor asChild>{anchor}</PopoverAnchor>
+              {open ? <PopoverContent>Account settings</PopoverContent> : null}
+            </Popover>
+          )}
+        />
+      )
+    }
+
+    render(<AccountSidebar />)
+
+    const trigger = screen.getByRole('button', { name: /User$/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(trigger)
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Account settings')).toBeVisible()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByText('Account settings')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {

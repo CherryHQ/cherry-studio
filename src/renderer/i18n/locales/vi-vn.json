@@ -4552,6 +4552,7 @@
   "settings.provider.cherry_cloud.logout_failed": "Không thể đăng xuất. Vui lòng thử lại.",
   "settings.provider.cherry_cloud.sign_in_failed": "Đăng nhập thất bại. Vui lòng thử lại.",
   "settings.provider.cherry_cloud.signing_in": "Đang chờ xác thực trên trình duyệt…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "Miền gia tốc",
   "settings.provider.cherryin.api_host.international": "Tên miền quốc tế",
   "settings.provider.claude_code.agent_only_note": "Nhà cung cấp Claude Code chỉ khả dụng cho Agent, không thể dùng trong trò chuyện hoặc trợ lý.",

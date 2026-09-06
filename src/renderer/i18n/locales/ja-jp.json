@@ -4552,6 +4552,7 @@
   "settings.provider.cherry_cloud.logout_failed": "ログアウトできませんでした。もう一度お試しください。",
   "settings.provider.cherry_cloud.sign_in_failed": "ログインに失敗しました。もう一度お試しください。",
   "settings.provider.cherry_cloud.signing_in": "ブラウザでの認証を待っています…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "加速度領域",
   "settings.provider.cherryin.api_host.international": "国際ドメイン",
   "settings.provider.claude_code.agent_only_note": "Claude Codeプロバイダーはエージェントのみで利用可能です — チャットやアシスタントでは使用できません。",

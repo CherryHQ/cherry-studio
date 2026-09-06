@@ -34,15 +34,13 @@ vi.mock('@cherrystudio/ui', () => {
     AvatarImage: ({ src, ...props }: { src?: string; [key: string]: unknown }) => (
       <img data-testid="avatar-image" src={src} alt="" {...props} />
     ),
+    Badge: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <span {...props}>{children}</span>
+    ),
     Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean; [key: string]: unknown }) => (
       <button type="button" aria-busy={loading || undefined} disabled={loading || undefined} {...props}>
         {children}
       </button>
-    ),
-    Center: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <div data-testid="center" {...props}>
-        {children}
-      </div>
     ),
     ColFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="col-flex" {...props}>
@@ -127,7 +125,8 @@ vi.mock('@cherrystudio/ui', () => {
       <div data-testid="row-flex" {...props}>
         {children}
       </div>
-    )
+    ),
+    Tooltip: ({ children }: { children?: ReactNode; content?: ReactNode }) => children
   }
 })
 
@@ -161,7 +160,7 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) => (key === 'settings.provider.cherry_cloud.title' ? 'Localized Cherry Cloud' : key)
   })
 }))
 
@@ -214,21 +213,41 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('only customizes avatar picker popover width and padding', async () => {
+  it('shows the local nickname as text until edit is requested, then saves a trimmed draft', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
-    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    expect(await screen.findByText('Yinsen')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'settings.general.user_name.label' })).not.toBeInTheDocument()
 
-    const popoverContent = screen.getByTestId('popover-content')
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    const input = screen.getByRole('textbox', { name: 'settings.general.user_name.label' })
+    await user.clear(input)
+    await user.type(input, '  Sora  ')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'settings.general.user_name.label' })).not.toBeInTheDocument()
     )
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('Sora')
+    expect(screen.getByText('Sora')).toBeVisible()
+  })
+
+  it('discards an edited nickname when cancelled', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+    const input = screen.getByRole('textbox', { name: 'settings.general.user_name.label' })
+    await user.clear(input)
+    await user.type(input, 'Sora')
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('Yinsen')
+    expect(screen.queryByRole('textbox', { name: 'settings.general.user_name.label' })).not.toBeInTheDocument()
+    expect(screen.getByText('Yinsen')).toBeVisible()
   })
 
   it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {
@@ -300,6 +319,30 @@ describe('UserPopup', () => {
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
   })
 
+  it('renders the localized Cherry Cloud product label', async () => {
+    showUserPopup()
+
+    expect(await screen.findByText('Localized Cherry Cloud')).toBeVisible()
+    expect(screen.queryByText('Cherry Cloud')).not.toBeInTheDocument()
+  })
+
+  it('shows the signed-in account when browser authorization completes', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
+      return undefined
+    })
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' }))
+    act(() => mocks.statusListener?.({ phase: 'signed-in', displayName: '189****1942' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('189****1942')
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.logout' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
   it('hides the Cherry Cloud login action in the global edition', async () => {
     mocks.appEdition = 'global'
     showUserPopup()
@@ -320,8 +363,7 @@ describe('UserPopup', () => {
 
     const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
     expect(screen.getByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
-    expect(logoutButton).toHaveAttribute('variant', 'outline')
+    expect(screen.getByText('settings.provider.cherry_cloud.logged_in')).toBeVisible()
     await user.click(logoutButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')

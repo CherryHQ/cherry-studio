@@ -5,7 +5,7 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
@@ -167,10 +167,8 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
 }))
 
-vi.mock('../../UserPopup', () => ({
-  default: {
-    show: mocks.showUserPopup
-  }
+vi.mock('../../UserAccountPanel', () => ({
+  UserAccountPanel: () => <div data-testid="account-menu">account-menu</div>
 }))
 
 vi.mock('../../icons/SvgIcon', () => ({
@@ -240,6 +238,8 @@ vi.mock('../../Sidebar', async () => {
       title,
       logo,
       onHeaderClick,
+      renderHeaderTrigger,
+      renderHeaderAnchor,
       user,
       actions,
       width,
@@ -252,6 +252,8 @@ vi.mock('../../Sidebar', async () => {
       title?: string
       logo?: ReactNode
       onHeaderClick?: () => void
+      renderHeaderTrigger?: (trigger: ReactElement) => ReactElement
+      renderHeaderAnchor?: (anchor: ReactElement) => ReactNode
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       width?: number
@@ -261,6 +263,14 @@ vi.mock('../../Sidebar', async () => {
       onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
     }) => {
       mocks.onEntriesReorder = onEntriesReorder
+      if (!isFloating && constants.getSidebarLayout(width ?? 0) === 'hidden') {
+        return (
+          <button type="button" onClick={() => onHoverChange?.(true)}>
+            reveal
+          </button>
+        )
+      }
+
       // Entries are type-agnostic resolved rows; the tests still assert per-type
       // testids, so recover the type/id from the stable `entry.key` (`${type}:${id}`).
       const activeState = active ?? { activeItem: '' }
@@ -268,10 +278,25 @@ vi.mock('../../Sidebar', async () => {
       const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
       const agentItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'agent')
       const assistantItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'assistant')
+      const renderHeader = (layout: 'icon' | 'full', prefix: 'sidebar' | 'floating-sidebar') => {
+        const action = (
+          <button type="button" aria-label={title} onClick={onHeaderClick}>
+            <div data-testid={`${prefix}-logo`}>{logo}</div>
+            <div data-testid={prefix === 'sidebar' ? 'sidebar-title' : undefined}>{title}</div>
+          </button>
+        )
+        const trigger = renderHeaderTrigger?.(action) ?? action
+        const row = <div data-testid={`${prefix}-header`}>{trigger}</div>
+
+        if (!renderHeaderAnchor) return row
+        return layout === 'full' ? renderHeaderAnchor(row) : <div>{renderHeaderAnchor(trigger)}</div>
+      }
+
       return isFloating ? (
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
           data-testid="floating-sidebar">
+          {renderHeader('full', 'floating-sidebar')}
           {typeof actions === 'function' ? actions('full') : actions}
           <button type="button" onClick={onDismiss}>
             dismiss
@@ -279,10 +304,7 @@ vi.mock('../../Sidebar', async () => {
         </div>
       ) : (
         <>
-          <button type="button" aria-label={title} onClick={onHeaderClick}>
-            <div data-testid="sidebar-logo">{logo}</div>
-            <div data-testid="sidebar-title">{title}</div>
-          </button>
+          {renderHeader(constants.getSidebarLayout(width ?? 0) === 'full' ? 'full' : 'icon', 'sidebar')}
           <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
           <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
           <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
@@ -473,7 +495,7 @@ describe('app Sidebar', () => {
     expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: true })
   })
 
-  it('uses the avatar and name as one header action while keeping footer actions separate', async () => {
+  it('opens the account menu at the avatar instead of launching the centered user popup', async () => {
     const user = userEvent.setup()
     const { container } = render(<Sidebar />)
 
@@ -482,10 +504,12 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
     expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
 
     await user.click(screen.getByTestId('sidebar-title'))
 
-    expect(mocks.showUserPopup).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+    expect(mocks.showUserPopup).not.toHaveBeenCalled()
   })
 
   it('opens settings in a main-window tab from the sidebar footer action', () => {
@@ -514,6 +538,24 @@ describe('app Sidebar', () => {
 
     await user.click(screen.getByRole('button', { name: 'close-feedback' }))
     expect(screen.getByTestId('feedback-shell')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps a floating sidebar open while its account menu is in use', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+    const floatingSidebar = screen.getByTestId('floating-sidebar')
+    await user.click(within(floatingSidebar).getByRole('button', { name: 'JD' }))
+
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+    await user.click(within(floatingSidebar).getByRole('button', { name: 'dismiss' }))
+    expect(screen.getByTestId('floating-sidebar')).toBeVisible()
+
+    await user.click(within(floatingSidebar).getByRole('button', { name: 'JD' }))
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

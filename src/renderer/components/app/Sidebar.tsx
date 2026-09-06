@@ -1,3 +1,4 @@
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
@@ -18,7 +19,7 @@ import {
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import type { Ref } from 'react'
+import type { ReactElement, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +33,7 @@ import {
   type SidebarVisibleLayout,
   UserAvatar
 } from '../Sidebar'
-import UserPopup from '../UserPopup'
+import { UserAccountPanel } from '../UserAccountPanel'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
@@ -82,7 +83,10 @@ export default function Sidebar({
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [hoverVisible, setHoverVisible] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
+  const layout = getSidebarLayout(activeSidebarWidth)
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
@@ -105,23 +109,54 @@ export default function Sidebar({
 
   // User avatar
   const avatar = useAvatar()
+  const handleUserMenuOpenChange = useCallback(
+    (open: boolean) => {
+      setUserMenuOpen(open)
+      if (!open && layout === 'hidden') setHoverVisible(false)
+    },
+    [layout]
+  )
+  const handleUserMenuToggle = useCallback(
+    () => handleUserMenuOpenChange(!userMenuOpen),
+    [handleUserMenuOpenChange, userMenuOpen]
+  )
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
       name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
-      onClick: () => UserPopup.show()
+      onClick: handleUserMenuToggle
     }),
-    [avatar, t, userName]
+    [avatar, handleUserMenuToggle, t, userName]
   )
   const sidebarLogo = useMemo(
     () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
+  const renderSidebarHeaderTrigger = useCallback(
+    (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
+    []
+  )
+  const renderSidebarHeaderAnchor = useCallback(
+    (anchor: ReactElement) => (
+      <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
+        <PopoverAnchor asChild>{anchor}</PopoverAnchor>
+        {userMenuOpen ? (
+          <PopoverContent
+            aria-label={t('settings.general.user_name.label')}
+            align="start"
+            side="right"
+            sideOffset={8}
+            className="w-80 p-0"
+            onClick={(event) => event.stopPropagation()}>
+            <UserAccountPanel active={userMenuOpen} />
+          </PopoverContent>
+        ) : null}
+      </Popover>
+    ),
+    [handleUserMenuOpenChange, t, userMenuOpen]
+  )
 
   // Floating sidebar (hover reveal when hidden)
-  const [hoverVisible, setHoverVisible] = useState(false)
-  const layout = getSidebarLayout(activeSidebarWidth)
-
   // Menu items
   const pathname = activeTab?.url || '/'
   const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
@@ -363,6 +398,8 @@ export default function Sidebar({
     title: sidebarUser.name,
     logo: sidebarLogo,
     onHeaderClick: sidebarUser.onClick,
+    renderHeaderTrigger: renderSidebarHeaderTrigger,
+    renderHeaderAnchor: renderSidebarHeaderAnchor,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}
@@ -388,7 +425,9 @@ export default function Sidebar({
           width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
-          onDismiss={() => setHoverVisible(false)}
+          onDismiss={() => {
+            if (!userMenuOpen) setHoverVisible(false)
+          }}
           {...sidebarProps}
         />
       )}

@@ -4552,6 +4552,7 @@
   "settings.provider.cherry_cloud.logout_failed": "Не удалось выйти. Повторите попытку.",
   "settings.provider.cherry_cloud.sign_in_failed": "Не удалось войти. Повторите попытку.",
   "settings.provider.cherry_cloud.signing_in": "Ожидание авторизации в браузере…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "Домен ускорения",
   "settings.provider.cherryin.api_host.international": "Международный домен",
   "settings.provider.claude_code.agent_only_note": "Провайдер Claude Code доступен только для Агентов — его нельзя использовать в чате или ассистентах.",
