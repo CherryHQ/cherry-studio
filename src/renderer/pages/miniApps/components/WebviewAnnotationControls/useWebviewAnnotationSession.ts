@@ -427,9 +427,7 @@ export function useWebviewAnnotationSession({
 
   const setEditorDraft = useCallback(
     (draft: string) =>
-      store.setState((current) =>
-        current.editor ? { ...current, editor: { ...current.editor, draft, error: null } } : current
-      ),
+      store.setState((current) => (current.editor ? { ...current, editor: { ...current.editor, draft } } : current)),
     [store]
   )
 
@@ -438,7 +436,7 @@ export function useWebviewAnnotationSession({
     const sessionId = sessionRef.current
     const editor = store.getSnapshot().editor
     const comment = editor?.draft.trim()
-    if (!binding || !sessionId || !editor || !comment) return false
+    if (!binding || !sessionId || !editor || editor.error || !comment) return false
     const generation = generationRef.current
     const sent = await sendCommand(binding.webview, {
       type: 'save_editor',

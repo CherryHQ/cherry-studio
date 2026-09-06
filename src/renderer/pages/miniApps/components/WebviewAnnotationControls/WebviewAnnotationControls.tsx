@@ -21,7 +21,7 @@ import {
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
@@ -45,6 +45,7 @@ export function WebviewAnnotationControls({
 }: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const editorFallbackAnchorRef = useRef<HTMLDivElement>(null)
   const [clearConfirmTargetId, setClearConfirmTargetId] = useState<string | null>(null)
   const locale = useMemo<WebviewAnnotationLocale>(
     () => ({
@@ -95,11 +96,13 @@ export function WebviewAnnotationControls({
   const annotationToggleLabel =
     count > 0 ? `${annotationLabel}, ${t('webview.annotation.count', { count })}` : annotationLabel
   const editorAnchorRect = editor?.anchor
+  const editorUnavailable = editor?.error === 'element_unavailable'
   const editorAnchor = useMemo<RefObject<{ getBoundingClientRect: () => DOMRect }> | null>(() => {
     if (!editorAnchorRect) return null
     return {
       current: {
         getBoundingClientRect: () => {
+          if (editorUnavailable) return editorFallbackAnchorRef.current?.getBoundingClientRect() ?? DOMRect.fromRect()
           const webviewRect = webviewRef.current?.getBoundingClientRect()
           if (!webviewRect) return DOMRect.fromRect()
           return DOMRect.fromRect({
@@ -111,7 +114,7 @@ export function WebviewAnnotationControls({
         }
       }
     }
-  }, [editorAnchorRect, webviewRef])
+  }, [editorAnchorRect, editorUnavailable, webviewRef])
 
   return (
     <>
@@ -120,7 +123,7 @@ export function WebviewAnnotationControls({
         onOpenChange={(open) => {
           if (!open) void cancelEditor()
         }}>
-        <div className="flex items-center gap-0.5">
+        <div ref={editorFallbackAnchorRef} className="flex items-center gap-0.5">
           <Tooltip content={annotationLabel} placement="bottom">
             <Button
               type="button"
@@ -191,7 +194,7 @@ export function WebviewAnnotationControls({
               placeholder={t('webview.annotation.placeholder')}
               className="min-h-24 px-3 py-2 text-sm"
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                if (!editorUnavailable && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault()
                   void saveEditor()
                 }
@@ -216,7 +219,11 @@ export function WebviewAnnotationControls({
               <Button type="button" variant="outline" size="sm" onClick={() => void cancelEditor()}>
                 {t('webview.annotation.cancel')}
               </Button>
-              <Button type="button" size="sm" disabled={!editor.draft.trim()} onClick={() => void saveEditor()}>
+              <Button
+                type="button"
+                size="sm"
+                disabled={editorUnavailable || !editor.draft.trim()}
+                onClick={() => void saveEditor()}>
                 {t('webview.annotation.save')}
               </Button>
             </div>
