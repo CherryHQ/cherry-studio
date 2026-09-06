@@ -5,8 +5,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
-import { classifyError } from '@renderer/utils/errorClassifier'
-import { isClaudeCodeExitCategory } from '@shared/types/error'
+import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
@@ -35,15 +34,11 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
 
-  const errorBag = error as Record<string, unknown> | undefined
-  if (isClaudeCodeExitCategory(errorBag?.claudeCodeExitCategory)) {
-    const reference = typeof errorBag.diagnosticReference === 'string' ? errorBag.diagnosticReference : ''
-    if (typeof errorBag.processExitCode === 'number') {
-      return t('error.claude_code_exit.code', { code: errorBag.processExitCode, reference })
-    }
-    if (typeof errorBag.processExitSignal === 'string') {
-      return t('error.claude_code_exit.signal', { signal: errorBag.processExitSignal, reference })
-    }
+  const claudeCodeExit = getClaudeCodeExitInfo(error)
+  if (claudeCodeExit) {
+    const { reference, exitCode, exitSignal } = claudeCodeExit
+    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
     return t('error.claude_code_exit.start', { reference })
   }
 
@@ -103,9 +98,7 @@ const MessageErrorInfo: React.FC<{
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
-  const isClaudeCodeExit = isClaudeCodeExitCategory(
-    (error as Record<string, unknown> | undefined)?.claudeCodeExitCategory
-  )
+  const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
@@ -113,7 +106,7 @@ const MessageErrorInfo: React.FC<{
 
   useEffect(() => {
     if (
-      isClaudeCodeExit ||
+      claudeCodeExitCategory !== undefined ||
       hasAppOwnedI18nKey ||
       classification.category !== 'unknown' ||
       !errorMessage ||
@@ -140,12 +133,12 @@ const MessageErrorInfo: React.FC<{
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    claudeCodeExitCategory,
     classification.category,
     diagnoseMessageError,
     errorMessage,
     hasAppOwnedI18nKey,
     i18n.language,
-    isClaudeCodeExit,
     message,
     partId
   ])

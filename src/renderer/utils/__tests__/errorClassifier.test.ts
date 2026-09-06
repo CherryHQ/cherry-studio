@@ -40,6 +40,14 @@ describe('classifyError', () => {
     ).toMatchObject({ category, navTarget })
   })
 
+  it('falls back to the message when the exit category is not one the app knows', () => {
+    const result = classifyError(
+      makeError({ message: 'HTTP 429 too many requests', claudeCodeExitCategory: 'sandbox_denied' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')

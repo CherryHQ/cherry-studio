@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import type { ClaudeCodeExitCategory } from '@shared/types/error'
+import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
   terminalReason?: string
-  category?: ClaudeCodeExitCategory
+  category?: ErrorCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
   spawnFailed?: true
@@ -23,20 +23,9 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.spawnFailed
 }
 
-export function classifyClaudeCodeTerminalReason(reason: string): ClaudeCodeExitCategory {
-  const text = reason.toLowerCase()
-  if (/\b401\b|unauthori[sz]ed|authentication|invalid[_ ]api[_ ]key|not logged in/.test(text)) return 'auth'
-  if (/\b404\b|model.{0,80}(?:not found|does not exist|unavailable|no access)/.test(text)) return 'model'
-  if (/\b402\b|quota|billing|insufficient (?:balance|credit)|payment required/.test(text)) return 'quota'
-  if (/\b403\b|forbidden|permission denied|access denied/.test(text)) return 'permission'
-  if (/\b429\b|rate[_ -]?limit|too many requests/.test(text)) return 'rate_limit'
-  if (/mcp (?:server|connection|transport|client|error|timeout)|\bmcp_/.test(text)) return 'mcp'
-  if (/proxy|socks|certificate|self-signed|unable_to_verify_leaf_signature/.test(text)) return 'proxy'
-  if (/econnrefused|etimedout|enotfound|network|fetch failed|connection (?:reset|timed out)/.test(text)) {
-    return 'network'
-  }
-  if (/\b5\d\d\b|overload|service unavailable|internal server error/.test(text)) return 'server'
-  return 'unknown'
+/** CLI stderr carries no structured status, so the status is recovered from the text itself. */
+export function classifyClaudeCodeTerminalReason(reason: string): ErrorCategory {
+  return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason) })
 }
 
 export function recordClaudeCodeProcessExit(

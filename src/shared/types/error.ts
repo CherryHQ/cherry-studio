@@ -1,26 +1,5 @@
 import type { Serializable } from './serializable'
 
-export const CLAUDE_CODE_EXIT_CATEGORIES = [
-  'auth',
-  'permission',
-  'model',
-  'quota',
-  'rate_limit',
-  'network',
-  'proxy',
-  'server',
-  'mcp',
-  'unknown'
-] as const
-
-export type ClaudeCodeExitCategory = (typeof CLAUDE_CODE_EXIT_CATEGORIES)[number]
-
-const claudeCodeExitCategorySet = new Set<string>(CLAUDE_CODE_EXIT_CATEGORIES)
-
-export function isClaudeCodeExitCategory(value: unknown): value is ClaudeCodeExitCategory {
-  return typeof value === 'string' && claudeCodeExitCategorySet.has(value)
-}
-
 /**
  * Serialized error for storage and rendering.
  *

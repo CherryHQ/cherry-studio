@@ -17,7 +17,11 @@ describe('Claude Code process exit diagnostics', () => {
     ['connect ETIMEDOUT api.anthropic.com', 'network'],
     ['proxy certificate verification failed', 'proxy'],
     ['HTTP 503 service overloaded', 'server'],
-    ['MCP server connection failed', 'mcp']
+    ['MCP server connection failed', 'mcp'],
+    // Geo-blocks and oversized prompts also ship as bare 4xx; the shared ladder's precedence
+    // is what keeps them out of the permission / unknown buckets.
+    ['API Error: 403 {"error":{"message":"unsupported_country_region_territory"}}', 'region'],
+    ['API Error: 400 prompt is too long: 210000 tokens > 200000 maximum', 'context_length']
   ] as const)('maps %s to the %s recovery category', (terminalReason, category) => {
     const diagnostics = createClaudeCodeProcessDiagnostics('known-ref')
     diagnostics.terminalReason = terminalReason

@@ -198,6 +198,27 @@ describe('ErrorBlock', () => {
     await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
   })
 
+  it('does not promise a diagnostic reference the payload never carried', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByText('error.claude_code_exit.code')).toBeNull()
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+  })
+
   it('ignores non-serializable provider data when classifying an error', () => {
     const circularData: Record<string, unknown> = {}
     circularData.self = circularData
