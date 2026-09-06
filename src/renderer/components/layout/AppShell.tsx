@@ -281,15 +281,18 @@ export const AppShell = () => {
     />
   )
 
-  // Expose an eviction-aware close through TabsContext so in-page surfaces
-  // (MiniAppPage toolbar) benefit from the same cleanup as the tab bar.
+  // Expose eviction-aware tab lifecycle through TabsContext so in-page
+  // surfaces (MiniAppPage toolbar) benefit from the same cleanup as the
+  // tab bar — detach is included so future context consumers do not bypass
+  // eviction.
   const tabsContextValue = useMemo(
     () => ({
       ...tabsApi,
       closeTab: handleCloseTab,
-      closeTabs: handleCloseTabs
+      closeTabs: handleCloseTabs,
+      detachTab: handleDetachTab
     }),
-    [tabsApi, handleCloseTab, handleCloseTabs]
+    [tabsApi, handleCloseTab, handleCloseTabs, handleDetachTab]
   )
 
   const contentArea = (
