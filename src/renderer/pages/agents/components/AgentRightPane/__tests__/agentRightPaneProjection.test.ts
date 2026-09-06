@@ -131,6 +131,74 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('keeps a foreground task result when its lifecycle event is present', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Repository review complete'
+    )
+    const started = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'started',
+        taskId: 'task-1',
+        toolUseId: 'root',
+        status: 'in_progress',
+        title: 'Explore the repo'
+      }
+    } as unknown as CherryMessagePart
+    const parts = [selected, started]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      { type: 'text', text: 'Repository review complete' }
+    ])
+  })
+
+  it('hides a legacy background launch receipt without borrowing task status', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected, textPart('child agent text', 'root')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+    const assistantParts = projection.partsByMessageId['root:agent-flow-assistant'] as Array<{ text?: string }>
+
+    expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
+    expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
+    expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each(['async_launched', 'remote_launched'] as const)(
+    'hides a structured %s receipt without borrowing task status',
+    (status) => {
+      const selected = toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        { status, agentId: 'internal-agent-id' }
+      )
+      const parts = [selected, textPart('child agent text', 'root')]
+
+      const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+      const assistantParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+      expect(assistantParts).toEqual([expect.objectContaining({ type: 'text', text: 'child agent text' })])
+      expect(JSON.stringify(assistantParts)).not.toContain('internal-agent-id')
+    }
+  )
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),
@@ -206,6 +274,52 @@ describe('agent right pane projections', () => {
     const snapshotWins = buildAgentRightPaneStatus([message('m1', ledgerThenSnapshot)], { m1: ledgerThenSnapshot })
     expect(snapshotWins.tasks.map((task) => task.title)).toEqual(['Polish the pane'])
     expect(snapshotWins.totalTaskCount).toBe(1)
+  })
+
+  it('keeps the plan owned by the main agent when spawned runs write todos or tasks', () => {
+    const parts = [
+      toolPart('todos-main', 'TodoWrite', undefined, 'output-available', {
+        todos: [
+          { content: 'Design pane', activeForm: 'Designing pane', status: 'completed' },
+          { content: 'Wire flow', activeForm: 'Wiring flow', status: 'in_progress' }
+        ]
+      }),
+      // Spawned-run parts arrive parented under their Task tool call and must not own the plan.
+      toolPart('child-todos', 'TodoWrite', 'parent-task-call', 'output-available', {
+        todos: [{ content: 'Subagent todo', status: 'in_progress' }]
+      }),
+      toolPart(
+        'child-task-create',
+        'TaskCreate',
+        'parent-task-call',
+        'output-available',
+        { subject: 'Subagent ledger row' },
+        {
+          task: { id: '1', subject: 'Subagent ledger row' }
+        }
+      ),
+      // The dsh runtime parents spawned-run parts through its own metadata namespace.
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'dsh-child-todos',
+        toolName: 'todo_write',
+        state: 'output-available',
+        input: { todos: [{ content: 'Dsh child todo', status: 'in_progress' }] },
+        callProviderMetadata: {
+          cherry: {
+            transport: 'dsh-agent',
+            parentToolCallId: 'dsh-parent-task-call',
+            tool: { type: 'builtin', name: 'todo_write' }
+          }
+        }
+      } as unknown as CherryMessagePart
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks.map((task) => task.title)).toEqual(['Design pane', 'Wire flow'])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(2)
   })
 
   it('projects the latest successful dsh todo_write snapshot into status tasks', () => {

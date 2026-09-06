@@ -357,7 +357,23 @@ const Sessions = ({
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const [groupNow] = useState(() => new Date())
+  const [groupNow, setGroupNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const updateGroupNow = () => setGroupNow(new Date())
+    const intervalId = window.setInterval(updateGroupNow, 60_000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') updateGroupNow()
+    }
+    window.addEventListener('focus', updateGroupNow)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', updateGroupNow)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   const { notesPath } = useNotesSettings()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
@@ -678,7 +694,7 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
-        pinnedAsSection: displayMode !== 'time',
+        pinnedAsSection: displayMode === 'workdir',
         workdirDisplay
       }),
     [agentById, displayMode, groupNow, t, workdirDisplay]
@@ -711,7 +727,7 @@ const Sessions = ({
     if (displayMode === 'time') return undefined
 
     return (session: SessionListItem): ResourceListSection => {
-      if (session.pinned) {
+      if (displayMode === 'workdir' && session.pinned) {
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
@@ -1440,8 +1456,18 @@ const Sessions = ({
   )
 
   const canDropSessionItem = useCallback(
-    ({ sourceGroupId, targetGroupId }: { sourceGroupId: string; targetGroupId: string }) =>
-      itemDragReady && canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
+    ({
+      overItem,
+      sourceGroupId,
+      targetGroupId
+    }: {
+      overItem?: SessionListItem
+      sourceGroupId: string
+      targetGroupId: string
+    }) =>
+      itemDragReady &&
+      !overItem?.pinned &&
+      canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
     [displayMode, itemDragReady]
   )
 
@@ -2133,10 +2159,9 @@ function SessionListBody({
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
-        // The slot exists to line a row up under its group's icon. A pinned row is lifted out to the
-        // pinned section, where there is no such icon above it, so it indents against nothing.
         reserveLeadingIconSlot={
-          !session.pinned && displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
+          displayMode === 'agent' ||
+          (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
         onDelete={onDeleteSession}

@@ -1,3 +1,4 @@
+import type { SamplingSettings } from '@main/ai/types'
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
@@ -13,23 +14,23 @@ const NO_BUDGET = { budgetTokens: undefined }
 // modelParameters tests treat `enableTemperature: true` as the baseline,
 // unlike DEFAULT_ASSISTANT_SETTINGS which has it false. Local wrapper keeps
 // per-test settings calls terse.
-function makeAssistant(settings: Partial<AssistantSettings> = {}) {
-  return makeAssistantBase({ settings: { enableTemperature: true, ...settings } })
+function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettings {
+  return makeAssistantBase({ settings: { enableTemperature: true, ...settings } }).settings
 }
 
 describe('getTemperature', () => {
   it('returns undefined when enableTemperature is false', () => {
-    const a = makeAssistant({ enableTemperature: false, temperature: 0.7 })
+    const a = makeSampling({ enableTemperature: false, temperature: 0.7 })
     expect(getTemperature(a, makeModel(), OMIT_REASONING)).toBeUndefined()
   })
 
   it('returns the temperature when the model supports it', () => {
-    const a = makeAssistant({ temperature: 0.5 })
+    const a = makeSampling({ temperature: 0.5 })
     expect(getTemperature(a, makeModel(), OMIT_REASONING)).toBe(0.5)
   })
 
   it('disables temperature from the request snapshot even when the persisted effort is default', () => {
-    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
+    const a = makeSampling({ temperature: 0.8, reasoning_effort: 'default' })
     // `isClaudeReasoningModel` = Anthropic vendor + REASONING capability
     // (the registry sets the capability via `inferClaudeReasoningFromId`;
     // tests have to populate it explicitly because they bypass the registry).
@@ -42,7 +43,7 @@ describe('getTemperature', () => {
   })
 
   it('keeps temperature from the request snapshot even when the persisted effort is high', () => {
-    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'high' })
+    const a = makeSampling({ temperature: 0.8, reasoning_effort: 'high' })
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic',
@@ -56,7 +57,7 @@ describe('getTemperature', () => {
     // its id-based fallback covers `claude/glm/kimi/moonshot` only — gpt-5
     // is classified by the registry, not the fallback, so the test has to
     // declare the parameter support explicitly.
-    const a = makeAssistant({ temperature: 1.5 })
+    const a = makeSampling({ temperature: 1.5 })
     const model = makeModel({
       id: 'openai::gpt-5',
       parameterSupport: {
@@ -69,14 +70,38 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OMIT_REASONING)).toBe(1)
   })
 
+  it('omits temperature when the resolved provider-model marks it unsupported', () => {
+    const a = makeSampling({ temperature: 0.7 })
+    const model = makeModel({
+      id: 'moonshot::kimi-k2-6',
+      providerId: 'moonshot',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
+  it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
+    'omits fixed temperature for a custom %s model without registry metadata',
+    (id) => {
+      const a = makeSampling({ temperature: 0.7 })
+      expect(getTemperature(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+    }
+  )
+
   it('disables temperature for Gemini 3.x models', () => {
-    const a = makeAssistant({ temperature: 0.8 })
+    const a = makeSampling({ temperature: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
     expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
 
   it('disables temperature for Claude Opus 4.7 models', () => {
-    const a = makeAssistant({ temperature: 0.8 })
+    const a = makeSampling({ temperature: 0.8 })
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
@@ -84,21 +109,45 @@ describe('getTemperature', () => {
 
 describe('getTopP', () => {
   it('returns undefined when enableTopP is false', () => {
-    const a = makeAssistant({ enableTopP: false, topP: 0.9 })
+    const a = makeSampling({ enableTopP: false, topP: 0.9 })
     expect(getTopP(a, makeModel(), OMIT_REASONING)).toBeUndefined()
   })
 
   it('returns topP when enabled', () => {
-    const a = makeAssistant({ enableTopP: true, topP: 0.9 })
+    const a = makeSampling({ enableTopP: true, topP: 0.9 })
     expect(getTopP(a, makeModel(), OMIT_REASONING)).toBe(0.9)
   })
+
+  it('omits topP when the resolved provider-model marks it unsupported', () => {
+    const a = makeSampling({ enableTopP: true, topP: 1 })
+    const model = makeModel({
+      id: 'moonshot::kimi-k3',
+      providerId: 'moonshot',
+      parameterSupport: {
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
+  it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
+    'omits fixed topP for a custom %s model without registry metadata',
+    (id) => {
+      const a = makeSampling({ enableTopP: true, topP: 1 })
+      expect(getTopP(a, makeModel({ id: `custom::${id}` }), OMIT_REASONING)).toBeUndefined()
+    }
+  )
 
   it('clamps topP to [0.95, 1] from the resolved request reasoning', () => {
     // `enableTemperature: false` — Claude 4.5 has mutually-exclusive
     // temperature/topP (`isTemperatureTopPMutuallyExclusiveModel`); leaving
     // both enabled would short-circuit topP via the exclusivity branch and
     // never reach the reasoning-clamp path under test.
-    const a = makeAssistant({ enableTemperature: false, enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
+    const a = makeSampling({ enableTemperature: false, enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic',
@@ -108,13 +157,13 @@ describe('getTopP', () => {
   })
 
   it('disables topP for Gemini 3.x models', () => {
-    const a = makeAssistant({ enableTopP: true, topP: 0.8 })
+    const a = makeSampling({ enableTopP: true, topP: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
     expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
 
   it('disables topP for Claude Opus 4.7 models', () => {
-    const a = makeAssistant({ enableTopP: true, topP: 0.8 })
+    const a = makeSampling({ enableTopP: true, topP: 0.8 })
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
@@ -156,5 +205,14 @@ describe('adjustMaxOutputTokensForReasoning', () => {
 
   it('keeps at least one non-thinking output token', () => {
     expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', { budgetTokens: 8000 })).toBe(1)
+  })
+})
+
+describe('sampling settings that do not come from an assistant', () => {
+  it("are gated by model capability just like an assistant's", () => {
+    // Anthropic ids are the id-based `isMaxTemperatureOneModel` fallback.
+    const model = makeModel({ id: 'anthropic::claude-3-5-sonnet', providerId: 'anthropic' })
+
+    expect(getTemperature(makeSampling({ temperature: 1.5 }), model, OMIT_REASONING)).toBe(1)
   })
 })

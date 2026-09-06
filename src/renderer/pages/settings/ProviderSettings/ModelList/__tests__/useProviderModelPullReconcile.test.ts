@@ -3,6 +3,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -448,19 +449,31 @@ describe('useProviderModelPullReconcile', () => {
   })
 
   it('keeps load failures in drawer state instead of showing a toast', async () => {
-    fetchProviderCatalogModelsMock.mockRejectedValueOnce(new Error('catalog failed'))
-    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('boom'))
+    const apiKey = 'sk-should-not-reach-logs'
+    const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    fetchProviderCatalogModelsMock.mockRejectedValueOnce(new Error(`catalog failed for ${apiKey}`))
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error(`upstream failed for ${apiKey}`))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
-    act(() => {
-      result.current.openPullReconcile()
-    })
+    try {
+      act(() => {
+        result.current.openPullReconcile()
+      })
 
-    await waitFor(() => {
-      expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
-    })
-    expect(result.current.allModels).toEqual([localModel])
-    expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+      await waitFor(() => {
+        expect(result.current.loadErrorMessage).toBe('settings.models.manage.sync_pull_failed')
+      })
+      expect(result.current.allModels).toEqual([localModel])
+      expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+      expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to load provider models for manage drawer', {
+        providerId: 'openai',
+        catalogFailed: true,
+        upstreamFailed: true
+      })
+      expect(JSON.stringify(loggerErrorSpy.mock.calls)).not.toContain(apiKey)
+    } finally {
+      loggerErrorSpy.mockRestore()
+    }
   })
 
   it('keeps catalog models visible when upstream model loading fails', async () => {

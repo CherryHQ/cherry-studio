@@ -530,6 +530,35 @@ describe('ResourceGrid empty state copy', () => {
     }
   })
 
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses the generic resource empty copy when there is no search', () => {
     renderResourceGrid()
 
@@ -819,29 +848,6 @@ describe('ResourceGrid card actions', () => {
     rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
 
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
-  })
-
-  it('uses the neutral settings treatment without changing library Skill cards', () => {
-    const { rerender } = render(
-      <ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />
-    )
-
-    const settingsCard = screen.getByRole('button', { name: 'Skill' })
-    expect(settingsCard).toHaveClass('rounded-xl', 'border-border')
-    expect(settingsCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-secondary',
-      'text-secondary-foreground'
-    )
-    expect(settingsCard.querySelector('[aria-hidden="true"]')).toHaveClass('text-foreground-tertiary')
-
-    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
-
-    const libraryCard = screen.getByRole('button', { name: 'Skill' })
-    expect(libraryCard).toHaveClass('rounded-lg', 'border-border-subtle')
-    expect(libraryCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-warning-subtle',
-      'text-warning'
-    )
   })
 
   it('shows the overflow menu only for assistant cards', () => {

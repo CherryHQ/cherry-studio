@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c0b1a622-ed14-4b6d-9a86-8f1cc1a38c79",
+  "id": "02c792f9-82e2-47d2-9582-3236d3350d31",
   "prevId": "f0cb0475-dec3-4b5b-bcfc-7ab54578dd0a",
   "tables": {
     "agent": {
@@ -571,13 +571,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -679,15 +672,6 @@
           "tableFrom": "agent_session",
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_id_user_model_id_fk": {
-          "name": "agent_session_model_id_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["model_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -3561,7 +3545,7 @@
         },
         "mcp_server_install_source_check": {
           "name": "mcp_server_install_source_check",
-          "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'protocol', 'unknown')"
+          "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')"
         }
       }
     },

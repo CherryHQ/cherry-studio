@@ -15,7 +15,7 @@ import {
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
@@ -70,6 +70,10 @@ type ModelFetcher = {
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
 }
 
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
+
 function handleOptionalModelListFailure<T>(
   error: unknown,
   options: { throwOnError?: boolean } | undefined,
@@ -85,7 +89,7 @@ function handleOptionalModelListFailure<T>(
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
-    error
+    errorType: getErrorType(error)
   })
   return { data: [] }
 }
@@ -138,8 +142,9 @@ function defaultGroup(modelId: string, providerId: string): string {
 
 /** Build a partial v2 Model from API response */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+  const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
-    id: createUniqueModelId(provider.id, apiModelId),
+    id: createUniqueModelId(provider.id, safeModelId),
     providerId: provider.id,
     apiModelId,
     name: extra?.name || apiModelId,
@@ -265,7 +270,7 @@ const geminiFetcher: ModelFetcher = {
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
       url: `${baseUrl}/v1beta/models`,
-      headers: { ...defaultAppHeaders(), 'x-goog-api-key': apiKey, ...provider.settings?.extraHeaders },
+      headers: mergeHeaders(defaultAppHeaders(), { 'x-goog-api-key': apiKey }, provider.settings?.extraHeaders),
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -376,20 +381,14 @@ const vertexFetcher: ModelFetcher = {
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const copilotHeaders = {
-      ...COPILOT_DEFAULT_HEADERS,
-      ...provider.settings.extraHeaders
-    }
+    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
     // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
-      headers: {
-        ...copilotHeaders,
-        Authorization: `Bearer ${token}`
-      },
+      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
     })
@@ -697,12 +696,11 @@ const anthropicFetcher: ModelFetcher = {
     const apiKey = providerService.getRotatedApiKey(provider.id)
     const response = await getFromApi({
       url: `${baseUrl}/models?limit=1000`,
-      headers: {
-        ...defaultAppHeaders(),
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-        ...provider.settings?.extraHeaders
-      },
+      headers: mergeHeaders(
+        defaultAppHeaders(),
+        { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+        provider.settings?.extraHeaders
+      ),
       responseSchema: AnthropicModelsResponseSchema,
       abortSignal: signal
     })
@@ -776,15 +774,10 @@ export async function probeOllamaModel(
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
-  const headers: Record<string, string> = {
-    ...defaultAppHeaders(),
-    ...getExtraHeaders(provider),
-    'Content-Type': 'application/json'
-  }
-  if (resolved.value) {
-    headers.Authorization = `Bearer ${resolved.value}`
-    headers['X-Api-Key'] = resolved.value
-  }
+  const headers = mergeHeaders(defaultAppHeaders(), getExtraHeaders(provider), {
+    'Content-Type': 'application/json',
+    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
+  })
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
@@ -829,7 +822,7 @@ export async function listModels(
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
-    logger.error('Error listing models', error as Error, { providerId: provider.id })
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {
       throw error
     }

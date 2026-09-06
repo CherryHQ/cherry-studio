@@ -5,11 +5,14 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { application } from '@application'
+import { skillHandlers as dataSkillHandlers } from '@data/api/handlers/skills'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
+import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -137,6 +140,50 @@ describe('SkillService', () => {
       }
     ])
   }
+
+  describe('catalog scopes', () => {
+    it('uses physical directories for registered skills with no source URL and excludes junction targets outside system roots', async () => {
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ source: 'local', sourceUrl: null })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+      const root = await createTempDir('skill-scopes-')
+      const globalRoot = path.join(root, 'global')
+      const project = path.join(root, 'project')
+      const projectSkill = path.join(project, '.agents', 'skills', 'skill-two')
+      await fs.promises.mkdir(path.join(globalRoot, 'skill-one'), { recursive: true })
+      await fs.promises.mkdir(path.join(globalRoot, 'unregistered'), { recursive: true })
+      await fs.promises.mkdir(projectSkill, { recursive: true })
+      await fs.promises.symlink(projectSkill, path.join(globalRoot, 'skill-two'), 'junction')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? globalRoot : root
+        return filename ? path.join(base, filename) : base
+      })
+      try {
+        const service = new SkillService()
+        expect(await service.listCatalog()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: SKILL_ID_1, scope: 'system' }),
+            expect.objectContaining({ id: SKILL_ID_2, scope: 'local' }),
+            expect.objectContaining({ id: SKILL_ID_BUILTIN, scope: 'builtin' })
+          ])
+        )
+        expect(await service.listCatalog()).toHaveLength(3)
+        const filtered = await skillHandlers['skill.list_catalog']({ search: 'skill-two' }, {} as never)
+        expect(filtered).toHaveLength(1)
+        expect(filtered[0]).toMatchObject({ id: SKILL_ID_2, scope: 'local' })
+        const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockRejectedValue(new Error('unavailable filesystem'))
+        try {
+          expect(await dataSkillHandlers['/skills'].GET({ query: {} } as never)).toHaveLength(3)
+        } finally {
+          realpathSpy.mockRestore()
+        }
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+  })
 
   describe('list', () => {
     it('returns empty array when no skills installed', async () => {
@@ -334,6 +381,37 @@ describe('SkillService', () => {
       })
     })
 
+    it('discovers .agents skills and keeps .claude precedence for duplicate folder names', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-workdir-')
+      const claudeSkill = path.join(workdir, '.claude', 'skills', 'shared-skill')
+      const agentSharedSkill = path.join(workdir, '.agents', 'skills', 'shared-skill')
+      const agentOnlySkill = path.join(workdir, '.agents', 'skills', 'agent-only')
+      await Promise.all([
+        fs.promises.mkdir(claudeSkill, { recursive: true }),
+        fs.promises.mkdir(agentSharedSkill, { recursive: true }),
+        fs.promises.mkdir(agentOnlySkill, { recursive: true })
+      ])
+      await Promise.all([
+        fs.promises.writeFile(path.join(claudeSkill, 'SKILL.md'), '# Claude skill'),
+        fs.promises.writeFile(path.join(agentSharedSkill, 'SKILL.md'), '# Agent shared skill'),
+        fs.promises.writeFile(path.join(agentOnlySkill, 'SKILL.md'), '# Agent-only skill')
+      ])
+
+      const result = await skillService.listLocal(workdir)
+
+      expect(result.map((skill) => skill.filename).sort()).toEqual(['agent-only', 'shared-skill'])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(claudeSkill, 'shared-skill', 'skills', {
+        calculateSize: false
+      })
+      expect(parseSkillMetadata).not.toHaveBeenCalledWith(
+        agentSharedSkill,
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
+      )
+    })
+
     it('skips Cherry-managed skill symlinks that point to the global skill storage', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')
@@ -401,6 +479,22 @@ describe('SkillService', () => {
 
       expect(result).toEqual(['valid-skill'])
       expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('listLocalSkillPaths', () => {
+    it('returns valid skill directories from both workspace roots', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-paths-workdir-')
+      const claudeSkill = path.join(workdir, '.claude', 'skills', 'claude-skill')
+      const agentSkill = path.join(workdir, '.agents', 'skills', 'agent-skill')
+      await Promise.all([
+        fs.promises.mkdir(claudeSkill, { recursive: true }),
+        fs.promises.mkdir(agentSkill, { recursive: true })
+      ])
+      vi.mocked(findSkillMdPath).mockImplementation(async (skillPath) => path.join(skillPath, 'SKILL.md'))
+
+      await expect(skillService.listLocalSkillPaths(workdir)).resolves.toEqual([claudeSkill, agentSkill])
     })
   })
 
@@ -537,11 +631,37 @@ describe('SkillService', () => {
         '# Large skill'
       )
       expect((await fs.promises.lstat(path.join(dataSkillsRoot, 'large-skill'))).isSymbolicLink()).toBe(false)
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'large-skill'))).toBe(
-        await fs.promises.realpath(path.join(dataSkillsRoot, 'large-skill'))
-      )
-      expect(skillService.getInstalledSkillDirectory(result)).toBe(path.join(dataSkillsRoot, 'large-skill'))
+      const mirrored = path.join(mirrorRoot, 'large-skill')
+      const managed = path.join(dataSkillsRoot, 'large-skill')
+      expect((await fs.promises.lstat(mirrored)).isSymbolicLink()).toBe(!isWin)
+      if (isWin) {
+        await expect(fs.promises.readFile(path.join(mirrored, 'SKILL.md'), 'utf-8')).resolves.toBe('# Large skill')
+      } else {
+        expect(path.normalize(await fs.promises.realpath(mirrored))).toBe(
+          path.normalize(await fs.promises.realpath(managed))
+        )
+      }
+      expect(path.normalize(skillService.getInstalledSkillDirectory(result))).toBe(path.normalize(managed))
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
+    })
+
+    it('serves only bounded text content to the skill file preview', async () => {
+      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      const managedRoot = path.join(dataSkillsRoot, 'large-skill')
+
+      await fs.promises.writeFile(path.join(managedRoot, 'binary.bin'), Buffer.alloc(512))
+      await fs.promises.writeFile(path.join(managedRoot, 'oversized.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 0x61))
+
+      await expect(skillService.readFile(result.id, 'SKILL.md')).resolves.toBe('# Large skill')
+      await expect(skillService.readFile(result.id, 'binary.bin')).resolves.toBeNull()
+      await expect(skillService.readFile(result.id, 'oversized.txt')).resolves.toBeNull()
+
+      if (process.platform !== 'win32') {
+        const outsideFile = path.join(home, 'outside.txt')
+        await fs.promises.writeFile(outsideFile, 'outside content')
+        await fs.promises.symlink(outsideFile, path.join(managedRoot, 'escape.txt'))
+        await expect(skillService.readFile(result.id, 'escape.txt')).resolves.toBeNull()
+      }
     })
 
     it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
@@ -1461,6 +1581,40 @@ describe('SkillService', () => {
       expect(installed?.isEnabled).toBe(true)
     })
 
+    it('records conditional builtin ownership and preserves it across updates', async () => {
+      const skillService = new SkillService()
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+      const initial = await skillService.getByFolderName(FOLDER_NAME)
+      await fs.promises.writeFile(path.join(sourcePath, 'SKILL.md'), '# Updated Builtin')
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+      const updated = await skillService.getByFolderName(FOLDER_NAME)
+
+      expect(updated).toMatchObject({ id: initial?.id, namespace: 'code-cli:test', source: 'builtin' })
+    })
+
+    it('refuses to replace a builtin owned by another namespace', async () => {
+      const skillService = new SkillService()
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:first')
+
+      await expect(
+        skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:second')
+      ).rejects.toThrow(/belongs to builtin namespace/)
+    })
+
+    it('only uninstalls a conditional builtin for its owning namespace', async () => {
+      const skillService = new SkillService()
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+
+      await expect(skillService.uninstallBuiltinSkill(FOLDER_NAME, 'code-cli:other')).rejects.toThrow(
+        /not owned by builtin namespace/
+      )
+      await expect(skillService.getByFolderName(FOLDER_NAME)).resolves.not.toBeNull()
+
+      await expect(skillService.uninstallBuiltinSkill(FOLDER_NAME, 'code-cli:test')).resolves.toBe(true)
+      await expect(skillService.getByFolderName(FOLDER_NAME)).resolves.toBeNull()
+    })
+
     it('rejects a cross-source builtin collision before overwriting user content', async () => {
       const skillService = new SkillService()
       await fs.promises.mkdir(destPath, { recursive: true })
@@ -1558,7 +1712,7 @@ describe('SkillService', () => {
 
       await skillService.linkMirror('pdf')
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
-      expect((await fs.promises.lstat(path.join(mirrorRoot, 'pdf'))).isSymbolicLink()).toBe(true)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'pdf'))).isSymbolicLink()).toBe(!isWin)
 
       await skillService.unlinkMirror('pdf')
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
@@ -1566,14 +1720,27 @@ describe('SkillService', () => {
 
     it('linkMirror replaces a broken mirror symlink', async () => {
       await writeLibrarySkill('pdf')
-      await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+      if (isWin) {
+        await fs.promises.mkdir(path.join(mirrorRoot, 'pdf'), { recursive: true })
+      } else {
+        await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+      }
 
       await skillService.linkMirror('pdf')
 
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
-      expect(await fs.promises.realpath(path.join(mirrorRoot, 'pdf'))).toBe(
-        await fs.promises.realpath(path.join(dataSkillsRoot, 'pdf'))
-      )
+      const mirrored = path.join(mirrorRoot, 'pdf')
+      const managed = path.join(dataSkillsRoot, 'pdf')
+      expect((await fs.promises.lstat(mirrored)).isSymbolicLink()).toBe(!isWin)
+      if (isWin) {
+        await expect(fs.promises.readFile(path.join(mirrored, 'SKILL.md'), 'utf-8')).resolves.toBe(
+          await fs.promises.readFile(path.join(managed, 'SKILL.md'), 'utf-8')
+        )
+      } else {
+        expect(path.normalize(await fs.promises.realpath(mirrored))).toBe(
+          path.normalize(await fs.promises.realpath(managed))
+        )
+      }
     })
 
     it('linkMirror removes a stale mirror when the library descriptor is missing', async () => {
@@ -1699,7 +1866,7 @@ describe('SkillService', () => {
       expect(rows[0]?.version).toBe('3.0.0')
       expect(rows[0]?.isEnabled).toBe(true)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
-      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(!isWin)
     })
 
     it('treats different local directories as different install origins', async () => {

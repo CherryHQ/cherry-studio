@@ -130,9 +130,13 @@ export interface BridgeHostRequestMap {
 /** Plugin→host request methods. `ready` is the authentication handshake and MUST be first. */
 export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
+  'guard/check': {
+    params: { sessionId: string; toolName: string; args: unknown; cwd: string }
+    result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
+  }
   'approval/ask': {
     params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
-    result: { outcome: 'allowed-once' | 'rejected' }
+    result: { outcome: 'allowed-once' | 'rejected'; rejectionReason?: string }
   }
   'tool/call': {
     /** `sessionId` is always the root session id — the host rejects child session ids. */

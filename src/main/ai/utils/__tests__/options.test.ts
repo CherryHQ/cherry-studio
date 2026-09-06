@@ -1,7 +1,10 @@
+import { createOpenAI } from '@ai-sdk/openai'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
+import { generateText } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,
@@ -295,6 +298,46 @@ describe('OpenAI-compatible reasoning normalization', () => {
       expect(options).toMatchObject({ [providerOptionsKey]: { reasoningEffort: 'high' } })
       expect(options[providerOptionsKey].reasoning_effort).toBeUndefined()
     }
+  })
+
+  it.each(['none', 'high'] as const)('serializes custom Responses reasoning effort %s on the wire', async (effort) => {
+    const reasoning: ResolvedReasoningInvocation = {
+      kind: effort === 'none' ? 'off' : 'effort',
+      selection: effort,
+      ...(effort === 'high' ? { effort } : {}),
+      emissions: [{ target: 'reasoningEffort', value: effort }]
+    }
+    const providerOptions = buildResolvedReasoningProviderOptions({
+      aiSdkProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      reasoning
+    })
+    const fetchMock = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: 'resp_1',
+            created_at: 1,
+            model: 'deepseek-v4-flash',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1 },
+            incomplete_details: null,
+            service_tier: null
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+    )
+    const openai = createOpenAI({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch })
+
+    await generateText({
+      model: openai.responses('deepseek-v4-flash'),
+      prompt: 'ping',
+      providerOptions: providerOptions as ProviderOptions
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+    expect(body.reasoning).toEqual({ effort })
   })
 })
 

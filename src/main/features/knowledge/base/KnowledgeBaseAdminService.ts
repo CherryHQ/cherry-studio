@@ -15,7 +15,7 @@ import {
 } from '@shared/data/types/knowledge'
 
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
-import { classifyKnowledgeItemSource } from '../items'
+import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
@@ -134,7 +134,7 @@ export class KnowledgeBaseAdminService {
     // kept, not skipped — like reindex, we never drop a source we could not confirm is gone.
     const restorableRootItems: KnowledgeItem[] = []
     for (const item of rootItems) {
-      if ((await classifyKnowledgeItemSource(sourceBase.id, item)) === 'missing') {
+      if ((await classifyKnowledgeItemRestoreSource(sourceBase.id, item)) === 'missing') {
         logger.warn('Skipping knowledge item with a missing source during restore', {
           sourceBaseId: sourceBase.id,
           itemId: item.id,

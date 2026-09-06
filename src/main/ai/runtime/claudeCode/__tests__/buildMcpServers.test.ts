@@ -62,6 +62,10 @@ vi.mock('@application', async () => {
     ...module,
     application: {
       ...module.application,
+      get: (name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getTurnTrustedNotifyChannels: () => undefined }
+          : module.application.get(name as never),
       getPath: mockGetPath
     }
   }
@@ -94,7 +98,7 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -160,7 +164,7 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
   } as unknown as AgentSessionEntity
 }
 
-const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 
 describe('resolveMountedMcpServers', () => {
@@ -168,10 +172,10 @@ describe('resolveMountedMcpServers', () => {
     const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
       channelLinked: false
     })
-    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'skills'])
+    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
   })
 
-  it('drops the skills server for Cherry Support while keeping its host servers', () => {
+  it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
     const mounted = resolveMountedMcpServers(
       { type: 'claude-code', configuration: { builtin_role: 'support' } } as never,
       {
@@ -179,6 +183,8 @@ describe('resolveMountedMcpServers', () => {
       }
     )
     expect(mounted.has('skills')).toBe(false)
+    // A sealed Agent must not register MCP servers into the user's environment either.
+    expect(mounted.has('mcp-manager')).toBe(false)
     expect(mounted.has('assistant')).toBe(true)
   })
 
@@ -209,6 +215,8 @@ describe('adjustAllowedToolsForMcp', () => {
     // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
     expect(allowed).toContain('mcp__skills__search_skills')
     expect(allowed).not.toContain('mcp__skills__install_skill')
+    // install_mcp_server can launch an arbitrary local command — never pre-approved.
+    expect(allowed).not.toContain('mcp__mcp-manager__install_mcp_server')
   })
 
   it('auto-approves only read-only Assistant tools', () => {
@@ -269,6 +277,12 @@ describe('buildMcpServers', () => {
     const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
+  })
+
+  it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
+    expect(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)?.['mcp-manager']).toBeDefined()
+    const sealed = new Set([...WITHOUT_HOST_TOOLS].filter((name) => name !== 'mcp-manager'))
+    expect(buildMcpServers(session, agent, sealed)?.['mcp-manager']).toBeUndefined()
   })
 
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {

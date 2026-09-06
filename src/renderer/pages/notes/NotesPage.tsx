@@ -1,6 +1,5 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -582,6 +581,10 @@ const NotesPage: FC = () => {
     [createNote, requestFileTransition]
   )
 
+  const handleCreateUntitledNote = useCallback(() => {
+    void handleCreateNote(t('notes.untitled_note'))
+  }, [handleCreateNote, t])
+
   const handleToggleExpanded = useCallback(
     (nodeId: string) => {
       const targetNode = findNode(notesTree, nodeId)
@@ -1126,6 +1129,7 @@ const NotesPage: FC = () => {
               onMarkdownChange={handleMarkdownChange}
               editorRef={editorRef}
               codeEditorRef={codeEditorRef}
+              onCreateNote={handleCreateUntitledNote}
             />
           )}
         </div>

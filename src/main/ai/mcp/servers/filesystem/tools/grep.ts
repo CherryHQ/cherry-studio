@@ -32,6 +32,47 @@ export const grepToolDefinition = {
   inputSchema: z.toJSONSchema(GrepToolSchema)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function decodeRipgrepText(value: unknown): string {
+  if (!isRecord(value)) {
+    throw new Error('Unexpected ripgrep text format')
+  }
+  if (typeof value.text === 'string') {
+    return value.text
+  }
+  if (typeof value.bytes === 'string') {
+    return Buffer.from(value.bytes, 'base64').toString('utf-8')
+  }
+  throw new Error('Unexpected ripgrep text format')
+}
+
+function parseRipgrepMatch(line: string): GrepMatch | null {
+  const message: unknown = JSON.parse(line)
+  if (!isRecord(message) || typeof message.type !== 'string') {
+    throw new Error('Unexpected ripgrep output format')
+  }
+  if (message.type !== 'match') {
+    return null
+  }
+  if (!isRecord(message.data)) {
+    throw new Error('Unexpected ripgrep match format')
+  }
+
+  const lineNum = message.data.line_number
+  if (typeof lineNum !== 'number' || !Number.isInteger(lineNum) || lineNum < 1) {
+    throw new Error('Unexpected ripgrep line number')
+  }
+
+  return {
+    file: decodeRipgrepText(message.data.path),
+    line: lineNum,
+    content: decodeRipgrepText(message.data.lines).replace(/\r?\n$/, '')
+  }
+}
+
 // Handler implementation
 export async function handleGrepTool(args: unknown, baseDir: string) {
   const parsed = GrepToolSchema.safeParse(args)
@@ -54,10 +95,8 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
 
   // Build ripgrep arguments
   const rgArgs: string[] = [
-    '--no-heading',
-    '--line-number',
-    '--color',
-    'never',
+    '--no-config',
+    '--json',
     '--ignore-case',
     '--glob',
     '!.git/**',
@@ -83,15 +122,6 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   // `--` ends ripgrep option parsing so a pattern like `--pre=<cmd>` is treated as a
   // literal search pattern instead of the preprocessor flag (arg-injection → RCE).
   rgArgs.push('--', data.pattern, validPath)
-
-  try {
-    // No `g` flag: this regex is reused with `.test(line)` per line, and a global
-    // regex carries `lastIndex` across calls — that silently skips matches on
-    // subsequent lines. Case-insensitive matching only.
-    regex = new RegExp(data.pattern, 'i')
-  } catch (error) {
-    throw new Error(`Invalid regex pattern: ${data.pattern}`)
-  }
 
   async function searchFile(filePath: string): Promise<void> {
     if (matches.length >= MAX_GREP_MATCHES) {
@@ -192,53 +222,84 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   }
 
   // Perform the search
+  const binaryFileCache = new Map<string, boolean>()
   let usedRipgrep = false
   try {
     const rgResult = await runRipgrep(rgArgs)
-    if (rgResult.ok && rgResult.exitCode !== null && rgResult.exitCode !== 2) {
-      usedRipgrep = true
-      const lines = rgResult.stdout.split('\n').filter(Boolean)
-      for (const line of lines) {
-        if (matches.length >= MAX_GREP_MATCHES) {
-          truncated = true
-          break
+    if (rgResult.ok && (rgResult.exitCode === 0 || rgResult.exitCode === 1)) {
+      if (rgResult.exitCode === 1) {
+        usedRipgrep = true
+      } else {
+        const lines = rgResult.stdout.split('\n').filter(Boolean)
+        let parsedMatchCount = 0
+        for (const line of lines) {
+          const parsedMatch = parseRipgrepMatch(line)
+          if (!parsedMatch) {
+            continue
+          }
+          parsedMatchCount++
+
+          if (matches.length >= MAX_GREP_MATCHES) {
+            truncated = true
+            break
+          }
+
+          const absoluteFilePath = path.isAbsolute(parsedMatch.file)
+            ? parsedMatch.file
+            : path.resolve(baseDir, parsedMatch.file)
+
+          // Re-validate each result to filter out symlink escapes
+          try {
+            await validatePath(absoluteFilePath, baseDir)
+          } catch {
+            logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
+            continue
+          }
+
+          // ripgrep only auto-skips binary files it reaches by traversal; one named
+          // explicitly on the command line is searched up to its first NUL byte.
+          let binary = binaryFileCache.get(absoluteFilePath)
+          if (binary === undefined) {
+            binary = await isBinaryFile(absoluteFilePath)
+            binaryFileCache.set(absoluteFilePath, binary)
+          }
+          if (binary) {
+            continue
+          }
+
+          const truncatedLine =
+            parsedMatch.content.length > MAX_LINE_LENGTH
+              ? parsedMatch.content.substring(0, MAX_LINE_LENGTH) + '...'
+              : parsedMatch.content
+
+          matches.push({
+            file: absoluteFilePath,
+            line: parsedMatch.line,
+            content: truncatedLine.trim()
+          })
         }
 
-        const firstColon = line.indexOf(':')
-        const secondColon = line.indexOf(':', firstColon + 1)
-        if (firstColon === -1 || secondColon === -1) continue
-
-        const filePart = line.slice(0, firstColon)
-        const linePart = line.slice(firstColon + 1, secondColon)
-        const contentPart = line.slice(secondColon + 1)
-        const lineNum = Number.parseInt(linePart, 10)
-        if (!Number.isFinite(lineNum)) continue
-
-        const absoluteFilePath = path.isAbsolute(filePart) ? filePart : path.resolve(baseDir, filePart)
-
-        // Re-validate each result to filter out symlink escapes
-        try {
-          await validatePath(absoluteFilePath, baseDir)
-        } catch {
-          logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
-          continue
+        if (parsedMatchCount > 0) {
+          usedRipgrep = true
         }
-
-        const truncatedLine =
-          contentPart.length > MAX_LINE_LENGTH ? contentPart.substring(0, MAX_LINE_LENGTH) + '...' : contentPart
-
-        matches.push({
-          file: absoluteFilePath,
-          line: lineNum,
-          content: truncatedLine.trim()
-        })
       }
     }
   } catch {
+    matches.length = 0
+    truncated = false
     usedRipgrep = false
   }
 
   if (!usedRipgrep) {
+    try {
+      // No `g` flag: this regex is reused with `.test(line)` per line, and a global
+      // regex carries `lastIndex` across calls — that silently skips matches on
+      // subsequent lines. Case-insensitive matching only.
+      regex = new RegExp(data.pattern, 'i')
+    } catch {
+      throw new Error(`Invalid regex pattern: ${data.pattern}`)
+    }
+
     const stats = await fs.stat(validPath)
     if (stats.isFile()) {
       await searchFile(validPath)

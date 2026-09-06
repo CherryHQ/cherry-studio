@@ -16,7 +16,8 @@ const PRIMARY_EXTENSION_OVERRIDES: Record<string, string> = {
   html: 'HTML',
   sql: 'SQL',
   rs: 'Rust',
-  txt: 'Text'
+  txt: 'Text',
+  php: 'PHP'
 }
 
 /**

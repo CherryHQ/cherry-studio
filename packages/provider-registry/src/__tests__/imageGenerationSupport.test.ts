@@ -72,7 +72,13 @@ describe('ImageGenerationSupportSchema', () => {
         }
       }
     })
-    expect(parsed.modes?.generate?.supports.numImages).toEqual({ type: 'range', min: 1, max: 1, default: 1 })
+    expect(parsed.modes?.generate?.supports.numImages).toEqual({
+      type: 'range',
+      min: 1,
+      max: 1,
+      default: 1,
+      step: 1
+    })
   })
 
   it('FLUX.1-Kontext-pro: safetyTolerance range with default 6', () => {
@@ -91,7 +97,52 @@ describe('ImageGenerationSupportSchema', () => {
       type: 'range',
       min: 0,
       max: 6,
-      default: 6
+      default: 6,
+      step: 1
+    })
+  })
+
+  it('defaults count ranges to an integer step and rejects fractional counts', () => {
+    const parsed = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: { numImages: { type: 'range', min: 1, max: 4, default: 1 } }
+        }
+      }
+    })
+    expect(parsed.modes?.generate?.supports.numImages).toEqual({
+      type: 'range',
+      min: 1,
+      max: 4,
+      default: 1,
+      step: 1
+    })
+
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: {
+          generate: {
+            supports: { numImages: { type: 'range', min: 1, max: 4, default: 2.5 } }
+          }
+        }
+      })
+    ).toThrow()
+  })
+
+  it('preserves fractional continuous ranges', () => {
+    const parsed = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: { guidanceScale: { type: 'range', min: 1, max: 20, default: 4.5, step: 0.1 } }
+        }
+      }
+    })
+    expect(parsed.modes?.generate?.supports.guidanceScale).toEqual({
+      type: 'range',
+      min: 1,
+      max: 20,
+      default: 4.5,
+      step: 0.1
     })
   })
 

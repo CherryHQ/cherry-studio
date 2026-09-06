@@ -1,4 +1,10 @@
-import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillCatalogEntry,
+  SkillResult,
+  SystemSkillCandidate
+} from '@shared/types/skill'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -9,7 +15,7 @@ import { defineRoute } from '../define'
  *
  * Legacy install/list routes keep the `SkillResult<T>` envelope: the handler catches and returns
  * `{ success, data } | { success, error }` (and logs on failure), and the renderer keeps
- * unwrapping it. New system-skill routes use IpcApi's native result/error contract and
+ * unwrapping it. New routes use IpcApi's native result/error contract and
  * therefore declare their data directly. Outputs are `z.custom` (IpcApi validates inputs,
  * not outputs). Skill_ReadFile / Skill_ListFiles stay on legacy IPC.
  */
@@ -30,6 +36,10 @@ export const skillRequestSchemas = {
     input: z.object({ directoryPath: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()
   }),
+  'skill.list_catalog': defineRoute({
+    input: z.object({ search: z.string().trim().min(1).optional() }),
+    output: z.custom<SkillCatalogEntry[]>()
+  }),
   'skill.list_local': defineRoute({
     input: z.object({ workdir: z.string().min(1) }),
     output: z.custom<SkillResult<LocalSkill[]>>()
@@ -45,5 +55,9 @@ export const skillRequestSchemas = {
   'skill.import_system': defineRoute({
     input: z.object({ directoryPath: z.string().min(1) }),
     output: z.custom<InstalledSkill>()
+  }),
+  'skill.folder.open': defineRoute({
+    input: z.object({ skillId: z.string().min(1) }),
+    output: z.void()
   })
 }

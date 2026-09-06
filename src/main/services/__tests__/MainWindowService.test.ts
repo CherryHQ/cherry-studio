@@ -4,68 +4,97 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
-const { platformState, prefValues, applicationMock, windowManagerMock, loggerMock, previewSessionMock } = vi.hoisted(
-  () => {
-    const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
-    const prefValues: Record<string, unknown> = {
-      'app.tray.enabled': false,
-      'app.tray.on_close': false,
-      'app.tray.on_launch': false,
-      'app.zoom_factor': 1,
-      'app.spell_check.enabled': false,
-      'app.spell_check.languages': [],
-      'app.use_system_title_bar': false
-    }
-    const windowManagerMock = {
-      getWindow: vi.fn(),
-      getWindowId: vi.fn(),
-      // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
-      // (see BehaviorController in src/main/core/window/behavior.ts).
-      behavior: {
-        setMacShowInDockByType: vi.fn()
-      },
-      onWindowCreatedByType: vi.fn(() => vi.fn()),
-      onWindowDestroyedByType: vi.fn(() => vi.fn()),
-      open: vi.fn(() => 'mock-window-id'),
-      pushInitDataToType: vi.fn(),
-      // Bounds are restored declaratively by WindowManager; setupMainWindow reads
-      // the saved maximized flag back through this to re-apply maximize itself.
-      peekWindowBounds: vi.fn()
-    }
-    const loggerMock = {
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn()
-    }
-    const previewSessionMock = {
-      getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      setPermissionCheckHandler: vi.fn(),
-      setPermissionRequestHandler: vi.fn(),
-      setUserAgent: vi.fn(),
-      webRequest: {
-        onBeforeRequest: vi.fn()
-      }
-    }
-    const applicationMock = {
-      isQuitting: false,
-      quit: vi.fn(),
-      forceExit: vi.fn(),
-      get: vi.fn((name: string) => {
-        if (name === 'PreferenceService') {
-          return { get: (key: string) => prefValues[key] }
-        }
-        if (name === 'WindowManager') {
-          return windowManagerMock
-        }
-        throw new Error(`unexpected service: ${name}`)
-      }),
-      getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
-    }
-    return { platformState, prefValues, applicationMock, windowManagerMock, loggerMock, previewSessionMock }
+const {
+  platformState,
+  prefValues,
+  prefChangeListeners,
+  applicationMock,
+  windowManagerMock,
+  loggerMock,
+  previewSessionMock,
+  defaultSessionMock
+} = vi.hoisted(() => {
+  const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
+  const prefValues: Record<string, unknown> = {
+    'app.tray.enabled': false,
+    'app.tray.on_close': false,
+    'app.tray.on_launch': false,
+    'app.zoom_factor': 1,
+    'app.spell_check.enabled': false,
+    'app.spell_check.languages': [],
+    'app.use_system_title_bar': false
   }
-)
+  const windowManagerMock = {
+    getWindow: vi.fn(),
+    getWindowId: vi.fn(),
+    getWindowIdByWebContents: vi.fn(),
+    getWindowType: vi.fn(),
+    // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
+    // (see BehaviorController in src/main/core/window/behavior.ts).
+    behavior: {
+      setMacShowInDockByType: vi.fn()
+    },
+    onWindowCreatedByType: vi.fn(() => vi.fn()),
+    onWindowDestroyedByType: vi.fn(() => vi.fn()),
+    open: vi.fn(() => 'mock-window-id'),
+    pushInitDataToType: vi.fn(),
+    // Bounds are restored declaratively by WindowManager; setupMainWindow reads
+    // the saved maximized flag back through this to re-apply maximize itself.
+    peekWindowBounds: vi.fn()
+  }
+  const loggerMock = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
+  const previewSessionMock = {
+    getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
+    setPermissionRequestHandler: vi.fn(),
+    setUserAgent: vi.fn(),
+    webRequest: {
+      onBeforeRequest: vi.fn()
+    }
+  }
+  const defaultSessionMock = {
+    setSpellCheckerEnabled: vi.fn(),
+    setSpellCheckerLanguages: vi.fn()
+  }
+  const prefChangeListeners: Array<() => void> = []
+  const applicationMock = {
+    isQuitting: false,
+    quit: vi.fn(),
+    forceExit: vi.fn(),
+    get: vi.fn((name: string) => {
+      if (name === 'PreferenceService') {
+        return {
+          get: (key: string) => prefValues[key],
+          subscribeMultipleChanges: (_keys: string[], listener: () => void) => {
+            prefChangeListeners.push(listener)
+            return () => {}
+          }
+        }
+      }
+      if (name === 'WindowManager') {
+        return windowManagerMock
+      }
+      throw new Error(`unexpected service: ${name}`)
+    }),
+    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+  }
+  return {
+    platformState,
+    prefValues,
+    prefChangeListeners,
+    applicationMock,
+    windowManagerMock,
+    loggerMock,
+    previewSessionMock,
+    defaultSessionMock
+  }
+})
 
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -97,7 +126,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
-  session: { fromPartition: vi.fn(() => previewSessionMock) },
+  session: { fromPartition: vi.fn(() => previewSessionMock), defaultSession: defaultSessionMock },
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
@@ -126,6 +155,7 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { app } from 'electron'
 
@@ -147,10 +177,13 @@ interface MockBrowserWindow extends EventEmitter {
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
+    id: number
     reload: ReturnType<typeof vi.fn>
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
+    once: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
+    send: ReturnType<typeof vi.fn>
   }
 }
 
@@ -170,11 +203,14 @@ function createMockWindow(): MockBrowserWindow {
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
+    id: 1,
     reload: vi.fn(),
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
-    setWindowOpenHandler: vi.fn()
+    once: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    send: vi.fn()
   }
   return win
 }
@@ -211,11 +247,19 @@ describe('MainWindowService', () => {
     platformState.isDev = false
     prefValues['app.tray.enabled'] = false
     prefValues['app.tray.on_close'] = false
+    prefValues['app.spell_check.enabled'] = false
+    prefValues['app.spell_check.languages'] = []
+    prefChangeListeners.length = 0
+    defaultSessionMock.setSpellCheckerEnabled.mockReset()
+    defaultSessionMock.setSpellCheckerLanguages.mockReset()
     applicationMock.isQuitting = false
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
     windowManagerMock.getWindowId.mockReset()
+    windowManagerMock.getWindowIdByWebContents.mockReset()
+    windowManagerMock.getWindowType.mockReset()
+    windowManagerMock.getWindow.mockReset()
     windowManagerMock.open.mockClear()
     windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
@@ -234,6 +278,48 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('spell check', () => {
+    it('carries a disabled preference across restarts, against Electron’s enabled-by-default session', () => {
+      ;(svc as any).setupSpellCheck()
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
+      expect(defaultSessionMock.setSpellCheckerLanguages).not.toHaveBeenCalled()
+    })
+
+    it('restores the saved languages when spell check is enabled', () => {
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['en-US', 'de']
+
+      ;(svc as any).setupSpellCheck()
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+      expect(defaultSessionMock.setSpellCheckerLanguages).toHaveBeenCalledWith(['en-US', 'de'])
+    })
+
+    it('applies later preference edits without a restart', () => {
+      ;(svc as any).setupSpellCheck()
+      defaultSessionMock.setSpellCheckerEnabled.mockClear()
+
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['fr']
+      prefChangeListeners.forEach((listener) => listener())
+
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+      expect(defaultSessionMock.setSpellCheckerLanguages).toHaveBeenCalledWith(['fr'])
+    })
+
+    it('keeps spell check enabled when Electron rejects a saved language code', () => {
+      prefValues['app.spell_check.enabled'] = true
+      prefValues['app.spell_check.languages'] = ['not-a-language']
+      defaultSessionMock.setSpellCheckerLanguages.mockImplementation(() => {
+        throw new Error('Invalid language code')
+      })
+
+      expect(() => (svc as any).setupSpellCheck()).not.toThrow()
+      expect(defaultSessionMock.setSpellCheckerEnabled).toHaveBeenCalledWith(true)
+    })
   })
 
   describe('HTML artifact webviews', () => {
@@ -842,6 +928,130 @@ describe('MainWindowService', () => {
 
       expect(navigateTo('http://127.0.0.1:5173/windows/main/index.html').preventDefault).toHaveBeenCalledOnce()
       expect(navigateTo('file:///Users/victim/Downloads/evil.html').preventDefault).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('quoteToMainWindow routing', () => {
+    // The main-window leg defers its send via setTimeout(100); fake timers make
+    // that callback reachable at assertion time instead of leaking past the test.
+    beforeEach(() => {
+      vi.useFakeTimers()
+      ;(svc as any).mainWindow = win
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('routes quotes originating from a detached SubWindow into that sub window', () => {
+      const subWindow = createMockWindow()
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
+      svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
+
+      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+      // Must NOT force the main window to the front when quoting from a sub window.
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('routes quotes from the main window back to the main window', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+
+      svc.quoteToMainWindow('Selected text', { id: 1000 } as any)
+
+      // showMainWindow focuses the main window so the quote lands in its composer.
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('routes quotes from a non-SubWindow helper window (selection toolbar) to the main window', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('toolbar-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SelectionToolbar)
+
+      svc.quoteToMainWindow('Selected text', { id: 500 } as any)
+
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('falls back to the main window when the sender window cannot be resolved', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      svc.quoteToMainWindow('Selected text', { id: 999 } as any)
+
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('falls back to the main window when the SubWindow has been destroyed', () => {
+      const subWindow = createMockWindow()
+      subWindow.isDestroyed.mockReturnValue(true)
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
+      svc.quoteToMainWindow('Selected text', { id: 9002 } as any)
+
+      expect(subWindow.webContents.send).not.toHaveBeenCalled()
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+    })
+
+    it('falls back to reopening via WindowManager when there is no main window', () => {
+      ;(svc as any).mainWindow = null
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      svc.quoteToMainWindow('Selected text', { id: 999 } as any)
+      vi.advanceTimersByTime(100)
+
+      // The rebuild goes through WindowManager's open path and, with no live
+      // main window at send time, nothing is delivered anywhere.
+      expect(windowManagerMock.open).toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('forwards event.sender from the registered IPC handler and routes the quote to the originating SubWindow', () => {
+      ;(svc as any).registerIpcHandlers()
+
+      // Exercise the actual wiring instead of the method directly: a wrong
+      // channel constant or a dropped/misordered text argument fails here.
+      const registered = ((svc as any).ipcHandle.mock.calls as [string, (event: unknown, text: string) => void][]).find(
+        ([channel]) => channel === IpcChannel.App_QuoteToMain
+      )
+      expect(registered, 'handler must be registered under App_QuoteToMain').toBeDefined()
+
+      const subWindow = createMockWindow()
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
+      const [, handler] = registered!
+      const senderWebContents = { id: 9001 }
+      handler({ sender: senderWebContents }, 'Selected text')
+
+      // Regression guard for the original bug: if the handler drops event.sender,
+      // the sender is never resolved and the quote silently falls back to the
+      // main window — the two assertions below catch exactly that.
+      expect(windowManagerMock.getWindowIdByWebContents).toHaveBeenCalledWith(senderWebContents)
+      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+
+      vi.advanceTimersByTime(100)
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
     })
   })
 })

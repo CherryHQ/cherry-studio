@@ -1,5 +1,6 @@
 import { APICallError, type ImageModelV3, type ImageModelV3CallOptions } from '@ai-sdk/provider'
-import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
+import { type FetchFunction } from '@ai-sdk/provider-utils'
+import { mergeHeaders } from '@main/utils/http'
 
 import { fileToDataUrl } from '../transportUtils'
 
@@ -78,9 +79,7 @@ export class MinimaxImageModel implements ImageModelV3 {
     const fetchFn = this.config.fetch ?? globalThis.fetch
     const response = await fetchFn(url, {
       method: 'POST',
-      headers: removeUndefinedEntries(
-        combineHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' })
-      ),
+      headers: mergeHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
       signal: abortSignal
     })

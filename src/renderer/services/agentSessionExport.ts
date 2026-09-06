@@ -7,6 +7,7 @@ import type { Model } from '@renderer/types/model'
 import { buildAgentSessionTopicId, getAgentSessionModelFallbackSnapshot } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
+import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT,
   type AgentSessionMessageEntity
@@ -97,7 +98,7 @@ export async function getAgentSessionMessagesForExport(
     cursor = response.nextCursor
   } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
-  return pages.reverse().flatMap((page) => page.reverse())
+  return withPriorCitationParts(pages.reverse().flatMap((page) => page.reverse()))
 }
 
 export async function agentSessionToMarkdown(

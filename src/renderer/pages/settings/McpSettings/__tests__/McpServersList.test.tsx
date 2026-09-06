@@ -38,8 +38,8 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate,
-  useSearch: () => ({
-    protocolInstallRequestId: mocks.protocolInstallRequestId
+  getRouteApi: () => ({
+    useSearch: () => ({ protocolInstallRequestId: mocks.protocolInstallRequestId })
   })
 }))
 

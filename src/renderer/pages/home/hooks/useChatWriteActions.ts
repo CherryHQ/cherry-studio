@@ -294,19 +294,19 @@ export function useChatWriteActions(params: Params): Result {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
-      // `mentionedModels`: plain retry on an assistant uses the target's
-      // own model (otherwise retrying kimi would produce a gemini reply
-      // when assistant default is gemini). User resend picks the default.
+      // Ordinary regeneration leaves the model unspecified so Main observes the current default.
+      // Failed in-place retries keep their original model; an explicit model always wins.
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
           : (target.metadata?.parentId ?? undefined)
         : undefined
-      const regenModelId =
+      const regenerateModelId = options?.modelId
+      const retryModelId =
         target?.role === 'assistant'
-          ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
-          : options?.modelId
+          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
+          : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
       const isFailedAssistant =
@@ -316,7 +316,7 @@ export function useChatWriteActions(params: Params): Result {
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
-        regenModelId !== undefined &&
+        retryModelId !== undefined &&
         (options?.modelId === undefined || options.modelId === target.metadata?.modelId)
 
       if (canRetryInPlace) {
@@ -325,7 +325,7 @@ export function useChatWriteActions(params: Params): Result {
           topicId: topic.id,
           parentAnchorId,
           retryMessageId: target.id,
-          mentionedModelIds: [regenModelId],
+          mentionedModelIds: [retryModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
@@ -369,7 +369,7 @@ export function useChatWriteActions(params: Params): Result {
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
-          ...(regenModelId && { mentionedModels: [regenModelId] }),
+          ...(regenerateModelId && { mentionedModels: [regenerateModelId] }),
           ...turnOptionsRequestFields(turnOptions)
         }
       })
@@ -519,6 +519,12 @@ export function useChatWriteActions(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
+  const handlePause = useCallback<ChatWriteActions['pause']>(() => {
+    void stop().catch((error) => {
+      logger.error('Failed to pause chat stream', { topicId: topic.id, error })
+    })
+  }, [stop, topic.id])
+
   const actions = useMemo<ChatWriteActions>(
     () => ({
       canStartNewContext,
@@ -528,7 +534,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
+      pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -543,7 +549,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
-      stop,
+      handlePause,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,

@@ -18,6 +18,7 @@ import type {
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isGemini3ModelId } from '@shared/utils/model'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
@@ -25,13 +26,26 @@ import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
-const MAGIC_STRING = 'skip_thought_signature_validator'
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
 
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
+}
+
+function sanitizeDescription(value: string): string {
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
 }
 
 function buildResponsesToolName(name: string, attempt: number): string {
@@ -41,10 +55,10 @@ function buildResponsesToolName(name: string, attempt: number): string {
   return `${sanitized.slice(0, prefixLength)}_${hash}`
 }
 
-/** Match the branch's `isGemini3ModelId`: a gemini-3 family model id. */
-function isGemini3ModelId(modelId?: string): boolean {
-  if (!modelId) return false
-  return modelId.toLowerCase().includes('gemini-3')
+/** The `apiModelId` half of a gateway `providerId:apiModelId` address, split at the
+ *  first `:` like the routes do — a bare model id passes through unchanged. */
+function toApiModelId(modelAddress: string): string {
+  return modelAddress.slice(modelAddress.indexOf(':') + 1)
 }
 
 let uiMessageSeq = 0
@@ -242,7 +256,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           }
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
-          const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.name, block.id)
+          const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.id)
           const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
@@ -277,14 +291,15 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * OpenRouter reasoning_details) from the reasoning caches, mirroring the
    * branch's assistant/tool-call providerOptions handling.
    */
-  private buildToolCallProviderOptions(
-    model: string | undefined,
-    toolName: string,
-    toolCallId: string
-  ): ProviderOptions | undefined {
+  private buildToolCallProviderOptions(model: string | undefined, toolCallId: string): ProviderOptions | undefined {
     const options: ProviderOptions = {}
-    if (isGemini3ModelId(model) && this.googleReasoningCache?.get(`google-${toolName}`)) {
-      options.google = { thoughtSignature: MAGIC_STRING }
+    if (model && isGemini3ModelId(toApiModelId(model))) {
+      // Gemini 3 rejects a replayed functionCall whose signature is missing; the
+      // Anthropic wire format has nowhere to carry it, so restore it from the cache.
+      const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)
+      if (typeof thoughtSignature === 'string') {
+        options.google = { thoughtSignature }
+      }
     }
     const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
     if (reasoningDetails) {
@@ -311,7 +326,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({
-        description: toolDef.description || '',
+        description: sanitizeDescription(toolDef.description || ''),
         inputSchema: zodSchema(schema),
         // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
         // Responses strict-mode's all-properties-required contract, so match the

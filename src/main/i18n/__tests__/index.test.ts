@@ -1,4 +1,4 @@
-import { getAppLanguage, getI18n, SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
@@ -72,19 +72,8 @@ describe('main i18n', () => {
       // independent of the app's own language — this is what makes that possible.
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
+      expect(t('dialog.save_file', undefined, 'tr-TR')).toBe('Dosyayı Kaydet')
       expect(t('dialog.save_file')).toBe('Save File')
-    })
-  })
-
-  describe('getI18n', () => {
-    it('returns the { translation } subtree for the current language', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-      expect(getI18n().translation.appMenu.about).toBe('About')
-    })
-
-    it('returns the { translation } subtree for an explicit language argument', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-      expect(getI18n('zh-CN').translation.appMenu.about).toBe('关于')
     })
   })
 
@@ -103,10 +92,11 @@ describe('main i18n', () => {
           'fr-FR',
           'pt-PT',
           'ro-RO',
+          'tr-TR',
           'vi-VN'
         ])
       )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(12)
+      expect(SUPPORTED_LANGUAGES).toHaveLength(13)
     })
   })
 })

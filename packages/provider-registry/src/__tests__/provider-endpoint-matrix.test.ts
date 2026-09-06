@@ -89,10 +89,10 @@ describe('deepseek endpoint matrix', () => {
    * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
    * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
    * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
-   * different model than the one selected. It trails the other two on both V4 SKUs because
+   * different model than the one selected. It trails the other two on every V4 SKU because
    * `endpointTypes[0]` is what routes in-app chat.
    */
-  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'prefers Responses for %s while keeping Chat Completions selectable',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual([
@@ -107,6 +107,15 @@ describe('deepseek endpoint matrix', () => {
     'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
+    }
+  )
+})
+
+describe('MiniMax endpoint matrix', () => {
+  it.each(['minimax', 'minimax-global'])(
+    '%s keeps Chat Completions first while exposing Anthropic Messages for Agent sessions',
+    (providerId) => {
+      expect(endpointsOf(providerId, 'minimax-m3')).toEqual(['openai-chat-completions', 'anthropic-messages'])
     }
   )
 })
@@ -141,11 +150,14 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
   })
 
-  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
-    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
-  })
+  it.each(['qwen3-8-flash', 'qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])(
+    'pins %s to the Anthropic-compatible endpoint',
+    (modelId) => {
+      expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+    }
+  )
 
-  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+  it.each(['hy4-preview', 'hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
     expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
   })
 })

@@ -11,6 +11,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
@@ -178,6 +179,20 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('notifies live agent lists after creation', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Externally Created',
+        model: TEST_MODEL_ID
+      })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -400,6 +415,37 @@ describe('AgentService', () => {
   })
 
   describe('model updates', () => {
+    it('normalizes a stored medium effort when switching the agent to Kimi K3', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      const created = await insertAgent({ configuration: { reasoning_effort: 'medium' } })
+
+      const updated = agentService.updateAgent(created.id, { model: kimiK3ModelId })
+
+      expect(updated).toMatchObject({
+        model: kimiK3ModelId,
+        configuration: { reasoning_effort: 'high' }
+      })
+    })
+
     it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
       const created = await insertAgent({
         configuration: { avatar: '🤖', reasoning_effort: 'high' }
@@ -1051,6 +1097,7 @@ describe('AgentService', () => {
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id)
 
@@ -1058,6 +1105,10 @@ describe('AgentService', () => {
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -1071,7 +1122,21 @@ describe('AgentService', () => {
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    it('purges prompt bindings without deleting the global prompt', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440021'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1117,7 +1182,7 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1128,8 +1193,7 @@ describe('AgentService', () => {
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
         { endpoint: '/agent-sessions/latest' }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {

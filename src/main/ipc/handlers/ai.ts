@@ -190,7 +190,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
   'ai.stream.abort': async ({ topicId }) => {
-    application.get('AiStreamManager').abort(topicId, 'user-requested')
+    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { htmlArtifactRequiresUserConsent } from '../htmlArtifact'
+import { htmlArtifactRequiresUserConsent, stripMetaRefresh } from '../htmlArtifact'
 
 describe('htmlArtifactRequiresUserConsent', () => {
   it('allows static inline HTML to render immediately', () => {
@@ -36,5 +36,34 @@ describe('htmlArtifactRequiresUserConsent', () => {
     String.raw`<style>@import "\68 ttps://example.com/style.css";</style>`
   ])('requires consent for external resources: %s', (html) => {
     expect(htmlArtifactRequiresUserConsent(html)).toBe(true)
+  })
+})
+
+describe('stripMetaRefresh', () => {
+  it('removes meta-refresh tags wherever they appear, keeps other content intact', () => {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=https://evil.example"></head><body><noscript><META HTTP-EQUIV='Refresh' CONTENT="1;url=//evil.example/x"></noscript><h1>Redirector</h1></body></html>`
+
+    const stripped = stripMetaRefresh(html)
+
+    expect(stripped.toLowerCase()).not.toContain('http-equiv')
+    expect(stripped).toContain('<meta charset="utf-8">')
+    expect(stripped).toContain('<h1>Redirector</h1>')
+    expect(stripped.toLowerCase()).toContain('<!doctype html>')
+  })
+
+  it('returns html without any meta tag unchanged', () => {
+    const html = '<div><h2>Fragment</h2></div>'
+    expect(stripMetaRefresh(html)).toBe(html)
+  })
+
+  it('neutralizes incorrectly-closed comments so a hidden meta cannot re-open in browsers', () => {
+    // Browsers close the comment at `--!>` (htmlparser2 does not): without breaking
+    // the sequence the meta would become live script-side of the comment again.
+    const html = '<div>a</div><!--c--!><meta http-equiv="refresh" content="0;url=https://evil.example">'
+
+    const stripped = stripMetaRefresh(html)
+
+    expect(stripped).not.toMatch(/--!>/)
+    expect(stripped).toContain('<div>a</div>')
   })
 })

@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/DataApiService', () => ({
@@ -115,6 +116,34 @@ describe('agentSessionExport', () => {
       provider: 'stored-provider',
       group: ''
     })
+  })
+
+  it('lets a later message cite the tool results of an earlier one in the export', async () => {
+    const searchPart = {
+      type: 'tool-web_search',
+      toolCallId: 'search-1',
+      state: 'output-available',
+      input: { query: 'q' },
+      output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+    } as unknown as CherryMessagePart
+    // The API pages newest-first; the export reverses into chronological order.
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({
+      items: [
+        createSessionMessage({
+          id: 'follow-up',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: 'still [cite:3f2a1b9c-1]' }] }
+        }),
+        createSessionMessage({ id: 'searched', role: 'assistant', data: { parts: [searchPart] } })
+      ],
+      nextCursor: undefined
+    })
+
+    const messages = await getAgentSessionMessagesForExport({ id: 'session-a', agentId: 'agent-a', name: 'Session A' })
+
+    expect(messages.map((message) => message.id)).toEqual(['searched', 'follow-up'])
+    expect(messages[0].priorCitationParts).toBeUndefined()
+    expect(messages[1].priorCitationParts).toEqual([searchPart])
   })
 
   it('stops paging at maxMessages instead of walking the whole session', async () => {

@@ -8,7 +8,7 @@
 import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Check, Download, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
-import type { ComponentType, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { memo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -104,7 +104,9 @@ export const Toolbar = memo(function Toolbar({
   const aboveY = selection.y - TOOLBAR_HEIGHT - GAP
   const fitsBelow = belowY + totalHeight <= logicalHeight
   const isBelow = fitsBelow || aboveY < 0
-  const top = isBelow ? belowY : Math.max(0, aboveY)
+  // A full-screen selection fits on neither side; clamping covers its bottom edge, while
+  // off-screen would strand the toolbar with no way to act on the capture at all.
+  const top = isBelow ? Math.min(belowY, logicalHeight - totalHeight) : Math.max(0, aboveY)
 
   const right = selection.x + selection.width
 
@@ -137,7 +139,10 @@ export const Toolbar = memo(function Toolbar({
       }}
       // Without this, clicking any button also starts a new background selection on
       // the capture canvas underneath and wipes the selection being acted on.
-      onPointerDown={(e: ReactPointerEvent) => e.stopPropagation()}>
+      onPointerDown={(e: ReactPointerEvent) => e.stopPropagation()}
+      // A full-screen selection clamps the toolbar inside it, where a double-click would
+      // otherwise reach the overlay's confirm handler and capture instead of pressing a button.
+      onDoubleClick={(e: ReactMouseEvent) => e.stopPropagation()}>
       {TOOL_ICONS.map(({ tool, icon: Icon, labelKey }) => (
         <ToolbarButton
           key={tool}

@@ -267,7 +267,9 @@ vi.mock('../ThinkingBlock', () => ({
 
 vi.mock('../../frame/MessageAttachments', () => ({
   __esModule: true,
-  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
+  default: ({ name, handle }: any) => (
+    <div data-testid="mock-attachments" data-file-name={name ?? ''} data-handle={JSON.stringify(handle)} />
+  )
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
@@ -348,8 +350,12 @@ vi.mock('../CompactBlock', () => ({
 
 vi.mock('../TranslationBlock', () => ({
   __esModule: true,
-  default: ({ content, isStreaming }: any) => (
-    <div data-testid="mock-translation-block" data-streaming={String(!!isStreaming)}>
+  default: ({ content, isStreaming, onDelete }: any) => (
+    <div
+      data-testid="mock-translation-block"
+      data-streaming={String(!!isStreaming)}
+      data-has-delete={String(!!onDelete)}
+      onClick={onDelete}>
       {content}
     </div>
   )
@@ -382,13 +388,18 @@ const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
 ) => {
   const value: MessageListProviderValue = {
     state: {
       topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
-      messages: [message],
-      partsByMessageId: { [message.id]: parts },
+      messages: [...history.map((entry) => entry.message), message],
+      partsByMessageId: Object.fromEntries([
+        ...history.map((entry) => [entry.message.id, entry.parts]),
+        [message.id, parts]
+      ]),
       messageNavigation: 'none',
       estimateSize: 400,
       overscan: 0,
@@ -408,7 +419,7 @@ const renderPartsTree = (
   return (
     <MessageListProvider value={value}>
       <PartsProvider value={{ [message.id]: parts }}>
-        <MessagePartsRenderer message={message} />
+        <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
       </PartsProvider>
     </MessageListProvider>
   )
@@ -418,8 +429,10 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
+) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistAttachments))
 
 function activateTurn(status?: string): void {
   mockIsActiveTurnTarget.mockReturnValue(true)
@@ -616,44 +629,48 @@ describe('MessagePartsRenderer', () => {
       expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
-    it('hides the duplicate user image when its composer file token is visible', () => {
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: 'Look ',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [
-                    {
-                      id: 'file:source-image',
-                      kind: 'file',
-                      label: 'photo.png',
-                      index: 0,
-                      textOffset: 5
-                    }
-                  ]
+    it('renders a sent user image instead of its composer file token', () => {
+      const persisted = UpdateAgentSessionMessageSchema.parse({
+        data: {
+          parts: [
+            {
+              type: 'text',
+              text: 'Look ',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:source-image',
+                        kind: 'file',
+                        label: 'photo.png',
+                        index: 0,
+                        textOffset: 5
+                      }
+                    ]
+                  }
                 }
               }
-            }
-          } as unknown as CherryMessagePart,
-          {
-            type: 'file',
-            url: 'file:///tmp/photo.png',
-            mediaType: 'image/png',
-            filename: 'photo.png'
-          } as unknown as CherryMessagePart
-        ],
-        msg({ role: 'user' })
-      )
+            } as unknown as CherryMessagePart,
+            {
+              type: 'file',
+              url: 'file:///tmp/photo.png',
+              mediaType: 'image/png',
+              filename: 'photo.png',
+              providerMetadata: { cherry: { fileTokenSourceId: 'source-image' } }
+            } as unknown as CherryMessagePart
+          ]
+        }
+      })
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     })
 
-    it('hides duplicate user images with the same filename by composer file token identity', () => {
+    it('groups sent user images with the same filename by composer file token identity', () => {
       renderParts(
         [
           {
@@ -701,8 +718,11 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(0)
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+        'data-images',
+        '["file:///tmp/first/photo.png","file:///tmp/second/photo.png"]'
+      )
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
         url: 'file:///tmp/first/photo.png',
         mediaType: 'image/png'
@@ -711,6 +731,294 @@ describe('MessagePartsRenderer', () => {
         url: 'file:///tmp/second/photo.png',
         mediaType: 'image/png'
       })
+    })
+
+    it('renders a legacy sent image without its unique matching file token', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:legacy-image', kind: 'file', label: 'legacy.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          { type: 'file', url: 'file:///tmp/legacy.png', mediaType: 'image/png', filename: 'legacy.png' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/legacy.png"]')
+    })
+
+    it('keeps the sent image token when its matching file part has no renderable URL', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:missing-image', kind: 'file', label: 'missing.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            mediaType: 'image/png',
+            filename: 'missing.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'missing-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('missing.png')
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    })
+
+    it('consumes hidden image token prompt text instead of exposing it as message text', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'before internal image context after',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:prompt-image',
+                      kind: 'file',
+                      label: 'photo.png',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'internal image context'
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'prompt-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByText('before after')).toBeInTheDocument()
+      expect(screen.queryByText(/internal image context/)).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('renders sent images while keeping non-image files as tokens', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    { id: 'file:mixed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 },
+                    { id: 'file:mixed-pdf', kind: 'file', label: 'report.pdf', index: 1, textOffset: 0 }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-image' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-pdf' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('keeps sent images rendered when the user text is collapsed', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'one\ntwo\nthree\nfour\nfive\nsix',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:collapsed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'collapsed-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-user-message-content-toggle]')).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    })
+
+    it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'look at this',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('look at this')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists non-image attachments and hides their token chips', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'see the doc',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists attachments that carry no composer token', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'see the doc' },
+          { type: 'file', url: 'file:///tmp/report.pdf', mediaType: 'application/pdf', filename: 'report.pdf' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    // A blank text part stays "substantive" while it carries a token chip, so hoisting every
+    // token away must drop it too — otherwise the bubble renders an empty line.
+    it('renders nothing when hoisted attachments are the only content', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:only-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'only-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('links pasted-text token previews through fileTokenSourceId without rendering a duplicate attachment', () => {
@@ -962,6 +1270,44 @@ describe('MessagePartsRenderer', () => {
       expect(content).toContain("data-citation='1'")
       expect(content).toContain('https://example.com/news')
       expect(content).not.toContain('[cite:70536f0b-1]')
+    })
+
+    // #19771: the follow-up turn re-cites a kb_search result from the previous turn.
+    it('renders a [cite:id] re-cited from an earlier turn as a badge', () => {
+      const earlierTurn = {
+        message: msg({ id: 'msg-0' }),
+        parts: [
+          {
+            type: 'tool-kb_search',
+            toolCallId: 'search-0',
+            state: 'output-available',
+            input: { query: '审计内容', baseIds: ['b'] },
+            output: [
+              {
+                id: '2598d0ab-1',
+                baseId: 'b',
+                conceptId: 'audit/plan.md',
+                title: '审计方案.md',
+                type: 'file',
+                content: '工程立项与审批合规性审计',
+                score: 0.9
+              }
+            ]
+          }
+        ] as unknown as CherryMessagePart[]
+      }
+
+      renderParts(
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-1' }),
+        {},
+        defaultMessageRenderConfig,
+        [earlierTurn]
+      )
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).not.toContain('[cite:')
     })
 
     it('renders video and error value parts', async () => {
@@ -1679,6 +2025,28 @@ describe('MessagePartsRenderer', () => {
       ).toHaveLength(1)
     })
 
+    it('keeps a prepared diagnostic report action outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      const visibleDiagnosticAction = screen.getByTestId('mock-message-tools')
+      expect(visibleDiagnosticAction).toHaveAttribute('data-tool-name', 'mcp__assistant__prepare_diagnostic_report')
+      expect(visibleDiagnosticAction.closest('[data-testid="tool-history-content"]')).toBeNull()
+    })
+
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
         { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
@@ -2024,6 +2392,27 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('removes this message translation through the inline delete when the action is available', () => {
+      const removeMessageTranslation = vi.fn()
+      renderParts(
+        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-translated' }),
+        { removeMessageTranslation }
+      )
+
+      const block = screen.getByTestId('mock-translation-block')
+      expect(block).toHaveAttribute('data-has-delete', 'true')
+      fireEvent.click(block)
+      expect(removeMessageTranslation).toHaveBeenCalledWith('msg-translated')
+    })
+
+    it('hides the inline translation delete in read-only embeds without removeMessageTranslation', () => {
+      renderParts([
+        { type: 'data-translation', data: { content: 'translated answer' } }
+      ] as unknown as CherryMessagePart[])
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'false')
     })
   })
 })

@@ -57,6 +57,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
             label={
               <FieldLabelWithHelp
                 label={t('library.config.prompt.label')}
+                labelClassName="font-medium"
                 formLabel={false}
                 helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
               />

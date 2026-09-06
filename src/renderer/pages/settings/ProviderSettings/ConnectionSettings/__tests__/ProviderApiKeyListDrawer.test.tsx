@@ -65,7 +65,7 @@ describe('ProviderApiKeyListDrawer', () => {
   it('creates new drafts via addApiKey with the trimmed key value', async () => {
     render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.add_key' }))
     fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
       target: { value: ' sk-new ' }
     })
@@ -105,6 +105,15 @@ describe('ProviderApiKeyListDrawer', () => {
     await waitFor(() => {
       expect(updateApiKeyMock).toHaveBeenCalledWith('key-1', { isEnabled: false })
     })
+  })
+
+  it('never renders a short stored key as plain text', () => {
+    mockKeys = [{ id: 'key-1', key: 'short', isEnabled: true }]
+
+    render(<ProviderApiKeyListDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.queryByText('short')).not.toBeInTheDocument()
+    expect(screen.getByText('••••••••')).toBeInTheDocument()
   })
 
   it('removes a key via deleteApiKey by id', async () => {

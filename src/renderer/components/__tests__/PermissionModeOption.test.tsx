@@ -10,7 +10,8 @@ import { QuickPanelRow } from '../QuickPanel/list'
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
-const { PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } = PermissionModeComponents
+const { PermissionModeIcon, PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } =
+  PermissionModeComponents
 
 // The component only ever calls t(key, fallback); rendering the fallback keeps these
 // assertions about layout rather than about the locale files.
@@ -47,27 +48,32 @@ beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
 })
 
-function PermissionSelectHarness() {
+function PermissionSelectHarness({ onValueChange }: { onValueChange?: (value: PermissionMode) => void }) {
   const form = useForm<{ permissionMode: PermissionMode }>({ defaultValues: { permissionMode: 'default' } })
 
   return (
     <Form {...form}>
-      <FormField
-        control={form.control}
-        name="permissionMode"
-        render={({ field }) => (
-          <FormItem>
-            <PermissionModeSelect
-              cards={[withoutWarning, withWarning]}
-              value={field.value}
-              onValueChange={field.onChange}
-              portalContainer={document.body}
-              ariaLabel="Permission mode"
-              t={t}
-            />
-          </FormItem>
-        )}
-      />
+      <form>
+        <FormField
+          control={form.control}
+          name="permissionMode"
+          render={({ field }) => (
+            <FormItem>
+              <PermissionModeSelect
+                cards={[withoutWarning, withWarning]}
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onValueChange?.(value)
+                }}
+                portalContainer={document.body}
+                ariaLabel="Permission mode"
+                t={t}
+              />
+            </FormItem>
+          )}
+        />
+      </form>
     </Form>
   )
 }
@@ -79,6 +85,21 @@ function renderOpenPermissionSelect() {
   fireEvent.pointerDown(trigger)
   fireEvent.click(trigger)
 }
+
+describe('PermissionModeIcon', () => {
+  it('marks only Full Access as a custom destructive toolbar icon', () => {
+    const { container, rerender } = render(<PermissionModeIcon mode="default" />)
+    const defaultIcon = container.querySelector('svg')
+
+    expect(defaultIcon).toHaveClass('text-muted-foreground')
+    expect(defaultIcon).not.toHaveClass('lucide-custom')
+
+    rerender(<PermissionModeIcon mode="bypassPermissions" />)
+    const fullAccessIcon = container.querySelector('svg')
+
+    expect(fullAccessIcon).toHaveClass('text-destructive', 'lucide-custom')
+  })
+})
 
 describe('PermissionModeOptionLabel', () => {
   it('keeps permanent copy to the title and optional description', () => {
@@ -157,21 +178,21 @@ describe('PermissionModeWarning', () => {
     expect(screen.getByRole('button', { name: /Needs a model that supports it\./ })).toBeInTheDocument()
   })
 
-  it('anchors the active QuickPanel warning Tooltip to its icon', async () => {
-    render(
-      <QuickPanelRow
-        active
-        item={{
-          id: 'permission-mode-auto',
-          label: 'Approve for Me',
-          description: 'Runs without routine prompts.',
-          icon: '!',
-          tooltip: 'Needs a model that supports it.',
-          tooltipAnchor: <PermissionModeWarning card={withWarning} showTooltip={false} t={t} />
-        }}
-        onSelect={vi.fn()}
-      />
-    )
+  it('anchors the keyboard-active QuickPanel warning Tooltip to its icon', async () => {
+    const item = {
+      id: 'permission-mode-auto',
+      label: 'Approve for Me',
+      description: 'Runs without routine prompts.',
+      icon: '!',
+      tooltip: 'Needs a model that supports it.',
+      tooltipAnchor: <PermissionModeWarning card={withWarning} showTooltip={false} t={t} />
+    }
+    const { rerender } = render(<QuickPanelRow active item={item} onSelect={vi.fn()} />)
+
+    // Programmatic focus (e.g. the panel opens on the current value) does not surface the tooltip.
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    rerender(<QuickPanelRow active keyboardActive item={item} onSelect={vi.fn()} />)
 
     const tooltip = await screen.findByRole('tooltip')
     const icon = screen.getByLabelText('Needs a model that supports it.')
@@ -201,5 +222,22 @@ describe('PermissionModeWarning', () => {
     fireEvent.pointerMove(screen.getByLabelText('Needs a model that supports it.'), { pointerType: 'mouse' })
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Needs a model that supports it.')
+  })
+})
+
+describe('PermissionModeSelect', () => {
+  it('ignores a transient empty value from the native select', () => {
+    const onValueChange = vi.fn()
+    render(<PermissionSelectHarness onValueChange={onValueChange} />)
+
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toHaveTextContent('Ask Before Acting')
+
+    const nativeSelect = document.querySelector('select')
+    expect(nativeSelect).not.toBeNull()
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: '' } })
+    expect(onValueChange).not.toHaveBeenCalled()
+
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
+    expect(onValueChange).toHaveBeenCalledWith('auto')
   })
 })
