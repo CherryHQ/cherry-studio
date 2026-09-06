@@ -163,13 +163,8 @@ export type UseCacheSchema = {
   // is the only thing that tells two translate tabs apart, since their route url is identical.
   /** Input text */
   'translate.input.${tabSession}': string
-  /** Output text as displayed — the smooth-stream playout of `translate.stream_text` */
+  /** Output text as displayed. Written only by a mounted page, from the run's text held by its session */
   'translate.output.${tabSession}': string
-  /**
-   * Raw accumulated text of the in-flight stream. Written straight from the run, so it keeps
-   * advancing while the page is unmounted; the mounted page plays it out into `translate.output`.
-   */
-  'translate.stream_text.${tabSession}': string
   /** Whether detecting source language or not */
   'translate.detecting.${tabSession}': boolean
 
@@ -260,7 +255,6 @@ export const DefaultUseCache: UseCacheSchema = {
   // Translate page state management
   'translate.input.${tabSession}': '',
   'translate.output.${tabSession}': '',
-  'translate.stream_text.${tabSession}': '',
   'translate.detecting.${tabSession}': false,
 
   'painting.generation.${paintingId}': null,

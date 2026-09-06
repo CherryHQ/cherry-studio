@@ -265,15 +265,27 @@ const TranslatePage: FC = () => {
     streamDone: !isTranslating
   })
 
-  // Play out whatever the session's run has reached — on mount, catching up on progress made with
-  // no page mounted, and on every chunk after. Only while a run is in flight: outside one the
-  // recorded progress belongs to a finished run, and the output may since have been replaced.
+  // Follow the run while it is in flight, so a page that attached mid-run catches up on what it
+  // missed and then plays out every chunk after.
   useEffect(() => {
     if (!isTranslating) return
     return session.onProgress((pending) => {
       if (pending) smoothUpdate(pending, false)
     })
   }, [isTranslating, session, smoothUpdate])
+
+  const outputRef = useRef(translateOutput)
+  outputRef.current = translateOutput
+
+  // The run's text is stream state and the output is UI state, which nothing should change while
+  // there is no UI — so a run that ended with this page detached is taken here, the one moment it
+  // comes back. Taking is also what ends the run's claim on the output.
+  useEffect(() => {
+    if (isTranslating) return
+    // With nothing to take, still realign the player: its queue and displayed text outlive a tab
+    // hide, and the revived loop would write that stale text straight over the output.
+    smoothReset(session.takeProgress() ?? outputRef.current)
+  }, [isTranslating, session, smoothReset])
 
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)

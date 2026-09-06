@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
+import { Activity, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSmoothStream } from '../useSmoothStream'
@@ -105,6 +106,32 @@ describe('useSmoothStream', () => {
     act(() => tick(16, 5))
     expect(onUpdate.mock.calls.length).toBe(callsAfterDone)
     expect(onUpdate).toHaveBeenLastCalledWith('hi')
+  })
+
+  // A hidden tab runs effect cleanups but keeps the component, so the player comes back holding
+  // the text it last showed and writes it out again — even with the queue already drained and the
+  // loop stopped. A page whose output moved on meanwhile has to realign the player itself.
+  it('writes its retained text again when its effects re-attach', () => {
+    const onUpdate = vi.fn()
+    let player: ReturnType<typeof useSmoothStream> | undefined
+    const Player = () => {
+      player = useSmoothStream({ onUpdate, streamDone: true, minDelay: 0 })
+      return null
+    }
+    const view = (hidden: boolean) =>
+      createElement(Activity, { mode: hidden ? 'hidden' : 'visible', children: createElement(Player) })
+
+    const { rerender } = render(view(false))
+    act(() => player?.addChunk('hello'))
+    act(() => tick(16, 80))
+    expect(lastText(onUpdate)).toBe('hello')
+
+    rerender(view(true))
+    onUpdate.mockClear()
+    rerender(view(false))
+    act(() => tick(16))
+
+    expect(onUpdate).toHaveBeenCalledWith('hello')
   })
 
   // Hard latency ceiling while streaming: with a 1000-grapheme backlog the

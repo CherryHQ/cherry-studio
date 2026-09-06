@@ -1648,6 +1648,75 @@ describe('TranslatePage', () => {
     })
   })
 
+  it('shows a run that finished while no page was mounted', async () => {
+    // A hidden tab has its effects torn down (`<Activity mode="hidden">`), and a hibernated one is
+    // unmounted outright. Either way the run keeps going, and its result must be on screen when
+    // the page comes back.
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    let report: ((text: string, isComplete: boolean) => void) | undefined
+    let finish: ((text: string) => void) | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        report = onResponse
+        onResponse?.('partial', false)
+        return new Promise<string>((resolve) => {
+          finish = resolve
+        })
+      }
+    )
+
+    const first = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    first.rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial'))
+
+    first.unmount()
+    await act(async () => {
+      report?.('partial and the rest', true)
+      finish?.('partial and the rest')
+    })
+
+    render(<TranslatePage />)
+    await waitFor(() =>
+      expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial and the rest')
+    )
+  })
+
+  it('does not replay a finished run over an output the user replaced', async () => {
+    // The trace outlives the run so a page that missed the end can catch up. Once this page has
+    // taken it, a later re-attach must not put it back over whatever the user did next.
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    translateCoreMock.translateText.mockImplementationOnce(
+      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        onResponse?.('translated text', true)
+        return 'translated text'
+      }
+    )
+
+    const first = render(<TranslatePage />)
+    const input = screen.getByLabelText('translate.input.placeholder')
+    fireEvent.change(input, { target: { value: 'hello' } })
+    first.rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated text'))
+
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '' } })
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe(''))
+
+    first.unmount()
+    render(<TranslatePage />)
+
+    await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).toBeInTheDocument())
+    expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('')
+  })
+
   it('keeps streamed translation text when stop is clicked', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
