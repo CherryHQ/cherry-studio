@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 // Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
@@ -34,7 +34,7 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import {
   BABELDOC_MINIMUM_VERSION,
   BABELDOC_TOOL_NAME,
@@ -75,6 +75,10 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
+const TRANSLATE_LANGUAGE_PREFERENCE_KEYS = {
+  sourceLanguage: 'feature.translate.page.source_language',
+  targetLanguage: 'feature.translate.page.target_language'
+} as const
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -221,8 +225,17 @@ const TranslatePage: FC = () => {
   const { notesPath } = useNotesSettings()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
-  const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
+  const [{ sourceLanguage, targetLanguage }, setTranslateLanguages] = useMultiplePreferences(
+    TRANSLATE_LANGUAGE_PREFERENCE_KEYS
+  )
+  const setSourceLanguage = useCallback(
+    (language: TranslateSourceLanguage) => setTranslateLanguages({ sourceLanguage: language }),
+    [setTranslateLanguages]
+  )
+  const setTargetLanguage = useCallback(
+    (language: TranslateLangCode) => setTranslateLanguages({ targetLanguage: language }),
+    [setTranslateLanguages]
+  )
   const [autoCopy] = usePreference('feature.translate.page.auto_copy')
   const [bidirectionalPair] = usePreference('feature.translate.page.bidirectional_pair')
   const [isScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
@@ -303,9 +316,11 @@ const TranslatePage: FC = () => {
     async (persistPromise: Promise<unknown>, actionName: string) => {
       try {
         await persistPromise
+        return true
       } catch (error) {
         logger.error(`Failed to persist ${actionName}`, error as Error)
         toast.error(t('common.save_failed'))
+        return false
       }
     },
     [t]
@@ -570,17 +585,27 @@ const TranslatePage: FC = () => {
     toast.info(t('translate.info.aborted'))
   }, [cancel, isTranslating, pdfStatus.running, t])
 
-  const handleExchange = useCallback(() => {
-    if (pdfFile || sourceLanguage === 'auto' || isTranslating || isDetecting) return
-    void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
-    void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
+  const handleExchange = useCallback(async () => {
+    if (
+      pdfFile ||
+      sourceLanguage === 'auto' ||
+      sourceLanguage === UNKNOWN_LANG_CODE ||
+      targetLanguage === UNKNOWN_LANG_CODE ||
+      isTranslating ||
+      isDetecting
+    )
+      return
+    const persisted = await safePersist(
+      setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
+      'translate languages'
+    )
+    if (!persisted) return
     setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
   }, [
     isDetecting,
     safePersist,
-    setSourceLanguage,
-    setTargetLanguage,
+    setTranslateLanguages,
     setTranslateInput,
     setTranslateOutput,
     sourceLanguage,
@@ -897,6 +922,8 @@ const TranslatePage: FC = () => {
   const couldExchange =
     !isPdfMode &&
     sourceLanguage !== 'auto' &&
+    sourceLanguage !== UNKNOWN_LANG_CODE &&
+    targetLanguage !== UNKNOWN_LANG_CODE &&
     sourceLanguage !== targetLanguage &&
     !isTranslating &&
     !isDetecting &&

@@ -123,7 +123,9 @@ describe('TranslateLanguageBar', () => {
   })
 
   it('renders source placeholder and target language labels', () => {
-    render(<TranslateLanguageBar {...baseProps()} />)
+    const props = baseProps()
+    props.couldExchange = true
+    render(<TranslateLanguageBar {...props} />)
     expect(screen.getByText('translate.source_language')).toBeInTheDocument()
     expect(screen.getByText('translate.target_language')).toBeInTheDocument()
     expect(screen.getByText('English')).toBeInTheDocument()

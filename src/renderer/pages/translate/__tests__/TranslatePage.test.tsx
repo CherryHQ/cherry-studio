@@ -1,10 +1,11 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
+import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -362,14 +363,19 @@ vi.mock('../components/TranslateLanguageBar', () => ({
   default: (props: {
     isBidirectional: boolean
     showSourceControls: boolean
+    couldExchange: boolean
     onSourceChange: (language: string) => void
     onTargetChange: (language: string) => void
+    onExchange: () => void
   }) => {
     languageBarMock(props)
     return (
       <div>
         {!props.isBidirectional && props.showSourceControls && (
           <button type="button" aria-label="translate.source_language" onClick={() => props.onSourceChange('zh-cn')} />
+        )}
+        {props.couldExchange && (
+          <button type="button" aria-label="translate.exchange.label" onClick={props.onExchange} />
         )}
         <button type="button" aria-label="translate.target_language" onClick={() => props.onTargetChange('en-us')} />
       </div>
@@ -1058,6 +1064,70 @@ describe('TranslatePage', () => {
     expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['unknown', 'zh-cn'],
+    ['en-us', 'unknown']
+  ])('does not offer language exchange for a non-concrete pair %s to %s', (sourceLanguage, targetLanguage) => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': sourceLanguage,
+      'feature.translate.page.target_language': targetLanguage
+    })
+
+    render(<TranslatePage />)
+
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
+  })
+
+  it('atomically exchanges the language pair and translated text', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    MockUseCacheUtils.setCacheValue('translate.output', '你好')
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
+      expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('你好')
+      expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('hello')
+    })
+  })
+
+  it('keeps the language pair and text unchanged when the batch exchange fails', async () => {
+    const error = new Error('write failed')
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    MockUseCacheUtils.setCacheValue('translate.output', '你好')
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, vi.fn().mockRejectedValue(error)] as never
+      },
+      async () => {
+        render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.save_failed'))
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('en-us')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('zh-cn')
+        expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+        expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+      }
+    )
   })
 
   it('filters models that the API gateway cannot route while translating PDFs', async () => {
