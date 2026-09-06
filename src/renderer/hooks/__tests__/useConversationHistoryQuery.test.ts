@@ -15,6 +15,16 @@ describe('useConversationHistoryQuery', () => {
     vi.useRealTimers()
   })
 
+  it('rejects parallel loading for cursor-paginated conversation history', () => {
+    if ((false as boolean) === true) {
+      void useConversationHistoryQuery('/topics/:topicId/messages', {
+        params: { topicId: 'topic-1' },
+        // @ts-expect-error - each page key depends on the previous page cursor
+        swrOptions: { parallel: true }
+      })
+    }
+  })
+
   it('removes a cursor page cache entry after revalidation replaces that cursor', async () => {
     let firstPageCursor = 'cursor-1'
     vi.spyOn(dataApiService, 'get').mockImplementation((async (

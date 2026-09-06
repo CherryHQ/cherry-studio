@@ -185,6 +185,8 @@ React hooks for data operations.
 |------|-----------|---------|
 | `useQuery` | `(path, options?)` | `{ data, loading, error, refetch, mutate }` |
 | `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
+| `useInfiniteQuery` | `(path, options?)` | `{ pages, isLoading, error, loadNext, mutate }` |
+| `useWriteInfiniteCache` | `(path, options?)` | cache-only updater scoped to one infinite-query key |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
 | `useInvalidateCache` | `()` | `(keys?) => Promise<any>` |
 | `useReadCache` | `()` | `(path, query?) => TResponse \| undefined` |
@@ -234,6 +236,8 @@ describe('Hooks', () => {
   })
 })
 ```
+
+Use `MockUseDataApiUtils.seedInfiniteQuery(path, pages, options)` before rendering when a test needs functional cache updates, route-parameter cache isolation, and mounted-hook rerenders. `getInfiniteQueryPages` and `setInfiniteQueryPages` inspect or replace the same cache entry.
 
 > **Note:** `useReadCache`/`useWriteCache` share one in-memory `Map` under the hood. `resetMocks()` clears both call history and the cache store; use `clearCache()` if you want to drop cache entries without resetting hook mocks.
 

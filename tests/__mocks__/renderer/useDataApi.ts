@@ -8,13 +8,17 @@ import type {
 } from '@shared/data/api/paths'
 import type {
   ConcreteApiPaths,
+  CursorPaginationResponse,
   DataApiDataChangeEffect,
   GetMethodApiPaths,
   PaginationResponse
 } from '@shared/data/api/types'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { KeyedMutator } from 'swr'
+import { unstable_serialize as serializeInfiniteKey } from 'swr/infinite'
 import { vi } from 'vitest'
 
+import { resolveTemplate } from '../../../src/renderer/data/utils/dataApiPath'
 import { mockDataApiService } from './DataApiService'
 
 /**
@@ -256,22 +260,110 @@ export const mockUsePaginatedQuery = vi.fn(
   }
 )
 
-/**
- * Mock useInfiniteQuery hook (cursor pagination).
- * Default returns an empty single page; tests override per-call via
- * mockUseInfiniteQuery.mockImplementation(...) or mockReturnValue(...).
- */
-export const mockUseInfiniteQuery = vi.fn(
-  <TPath extends ApiPath>(
-    _path: TPath,
-    _options?: ParamsOption<TPath, 'GET'> & {
-      query?: Record<string, unknown>
-      limit?: number
-      enabled?: boolean
-      swrOptions?: any
-    }
-  ) => ({
-    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
+type MockInfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & {
+  query?: Record<string, unknown>
+  limit?: number
+  enabled?: boolean
+  swrOptions?: any
+}
+
+type MockInfinitePages<T> = CursorPaginationResponse<T>[]
+type MockInfinitePagesForPath<TPath extends ApiPath> = ResponseForPath<
+  TPath,
+  'GET'
+> extends CursorPaginationResponse<unknown>
+  ? ResponseForPath<TPath, 'GET'>[]
+  : never
+
+const emptyInfinitePages: MockInfinitePages<never> = []
+const mockInfiniteQueryStore = new Map<string, MockInfinitePages<unknown>>()
+const mockInfiniteQuerySubscribers = new Map<string, Set<() => void>>()
+
+function buildMockInfiniteQueryKey<TPath extends ApiPath>(path: TPath, options?: MockInfiniteQueryOptions<TPath>) {
+  const params = 'params' in (options ?? {}) ? options?.params : undefined
+  const resolvedPath = resolveTemplate(path as string, params as Record<string, string | number> | undefined)
+  const firstPageQuery = { ...options?.query, limit: options?.limit ?? 10 }
+  return serializeInfiniteKey(() => [resolvedPath, firstPageQuery])
+}
+
+function notifyMockInfiniteQuerySubscribers(key: string) {
+  mockInfiniteQuerySubscribers.get(key)?.forEach((subscriber) => subscriber())
+}
+
+function setMockInfiniteQueryPages<T>(key: string, pages: MockInfinitePages<T>) {
+  const previous = mockInfiniteQueryStore.get(key)
+  mockInfiniteQueryStore.set(key, pages as MockInfinitePages<unknown>)
+  if (previous !== pages) notifyMockInfiniteQuerySubscribers(key)
+}
+
+async function applyMockInfiniteQueryMutation(key: string, value: unknown) {
+  const current = mockInfiniteQueryStore.get(key)
+  const next =
+    typeof value === 'function'
+      ? await (
+          value as (
+            pages: MockInfinitePages<unknown> | undefined
+          ) => MockInfinitePages<unknown> | undefined | Promise<MockInfinitePages<unknown> | undefined>
+        )(current)
+      : await value
+
+  if (next === undefined) {
+    if (mockInfiniteQueryStore.delete(key)) notifyMockInfiniteQuerySubscribers(key)
+    return undefined
+  }
+
+  setMockInfiniteQueryPages(key, next as MockInfinitePages<unknown>)
+  return next as MockInfinitePages<unknown>
+}
+
+function statefulMockUseInfiniteQuery<TPath extends ApiPath>(path: TPath, options?: MockInfiniteQueryOptions<TPath>) {
+  const key = buildMockInfiniteQueryKey(path, options)
+  const subscribe = useCallback(
+    (subscriber: () => void) => {
+      let subscribers = mockInfiniteQuerySubscribers.get(key)
+      if (!subscribers) {
+        subscribers = new Set()
+        mockInfiniteQuerySubscribers.set(key, subscribers)
+      }
+      subscribers.add(subscriber)
+      return () => {
+        subscribers.delete(subscriber)
+        if (subscribers.size === 0) mockInfiniteQuerySubscribers.delete(key)
+      }
+    },
+    [key]
+  )
+  const getSnapshot = useCallback(
+    () => mockInfiniteQueryStore.get(key) ?? (emptyInfinitePages as MockInfinitePages<unknown>),
+    [key]
+  )
+  const pages = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as MockInfinitePagesForPath<TPath>
+  const mutate = useMemo(
+    () =>
+      vi.fn(async (value?: unknown, _options?: unknown) => {
+        const current = mockInfiniteQueryStore.get(key)
+        if (value === undefined) return current
+        return applyMockInfiniteQueryMutation(key, value)
+      }),
+    [key]
+  )
+
+  return {
+    pages: options?.enabled === false ? ([] as unknown as MockInfinitePagesForPath<TPath>) : pages,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined as Error | undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(pages),
+    reset: vi.fn(),
+    mutate
+  }
+}
+
+function defaultMockUseInfiniteQuery<TPath extends ApiPath>(_path: TPath, _options?: MockInfiniteQueryOptions<TPath>) {
+  return {
+    pages: [] as unknown as MockInfinitePagesForPath<TPath>,
     isLoading: false,
     isRefreshing: false,
     error: undefined as Error | undefined,
@@ -280,18 +372,39 @@ export const mockUseInfiniteQuery = vi.fn(
     refresh: vi.fn().mockResolvedValue(undefined),
     reset: vi.fn(),
     mutate: vi.fn().mockResolvedValue(undefined)
-  })
+  }
+}
+
+/**
+ * Mock useInfiniteQuery hook (cursor pagination).
+ * Default returns an empty page list. Use `seedInfiniteQuery` when a test
+ * needs shared cache mutation and rerender behavior.
+ */
+export const mockUseInfiniteQuery = vi.fn(defaultMockUseInfiniteQuery)
+
+export const mockUseWriteInfiniteCache = vi.fn(
+  <TPath extends ApiPath>(path: TPath, options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>) => {
+    const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
+    return useMemo(() => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)), [key])
+  }
 )
 
 /**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
  */
+function defaultMockUseInfiniteFlatItems<T>(
+  pages: Array<{ items: T[] }> | undefined,
+  options?: { reversePages?: boolean; reverseItems?: boolean }
+): T[] {
+  if (!pages || pages.length === 0) return []
+  const ordered = options?.reversePages ? [...pages].reverse() : pages
+  return ordered.flatMap((p) => (options?.reverseItems ? [...p.items].reverse() : p.items))
+}
+
 export const mockUseInfiniteFlatItems = vi.fn(
   <T>(pages: Array<{ items: T[] }> | undefined, options?: { reversePages?: boolean; reverseItems?: boolean }): T[] => {
-    if (!pages || pages.length === 0) return []
-    const ordered = options?.reversePages ? [...pages].reverse() : pages
-    return ordered.flatMap((p) => (options?.reverseItems ? [...p.items].reverse() : p.items))
+    return defaultMockUseInfiniteFlatItems(pages, options)
   }
 )
 
@@ -417,6 +530,7 @@ export const MockUseDataApi = {
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
+  useWriteInfiniteCache: mockUseWriteInfiniteCache,
   prefetch: mockPrefetch
 }
 
@@ -431,18 +545,56 @@ export const MockUseDataApiUtils = {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
     mockUseInfiniteQuery.mockClear()
+    mockUseInfiniteQuery.mockImplementation(defaultMockUseInfiniteQuery)
     mockUseInfiniteFlatItems.mockClear()
+    mockUseInfiniteFlatItems.mockImplementation(defaultMockUseInfiniteFlatItems)
     mockUsePaginatedQuery.mockClear()
     mockUseDataChange.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
+    mockUseWriteInfiniteCache.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
+    mockInfiniteQueryStore.clear()
+    mockInfiniteQuerySubscribers.clear()
     for (const unsubscribe of hookRegistrations.values()) {
       unsubscribe()
     }
     hookRegistrations.clear()
+  },
+
+  /**
+   * Seed a route-scoped infinite-query cache and enable SWR-like functional
+   * mutation with React subscriber updates.
+   */
+  seedInfiniteQuery: <TPath extends ApiPath>(
+    path: TPath,
+    pages: MockInfinitePagesForPath<TPath>,
+    options?: MockInfiniteQueryOptions<TPath>
+  ) => {
+    mockUseInfiniteQuery.mockImplementation(statefulMockUseInfiniteQuery)
+    mockUseInfiniteFlatItems.mockImplementation(defaultMockUseInfiniteFlatItems)
+    setMockInfiniteQueryPages(buildMockInfiniteQueryKey(path, options), pages)
+  },
+
+  /** Replace an infinite-query cache entry and notify its mounted consumers. */
+  setInfiniteQueryPages: <TPath extends ApiPath>(
+    path: TPath,
+    pages: MockInfinitePagesForPath<TPath>,
+    options?: MockInfiniteQueryOptions<TPath>
+  ) => {
+    setMockInfiniteQueryPages(buildMockInfiniteQueryKey(path, options), pages)
+  },
+
+  /** Read a route-scoped infinite-query cache entry. */
+  getInfiniteQueryPages: <TPath extends ApiPath>(
+    path: TPath,
+    options?: MockInfiniteQueryOptions<TPath>
+  ): MockInfinitePagesForPath<TPath> | undefined => {
+    return mockInfiniteQueryStore.get(buildMockInfiniteQueryKey(path, options)) as
+      | MockInfinitePagesForPath<TPath>
+      | undefined
   },
 
   /**
