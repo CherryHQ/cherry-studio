@@ -1,3 +1,7 @@
+import { promises as fsp } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -51,7 +55,10 @@ const getBlockMessageMock = vi.fn()
 const defaultMigrationPaths = {
   userData: '/mock/userData',
   versionLogFile: '/mock/version.log',
-  databaseFile: '/mock/userData/Data/cherrystudio.sqlite'
+  databaseFile: '/mock/userData/Data/cherrystudio.sqlite',
+  // The gate's sweep rm's this for real in every skipped-path test, so the default must
+  // point somewhere guaranteed absent and harmless (never a plausible real path).
+  migrationTempDir: path.join(os.tmpdir(), `v2gate-absent-${process.pid}-${Math.random().toString(36).slice(2)}`)
 }
 const defaultResolveResult = {
   paths: defaultMigrationPaths,
@@ -202,6 +209,91 @@ describe('runV2MigrationGate', () => {
     })
   })
 
+  describe('staging sweep (S11)', () => {
+    const fixtureRoots: string[] = []
+
+    /** Real `{userData}/migration_temp` fixture holding a plaintext-looking dump residue. */
+    async function createStagingFixture(): Promise<string> {
+      const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'v2gate-sweep-'))
+      fixtureRoots.push(root)
+      await fsp.mkdir(path.join(root, 'redux_export'), { recursive: true })
+      await fsp.writeFile(path.join(root, 'redux_export', 'provider.json'), '{"apiKeys":["sk-plaintext"]}')
+      return root
+    }
+
+    afterEach(async () => {
+      await Promise.all(fixtureRoots.splice(0).map((dir) => fsp.rm(dir, { recursive: true, force: true })))
+    })
+
+    it('removes leftover migration_temp when no migration is needed (S11: crash residues are never read again)', async () => {
+      const staging = await createStagingFixture()
+      needsMigrationMock.mockResolvedValue(false)
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('skipped')
+      await expect(fsp.access(staging)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('never touches migration_temp while migration is still pending (PrepareExport owns that cleanup)', async () => {
+      const staging = await createStagingFixture()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      await expect(fsp.access(path.join(staging, 'redux_export', 'provider.json'))).resolves.toBeUndefined()
+    })
+
+    it('logs and continues boot when the sweep fails (residue only outlives one launch)', async () => {
+      const staging = await createStagingFixture()
+      const rmSpy = vi
+        .spyOn(fsp, 'rm')
+        .mockRejectedValueOnce(Object.assign(new Error('EACCES: permission denied, unlink'), { code: 'EACCES' }))
+      needsMigrationMock.mockResolvedValue(false)
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      try {
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
+
+        expect(result).toBe('skipped')
+        expect(rmSpy).toHaveBeenCalledWith(staging, { recursive: true, force: true })
+        expect(showErrorBoxMock).not.toHaveBeenCalled()
+        expect(appQuitMock).not.toHaveBeenCalled()
+      } finally {
+        rmSpy.mockRestore()
+      }
+    })
+  })
+
   describe('handled path — migration runs', () => {
     it("returns 'handled' and leaves IPC handlers registered when the migration window starts", async () => {
       needsMigrationMock.mockResolvedValue(true)
@@ -222,7 +314,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(defaultMigrationPaths)
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window

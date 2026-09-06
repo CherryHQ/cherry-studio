@@ -1,13 +1,15 @@
 import type * as CryptoModule from 'node:crypto'
+import { Readable, Writable } from 'node:stream'
 
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
-vi.mock('path', async () => {
+async function posixPathModule() {
   const actual: typeof PathModule = await vi.importActual('path')
-  return {
+  const mocked = {
     ...actual,
     sep: '/', // Always use forward slash for consistency
     delimiter: ':',
@@ -37,7 +39,14 @@ vi.mock('path', async () => {
     posix: actual.posix,
     win32: actual.win32
   }
-})
+  // `default` for the modules that default-import it (legacyFile.ts), named for the rest.
+  return { ...mocked, default: mocked }
+}
+
+// `node:path` is a distinct module id to vitest, and resolveAndValidatePath reaches
+// path through it — mock both or Windows keeps its drive letters.
+vi.mock('path', posixPathModule)
+vi.mock('node:path', posixPathModule)
 
 // Use vi.hoisted to define mocks that are available during hoisting
 const {
@@ -52,6 +61,7 @@ const {
   mockAiStreamHold,
   mockAgentSessionRuntime,
   mockAgentSessionHold,
+  mockAgentSessionDelivery,
   mockWindowManager,
   mockRelaunch,
   mockHashDbFile,
@@ -59,17 +69,22 @@ const {
   mockWriteRestoreJournal,
   mockCheckpointTruncateAssert,
   mockReadAppliedChain,
+  mockCreateAtomicWriteStream,
+  mockStatfs,
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
+  mockZipEntries,
   MockStreamZipAsync
 } = vi.hoisted(() => {
   const mockChannelHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentSessionHold = { dispose: vi.fn() }
+  const mockAgentSessionDeliveryHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
+  const mockZipEntries = vi.fn(async () => ({}))
   return {
     mockLogger: {
       debug: vi.fn(),
@@ -101,6 +116,11 @@ const {
       hasBusySessions: vi.fn(() => false)
     },
     mockAgentSessionHold,
+    mockAgentSessionDelivery: {
+      pause: vi.fn(() => mockAgentSessionDeliveryHold),
+      drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
+      listActiveWork: vi.fn(() => [])
+    },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRelaunch: vi.fn(),
     mockHashDbFile: vi.fn(),
@@ -108,11 +128,14 @@ const {
     mockWriteRestoreJournal: vi.fn(),
     mockCheckpointTruncateAssert: vi.fn(),
     mockReadAppliedChain: vi.fn(),
+    mockCreateAtomicWriteStream: vi.fn(),
+    mockStatfs: vi.fn(),
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
+    mockZipEntries,
     MockStreamZipAsync: vi.fn(function () {
-      return { extract: mockZipExtract, close: mockZipClose }
+      return { entries: mockZipEntries, extract: mockZipExtract, close: mockZipClose }
     })
   }
 })
@@ -137,6 +160,15 @@ vi.mock('@main/data/db/restore/checkpoint', () => ({
 
 vi.mock('@main/data/db/restore/appliedChain', () => ({
   readAppliedChain: mockReadAppliedChain
+}))
+
+vi.mock('@main/utils/file', () => ({
+  createAtomicWriteStream: mockCreateAtomicWriteStream
+}))
+
+vi.mock('@main/utils/system', () => ({
+  getDeviceType: () => 'mac',
+  getHostname: () => 'test-host'
 }))
 
 vi.mock('better-sqlite3', () => ({
@@ -169,6 +201,7 @@ vi.mock('fs-extra', () => ({
     remove: vi.fn(),
     rename: vi.fn(),
     ensureDir: vi.fn(),
+    chmod: vi.fn(),
     emptyDir: vi.fn(),
     copy: vi.fn(),
     readdir: vi.fn(),
@@ -189,13 +222,15 @@ vi.mock('fs-extra', () => ({
     existsSync: vi.fn(),
     promises: {
       mkdir: vi.fn(),
-      readFile: vi.fn()
+      readFile: vi.fn(),
+      statfs: mockStatfs
     }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
   rename: vi.fn(),
   ensureDir: vi.fn(),
+  chmod: vi.fn(),
   emptyDir: vi.fn(),
   copy: vi.fn(),
   readdir: vi.fn(),
@@ -216,7 +251,8 @@ vi.mock('fs-extra', () => ({
   existsSync: vi.fn(),
   promises: {
     mkdir: vi.fn(),
-    readFile: vi.fn()
+    readFile: vi.fn(),
+    statfs: mockStatfs
   }
 }))
 
@@ -247,6 +283,9 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') {
         return mockAgentSessionRuntime
       }
+      if (name === 'AgentSessionDeliveryService') {
+        return mockAgentSessionDelivery
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn((key: string, filename?: string) => {
@@ -268,7 +307,8 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('../WebDav', () => ({
-  default: vi.fn()
+  // Return a distinct object per construction so instance identity is observable.
+  default: vi.fn(() => ({}))
 }))
 
 vi.mock('../S3Storage', () => ({
@@ -288,16 +328,22 @@ import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
-import BackupManager from '../LegacyBackupManager'
+import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import WebDav from '../WebDav'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
 const normalizePath = (p: string): string => path.normalize(p)
 
-const createDirent = (name: string) => ({ name })
+const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
+  name,
+  isDirectory: () => type === 'directory',
+  isFile: () => type === 'file'
+})
 
 const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   size,
+  mode: 0o644,
   isDirectory: () => type === 'directory',
   isFile: () => type === 'file',
   isSymbolicLink: () => type === 'symlink'
@@ -353,6 +399,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.rename).mockResolvedValue(undefined as never)
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
     vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
     vi.mocked(fs.readdir).mockResolvedValue([] as never)
@@ -362,37 +409,238 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
   })
 
-  const mockArchiveClose = () => {
-    let closeOutput: (() => void) | undefined
+  const mockArchiveClose = (pipeError?: Error) => {
+    let finishOutput: (() => void) | undefined
     const output = {
+      destroyed: false,
+      abort: vi.fn().mockResolvedValue(undefined),
       on: vi.fn((event: string, callback: () => void) => {
-        if (event === 'close') closeOutput = callback
+        if (event === 'finish') finishOutput = callback
         return output
       })
     }
     const archive = {
       on: vi.fn().mockReturnThis(),
-      pipe: vi.fn(),
+      pipe: vi.fn(() => {
+        if (pipeError) throw pipeError
+      }),
       directory: vi.fn(),
-      finalize: vi.fn(() => closeOutput?.())
+      finalize: vi.fn(() => finishOutput?.())
     }
-    vi.mocked(fs.createWriteStream).mockReturnValue(output as never)
+    mockCreateAtomicWriteStream.mockReturnValue(output)
     vi.mocked(ZipArchive).mockReturnValue(archive as never)
-    return archive
+    return { archive, output }
   }
 
   const mockDownloadedFileWrite = () => {
-    let finish: (() => void) | undefined
-    const writeStream = {
-      write: vi.fn(),
-      end: vi.fn(() => queueMicrotask(() => finish?.())),
-      on: vi.fn((event: string, callback: () => void) => {
-        if (event === 'finish') finish = callback
-        return writeStream
-      })
-    }
-    vi.mocked(fs.createWriteStream).mockReturnValue(writeStream as never)
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        }
+      }) as never
+    )
   }
+
+  it('removes only stale managed backup temp artifacts', async () => {
+    const now = Date.now()
+    const staleExtract = 'extract-c3556dcc-5460-420e-b994-a68b89642bd3'
+    const freshCreate = 'create-fa46adee-c7e2-4ac4-a73e-9424c4bf2754'
+    const staleArchive = '594c6356-638b-45cc-a2ef-242ea29e39bf-cherry-studio.zip'
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+    vi.mocked(fs.readdir).mockResolvedValue([
+      createDirent(staleExtract, 'directory'),
+      createDirent(freshCreate, 'directory'),
+      createDirent(staleArchive),
+      createDirent('extract-not-an-operation', 'directory'),
+      createDirent('manual-backup.zip')
+    ] as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      const mtimeMs = String(entryPath).includes(freshCreate) ? now - 60 * 60 * 1000 : now - 25 * 60 * 60 * 1000
+      return { ...createStats('file'), mtimeMs } as never
+    })
+
+    try {
+      await backupManager.cleanupStaleTempArtifacts()
+    } finally {
+      nowSpy.mockRestore()
+    }
+
+    expect(fs.remove).toHaveBeenCalledTimes(2)
+    expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleExtract}`)
+    expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleArchive}`)
+    expect(fs.lstat).toHaveBeenCalledTimes(3)
+  })
+
+  it('boot-hardens both shared-temp staging roots (backup + lan-transfer)', async () => {
+    await backupManager.cleanupStaleTempArtifacts()
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup', 0o700)
+    expect(fs.chmod).toHaveBeenCalledWith('/tmp/cherry-studio/lan-transfer', 0o700)
+  })
+
+  it('boot-hardens the restore-staging root (seals crash-recovered trees)', async () => {
+    await backupManager.cleanupStaleTempArtifacts()
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging', 0o700)
+  })
+
+  it('keeps boot hardening best-effort: ENOENT silent, other chmod failures warn without blocking', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('lan-transfer')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      if (String(target).includes('/mock/temp/backup')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return undefined as never
+    })
+
+    await expect(backupManager.cleanupStaleTempArtifacts()).resolves.toBeUndefined()
+
+    // Only the non-ENOENT failure warns; the missing backup root stays silent.
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      '[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions',
+      expect.objectContaining({ dir: '/tmp/cherry-studio/lan-transfer' })
+    )
+  })
+
+  it('pre-tightens an existing legacy archive to 0600 before overwriting it', async () => {
+    // createWriteStream's mode applies only at creation, so an existing 0644
+    // archive needs chmod before the stream opens (two calls per run, fresh Writable each).
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', 0o600)
+    // New-file guarantee: the stream itself must be opened owner-only.
+    expect(fs.createWriteStream).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', { mode: 0o600 })
+    const chmodCalls = vi.mocked(fs.chmod).mock.calls
+    const archiveChmodIndex = chmodCalls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    const archiveOpenIndex = vi
+      .mocked(fs.createWriteStream)
+      .mock.calls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    expect(archiveChmodIndex).toBeGreaterThan(-1)
+    expect(archiveOpenIndex).toBeGreaterThan(-1)
+    expect(vi.mocked(fs.chmod).mock.invocationCallOrder[archiveChmodIndex]).toBeLessThan(
+      vi.mocked(fs.createWriteStream).mock.invocationCallOrder[archiveOpenIndex]
+    )
+  })
+
+  it('lets the legacy overwrite proceed when pre-tightening hits ENOENT (fresh archive)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).endsWith('legacy.zip')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return undefined as never
+    })
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+
+    expect(fs.createWriteStream).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', { mode: 0o600 })
+  })
+
+  it('aborts the legacy overwrite when pre-tightening fails with a non-ENOENT error', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).endsWith('legacy.zip')) {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }
+      return undefined as never
+    })
+
+    await expect(
+      backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+    ).rejects.toThrow('Failed to restrict backup archive permissions')
+    expect(fs.createWriteStream).not.toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', expect.anything())
+  })
+
+  it('aborts the backup when staging-dir chmod fails (fail-closed)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('create-operation-id')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      return undefined as never
+    })
+    mockArchiveClose()
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Failed to restrict backup staging dir permissions'
+    )
+    // Aborted before any payload stream was opened (finalize alone would be
+    // vacuous — ZipArchive is never constructed on this path).
+    expect(fs.createWriteStream).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('hardens the default LAN staging dir but leaves user-chosen destinations alone', async () => {
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    vi.mocked(fs.chmod).mockClear()
+
+    await backupManager.createLanTransferBackup({} as Electron.IpcMainInvokeEvent, '{}')
+    expect(fs.chmod).toHaveBeenCalledWith('/tmp/cherry-studio/lan-transfer', 0o700)
+
+    vi.mocked(fs.chmod).mockClear()
+    await backupManager.createLanTransferBackup({} as Electron.IpcMainInvokeEvent, '{}', '/user/chosen/dir')
+    const lanChmod = vi.mocked(fs.chmod).mock.calls.find((c) => String(c[0]).includes('lan-transfer'))
+    expect(lanChmod).toBeUndefined()
+  })
 
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
@@ -401,11 +649,14 @@ describe('BackupManager direct v2 data compatibility', () => {
     const copyDirectories = vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
     vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
-    const archive = mockArchiveClose()
+    const { archive } = mockArchiveClose()
 
     const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
     expect(result).toBe('/backups/backup.zip')
+    // S8 wiring lock: the archive must be created owner-only (mocked stream,
+    // so this asserts the call, not the on-disk mode — fs.test.ts covers that).
+    expect(mockCreateAtomicWriteStream).toHaveBeenCalledWith('/backups/backup.zip', { mode: 0o600 })
     expect(mockChannelManager.pause).toHaveBeenCalledOnce()
     expect(mockChannelManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockChannelManager.drainInFlight.mock.invocationCallOrder[0]).toBeLessThan(
@@ -415,6 +666,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockAgentSessionRuntime.pause).toHaveBeenCalledOnce()
     expect(mockAgentSessionRuntime.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentSessionDelivery.pause).toHaveBeenCalledOnce()
+    expect(mockAgentSessionDelivery.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
     expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
@@ -450,6 +703,58 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
     expect(mockAgentSessionHold.dispose).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('rejects remote backup file names containing path separators', async () => {
+    for (const fileName of ['../outside.zip', '..\\outside.zip']) {
+      await expect(
+        backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
+          webdavHost: 'https://example.com',
+          fileName
+        })
+      ).rejects.toThrow('Backup file name must not contain path separators')
+    }
+
+    expect(fs.ensureDir).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('keeps the existing local backup when archive creation fails', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    const archiveError = new Error('Archive failed')
+    const { output } = mockArchiveClose(archiveError)
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toBe(
+      archiveError
+    )
+
+    expect(output.abort).toHaveBeenCalledOnce()
+    expect(fs.remove).not.toHaveBeenCalledWith('/backups/backup.zip')
+  })
+
+  it('reports the available space on the staging filesystem when a data copy runs out of space', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    const diskFullError = Object.assign(new Error('ENOSPC: no space left on device'), {
+      code: 'ENOSPC',
+      path: '/mock/userData/Data/source.bin',
+      dest: '/mock/temp/backup/create-operation-id/Data/source.bin'
+    })
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockRejectedValueOnce(diskFullError)
+    mockStatfs.mockResolvedValueOnce({ bsize: 4096, bavail: 128 })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      `${BACKUP_DISK_FULL_ERROR_CODE}:524288`
+    )
+    expect(mockStatfs).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/Data')
   })
 
   it('copies Data while excluding transient SQLite sidecars and the restore journal', async () => {
@@ -541,6 +846,28 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['AI stream', mockAiStreamManager.hasLiveStreams],
+    ['agent session', mockAgentSessionRuntime.hasBusySessions]
+  ])('fails immediately when an %s can still write data', async (_, markBusy) => {
+    markBusy.mockReturnValue(true)
+    mockAiStreamManager.drainInFlight.mockResolvedValue({ stragglerIds: ['should-not-wait'] })
+
+    try {
+      await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+        BACKUP_ACTIVE_WRITERS_ERROR_CODE
+      )
+
+      expect(mockChannelManager.pause).not.toHaveBeenCalled()
+      expect(mockAiStreamManager.drainInFlight).not.toHaveBeenCalled()
+      expect(mockAgentSessionRuntime.drainInFlight).not.toHaveBeenCalled()
+      expect(fs.ensureDir).not.toHaveBeenCalled()
+    } finally {
+      markBusy.mockReturnValue(false)
+      mockAiStreamManager.drainInFlight.mockResolvedValue({ stragglerIds: [] })
+    }
   })
 
   it('fails closed when an AI writer does not drain before the snapshot', async () => {
@@ -637,6 +964,33 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
+  it('hardens the direct-restore staging root with owner-only permissions', async () => {
+    arrangeDirectRestore()
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    // 0700 at creation (umask-immune) plus the tightening chmod for
+    // pre-existing loose dirs.
+    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/userData/restore-staging', { mode: 0o700 })
+    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id', { mode: 0o700 })
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging', 0o700)
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id', 0o700)
+  })
+
+  it('aborts the direct restore when staging-dir chmod fails (fail-closed)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('restore-staging')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      return undefined as never
+    })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Failed to restrict backup staging dir permissions'
+    )
+    expect(fs.copy).not.toHaveBeenCalled()
+  })
+
   it('removes the extracted archive before relaunching', async () => {
     arrangeDirectRestore()
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
@@ -659,10 +1013,11 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   it('removes the WebDAV download directory before relaunching', async () => {
     mockDownloadedFileWrite()
+    const createReadStream = vi.fn(() => Readable.from(Buffer.from('backup')))
     vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
-      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+      createReadStream
     })
-    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockResolvedValue(undefined)
     const events: string[] = []
     vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
       events.push(`remove:${String(entryPath)}`)
@@ -676,16 +1031,18 @@ describe('BackupManager direct v2 data compatibility', () => {
       fileName: 'backup.zip'
     })
 
-    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
+    expect(restoreUnlocked).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
+    expect(createReadStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/webdav-download-operation-id', 'relaunch'])
   })
 
   it('removes the S3 download directory before relaunching', async () => {
     mockDownloadedFileWrite()
+    const getFileStream = vi.fn().mockResolvedValue(Readable.from(Buffer.from('backup')))
     vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
-      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+      getFileStream
     })
-    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockResolvedValue(undefined)
     const events: string[] = []
     vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
       events.push(`remove:${String(entryPath)}`)
@@ -706,8 +1063,221 @@ describe('BackupManager direct v2 data compatibility', () => {
       maxBackups: 1
     })
 
-    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
+    expect(restoreUnlocked).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
+    expect(getFileStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/s3-download-operation-id', 'relaunch'])
+  })
+
+  it('streams S3 backups with a known content length', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    const uploadStream = Readable.from(Buffer.from('backup'))
+    const putFileContents = vi.fn().mockResolvedValue({})
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents })
+    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 6) as never)
+    vi.mocked(fs.createReadStream).mockReturnValue(uploadStream as never)
+
+    await backupManager.backupToS3({} as Electron.IpcMainInvokeEvent, {
+      endpoint: 'https://s3.example.com',
+      region: 'test',
+      bucket: 'backups',
+      accessKeyId: 'access-key',
+      secretAccessKey: 'secret-key',
+      fileName: 'backup.zip',
+      autoSync: false,
+      syncInterval: 0,
+      maxBackups: 1
+    })
+
+    expect(putFileContents).toHaveBeenCalledWith('backup.zip', uploadStream, 6, { signal: undefined })
+    expect(fs.promises.readFile).not.toHaveBeenCalled()
+  })
+
+  it('preserves S3 object paths relative to the configured root', async () => {
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
+      listFiles: vi.fn().mockResolvedValue([
+        { key: 'backup.zip', lastModified: '2026-08-04T02:00:00.000Z', size: 1 },
+        { key: 'nested/backup.zip', lastModified: '2026-08-04T01:00:00.000Z', size: 2 }
+      ])
+    })
+
+    await expect(
+      backupManager.listS3Files({} as Electron.IpcMainInvokeEvent, {
+        endpoint: 'https://s3.example.com',
+        region: 'test',
+        bucket: 'backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+        root: 'root',
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 1
+      })
+    ).resolves.toEqual([
+      { fileName: 'backup.zip', modifiedTime: '2026-08-04T02:00:00.000Z', size: 1 },
+      { fileName: 'nested/backup.zip', modifiedTime: '2026-08-04T01:00:00.000Z', size: 2 }
+    ])
+  })
+
+  it('keeps an automatic backup out until manual retention cleanup finishes', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    let finishCleanup: (files: unknown[]) => void = () => {}
+    const getDirectoryContents = vi.fn(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          finishCleanup = resolve
+        })
+    )
+    const putWebdavFile = vi.fn().mockResolvedValue(true)
+    const putS3File = vi.fn().mockResolvedValue({})
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      putFileContents: putWebdavFile,
+      getDirectoryContents
+    })
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({ putFileContents: putS3File })
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+    const manualBackup = backupManager.backupToWebdav({} as Electron.IpcMainInvokeEvent, {
+      webdavHost: 'https://example.com',
+      fileName: 'backup.zip',
+      maxBackups: 1,
+      disableStream: true
+    })
+    await vi.waitFor(() => expect(getDirectoryContents).toHaveBeenCalledOnce())
+
+    await expect(
+      backupManager.backupToS3(null, {
+        endpoint: 'https://s3.example.com',
+        region: 'test',
+        bucket: 'backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+        fileName: 'backup.zip',
+        autoSync: true,
+        syncInterval: 1,
+        maxBackups: 1
+      })
+    ).rejects.toBeInstanceOf(BackupOperationBusyError)
+    expect(putS3File).not.toHaveBeenCalled()
+
+    finishCleanup([])
+    await manualBackup
+  })
+
+  it('rejects an automatic backup while restore is in progress', async () => {
+    let finishRestore = () => {}
+    const restoreUnlocked = vi.spyOn(backupManager as any, 'restoreUnlocked').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRestore = resolve
+        })
+    )
+    const backupDirect = vi.spyOn(backupManager as any, 'backupDirect')
+    const restore = backupManager.restore({} as Electron.IpcMainInvokeEvent, '/restore.zip')
+    await vi.waitFor(() => expect(restoreUnlocked).toHaveBeenCalledWith('/restore.zip'))
+
+    try {
+      await expect(
+        backupManager.backupToLocalDir(
+          null,
+          'auto.zip',
+          { localBackupDir: '/backups', maxBackups: 0 },
+          new AbortController().signal
+        )
+      ).rejects.toBeInstanceOf(BackupOperationBusyError)
+      expect(backupDirect).not.toHaveBeenCalled()
+    } finally {
+      finishRestore()
+      await restore
+    }
+  })
+
+  it('limits and cancels WebDAV retention cleanup for the exact current device', async () => {
+    const backupPath = '/mock/temp/backup/backup.zip'
+    const controller = new AbortController()
+    let deleteSignal: AbortSignal | undefined
+    const deleteFile = vi.fn(
+      (_fileName: string, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          deleteSignal = signal
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const getDirectoryContents = vi.fn().mockResolvedValue([
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804020000.test-host.mac.zip',
+        lastmod: '2026-08-04T02:00:00.000Z',
+        size: 1
+      },
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804015000.other-test-host.mac.zip',
+        lastmod: '2026-08-04T01:50:00.000Z',
+        size: 1
+      },
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804000000.test-host.mac.zip',
+        lastmod: '2026-08-04T00:00:00.000Z',
+        size: 1
+      }
+    ])
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      putFileContents: vi.fn().mockResolvedValue(true),
+      getDirectoryContents,
+      deleteFile
+    })
+    vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+    const backup = backupManager.backupToWebdav(
+      null,
+      { webdavHost: 'https://example.com', disableStream: true, maxBackups: 1 },
+      controller.signal
+    )
+    await vi.waitFor(() => expect(deleteFile).toHaveBeenCalledOnce())
+    controller.abort(new DOMException('Stopped.', 'AbortError'))
+
+    await expect(backup).resolves.toMatchObject({ result: true, cleanupError: { name: 'AbortError' } })
+    expect(deleteFile).toHaveBeenCalledWith('cherry-studio.20260804000000.test-host.mac.zip', deleteSignal)
+    expect(deleteSignal?.aborted).toBe(true)
+    expect(getDirectoryContents).toHaveBeenCalledWith(expect.any(AbortSignal))
+  })
+
+  it('aborts a stalled WebDAV upload after the idle timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const backupPath = '/mock/temp/backup/backup.zip'
+      let uploadStarted: () => void = () => {}
+      const started = new Promise<void>((resolve) => {
+        uploadStarted = resolve
+      })
+      const putFileContents = vi.fn(
+        (_fileName: string, _data: Buffer, options: { signal: AbortSignal }) =>
+          new Promise<boolean>((_resolve, reject) => {
+            uploadStarted()
+            options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+          })
+      )
+      vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue(backupPath)
+      vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({ putFileContents })
+      vi.mocked(fs.promises.readFile).mockResolvedValue(Buffer.from('backup') as never)
+
+      const backup = backupManager.backupToWebdav(null, {
+        webdavHost: 'https://example.com',
+        fileName: 'backup.zip',
+        disableStream: true
+      })
+      await started
+      const rejection = expect(backup).rejects.toMatchObject({ name: 'TimeoutError' })
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+      await rejection
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores complete-Data version 7 archives without reading standalone SQLite or .claude resources', async () => {
@@ -879,6 +1449,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
+  it('rejects a backup ZIP whose entries escape the extraction dir (zip-slip)', async () => {
+    mockZipEntries.mockResolvedValueOnce({ '../../../evil.sh': { size: 4 }, 'metadata.json': { size: 2 } })
+
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backup/evil.zip')).rejects.toThrow(
+      'zip-slip'
+    )
+
+    // The rejection happens before any entry is written and the archive is still closed.
+    expect(mockZipExtract).not.toHaveBeenCalled()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
   it('does not clobber a pending restore journal', async () => {
     mockReadRestoreJournal.mockReturnValue({
       kind: 'ok',
@@ -904,29 +1487,24 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockRelaunch).not.toHaveBeenCalled()
   })
 
-  it('serializes overlapping backup operations', async () => {
+  it('rejects overlapping backup operations', async () => {
     let releaseFirst!: () => void
     const firstDone = new Promise<void>((resolve) => {
       releaseFirst = resolve
     })
-    const direct = vi
-      .spyOn(backupManager as any, 'backupDirect')
-      .mockImplementationOnce(async () => {
-        await firstDone
-        return '/backups/first.zip'
-      })
-      .mockResolvedValueOnce('/backups/second.zip')
+    const direct = vi.spyOn(backupManager as any, 'backupDirect').mockImplementation(async () => {
+      await firstDone
+      return '/backups/first.zip'
+    })
 
     const first = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'first.zip', '/backups')
     await Promise.resolve()
     const second = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'second.zip', '/backups')
-    await Promise.resolve()
 
+    await expect(second).rejects.toBeInstanceOf(BackupOperationBusyError)
     expect(direct).toHaveBeenCalledTimes(1)
     releaseFirst()
     await expect(first).resolves.toBe('/backups/first.zip')
-    await expect(second).resolves.toBe('/backups/second.zip')
-    expect(direct).toHaveBeenCalledTimes(2)
   })
 
   it('restores legacy standalone .claude state but excludes the generated skills mirror', async () => {
@@ -961,14 +1539,16 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 })
 
-describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
+describe('BackupManager.copyDirWithProgress', () => {
   let backupManager: BackupManager
 
   beforeEach(() => {
     vi.clearAllMocks()
     backupManager = new BackupManager()
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.realpath).mockImplementation(async (entryPath) => String(entryPath) as never)
   })
 
@@ -1090,6 +1670,196 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(fs.ensureDir).toHaveBeenCalledWith('/dest/nested')
     expect(fs.copy).toHaveBeenCalledWith('/src/nested/child.txt', '/dest/nested/child.txt')
     expect(onProgress).toHaveBeenCalledWith(5)
+  })
+
+  it('should abort an in-progress file copy', async () => {
+    const controller = new AbortController()
+    const onProgress = vi.fn()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('large.bin')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 1024) as never)
+    vi.mocked(fs.createReadStream).mockReturnValue(new Readable({ read() {} }) as never)
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        }
+      }) as never
+    )
+
+    const result = (backupManager as any)
+      .copyDirWithProgress('/src', '/dest', onProgress, {
+        dereferenceSymlinks: true,
+        signal: controller.signal
+      })
+      .catch((error: unknown) => error)
+
+    await vi.waitFor(() => expect(fs.createReadStream).toHaveBeenCalledWith('/src/large.bin'))
+    controller.abort()
+
+    await expect(result).resolves.toMatchObject({ name: 'AbortError' })
+    expect(fs.remove).toHaveBeenCalledWith('/dest/large.bin')
+    expect(fs.chmod).not.toHaveBeenCalled()
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  describe('LevelDB Lock Handling', () => {
+    const createBusyFileError = () =>
+      Object.assign(new Error('resource busy or locked, read'), {
+        code: 'EBUSY',
+        errno: -4082
+      })
+
+    const mockAutomaticCopyError = (error: Error) => {
+      vi.mocked(fs.createReadStream).mockReturnValue(
+        new Readable({
+          read() {
+            this.destroy(error)
+          }
+        }) as never
+      )
+      vi.mocked(fs.createWriteStream).mockReturnValue(
+        new Writable({
+          write(_chunk, _encoding, callback) {
+            callback()
+          }
+        }) as never
+      )
+    }
+
+    it.each(['leveldb', 'indexeddb.leveldb'])(
+      'should skip a locked file in %s during an automatic backup copy',
+      async (parentDirectory) => {
+        const lockedFileError = createBusyFileError()
+        const sourceDirectory = `/src/${parentDirectory}`
+        const destinationDirectory = `/dest/${parentDirectory}`
+        const onProgress = vi.fn()
+        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+        mockAutomaticCopyError(lockedFileError)
+
+        await expect(
+          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, onProgress, {
+            dereferenceSymlinks: false,
+            signal: new AbortController().signal
+          })
+        ).resolves.toBeUndefined()
+
+        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+        expect(onProgress).not.toHaveBeenCalled()
+        expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+          path: `${sourceDirectory}/LOCK`
+        })
+      }
+    )
+
+    it('should reject a locked file error when removing the partial automatic backup copy fails', async () => {
+      const lockedFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.remove).mockRejectedValueOnce(new Error('cleanup failed') as never)
+      mockAutomaticCopyError(lockedFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(lockedFileError)
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        '[BackupManager] Skipping locked file',
+        expect.objectContaining({ path: '/src/leveldb/LOCK' })
+      )
+    })
+
+    it.each(['.claude', 'notleveldb'])(
+      'should reject EBUSY for a LOCK file in non-LevelDB directory %s during an automatic backup copy',
+      async (parentDirectory) => {
+        const busyFileError = createBusyFileError()
+        const sourceDirectory = `/src/${parentDirectory}`
+        const destinationDirectory = `/dest/${parentDirectory}`
+        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+        mockAutomaticCopyError(busyFileError)
+
+        await expect(
+          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, vi.fn(), {
+            dereferenceSymlinks: false,
+            signal: new AbortController().signal
+          })
+        ).rejects.toBe(busyFileError)
+
+        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+      }
+    )
+
+    it('should skip a LevelDB LOCK file during a backup copy without a signal', async () => {
+      const lockedFileError = createBusyFileError()
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.copy).mockRejectedValueOnce(lockedFileError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', onProgress, {
+          dereferenceSymlinks: false
+        })
+      ).resolves.toBeUndefined()
+
+      expect(onProgress).not.toHaveBeenCalled()
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+        path: '/src/leveldb/LOCK'
+      })
+    })
+
+    it('should reject EBUSY for a non-LevelDB LOCK file during a backup copy without a signal', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.copy).mockRejectedValueOnce(busyFileError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/.claude', '/dest/.claude', vi.fn(), {
+          dereferenceSymlinks: false
+        })
+      ).rejects.toBe(busyFileError)
+    })
+
+    it('should reject EBUSY for a case-variant LevelDB lock filename', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('lock')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      mockAutomaticCopyError(busyFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(busyFileError)
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/leveldb/lock')
+    })
+
+    it('should reject EBUSY for a non-lock file during an automatic backup copy', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('messages.json')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 42) as never)
+      mockAutomaticCopyError(busyFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(busyFileError)
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/messages.json')
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        '[BackupManager] Skipping locked file',
+        expect.objectContaining({ path: '/src/messages.json' })
+      )
+    })
   })
 
   it('should skip symlinks during restore copy', async () => {
@@ -1363,5 +2133,50 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       // path.normalize handles double slashes
       expect(result).toBe(true)
     })
+  })
+})
+
+describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
+  beforeEach(() => {
+    vi.mocked(WebDav).mockClear()
+  })
+
+  it('reuses the client while connection fields (incl. TLS flag) are unchanged', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com', webdavUser: 'u', webdavPass: 'p', webdavPath: '/' }
+
+    const first = (manager as any).getWebDavInstance(config)
+    const second = (manager as any).getWebDavInstance({ ...config })
+
+    expect(second).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the client when allowSelfSignedTls changes', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com' }
+
+    const before = (manager as any).getWebDavInstance(config)
+    const optedIn = (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
+    const reverted = (manager as any).getWebDavInstance(config)
+
+    expect(optedIn).not.toBe(before)
+    expect(reverted).not.toBe(optedIn)
+    expect(WebDav).toHaveBeenCalledTimes(3)
+    expect(WebDav).toHaveBeenNthCalledWith(2, { webdavHost: 'https://example.com', allowSelfSignedTls: true })
+    expect(WebDav).toHaveBeenNthCalledWith(3, { webdavHost: 'https://example.com' })
+  })
+
+  it('treats undefined and false as the same TLS setting (no needless recreation)', () => {
+    const manager = new BackupManager()
+
+    const first = (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
+    const explicitFalse = (manager as any).getWebDavInstance({
+      webdavHost: 'https://example.com',
+      allowSelfSignedTls: false
+    })
+
+    expect(explicitFalse).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
   })
 })

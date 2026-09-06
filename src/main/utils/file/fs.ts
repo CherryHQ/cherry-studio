@@ -30,6 +30,8 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  copyFile as fsCopyFile,
+  type FileHandle,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
@@ -41,7 +43,7 @@ import {
   unlink
 } from 'node:fs/promises'
 import path from 'node:path'
-import { addAbortSignal, Writable } from 'node:stream'
+import { addAbortSignal, Readable, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
@@ -159,7 +161,9 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
+    // two adjacent files can round to the same ino.
+    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
@@ -290,10 +294,13 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
  * is never on disk under a looser mode; the rename carries the mode to the
  * target, replacing whatever mode a pre-existing target had.
  */
+/** Shared option shape of the atomic-write family; see `atomicWriteFile` for the mode contract. */
+type AtomicWriteModeOptions = { mode?: number }
+
 export async function atomicWriteFile(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: AtomicWriteModeOptions
 ): Promise<void> {
   const prepared = await prepareAtomicWrite(target, data, options)
   await prepared.commit()
@@ -312,6 +319,52 @@ export interface AtomicWriteStream extends Writable {
   /** True once the prepared tmp file has entered the DB + rename commit phase. */
   readonly commitStarted: boolean
   abort(): Promise<void>
+}
+
+export interface ReadableFileSnapshot {
+  readonly dev: number
+  readonly ino: number
+  readonly modifiedAt: number
+  readonly size: number
+  createReadStream(bytes?: number): Readable
+  close(): Promise<void>
+}
+
+/**
+ * Open a link-aware, fixed-length snapshot of a regular file. The returned
+ * stream reads through the already-open handle and never follows a later path
+ * replacement.
+ */
+export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
+  const pathStat = await fsLstat(target)
+  if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
+
+  const handle: FileHandle = await fsOpen(target, 'r')
+  try {
+    const handleStat = await handle.stat()
+    if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
+      throw new Error('Snapshot source changed before it could be opened')
+    }
+    const size = handleStat.size
+    return {
+      dev: handleStat.dev,
+      ino: handleStat.ino,
+      modifiedAt: Math.floor(handleStat.mtimeMs),
+      size,
+      createReadStream: (bytes = size) => {
+        if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {
+          throw new RangeError('Snapshot read length is outside the opened file')
+        }
+        return bytes === 0
+          ? Readable.from(Buffer.alloc(0))
+          : handle.createReadStream({ start: 0, end: bytes - 1, autoClose: false })
+      },
+      close: () => handle.close()
+    }
+  } catch (error) {
+    await handle.close().catch(() => undefined)
+    throw error
+  }
 }
 
 export type PreparedAtomicWriteState = 'prepared' | 'committed' | 'aborted'
@@ -410,7 +463,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
 export async function prepareAtomicWrite(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: AtomicWriteModeOptions
 ): Promise<PreparedAtomicWrite> {
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
@@ -448,12 +501,19 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   private finalized = false
   private enteredCommit = false
 
-  constructor(target: AbsoluteFilePath, onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>) {
+  constructor(
+    target: AbsoluteFilePath,
+    onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+    options?: AtomicWriteModeOptions
+  ) {
     super()
     this.target = target
     this.tmp = tmpNameFor(target)
     this.onPrepared = onPrepared
-    this.underlying = nodeCreateWriteStream(this.tmp)
+    this.underlying =
+      options?.mode !== undefined
+        ? nodeCreateWriteStream(this.tmp, { mode: options.mode })
+        : nodeCreateWriteStream(this.tmp)
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
@@ -538,24 +598,34 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
 
 /**
  * Create an `AtomicWriteStream` that buffers to a tmp file and atomically
- * commits onto `target` on `.end()`. See `AtomicWriteStream` JSDoc for the
- * full lifecycle contract.
+ * commits onto `target` on `.end()`. `options.mode` follows the
+ * `atomicWriteFile` contract: applied to the tmp file at open(2) and carried
+ * to the target by the rename. See `AtomicWriteStream` JSDoc for the full
+ * lifecycle contract.
  */
-export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteStream {
-  return createPreparedAtomicWriteStream(target, async (prepared) => {
-    await prepared.commit()
-  })
+export function createAtomicWriteStream(target: AbsoluteFilePath, options?: AtomicWriteModeOptions): AtomicWriteStream {
+  return createPreparedAtomicWriteStream(
+    target,
+    async (prepared) => {
+      await prepared.commit()
+    },
+    options
+  )
 }
 
 /**
  * Create a stream whose tmp file is handed to `onPrepared` after fsync.
  * The stream emits `finish` only after that callback resolves.
+ * `options.mode` follows the `atomicWriteFile` contract: applied to the tmp
+ * file at open(2), and `prepared.commit()`'s rename carries it onto the
+ * target, replacing whatever mode a pre-existing target had.
  */
 export function createPreparedAtomicWriteStream(
   target: AbsoluteFilePath,
-  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>
+  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+  options?: AtomicWriteModeOptions
 ): AtomicWriteStream {
-  return new AtomicWriteStreamImpl(target, onPrepared)
+  return new AtomicWriteStreamImpl(target, onPrepared, options)
 }
 
 async function prepareAtomicCopyStream(
@@ -707,6 +777,17 @@ export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal
 }
 
 /**
+ * Copy a file to a destination that must not exist yet — an existing name,
+ * including a (dangling) symlink, rejects with `EEXIST` instead of being
+ * overwritten. Unlike {@link copy} this is not atomic: a crash mid-copy can
+ * leave a partial `dest`, acceptable only for callers whose destination names
+ * are fresh and disposable.
+ */
+export async function copyNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
+  await fsCopyFile(src, dest, constants.COPYFILE_EXCL)
+}
+
+/**
  * Move/rename a file. Tries `rename` first (atomic on the same filesystem);
  * falls back to copy + unlink on `EXDEV` (cross-mount).
  *
@@ -749,9 +830,9 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively. Idempotent on missing path. */
+/** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
-  await fsRm(target, { recursive: true, force: true })
+  await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 /** Create a single directory. Throws if it already exists. */

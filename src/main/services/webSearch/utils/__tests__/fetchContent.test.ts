@@ -68,6 +68,20 @@ describe('fetchWebSearchContent', () => {
     )
   })
 
+  it('follows a redirect instead of dropping the search result', async () => {
+    // Mirrors fetchRemoteText: hops are opt-in, and 0 turns any 3xx into an error.
+    fetchRemoteTextMock.mockImplementation(async (_url: string, options: { maxRedirects?: number }) => {
+      if (!options.maxRedirects) throw new Error('HTTP error: 301')
+      return '<html><body><article><p>hello</p></article></body></html>'
+    })
+    extractReadableMarkdownMock.mockResolvedValue({ title: 'Moved article', content: 'hello' })
+
+    await expect(fetchWebSearchContent('https://example.com/article')).resolves.toMatchObject({
+      title: 'Moved article',
+      content: 'hello'
+    })
+  })
+
   it('throws when fetching content fails', async () => {
     fetchRemoteTextMock.mockRejectedValue(new Error('HTTP error: 500'))
 

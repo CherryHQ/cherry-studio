@@ -26,7 +26,7 @@
  *    - New: Tree via `parentId` + `siblingsGroupId`
  *
  * 2. **Multi-model Responses**
- *    - Old: `askId` links responses to user message, `foldSelected` marks active
+ *    - Old: `askId` links responses to user message, `useful` selects context
  *    - New: Shared `parentId` + non-zero `siblingsGroupId` groups siblings
  *
  * 3. **Block → Parts**
@@ -114,8 +114,18 @@ const MESSAGE_INSERT_BATCH_SIZE = 100
 const FILE_REF_INSERT_BATCH_SIZE = 100
 const SKIP_WARNING_SAMPLE_LIMIT = 10
 const INARRAY_CHUNK = 500
-const BLOCK_INDEX_BATCH_SIZE = 1000
+// Decode one block at a time so a batch of inline images/tool payloads cannot
+// accumulate in the V8 heap. Serialized rows are still grouped below to keep
+// SQLite transaction overhead bounded.
+const BLOCK_INDEX_READ_BATCH_SIZE = 1
+const BLOCK_INDEX_WRITE_BATCH_SIZE = 100
+const BLOCK_INDEX_WRITE_CHAR_LIMIT = 4 * 1024 * 1024
 const TEMP_BLOCK_INDEX_TABLE = 'migration_chat_blocks'
+
+interface BlockIndexRow {
+  id: string
+  payload: string
+}
 
 /**
  * Yield each FileEntryId referenced by file parts in a message's parts array.
@@ -247,10 +257,9 @@ export class ChatMigrator extends BaseMigrator {
    *
    * Steps:
    * 1. Check if topics.json and message_blocks.json exist
-   * 2. Load all blocks into memory for fast lookup
-   * 3. Load assistant data for generating meta
-   * 4. Count topics and estimate message count
-   * 5. Validate sample data for integrity
+   * 2. Load assistant data for model and topic metadata lookup
+   * 3. Count topics and estimate message count
+   * 4. Validate sample data for integrity
    */
 
   private sanitizeMessageModelReferences(messages: NewMessage[]): number {
@@ -349,7 +358,7 @@ export class ChatMigrator extends BaseMigrator {
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[]).
       // `state.defaultAssistant` is a sibling slot (not inside `assistants[]`) and
       // can also carry topics — must be visited too, otherwise its topics show
-      // up post-migration as "Unnamed Topic" with no timestamp source.
+      // up post-migration unnamed and with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
       const allAssistants: OldAssistant[] = []
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
@@ -419,7 +428,7 @@ export class ChatMigrator extends BaseMigrator {
       logger.info('Prepare phase completed', {
         topics: this.topicCount,
         estimatedMessages: this.messageCount,
-        blocksIndexed: this.blocksExist,
+        blocksAvailable: this.blocksExist,
         assistants: this.assistantLookup.size
       })
 
@@ -827,18 +836,43 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     let indexed = 0
-    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
-    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_BATCH_SIZE, async (blocks) => {
+    let pendingChars = 0
+    let pendingRows: BlockIndexRow[] = []
+
+    const flushPendingRows = (): void => {
+      if (pendingRows.length === 0) return
+
+      const rows = pendingRows
+      pendingRows = []
+      pendingChars = 0
+
       ctx.db.transaction((tx) => {
-        for (const block of blocks) {
-          if (!block?.id) continue
-          tx.run(
-            sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${JSON.stringify(block)})`
-          )
+        for (const row of rows) {
+          tx.run(sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${row.id}, ${row.payload})`)
           indexed += 1
         }
       })
+    }
+
+    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
+    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_READ_BATCH_SIZE, async (blocks) => {
+      for (const block of blocks) {
+        if (!block?.id) continue
+
+        const payload = JSON.stringify(block)
+        if (pendingRows.length > 0 && pendingChars + payload.length > BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+
+        pendingRows.push({ id: block.id, payload })
+        pendingChars += payload.length
+
+        if (pendingRows.length >= BLOCK_INDEX_WRITE_BATCH_SIZE || pendingChars >= BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+      }
     })
+    flushPendingRows()
 
     logger.info('Indexed message blocks in temporary SQLite table', { indexed })
   }
@@ -945,10 +979,8 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
-    if (!oldTopic.name) {
-      // TODO: i18n
-      oldTopic.name = 'Unnamed Topic'
-    }
+    // An empty name stays empty, like a natively-created v2 topic: the UI renders the
+    // localized placeholder, so any literal here would freeze one language into the data.
 
     // Without this, parseTimestamp() falls back to Date.now() and stamps every
     // missing-timestamp topic with the migration moment.
@@ -1013,12 +1045,8 @@ export class ChatMigrator extends BaseMigrator {
     // later duplicate-ID rewrite from invalidating parent and active-node refs.
     const oldMessages = this.normalizeMessageIds(oldTopic.messages || [], oldTopic.id)
 
-    // Build message tree structure
-    const messageTree = buildMessageTree(oldMessages)
-
     // === First pass: identify messages to skip (no blocks) ===
     const skippedMessageIds = new Set<string>()
-    const messageParentMap = new Map<string, string | null>() // messageId -> parentId
 
     for (const oldMsg of oldMessages) {
       const blockIds = oldMsg.blocks || []
@@ -1036,10 +1064,6 @@ export class ChatMigrator extends BaseMigrator {
         }
       }
 
-      // Store parent info from tree
-      const treeInfo = messageTree.get(oldMsg.id)
-      messageParentMap.set(oldMsg.id, treeInfo?.parentId ?? null)
-
       // Clear-context markers intentionally have no blocks and must remain in
       // the migrated tree. Other empty messages keep the legacy skip rule.
       if (blocks.length === 0 && oldMsg.type !== 'clear') {
@@ -1048,26 +1072,12 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // === Helper: resolve parent through skipped messages ===
-    // If parentId points to a skipped message, follow the chain to find a non-skipped ancestor
-    const resolveParentId = (parentId: string | null): string | null => {
-      let currentParent = parentId
-      const visited = new Set<string>() // Prevent infinite loops
-
-      while (currentParent && skippedMessageIds.has(currentParent)) {
-        if (visited.has(currentParent)) {
-          // Circular reference, break out
-          return null
-        }
-        visited.add(currentParent)
-        currentParent = messageParentMap.get(currentParent) ?? null
-      }
-
-      return currentParent
-    }
+    const migratableMessages = oldMessages.filter((message) => !skippedMessageIds.has(message.id))
+    const messageTree = buildMessageTree(migratableMessages)
 
     // === Second pass: transform messages that have blocks ===
     const newMessages: NewMessage[] = []
+    let lastActivityAt = Number.NEGATIVE_INFINITY
     for (const oldMsg of oldMessages) {
       // Skip messages marked for skipping
       if (skippedMessageIds.has(oldMsg.id)) {
@@ -1085,12 +1095,9 @@ export class ChatMigrator extends BaseMigrator {
         const blockIds = oldMsg.blocks || []
         const blocks = this.resolveBlockIds(blockIds)
 
-        // Resolve parentId through any skipped messages
-        const resolvedParentId = resolveParentId(treeInfo.parentId)
-
         const newMsg = await transformMessage(
           oldMsg,
-          resolvedParentId, // Use resolved parent instead of original
+          treeInfo.parentId,
           treeInfo.siblingsGroupId,
           blocks,
           oldTopic.id,
@@ -1099,62 +1106,47 @@ export class ChatMigrator extends BaseMigrator {
         )
 
         newMessages.push(newMsg)
+        if (oldMsg.role === 'user') {
+          lastActivityAt = Math.max(lastActivityAt, newMsg.createdAt)
+        } else if (oldMsg.role === 'assistant') {
+          const activityAt =
+            oldMsg.status === 'success' || oldMsg.status === 'error' || oldMsg.status === 'paused'
+              ? Math.max(newMsg.createdAt, newMsg.updatedAt)
+              : newMsg.createdAt
+          lastActivityAt = Math.max(lastActivityAt, activityAt)
+        }
       } catch (error) {
         logger.warn(`Failed to transform message ${oldMsg.id}`, { error })
         this.skippedMessages++
       }
     }
 
-    // Fix dangling parentIds from second-pass skips (transform failure).
-    // resolveParentId only handles first-pass skips; if a message passed the first
-    // pass (had blocks) but failed transform, its children still reference it.
-    // Walk the ancestor chain to find the nearest migrated parent.
     const migratedMessageIds = new Set(newMessages.map((m) => m.id))
+    const migratedSourceMessages = migratableMessages.filter((message) => migratedMessageIds.has(message.id))
+    const migratedMessageTree = buildMessageTree(migratedSourceMessages)
+
     for (const msg of newMessages) {
-      if (msg.parentId && !migratedMessageIds.has(msg.parentId)) {
-        let ancestor = messageParentMap.get(msg.parentId) ?? null
-        const visited = new Set<string>([msg.parentId])
-        while (ancestor && !migratedMessageIds.has(ancestor)) {
-          if (visited.has(ancestor)) break
-          visited.add(ancestor)
-          ancestor = messageParentMap.get(ancestor) ?? null
-        }
-        if (ancestor) {
-          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+      const treeInfo = migratedMessageTree.get(msg.id)!
+      if (msg.parentId && msg.parentId !== treeInfo.parentId) {
+        if (treeInfo.parentId) {
+          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${treeInfo.parentId}`)
         } else {
-          logger.warn(
-            `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
-          )
+          logger.warn(`No migrated parent found for message ${msg.id}, setting as root`)
           this.promotedToRootCount++
         }
-        msg.parentId = ancestor
       }
+      msg.parentId = treeInfo.parentId
+      msg.siblingsGroupId = treeInfo.siblingsGroupId
     }
 
-    // Calculate activeNodeId using smart selection logic
-    // Priority: 1) Original activeNode if migrated, 2) foldSelected if migrated, 3) last migrated
-    let activeNodeId: string | null = null
-    if (newMessages.length > 0) {
-      const migratedIds = new Set(newMessages.map((m) => m.id))
-
-      // Try to use the original active node (handles foldSelected for multi-model)
-      const originalActiveId = findActiveNodeId(oldMessages)
-      if (originalActiveId && migratedIds.has(originalActiveId)) {
-        activeNodeId = originalActiveId
-      } else {
-        // Original active was skipped; find a foldSelected among migrated messages
-        const foldSelectedMsg = oldMessages.find((m) => m.foldSelected && migratedIds.has(m.id))
-        if (foldSelectedMsg) {
-          activeNodeId = foldSelectedMsg.id
-        } else {
-          // Fallback to last migrated message
-          activeNodeId = newMessages[newMessages.length - 1].id
-        }
-      }
-    }
+    const activeNodeId = findActiveNodeId(migratedSourceMessages)
 
     // Transform topic with correct activeNodeId
-    const newTopic = transformTopic(oldTopic, activeNodeId)
+    const newTopic = transformTopic(
+      oldTopic,
+      activeNodeId,
+      Number.isFinite(lastActivityAt) ? lastActivityAt : undefined
+    )
 
     return {
       topic: newTopic,

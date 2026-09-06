@@ -77,8 +77,8 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
       <ModelListSyncDrawer
         open={pullReconcile.pullReconcileDrawerOpen}
         provider={pullReconcile.provider}
-        allModels={[...pullReconcile.allModels]}
-        localModels={[...pullReconcile.localModels]}
+        allModels={pullReconcile.allModels}
+        localModels={pullReconcile.localModels}
         removableModelIds={pullReconcile.removableModelIds}
         defaultModelIds={pullReconcile.defaultModelIds}
         isLoading={pullReconcile.isLoadingModels}
@@ -86,7 +86,9 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         loadErrorMessage={pullReconcile.loadErrorMessage}
         staleModelCount={pullReconcile.staleModelCount}
         staleModelIds={pullReconcile.staleModelIds}
-        onRetryLoadModels={pullReconcile.reloadModels}
+        onRetryLoadModels={async () => {
+          await pullReconcile.reloadModels()
+        }}
         onAddModels={pullReconcile.addModels}
         onRemoveModels={pullReconcile.removeModels}
         onCleanStaleModels={pullReconcile.cleanStaleModels}

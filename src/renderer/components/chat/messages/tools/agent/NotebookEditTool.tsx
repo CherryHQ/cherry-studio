@@ -1,5 +1,5 @@
 import { Badge } from '@cherrystudio/ui'
-import { Streamdown } from 'streamdown'
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 import type { NotebookEditToolInput, NotebookEditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
@@ -29,7 +29,7 @@ export function NotebookEditTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedOutput}</Streamdown>
+        <StaticMarkdown>{truncatedOutput}</StaticMarkdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

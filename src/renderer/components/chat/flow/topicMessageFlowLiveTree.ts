@@ -14,12 +14,12 @@ export interface TopicMessageFlowLiveNode {
   parentId: string
   role: TreeNode['role']
   isContextBoundary?: boolean
+  hasContent: boolean
   preview: string
   modelId?: string | null
   status: MessageStatus
   createdAt: string
   siblingsGroupId?: number
-  isInputDraft?: boolean
 }
 
 export interface TopicMessageFlowLiveState {
@@ -101,6 +101,7 @@ export function buildTopicMessageFlowLiveState({
         parentId,
         role: message.role === 'system' ? 'assistant' : message.role,
         isContextBoundary: hasClearContextPart(parts) || undefined,
+        hasContent: parts.length > 0,
         preview: extractTopicMessageFlowLivePreview(parts),
         modelId: metadata.modelId ?? null,
         status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
@@ -119,22 +120,18 @@ export function buildTopicMessageFlowLiveState({
   }
 }
 
-type TopicMessageFlowTreeNode = TreeNode & {
-  isInputDraft?: boolean
-}
-
-function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicMessageFlowTreeNode {
+function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TreeNode {
   return {
     id: node.id,
     parentId: node.parentId,
     role: node.role,
     isContextBoundary: node.isContextBoundary ?? existing?.isContextBoundary,
+    hasContent: node.hasContent,
     preview: node.preview || existing?.preview || '',
     modelId: node.modelId ?? existing?.modelId ?? null,
     status: node.status,
     createdAt: node.createdAt,
-    hasChildren: existing?.hasChildren ?? false,
-    ...(node.isInputDraft ? { isInputDraft: true } : {})
+    hasChildren: existing?.hasChildren ?? false
   }
 }
 
@@ -152,7 +149,7 @@ export function mergeTopicMessageFlowLiveTree(
 ): TreeResponse {
   if (!liveState) return tree
 
-  const regularNodes = new Map<string, TopicMessageFlowTreeNode>()
+  const regularNodes = new Map<string, TreeNode>()
   const siblingGroups = new Map<string, TreeResponse['siblingsGroups'][number]>()
   const existingTreeNodes = new Map<string, TreeNode>()
   const groupedNodeIds = new Set<string>()

@@ -11,25 +11,32 @@
 
 import { application } from '@application'
 import {
+  agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   jobFileRefTable,
+  type MiniAppFileRefRow,
+  miniAppFileRefTable,
   type MiniAppLogoFileRefRow,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
   type PersistentFileRefSourceType,
   persistentFileRefTablesBySourceType,
   type ProviderLogoFileRefRow,
-  providerLogoFileRefTable
+  providerLogoFileRefTable,
+  translateHistoryFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
+  agentSessionMessageSourceType,
   chatMessageSourceType,
   FileRefSchema,
   jobSourceType,
+  miniAppFileRef,
   miniAppLogoRef,
   paintingSourceType,
-  providerLogoRef
+  providerLogoRef,
+  translateHistorySourceType
 } from '@shared/data/types/file'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 
@@ -42,7 +49,7 @@ export interface FileRefService {
   /** All refs pointing at a given file_entry. */
   findByEntryId(fileEntryId: FileEntryId): FileRef[]
 
-  /** All refs owned by a business source (chat message, painting, job, logo). */
+  /** All refs owned by a business source (chat message, painting, job, translate history, logo). */
   findBySource(source: FileRefSourceKey): FileRef[]
 
   /** Ref-count aggregation for a batch of entry ids. */
@@ -54,14 +61,20 @@ export interface FileRefService {
 
 const SQLITE_INARRAY_CHUNK = 500
 
+type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 type JobFileRefRow = typeof jobFileRefTable.$inferSelect
+type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
 
 function compareRefs(left: FileRef, right: FileRef): number {
   const createdDelta = left.createdAt - right.createdAt
   if (createdDelta !== 0) return createdDelta
   return left.id.localeCompare(right.id)
+}
+
+function agentSessionMessageRowToFileRef(row: AgentSessionMessageFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: agentSessionMessageSourceType })
 }
 
 function chatMessageRowToFileRef(row: ChatMessageFileRefRow): FileRef {
@@ -78,14 +91,18 @@ function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
  * the caller-supplied `sourceType` and validates against its variant schema.
  */
 function singleFileRowToFileRef(
-  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow,
-  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
+  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | MiniAppFileRefRow,
+  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType | typeof miniAppFileRef.sourceType
 ): FileRef {
   return FileRefSchema.parse({ ...row, sourceType })
 }
 
 function jobRowToFileRef(row: JobFileRefRow): FileRef {
   return FileRefSchema.parse({ ...row, sourceType: jobSourceType })
+}
+
+function translateHistoryRowToFileRef(row: TranslateHistoryFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: translateHistorySourceType })
 }
 
 class FileRefServiceImpl implements FileRefService {
@@ -99,6 +116,15 @@ class FileRefServiceImpl implements FileRefService {
 
   findByEntryId(fileEntryId: FileEntryId): FileRef[] {
     const persistentRefReaders = {
+      [agentSessionMessageSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      },
       [chatMessageSourceType]: () => {
         const rows = this.getDb()
           .select()
@@ -135,6 +161,15 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       },
+      [miniAppFileRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
+      },
       [jobSourceType]: () => {
         const rows = this.getDb()
           .select()
@@ -143,6 +178,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
           .all()
         return rows.map(jobRowToFileRef)
+      },
+      [translateHistorySourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(translateHistoryFileRefTable)
+          .where(eq(translateHistoryFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
+          .all()
+        return rows.map(translateHistoryRowToFileRef)
       }
     } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
 
@@ -153,6 +197,15 @@ class FileRefServiceImpl implements FileRefService {
 
   findBySource(source: FileRefSourceKey): FileRef[] {
     switch (source.sourceType) {
+      case agentSessionMessageSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+          .all()
+        return rows.map(agentSessionMessageRowToFileRef)
+      }
       case chatMessageSourceType: {
         const rows = this.getDb()
           .select()
@@ -189,6 +242,15 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       }
+      case miniAppFileRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(miniAppFileRefTable)
+          .where(eq(miniAppFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
+      }
       case jobSourceType: {
         const rows = this.getDb()
           .select()
@@ -197,6 +259,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
           .all()
         return rows.map(jobRowToFileRef)
+      }
+      case translateHistorySourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(translateHistoryFileRefTable)
+          .where(eq(translateHistoryFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
+          .all()
+        return rows.map(translateHistoryRowToFileRef)
       }
     }
   }
@@ -212,6 +283,13 @@ class FileRefServiceImpl implements FileRefService {
     for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
       const persistentRefCounters = {
+        [agentSessionMessageSourceType]: () =>
+          this.getDb()
+            .select({ entryId: agentSessionMessageFileRefTable.fileEntryId, refCount: count() })
+            .from(agentSessionMessageFileRefTable)
+            .where(inArray(agentSessionMessageFileRefTable.fileEntryId, chunk))
+            .groupBy(agentSessionMessageFileRefTable.fileEntryId)
+            .all(),
         [chatMessageSourceType]: () =>
           this.getDb()
             .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })
@@ -240,12 +318,26 @@ class FileRefServiceImpl implements FileRefService {
             .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
             .groupBy(miniAppLogoFileRefTable.fileEntryId)
             .all(),
+        [miniAppFileRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: miniAppFileRefTable.fileEntryId, refCount: count() })
+            .from(miniAppFileRefTable)
+            .where(inArray(miniAppFileRefTable.fileEntryId, chunk))
+            .groupBy(miniAppFileRefTable.fileEntryId)
+            .all(),
         [jobSourceType]: () =>
           this.getDb()
             .select({ entryId: jobFileRefTable.fileEntryId, refCount: count() })
             .from(jobFileRefTable)
             .where(inArray(jobFileRefTable.fileEntryId, chunk))
             .groupBy(jobFileRefTable.fileEntryId)
+            .all(),
+        [translateHistorySourceType]: () =>
+          this.getDb()
+            .select({ entryId: translateHistoryFileRefTable.fileEntryId, refCount: count() })
+            .from(translateHistoryFileRefTable)
+            .where(inArray(translateHistoryFileRefTable.fileEntryId, chunk))
+            .groupBy(translateHistoryFileRefTable.fileEntryId)
             .all()
       } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 

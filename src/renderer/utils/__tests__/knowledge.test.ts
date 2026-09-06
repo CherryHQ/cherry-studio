@@ -1,3 +1,5 @@
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import { getMainTextContent } from '@renderer/utils/message/find'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'
@@ -6,64 +8,79 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()
 }))
 
-describe('Topic Knowledge Functions', () => {
-  describe('CONTENT_TYPES', () => {
-    it('should have all expected content types', () => {
-      expect(CONTENT_TYPES.TEXT).toBe('text')
-      expect(CONTENT_TYPES.CODE).toBe('code')
-      expect(CONTENT_TYPES.THINKING).toBe('thinking')
-      expect(CONTENT_TYPES.TOOL_USE).toBe('tools')
-      expect(CONTENT_TYPES.CITATION).toBe('citations')
-      expect(CONTENT_TYPES.TRANSLATION).toBe('translations')
-      expect(CONTENT_TYPES.ERROR).toBe('errors')
-      expect(CONTENT_TYPES.FILE).toBe('files')
-      expect(CONTENT_TYPES.IMAGES).toBe('images')
-    })
-  })
+const message = (parts: unknown[]): ExportableMessage =>
+  ({
+    id: 'message-1',
+    role: 'assistant',
+    topicId: 'topic-1',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'success',
+    parts
+  }) as ExportableMessage
 
-  describe('Topic Knowledge Functions Integration', () => {
-    it('should be importable without circular dependencies', async () => {
-      // This test verifies that the knowledge functions can be imported
-      // without causing circular dependency issues
-      const knowledgeModule = await import('../knowledge')
-      const knowledgeContentModule = await import('@renderer/services/knowledgeContent')
-
-      expect(knowledgeContentModule).toHaveProperty('analyzeTopicContent')
-      expect(knowledgeContentModule).toHaveProperty('processTopicContent')
-      expect(knowledgeModule).toHaveProperty('CONTENT_TYPES')
-      expect(typeof knowledgeContentModule.analyzeTopicContent).toBe('function')
-      expect(typeof knowledgeContentModule.processTopicContent).toBe('function')
-    })
-  })
-
-  describe('processMessageContent', () => {
-    it('converts file part URLs to absolute filesystem paths for file metadata', () => {
-      const result = processMessageContent(
+describe('processMessageContent', () => {
+  it('converts file part URLs to absolute filesystem paths for file metadata', () => {
+    const result = processMessageContent(
+      message([
         {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success',
-          parts: [
-            {
-              type: 'file',
-              url: 'file:///tmp/report%20final.pdf',
-              filename: 'report final.pdf',
-              mediaType: 'application/pdf'
-            }
-          ]
-        },
-        [CONTENT_TYPES.FILE]
-      )
+          type: 'file',
+          url: 'file:///tmp/report%20final.pdf',
+          filename: 'report final.pdf',
+          mediaType: 'application/pdf'
+        }
+      ]),
+      [CONTENT_TYPES.FILE]
+    )
 
-      expect(result.files).toEqual([
-        expect.objectContaining({
-          name: 'report final.pdf',
-          path: '/tmp/report final.pdf',
-          type: 'application/pdf'
-        })
-      ])
-    })
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        name: 'report final.pdf',
+        path: '/tmp/report final.pdf',
+        type: 'application/pdf'
+      })
+    ])
+  })
+
+  it('keeps the fence and language tag on code parts', () => {
+    const result = processMessageContent(
+      message([{ type: 'data-code', data: { language: 'typescript', content: 'const a = 1' } }]),
+      [CONTENT_TYPES.CODE]
+    )
+
+    expect(result.text).toBe('```typescript\nconst a = 1\n```')
+  })
+
+  // The knowledge-base entry used to re-implement part serialization and lost code
+  // fences, so "save to knowledge base" and "save as note -> knowledge base" produced
+  // different Markdown for the same conversation.
+  it('serializes text-like parts exactly like the shared export path', () => {
+    const parts = [
+      { type: 'text', text: '## 思路\n\n1. 闭包\n\n> 注意 this' },
+      { type: 'data-code', data: { language: 'typescript', content: 'const a = 1' } },
+      { type: 'data-translation', data: { targetLanguage: 'en', content: 'Use a closure.' } },
+      { type: 'data-error', data: { name: 'ApiError', code: '429', message: 'Too many requests' } }
+    ]
+
+    const result = processMessageContent(message(parts), [
+      CONTENT_TYPES.TEXT,
+      CONTENT_TYPES.CODE,
+      CONTENT_TYPES.TRANSLATION,
+      CONTENT_TYPES.ERROR
+    ])
+
+    expect(result.text).toBe(getMainTextContent(message(parts)))
+  })
+
+  it('drops the part types the user did not select', () => {
+    const result = processMessageContent(
+      message([
+        { type: 'text', text: 'answer' },
+        { type: 'data-code', data: { language: 'ts', content: 'const a = 1' } },
+        { type: 'data-error', data: { name: 'ApiError', message: 'boom' } }
+      ]),
+      [CONTENT_TYPES.TEXT]
+    )
+
+    expect(result.text).toBe('answer')
   })
 })

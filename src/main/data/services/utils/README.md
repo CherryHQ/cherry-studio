@@ -6,6 +6,37 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — conversation activity semantics
+
+Shared by Topic and Agent Session message persistence. It identifies
+conversation-bearing roles and real assistant completion transitions so both
+domains apply the same activity semantics. `topic.lastActivityAt` and
+`agent_session.lastActivityAt` are monotonic high-water marks: once an activity
+happens, later deletion or metadata maintenance does not erase that history.
+The following operations advance the high-water mark:
+
+| Operation | Changes `lastActivityAt` |
+| --- | --- |
+| Create a Topic or Agent Session | Yes; initialized from container `createdAt` |
+| Create or fill a user message | Yes |
+| Create an assistant placeholder | Yes |
+| Complete, pause, or fail a pending assistant response | Yes |
+| Persist a tool-approval decision | Yes |
+| Complete a later continuation segment on the same assistant row | Yes |
+| Delete a content message | No |
+| Duplicate a Topic | Yes; initialized from the new Topic creation |
+| Persist a temporary Topic | Preserves the temporary Topic's activity time |
+| Rename, pin, reorder, navigate, edit metadata, or update message projections | No |
+| Boot-time `pending → error` crash reconciliation | No |
+| Create/update a system or virtual-root row | No |
+
+For an existing-v2 schema upgrade, the SQLite migration initializes each
+container directly from user creation times and the best available assistant
+completion proxy `max(createdAt, updatedAt)`; pending assistant rows contribute
+their creation time. The v1 ChatMigrator and AgentsMigrator derive the same
+container-level value while importing. Empty containers fall back to their own
+`createdAt` in both paths.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.
@@ -190,6 +221,30 @@ Backs the provider / mini-app logo slots. A *single-file slot* is an association
 - **"Single-file" is a precondition, not a label**: it names the category (opposed to the roled collection ref tables `chat_message_file_ref` / `painting_file_ref`, where one owner holds many rows), and the write path relies on it — it clears before inserting, so passing a table that permits several rows per `sourceId` would delete rows the caller never meant to touch.
 - **Two naming layers, deliberately**: the `SingleFileRef*` helpers are the table-agnostic mechanism; `reconcileLogoSlotTx` / `LogoBindInput` / `LogoColumns` sit above it and are logo-specific, because every single-file slot that exists today is a logo slot. Do not genericize the reconcile layer until a second kind of slot exists — `logoKey` maps to a real column name.
 - **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
+### `registryDataPaths.ts` — provider-registry file path resolution
+
+Resolves provider-registry paths for the v2 runtime. Remote snapshots may override `models.json` and `provider-models.json`; `providers.json` always resolves to the bundle so unsigned branch data cannot change credential-bearing routing. The one-shot v1-to-v2 migrator deliberately bypasses this resolver and stays pinned to bundled data.
+
+**Exports:**
+
+- `OVERRIDE_MANIFEST` — completion marker written last by `providerRegistrySnapshot.ts`.
+- `readActiveOverrideManifest()` — returns a complete, compatible snapshot manifest or `null`.
+- `resolveRegistryPaths()` — builds the mixed-trust `RegistryPaths`: bundled providers plus atomic model metadata.
+
+**Design boundaries:**
+
+- **Stateless, read-only**: this utility only inspects paths and the manifest; snapshot persistence belongs to the updater domain.
+- **Atomic model metadata**: both remote-safe files require a compatible completion manifest. Missing either file falls back to bundled model metadata.
+- **Explicit compatibility range**: `minAppVersion <= appVersion <= sourceAppVersion`, matching schema version, and a valid revision are required on every activation.
+- **Bundled routing**: provider endpoints, model-list URLs, adapter families, and authentication behavior never come from the unsigned branch.
+
+**Example:**
+
+```ts
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+
+const loader = new RegistryLoader(resolveRegistryPaths())
+```
 
 ## Criteria for Adding a New Utility
 

@@ -45,10 +45,12 @@ beforeEach(() => {
   prefsGetMock.mockImplementation((key: string) => {
     if (key === 'chat.context_settings.enabled') return true
     if (key === 'chat.context_settings.truncate_threshold') return THRESHOLD
-    // resolveGlobalContextSettings reads all four keys; compress.* is unused
-    // by the trim gate but must resolve without throwing.
+    // resolveGlobalContextSettings reads every context key; max_messages and
+    // compress.* are unused by the trim gate but must resolve without throwing.
+    if (key === 'chat.context_settings.max_messages') return null
     if (key === 'chat.context_settings.compress.enabled') return true
     if (key === 'chat.context_settings.compress.model_id') return null
+    if (key === 'chat.context_settings.compress.threshold_percent') return 80
     throw new Error(`unexpected pref ${key}`)
   })
   registryGetAllMock.mockReturnValue([])

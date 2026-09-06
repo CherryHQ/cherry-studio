@@ -2,8 +2,9 @@ import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/servi
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getImageGenerationSupport, loggerWarn } = vi.hoisted(() => ({
+const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
+  getModelByKey: vi.fn(),
   loggerWarn: vi.fn()
 }))
 
@@ -16,11 +17,15 @@ const kbGetOrganizationTree = vi.fn()
 const kbAddItems = vi.fn()
 const kbDeleteConcepts = vi.fn()
 const kbRefreshConcepts = vi.fn()
-const listBases = vi.fn()
+const listBasesForDiscovery = vi.fn()
 const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: getModelByKey }
+}))
+
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
 }))
@@ -44,7 +49,7 @@ vi.mock('@application', () => ({
           addItems: kbAddItems,
           deleteConcepts: kbDeleteConcepts,
           refreshConcepts: kbRefreshConcepts,
-          listBases,
+          listBasesForDiscovery,
           listRootItems
         }
       }
@@ -81,6 +86,14 @@ const makeKnowledgeTools = (allowedIds: string[]) =>
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => allowedIds
   })
+const makeUnrestrictedKnowledgeTools = () =>
+  new CherryKnowledgeTools({
+    agentId: 'agent_test',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace',
+    canAccessAllKnowledgeBases: () => true,
+    getKnowledgeBaseIds: () => []
+  })
 const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
   KB_TOOL_NAMES.has(name) ? makeKnowledgeTools(allowedIds).call(name, args) : callCherryBuiltinToolRaw(name, args, sig)
 const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => [
@@ -113,12 +126,14 @@ describe('cherryBuiltinTools', () => {
     kbAddItems.mockReset()
     kbDeleteConcepts.mockReset()
     kbRefreshConcepts.mockReset()
-    listBases.mockReset()
+    listBasesForDiscovery.mockReset()
     listRootItems.mockReset()
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
     getImageGenerationSupport.mockReset()
+    getModelByKey.mockReset()
+    getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
     loggerWarn.mockReset()
   })
@@ -147,6 +162,18 @@ describe('cherryBuiltinTools', () => {
       .map((t) => t.name)
       .sort()
     expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
+  })
+
+  it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
+    const knowledge = makeUnrestrictedKnowledgeTools()
+    expect(knowledge.tools().map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
+    )
+
+    listBasesForDiscovery.mockResolvedValue({ items: [], total: 0 })
+    await knowledge.call('kb_list', {})
+
+    expect(listBasesForDiscovery).toHaveBeenCalledWith({ limit: 20, scope: { kind: 'unrestricted' } })
   })
 
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
@@ -426,7 +453,7 @@ describe('cherryBuiltinTools', () => {
 
     expect(kbGetOrganizationTree).toHaveBeenCalledWith('b1', { maxDepth: 2 })
     // list mode must NOT run when a baseId is present.
-    expect(listBases).not.toHaveBeenCalled()
+    expect(listBasesForDiscovery).not.toHaveBeenCalled()
     const json = JSON.parse(textOf(result))
     expect(json.totalItems).toBe(2)
     expect(json.nodes[1]).toMatchObject({ type: 'file', conceptId: 'report.pdf' })
@@ -448,7 +475,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toMatch(/no items/i)
   })
 
-  it('runs kb_manage add within the bound scope, building the add input from an absolute file path', async () => {
+  it('runs kb_manage add within the bound scope, storing the full path as source (REGRESSION #19954)', async () => {
     kbAddItems.mockResolvedValue({ status: 'added' })
 
     const result = await callCherryBuiltinTool(
@@ -458,10 +485,10 @@ describe('cherryBuiltinTools', () => {
     )
 
     expect(kbAddItems).toHaveBeenCalledWith('b1', [
-      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+      { type: 'file', data: { source: '/Users/me/docs/report.pdf', path: '/Users/me/docs/report.pdf' } }
     ])
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['report.pdf'] })
+    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['/Users/me/docs/report.pdf'] })
   })
 
   it('runs kb_manage delete within the bound scope, forwarding conceptIds and the applied/notFound split', async () => {
@@ -501,19 +528,37 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('content')
   })
 
-  it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {
-    listBases.mockReturnValue([
-      { id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 },
-      { id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }
-    ])
+  it('routes a bounded kb_list page through KnowledgeService with filters and cursor', async () => {
+    listBasesForDiscovery.mockReturnValue({
+      items: [{ id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }],
+      total: 21,
+      nextCursor: 'cursor-2'
+    })
     listRootItems.mockReturnValue([{ type: 'note', status: 'completed', data: { content: 'Soup' } }])
 
-    // groupId selects g2; if query/groupId were swapped this would filter by name instead and drop b2.
-    const result = await callCherryBuiltinTool('kb_list', { groupId: 'g2' }, signal)
+    const result = await callCherryBuiltinTool(
+      'kb_list',
+      { query: 'invoice', groupId: 'g2', limit: 10, cursor: 'cursor-1' },
+      signal
+    )
 
     const json = JSON.parse(textOf(result))
-    expect(json).toHaveLength(1)
-    expect(json[0]).toMatchObject({ id: 'b2', name: 'Invoices', groupId: 'g2', itemCount: 1, sampleSources: ['Soup'] })
+    expect(json).toMatchObject({ total: 21, nextCursor: 'cursor-2' })
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0]).toMatchObject({
+      id: 'b2',
+      name: 'Invoices',
+      groupId: 'g2',
+      itemCount: 1,
+      sampleSources: ['Soup']
+    })
+    expect(listBasesForDiscovery).toHaveBeenCalledWith({
+      limit: 10,
+      cursor: 'cursor-1',
+      query: 'invoice',
+      groupId: 'g2',
+      scope: { kind: 'restricted', baseIds: ['b1', 'b2'] }
+    })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
   })
@@ -522,7 +567,10 @@ describe('cherryBuiltinTools', () => {
     // base.documentCount is the configured retrieval top-K (search results to return), not a count of
     // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
     // populated base. itemCount (root items) is the real count the agent should see.
-    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
+    listBasesForDiscovery.mockReturnValue({
+      items: [{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }],
+      total: 1
+    })
     listRootItems.mockReturnValue([
       { type: 'note', status: 'completed', data: { content: 'Soup' } },
       { type: 'note', status: 'completed', data: { content: 'Stew' } }
@@ -530,12 +578,12 @@ describe('cherryBuiltinTools', () => {
 
     const json = JSON.parse(textOf(await callCherryBuiltinTool('kb_list', {}, signal)))
 
-    expect(json[0]).not.toHaveProperty('documentCount')
-    expect(json[0].itemCount).toBe(2)
+    expect(json.items[0]).not.toHaveProperty('documentCount')
+    expect(json.items[0].itemCount).toBe(2)
   })
 
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
-    listBases.mockImplementation(() => {
+    listBasesForDiscovery.mockImplementation(() => {
       throw new Error('sqlite gone')
     })
 
@@ -548,10 +596,10 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {
-    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 }])
+    listBasesForDiscovery.mockReturnValue({ items: [], total: 0 })
     listRootItems.mockReturnValue([])
 
-    // A query that matches nothing → the "matches the filter" message proves `input` reached the
+    // A query that matches nothing -> the "matches the filter" message proves `input` reached the
     // projection; dropping the forwarded input would yield the generic "no knowledge bases" message.
     const result = await callCherryBuiltinTool('kb_list', { query: 'zzznomatch' }, signal)
 
@@ -690,8 +738,11 @@ describe('cherryBuiltinTools', () => {
 describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
+    agentDataPath: '/tmp/agent-data',
+    sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
+    trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }],
     getKnowledgeBaseIds: () => KB_SCOPE
   }
 
@@ -700,7 +751,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
   })
 
@@ -709,17 +760,19 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    // Autonomy + stateless builtins stay; only the knowledge tools drop out.
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'web_search', 'generate_image']))
+    // Autonomy, document conversion, and stateless builtins stay; only the knowledge tools drop out.
+    expect(names).toEqual(
+      expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown', 'web_search', 'generate_image'])
+    )
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')
     expect(names).not.toContain('kb_manage')
   })
 
-  it('exposes CLI management to normal agents and omits it for the built-in Assistant', async () => {
+  it('exposes CLI management to every agent, including the built-in Assistant', async () => {
     const normal = new CherryBuiltinToolsServer(agentContext)
-    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canManageCli: false })
+    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canAccessAllKnowledgeBases: () => true })
     const normalHandlers = (normal.mcpServer.server as any)._requestHandlers
     const assistantHandlers = (assistant.mcpServer.server as any)._requestHandlers
 
@@ -731,7 +784,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     ).tools.map((tool: any) => tool.name)
 
     expect(normalNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
-    expect(assistantNames).not.toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
+    expect(assistantNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
   })
 
   it('rejects a previously bound base after the live scope narrows', async () => {

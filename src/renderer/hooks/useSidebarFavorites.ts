@@ -5,13 +5,15 @@ import {
   getOrderedVisibleSidebarFavoriteItems,
   getOrderedVisibleSidebarFavorites,
   getSidebarMiniAppFavoriteIds,
+  removeSidebarEntityFavorite,
   removeSidebarMiniApp,
   reorderSidebarFavorites,
   setSidebarAppPinned,
+  toggleSidebarEntityFavorite,
   toggleSidebarMiniApp
 } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -30,10 +32,20 @@ import { useTranslation } from 'react-i18next'
 export function useSidebarFavorites() {
   const { t } = useTranslation()
   const [favorites, setFavorites] = usePreference('ui.sidebar.favorites')
+  const favoritesRef = useRef(favorites)
+  favoritesRef.current = favorites
 
   const favoriteItems = useMemo(() => getOrderedVisibleSidebarFavoriteItems(favorites), [favorites])
   const appFavorites = useMemo(() => getOrderedVisibleSidebarFavorites(favorites), [favorites])
   const miniAppFavoriteIds = useMemo(() => getSidebarMiniAppFavoriteIds(favorites), [favorites])
+  const agentFavoriteIds = useMemo(
+    () => favoriteItems.flatMap((favorite) => (favorite.type === 'agent' ? [favorite.id] : [])),
+    [favoriteItems]
+  )
+  const assistantFavoriteIds = useMemo(
+    () => favoriteItems.flatMap((favorite) => (favorite.type === 'assistant' ? [favorite.id] : [])),
+    [favoriteItems]
+  )
 
   const persist = useCallback(
     (next: SidebarFavoriteItem[]) => {
@@ -48,13 +60,36 @@ export function useSidebarFavorites() {
     (id: SidebarAppId, pinned: boolean) => persist(setSidebarAppPinned(favorites, id, pinned)),
     [favorites, persist]
   )
-  const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favorites, id)), [favorites, persist])
+  const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favoritesRef.current, id)), [persist])
   const removeMiniApp = useCallback(
     (id: string) => {
-      if (!miniAppFavoriteIds.includes(id)) return
-      persist(removeSidebarMiniApp(favorites, id))
+      const currentFavorites = favoritesRef.current
+      if (!getSidebarMiniAppFavoriteIds(currentFavorites).includes(id)) return
+      persist(removeSidebarMiniApp(currentFavorites, id))
     },
-    [favorites, miniAppFavoriteIds, persist]
+    [persist]
+  )
+  const toggleAgent = useCallback(
+    (id: string) => persist(toggleSidebarEntityFavorite(favorites, 'agent', id)),
+    [favorites, persist]
+  )
+  const toggleAssistant = useCallback(
+    (id: string) => persist(toggleSidebarEntityFavorite(favorites, 'assistant', id)),
+    [favorites, persist]
+  )
+  const removeAgent = useCallback(
+    (id: string) => {
+      if (!agentFavoriteIds.includes(id)) return
+      persist(removeSidebarEntityFavorite(favorites, 'agent', id))
+    },
+    [favorites, agentFavoriteIds, persist]
+  )
+  const removeAssistant = useCallback(
+    (id: string) => {
+      if (!assistantFavoriteIds.includes(id)) return
+      persist(removeSidebarEntityFavorite(favorites, 'assistant', id))
+    },
+    [favorites, assistantFavoriteIds, persist]
   )
   const reorderFavorites = useCallback(
     (orderedItems: readonly SidebarFavoriteItem[]) => persist(reorderSidebarFavorites(favorites, orderedItems)),
@@ -65,9 +100,15 @@ export function useSidebarFavorites() {
     favorites: favoriteItems,
     appFavorites,
     miniAppFavoriteIds,
+    agentFavoriteIds,
+    assistantFavoriteIds,
     setAppPinned,
     reorderFavorites,
     toggleMiniApp,
-    removeMiniApp
+    removeMiniApp,
+    toggleAgent,
+    toggleAssistant,
+    removeAgent,
+    removeAssistant
   }
 }

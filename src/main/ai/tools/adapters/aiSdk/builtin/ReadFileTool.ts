@@ -115,8 +115,8 @@ export async function readFile(
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
-    // 0 is the "use the default" sentinel for both (see `readFileInputSchema`).
-    return paginate(text, input.offset || undefined, input.limit || undefined)
+    // Both are optional; `paginate`'s parameter defaults cover an omitted one.
+    return paginate(text, input.offset, input.limit)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).
@@ -141,7 +141,6 @@ const readFileTool = tool({
   description: READ_FILE_DESCRIPTION,
   inputSchema: readFileInputSchema,
   outputSchema: readFileResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
     return readFile(input, { attachments: request.fileAttachments ?? [] }, request.abortSignal)
@@ -152,9 +151,8 @@ const readFileTool = tool({
 export function createReadFileToolEntry(): ToolEntry {
   return {
     name: READ_FILE_TOOL_NAME,
-    // Persist-only: blobs an oversized page echo (`text`) out of message.data
-    // while totalChars/nextOffset ride the skeleton. Never triggers in-flight —
-    // toModelOutput emits text, and the truncator's entity path only sees json.
+    // Persist-lane only (`toModelOutput` emits text, the entity path needs
+    // json). In flight the generic text path still offloads it past threshold.
     codec: makeTextFieldCodec({ textKey: 'text' }),
     namespace: 'file',
     description: 'Read an attached file by filename — returns its text (paged for long files)',

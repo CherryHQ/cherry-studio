@@ -1,18 +1,22 @@
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
-import { findCitationInChildren } from '@renderer/utils/markdown'
+import { parseFileLinkHref } from '@renderer/utils/filePath'
+import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
+import type { Element } from 'hast'
 import React, { useMemo } from 'react'
-import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
 import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: Omit<Node, 'type'>
+  node?: Element
   citationRegistry?: ReadonlyMap<number, Citation>
+  /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
+  openFilePath?: (path: string) => void | Promise<void>
 }
 
 function getWebHostname(href?: string): string {
@@ -50,13 +54,45 @@ const Link: React.FC<LinkProps> = (props) => {
 
   // 处理内部链接
   if (props.href?.startsWith('#')) {
-    return <span className="link">{props.children}</span>
+    return (
+      <a
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
+        className={cn('text-link', !props.className && 'hover:underline', props.className)}
+        onClick={(event) => {
+          props.onClick?.(event)
+          if (!event.defaultPrevented) scrollToMarkdownAnchor(event)
+        }}>
+        {props.children}
+      </a>
+    )
   }
 
   if (props.href && isKnownNavigationPath(props.href)) {
     const [path, search] = props.href.split('?', 2)
     const query = search ? Object.fromEntries(new URLSearchParams(search)) : undefined
     return <NavigateToolInline input={{ path, query }} />
+  }
+
+  // File-path links (`[SKILL.md](.agents/skills/gh-create-pr/SKILL.md)`, `[Design](./DESIGN.md)`,
+  // `[README](README.md)`): a workspace file, not a web page. Keep the link's own text but route the
+  // click to the host opener (which resolves the path against the workspace and routes dir vs file),
+  // only when the host actually provides one — otherwise fall through to normal link handling.
+  const openFilePath = props.openFilePath
+  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  if (fileLinkPath && openFilePath) {
+    return (
+      <a
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
+        href={props.href}
+        className={cn('text-link', !props.className && 'hover:underline', props.className)}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          void Promise.resolve(openFilePath(fileLinkPath)).catch(() => {})
+        }}>
+        {props.children}
+      </a>
+    )
   }
 
   // 包含<sup>标签表示是一个引用链接。
@@ -69,7 +105,7 @@ const Link: React.FC<LinkProps> = (props) => {
       (child) => child.tagName === 'sup'
     )
   )
-  const showFavicon = !!hostname && !isCitation && !containsFaviconChild
+  const showFavicon = !!hostname && !isCitation && !containsFaviconChild && shouldShowMarkdownLinkFavicon(props.node)
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
   const linkContent = showFavicon ? (
     <>
@@ -89,7 +125,7 @@ const Link: React.FC<LinkProps> = (props) => {
     return (
       <CitationTooltip citation={citationData}>
         <a
-          {...omit(props, ['node', 'citationRegistry'])}
+          {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
           href={props.href || undefined}
           target="_blank"
           rel="noreferrer"
@@ -104,7 +140,7 @@ const Link: React.FC<LinkProps> = (props) => {
   return (
     <Hyperlink href={props.href || ''}>
       <a
-        {...omit(props, ['node', 'citationRegistry'])}
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
         target="_blank"
         rel="noreferrer"
         className={linkClassName}

@@ -1,24 +1,21 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useParams } from '@tanstack/react-router'
-import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 // Tab mode page shell — relies on the global MiniAppTabsPool instead of creating WebViews directly
-import MinimalToolbar from './components/MinimalToolbar'
-import WebviewSearch from './components/WebviewSearch'
+import MiniAppPane from './components/MiniAppPane'
+import SplitPanePicker from './components/SplitPanePicker'
 
 const logger = loggerService.withContext('MiniAppPage')
 const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
@@ -37,12 +34,11 @@ const MiniAppPage: FC = () => {
   const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
-  const { openMiniAppKeepAlive } = useMiniAppPopup()
-  const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
+  const { openMiniAppKeepAlive, openSplit, closeSplit } = useMiniAppPopup()
+  const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
 
-  // Last-resort source for a transient app (no database row, opened via openSmartMiniApp):
-  // shared across windows and independent of any window's keep-alive LRU, so it survives
-  // both detaching this tab into a new window and eviction in the window it came from.
+  // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
+  // Every window's keep-alive entry is only a local snapshot of this cross-window value.
   const transientDescriptor = useSharedCacheValue(`mini_app.transient_descriptor.${appId ?? ''}` as const)
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
@@ -50,10 +46,11 @@ const MiniAppPage: FC = () => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
     if (found) return found
-    // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
+    // Prefer the shared transient descriptor over a window-local keep-alive snapshot.
+    // Reopening OpenClaw republishes its live URL; detached windows must observe it too.
+    if (transientDescriptor) return toTransientMiniApp(transientDescriptor)
     const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
-    if (cached) return cached
-    return transientDescriptor ? toTransientMiniApp(transientDescriptor) : null
+    return cached ?? null
   }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {
@@ -95,15 +92,6 @@ const MiniAppPage: FC = () => {
   }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
-  // Hooks must be called before any return, so define them early with null-checks inside
-  const webviewRef = useRef<WebviewTag | null>(null)
-  // Seed isReady from `appId` (synchronously available via useParams), not
-  // from `app` (which goes through async DataApi/useMemo and is null on the
-  // first render after a tab wakes from LRU hibernation). Otherwise the
-  // loading mask flashes over a still-alive webview every time the user
-  // switches back to the mini-app, looking like a reload.
-  const [isReady, setIsReady] = useState<boolean>(() => (appId ? getWebviewLoaded(appId) : false))
-
   // The shared cache syncs from Main asynchronously and does not block renderer startup,
   // so in a window that just opened — exactly the detached-tab case — the descriptor is
   // not readable on the first render. Hold the not-found verdict until it is, or the
@@ -113,69 +101,25 @@ const MiniAppPage: FC = () => {
     if (sharedCacheReady) return
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
-  const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
+  // The keep-alive fallback lets a transient app (no database row) hold the pane;
+  // a split id equal to the active app is dropped, one `<webview>` fills one pane.
+  const splitApp = useMemo((): MiniApp | null => {
+    if (!splitOpen || !splitMiniAppId || splitMiniAppId === appId) return null
+    return (
+      allApps.find((a) => a.appId === splitMiniAppId) ??
+      openedKeepAliveMiniApps.find((a) => a.appId === splitMiniAppId) ??
+      null
+    )
+  }, [allApps, appId, openedKeepAliveMiniApps, splitMiniAppId, splitOpen])
 
-  // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
-  const webviewCleanupRef = useRef<(() => void) | null>(null)
-
-  const detachWebview = useCallback(() => {
-    webviewCleanupRef.current?.()
-    webviewCleanupRef.current = null
-    webviewRef.current = null
-  }, [])
-
-  const attachWebview = useCallback(() => {
-    if (!app) return true // No app — stop monitoring
-    const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
-    const el = document.querySelector<WebviewTag>(selector)
-    if (!el) return false
-
-    if (webviewRef.current === el) return true // Already attached
-
-    detachWebview()
-    webviewRef.current = el
-    const handleInPageNav = (e: any) => setCurrentUrl(e.url)
-    el.addEventListener('did-navigate-in-page', handleInPageNav)
-    webviewCleanupRef.current = () => {
-      el.removeEventListener('did-navigate-in-page', handleInPageNav)
-    }
-    return true
-  }, [app, detachWebview])
-
+  // Both panes mount a search overlay and the host `keydown` listener is global,
+  // so exactly one may answer Ctrl/Cmd+F — otherwise one press opens both.
+  const [activePane, setActivePane] = useState<'primary' | 'split'>('primary')
+  const activatePrimaryPane = useCallback(() => setActivePane('primary'), [])
+  const activateSplitPane = useCallback(() => setActivePane('split'), [])
   useEffect(() => {
-    if (!app || !isReady) {
-      detachWebview()
-      return
-    }
-
-    // Try immediate attachment first
-    if (attachWebview()) return detachWebview
-
-    // If not yet created, observe DOM changes (lightweight + auto-disconnect)
-    const observer = new MutationObserver(() => {
-      if (attachWebview()) {
-        observer.disconnect()
-      }
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    return () => {
-      observer.disconnect()
-      detachWebview()
-    }
-  }, [app, attachWebview, detachWebview, isReady])
-
-  // Keep local readiness synchronized across load, LRU eviction, and recreation.
-  useEffect(() => {
-    if (!app) {
-      setIsReady(false)
-      return
-    }
-
-    const unsubscribe = onWebviewStateChange(app.appId, setIsReady)
-    setIsReady(getWebviewLoaded(app.appId))
-    return unsubscribe
-  }, [app])
+    if (!splitOpen) setActivePane('primary')
+  }, [splitOpen])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
@@ -219,39 +163,30 @@ const MiniAppPage: FC = () => {
     )
   }
 
-  const handleReload = () => {
-    if (!app || !isReady || !getWebviewLoaded(app.appId)) return
-    const webview = webviewRef.current
-    if (!webview?.isConnected) return
-
-    setWebviewLoaded(app.appId, false)
-    setIsReady(false)
-    webview.reload()
-  }
-
-  const handleOpenDevTools = () => {
-    webviewRef.current?.openDevTools()
-  }
-
   return (
-    <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-      <div className="shrink-0">
-        <MinimalToolbar
-          app={app}
-          webviewRef={webviewRef}
-          // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
-          currentUrl={currentUrl}
-          onReload={handleReload}
-          onOpenDevTools={handleOpenDevTools}
-        />
-      </div>
-      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
-      {!isReady && (
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
-          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
-        </div>
-      )}
+    <div className="pointer-events-none relative z-3 flex h-full w-full flex-row">
+      <MiniAppPane
+        app={app}
+        splitMode="open"
+        splitActive={splitOpen}
+        onSplit={splitOpen ? closeSplit : openSplit}
+        hostShortcutEnabled={!splitOpen || activePane === 'primary'}
+        onActivate={activatePrimaryPane}
+        className={splitOpen ? 'w-1/2' : 'w-full'}
+      />
+      {splitOpen &&
+        (splitApp ? (
+          <MiniAppPane
+            app={splitApp}
+            splitMode="close"
+            onSplit={closeSplit}
+            hostShortcutEnabled={activePane === 'split'}
+            onActivate={activateSplitPane}
+            className="w-1/2 border-border border-l"
+          />
+        ) : (
+          <SplitPanePicker occupiedAppId={app.appId} onClose={closeSplit} className="w-1/2 border-border border-l" />
+        ))}
     </div>
   )
 }

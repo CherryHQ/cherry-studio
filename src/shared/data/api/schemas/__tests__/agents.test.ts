@@ -42,13 +42,18 @@ describe('AgentEntitySchema', () => {
     expect(AgentConfigurationSchema.safeParse({ reasoning_effort: 'invalid' }).success).toBe(false)
   })
 
+  it('validates the persisted agent service tier', () => {
+    expect(AgentConfigurationSchema.parse({ service_tier: 'fast' }).service_tier).toBe('fast')
+    expect(AgentConfigurationSchema.safeParse({ service_tier: 'invalid' }).success).toBe(false)
+  })
+
   it('accepts first-level configuration patches and preserves explicit removals', () => {
     expect(UpdateAgentSchema.parse({ configuration: { reasoning_effort: 'high' } }).configuration).toEqual({
       reasoning_effort: 'high'
     })
 
-    const parsed = UpdateAgentSchema.parse({ configuration: { max_turns: undefined } })
-    expect(parsed.configuration).toHaveProperty('max_turns', undefined)
+    const parsed = UpdateAgentSchema.parse({ configuration: { reasoning_effort: undefined } })
+    expect(parsed.configuration).toHaveProperty('reasoning_effort', undefined)
   })
 
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {

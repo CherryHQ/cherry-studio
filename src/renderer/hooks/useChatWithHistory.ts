@@ -61,16 +61,16 @@ export function useChatWithHistory(
     resumeStream
   } = useChat<CherryUIMessage>({
     chat,
-    experimental_throttle: 0
+    // Unthrottled (0) melts the renderer on long fast streams: every chunk re-notifies React
+    // and re-renders/re-parses the growing message. 100ms keeps streaming visually smooth.
+    experimental_throttle: 100
   })
 
   const stop = useCallback(async () => {
-    if (enabled) {
-      void ipcApi.request('ai.stream.abort', { topicId }).catch((err) => {
-        logger.warn('streamAbort failed', { topicId, err })
-      })
-    }
-    await sdkStop()
+    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
+    const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
+    if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
+    if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
   }, [enabled, sdkStop, topicId])
 
   const refreshRef = useRef(refresh)

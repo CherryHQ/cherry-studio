@@ -1,4 +1,6 @@
+import enUS from '@renderer/i18n/locales/en-us.json'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,8 +8,12 @@ import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
-  i18nKeys: new Set<string>()
+  i18nKeys: new Set<string>(),
+  language: 'en',
+  translations: new Map<string, string>()
 }))
+
+const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -37,9 +43,9 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => mocks.translations.get(key) ?? key,
     i18n: {
-      language: 'en',
+      language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
     }
   })
@@ -68,6 +74,9 @@ describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
+    mocks.language = 'en'
+    mocks.translations.clear()
+    mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     vi.clearAllMocks()
   })
 
@@ -103,6 +112,29 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('common.detail')).toBeNull()
   })
 
+  it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: 'Not logged in \u00b7 Please run /login',
+          stack: null,
+          cause: null,
+          errors: ['Not logged in \u00b7 Please run /login']
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
   it('uses structured provider data when classifying an error', () => {
     render(
       <ErrorBlock
@@ -120,6 +152,77 @@ describe('ErrorBlock', () => {
 
     expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('shows only the safe Claude Code exit status and diagnostic reference', () => {
+    const diagnoseMessageError = vi.fn()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          diagnosticReference: 'diagnostic-ref',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
+    expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
+    mocks.actions = { diagnoseMessageError }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Opaque process failure',
+          stack: null,
+          claudeCodeExitCategory: 'future-category'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByText('error.claude_code_exit.start')).toBeNull()
+    await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
+  })
+
+  it('does not promise a diagnostic reference the payload never carried', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByText('error.claude_code_exit.code')).toBeNull()
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
   })
 
   it('ignores non-serializable provider data when classifying an error', () => {
@@ -178,7 +281,59 @@ describe('ErrorBlock', () => {
       })
     )
 
-    fireEvent.click(screen.getByText('error.diagnosis.go_to_settings'))
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('offers provider settings recovery when a retry error wraps a 401', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_RetryError',
+          message: 'Failed after 2 attempts. Last error:',
+          stack: null,
+          cause: null,
+          reason: 'maxRetriesExceeded',
+          lastError: {
+            name: 'AI_APICallError',
+            statusCode: 401,
+            responseBody: '{"error":{"message":"Invalid Authentication"}}'
+          },
+          errors: [
+            {
+              name: 'AI_APICallError',
+              statusCode: 401,
+              responseBody: '{"error":{"message":"Invalid Authentication"}}'
+            }
+          ]
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('offers the active provider settings for a generic HTTP 400', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Bad Request', stack: null, statusCode: 400 }}
+        message={message}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
@@ -209,5 +364,47 @@ describe('ErrorBlock', () => {
         language: 'en'
       })
     )
+  })
+
+  it('refreshes an AI summary when the app language changes', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
+    mocks.actions = { diagnoseMessageError }
+    const error = {
+      name: 'UnknownError',
+      message: 'unmapped provider failure',
+      stack: null,
+      i18nKey: 'missing_app_error'
+    }
+
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    expect(await screen.findByText('English summary')).toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={message} />)
+
+    expect(await screen.findByText('中文摘要')).toBeInTheDocument()
+    expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
+  })
+
+  it('offers network settings for a client-certificate authentication failure', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'StreamError',
+          message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED',
+          stack: 'Error: net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
+    await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
   })
 })

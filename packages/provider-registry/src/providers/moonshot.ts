@@ -3,9 +3,15 @@ import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
 
+const fixedSamplingParameterSupport = {
+  temperature: { supported: false },
+  topP: { supported: false }
+} as const
+
 export default openaiCompatible({
   id: 'moonshot',
   name: 'Moonshot AI',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.moonshot.cn',
   reasoningFormat: {
     type: 'openai-chat',
@@ -18,17 +24,32 @@ export default openaiCompatible({
   anthropic: 'https://api.moonshot.cn/anthropic',
   // Kimi's $web_search builtin (platform.kimi.com use-web-search), delivered by
   // the moonshot extension's echo tool + builtin_function body rewrite.
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['kimi'] }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: ['kimi-k2', 'kimi-k3', 'kimi-latest'],
+      vendors: ['kimi']
+    }
+  ],
   website: {
     apiKey: 'https://platform.moonshot.cn/console/api-keys',
     docs: 'https://platform.moonshot.cn/docs/',
     models: 'https://platform.moonshot.cn/docs/',
     official: 'https://www.moonshot.cn/'
   },
-  overrides: ['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
-    modelId,
-    reasoningContracts: {
-      'openai-chat-completions': { wire: effortWire }
-    }
-  }))
+  overrides: [
+    // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
+    // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
+    { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
+    // Moonshot's provider wire only carries `thinking.type`, so these SKUs need their own contract
+    // for a chosen tier to reach the request at all.
+    ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
+      modelId,
+      parameterSupport: fixedSamplingParameterSupport,
+      reasoningContracts: {
+        'openai-chat-completions': { wire: effortWire }
+      }
+    }))
+  ]
 })

@@ -8,7 +8,8 @@ import {
   MousePointerClick,
   NotepadText,
   Rocket,
-  ScanSearch
+  ScanSearch,
+  Sparkles
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
@@ -40,7 +41,8 @@ describe('getTabIcon', () => {
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
     ['/app/mini-app', LayoutGrid],
-    ['/app/launchpad', Rocket]
+    ['/app/launchpad', Rocket],
+    ['/app/release-notes', Sparkles]
   ])('returns the shared app icon for %s', (url, Icon) => {
     expect(getTabIcon(routeTab(url))).toBe(Icon)
   })

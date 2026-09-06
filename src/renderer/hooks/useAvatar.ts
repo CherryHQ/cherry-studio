@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import UserAvatar from '@renderer/assets/images/avatar.png'
+import UserAvatar from '@renderer/assets/images/avatar.svg'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntryId } from '@shared/data/types/file'
 import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'

@@ -8,10 +8,9 @@ export default defineCreator({
   modelsDevProviders: ['zhipuai', 'zai'],
   families: ['glm'],
   idPrefixes: ['glm', 'cogview', 'cogvideo', 'codegeex', 'chatglm'],
-  // BigModel serves the chat web_search tool for the GLM-4/5 chat lines
-  // (docs.bigmodel.cn/cn/guide/tools/web-search).
-  serverTools: { 'web-search': ['glm-4', 'glm-5'] },
   reasoningFamilies: [
+    // GLM-5.3 models always reason; the API exposes only low/high/max effort.
+    { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
     // GLM-5 and GLM-4.5/4.6/4.7. Unanchored to handle provider-prefixed ids.
     // On/off only — bigmodel's API has no thinking budget parameter; depth
     // control is GLM-5.2's reasoning_effort (declared upstream per SKU).
@@ -61,6 +60,24 @@ export default defineCreator({
     { id: 'glm-z1-air', name: 'GLM-Z1-Air', capabilities: ['reasoning'], contextWindow: 131072 },
     { id: 'glm-z1-airx', name: 'GLM-Z1-AirX', capabilities: ['reasoning'], contextWindow: 131072 },
     { id: 'glm-z1-flash', name: 'GLM-Z1-Flash', capabilities: ['reasoning'], contextWindow: 131072 },
+    {
+      id: 'glm-5-3-flash',
+      name: 'GLM-5.3-Flash',
+      family: 'glm',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 131072,
+      openWeights: true
+    },
     { id: 'embedding-3', name: 'Embedding-3', outputModalities: ['vector'], contextWindow: 8192 },
     {
       id: 'cogview-4',

@@ -1,3 +1,5 @@
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -44,6 +46,9 @@ const translations: Record<string, string> = {
   'message.tools.activity.taskList': 'task list',
   'message.tools.activity.viewing': 'Viewing',
   'message.tools.activity.webPage': 'web page',
+  'message.tools.sessionCreate.created': 'Started a new session',
+  'message.tools.sessionCreate.creating': 'Starting a new session',
+  'message.tools.sessionCreate.untitled': 'Untitled session',
   'message.tools.labels.taskCreate': 'Create task',
   'message.tools.labels.taskGet': 'View task',
   'message.tools.labels.taskList': 'List tasks',
@@ -138,6 +143,13 @@ describe('getReadableToolActivity', () => {
     })
   })
 
+  it('describes provider-executed web search as a web lookup', () => {
+    expect(getReadableToolActivity(PROVIDER_WEB_SEARCH_TOOL_NAME, {}, false, t)).toEqual({
+      label: 'message.tools.activity.search',
+      description: 'related content'
+    })
+  })
+
   it('hides internal skill names and tool search queries', () => {
     expect(getReadableToolActivity(AgentToolsType.Skill, { skill: 'cherry-code-review' }, true, t)).toEqual({
       label: 'Handling',
@@ -210,6 +222,17 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.Workflow, {}, false, t)).toEqual({
       label: 'Started workflow',
       description: 'workflow'
+    })
+  })
+
+  it('describes session creation as a named background branch', () => {
+    expect(getReadableToolActivity(SESSION_CREATE_TOOL_NAME, { title: 'Research pricing' }, false, t)).toEqual({
+      label: 'Started a new session',
+      description: 'Research pricing'
+    })
+    expect(getReadableToolActivity(`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`, {}, true, t)).toEqual({
+      label: 'Starting a new session',
+      description: 'Untitled session'
     })
   })
 })

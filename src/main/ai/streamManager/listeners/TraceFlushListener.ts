@@ -7,6 +7,7 @@ const logger = loggerService.withContext('TraceFlushListener')
 
 export class TraceFlushListener implements StreamListener {
   readonly id: string
+  readonly terminalPhase = 'cleanup' as const
 
   constructor(private readonly topicId: string) {
     this.id = `persistence:trace:${topicId}`

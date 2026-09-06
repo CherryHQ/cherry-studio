@@ -67,7 +67,6 @@ import {
   SettingDescription,
   SettingDivider,
   SettingGroup,
-  SettingsContentBody,
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
@@ -87,11 +86,12 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
@@ -99,11 +99,18 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
+  CalendarCheck2,
   CalendarClock,
+  CalendarFold,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   CircleSlash,
+  CircleStop,
+  CircleX,
+  Clock3,
   Folder,
+  Loader2,
   MoreHorizontal,
   PencilLine,
   Play,
@@ -169,6 +176,7 @@ type TaskDraftSnapshot = {
   schedule: ScheduleFormState
   channelIds: string[]
   workspaceId: string | null
+  reuseSession: boolean
 }
 type TaskUpdateResult = {
   succeeded: boolean
@@ -296,7 +304,8 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
       timeoutMinutes: task.timeoutMinutes > 0 ? task.timeoutMinutes.toString() : ''
     },
     channelIds: task.channelIds ?? [],
-    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
+    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null,
+    reuseSession: task.reuseSession
   }
 }
 
@@ -347,6 +356,113 @@ function getTaskStatusLabel(status: string, t: TFunction) {
     completed: t('agent.tasks.status.completed')
   }
   return labels[status] ?? status
+}
+
+function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['status']) {
+  switch (status) {
+    case 'active':
+      return {
+        Icon: CalendarClock,
+        wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
+        iconClassName: 'text-info-subtle-foreground'
+      }
+    case 'paused':
+      return {
+        Icon: CalendarFold,
+        wrapperClassName: 'bg-warning-subtle text-warning-subtle-foreground',
+        iconClassName: 'text-warning-subtle-foreground'
+      }
+    case 'completed':
+      return {
+        Icon: CalendarCheck2,
+        wrapperClassName: 'bg-success-subtle text-success-subtle-foreground',
+        iconClassName: 'text-success-subtle-foreground'
+      }
+  }
+}
+
+const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({ status }) => {
+  const { Icon, wrapperClassName, iconClassName } = getTaskScheduleStatusIconPresentation(status)
+
+  return (
+    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
+      <Icon size={20} aria-hidden className={iconClassName} />
+    </div>
+  )
+}
+
+function formatTaskCardTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
+  const { t } = useTranslation()
+
+  if (summary.status === 'queued') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <Clock3 aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.queued')}
+      </span>
+    )
+  }
+
+  if (summary.status === 'running') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
+        {t('agent.tasks.runSummary.running')}
+      </span>
+    )
+  }
+
+  const time = formatTaskCardTime(summary.finishedAt)
+  if (summary.status === 'completed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleCheck aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.completed', { time })}
+      </span>
+    )
+  }
+  if (summary.status === 'failed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleX aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.failed', { time })}
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-foreground">
+      <CircleStop aria-hidden className="size-3 text-foreground" />
+      {t('agent.tasks.runSummary.cancelled', { time })}
+    </span>
+  )
+}
+
+const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
+  const { t } = useTranslation()
+  const nextRun = task.status === 'active' ? task.nextRun : null
+
+  if (!task.runSummary && !nextRun) return null
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 whitespace-nowrap text-xs">
+      {task.runSummary && <TaskRunSummaryLine summary={task.runSummary} />}
+      {nextRun && (
+        <span className="text-muted-foreground">
+          {t('agent.tasks.nextRun')} · {formatTaskCardTime(nextRun)}
+        </span>
+      )}
+    </div>
+  )
 }
 
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
@@ -603,6 +719,33 @@ const TaskChannelSelector: FC<{
   )
 }
 
+const TaskSessionReuseField: FC<{
+  value: boolean
+  onChange: (value: boolean) => void
+  disabled?: boolean
+}> = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation()
+
+  return (
+    <Field>
+      <RowFlex className="items-center justify-between gap-3">
+        <div className="min-w-0">
+          <FieldLabel htmlFor="task-form-reuse-session">{t('agent.tasks.reuseSession.label')}</FieldLabel>
+          <ItemDescription>{t('agent.tasks.reuseSession.description')}</ItemDescription>
+        </div>
+        <Switch
+          id="task-form-reuse-session"
+          className="shrink-0"
+          checked={value}
+          disabled={disabled}
+          onCheckedChange={onChange}
+        />
+      </RowFlex>
+      {value && <Alert type="warning" showIcon description={t('agent.tasks.reuseSession.warning')} />}
+    </Field>
+  )
+}
+
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
@@ -642,8 +785,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         header: t('agent.tasks.logs.duration'),
         meta: { width: 80 },
         cell: ({ getValue, row }) => {
-          const value = getValue() as number
-          if (row.original.status === 'running') return '-'
+          const value = getValue() as number | null
+          if (value == null || row.original.status === 'running') return '-'
           if (value < 1000) return `${value}ms`
           if (value < 60_000) return `${(value / 1000).toFixed(1)}s`
           return `${(value / 60_000).toFixed(1)}m`
@@ -751,6 +894,7 @@ const TaskDetail: FC<{
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
+  const { openConversation } = useConversationNavigation('agents')
   const isCompleted = task.status === 'completed'
   const agentName = agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId
   const taskChannels = useMemo(
@@ -802,6 +946,28 @@ const TaskDetail: FC<{
           : t('agent.tasks.timeout.placeholder')
     },
     { label: t('agent.session.display.workdir'), value: workspaceLabel },
+    {
+      label: t('agent.tasks.reuseSession.label'),
+      // A raw session UUID tells the user nothing — show the state, and make the
+      // bound case a real affordance (the same jump the run log already offers).
+      // The bound session only exists once a fire has run; until then the switch
+      // is on but there is nothing to point at yet.
+      value: !task.reuseSession ? (
+        t('common.disabled')
+      ) : task.reuseSessionId ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0"
+          onClick={() => openConversation(task.reuseSessionId as string)}>
+          {t('agent.tasks.reuseSession.bound')}
+          <ArrowRight size={13} />
+        </Button>
+      ) : (
+        t('agent.tasks.reuseSession.pending')
+      )
+    },
     {
       label: t('agent.tasks.channels.label'),
       value: selectedChannels.length > 0 ? selectedChannels.map((channel) => channel.name).join(', ') : t('common.none')
@@ -975,6 +1141,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [schedule, setSchedule] = useState<ScheduleFormState>(DEFAULT_SCHEDULE)
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const [reuseSession, setReuseSession] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
@@ -992,6 +1159,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setSchedule(draft?.schedule ?? DEFAULT_SCHEDULE)
       setChannelIds(draft?.channelIds ?? [])
       setWorkspaceId(draft?.workspaceId ?? null)
+      setReuseSession(draft?.reuseSession ?? false)
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -1045,6 +1213,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           updates.timeoutMinutes = timeoutMinutes
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
+        if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
@@ -1059,6 +1228,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           trigger,
           workspace,
           timeoutMinutes,
+          reuseSession,
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
@@ -1066,7 +1236,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, trigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1176,6 +1346,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               invalid={submitted && !trigger}
               onChange={setSchedule}
             />
+
+            <TaskSessionReuseField value={reuseSession} disabled={saving} onChange={setReuseSession} />
 
             <TaskChannelSelector
               channels={availableChannels}
@@ -1340,9 +1512,9 @@ const TasksSettings: FC = () => {
     async (selectedTaskId: string) => {
       const task = getTaskForAction(selectedTaskId)
       if (!task) return
-      const deleted = await deleteTask(task.agentId, selectedTaskId)
-      if (!deleted) return
-      await navigate({ to: '/settings/scheduled-tasks' })
+      await deleteTask(task.agentId, selectedTaskId, {
+        onDeleted: () => navigate({ to: '/settings/scheduled-tasks' })
+      })
     },
     [deleteTask, getTaskForAction, navigate]
   )
@@ -1416,185 +1588,192 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <SettingTitle className="shrink-0">
-            <span>{t('settings.scheduledTasks.title')}</span>
-          </SettingTitle>
-          <CollapsibleSearchBar
-            onSearch={setSearchQuery}
-            value={searchQuery}
-            placeholder={t('settings.scheduledTasks.searchPlaceholder')}
-            tooltip={t('settings.scheduledTasks.search')}
-            clearLabel={t('common.clear')}
-            maxWidth={220}
-            collapsedSize={30}
-            style={{ borderRadius: 8 }}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {tasks.length > 0 && (
-            <>
-              <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger
-                  className="h-8 min-w-32 bg-transparent"
-                  aria-label={t('settings.scheduledTasks.filterAgent')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
-                    {agents.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger
-                  className="h-8 min-w-32 bg-transparent"
-                  aria-label={t('settings.scheduledTasks.filterStatus')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
-                    <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
-                    <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
-                    <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" size="sm" className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
-                {t('settings.scheduledTasks.newTask')}
-                <ChevronDown size={12} className="text-primary-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
-                  <PencilLine />
-                  {t('settings.scheduledTasks.manualCreate')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
-                  <Bot />
-                  {t('settings.scheduledTasks.agentCreate')}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-4">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SettingTitle className="shrink-0">
+              <span>{t('settings.scheduledTasks.title')}</span>
+            </SettingTitle>
+            <CollapsibleSearchBar
+              onSearch={setSearchQuery}
+              value={searchQuery}
+              placeholder={t('settings.scheduledTasks.searchPlaceholder')}
+              tooltip={t('settings.scheduledTasks.search')}
+              clearLabel={t('common.clear')}
+              maxWidth={220}
+              collapsedSize={30}
+              style={{ borderRadius: 8 }}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {tasks.length > 0 && (
+              <>
+                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterAgent')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterStatus')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
+                      <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
+                      <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
+                      <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" className="shrink-0">
+                  <Plus size={12} className="lucide-custom" />
+                  {t('settings.scheduledTasks.newTask')}
+                  <ChevronDown size={12} className="text-primary-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                    <PencilLine />
+                    {t('settings.scheduledTasks.manualCreate')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                    <Bot />
+                    {t('settings.scheduledTasks.agentCreate')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
-        {tasks.length === 0 ? (
-          <EmptyState
-            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
-            icon={agents.length === 0 ? undefined : CalendarClock}
-            title={
-              agents.length === 0
-                ? t('settings.scheduledTasks.noAgentsTitle')
-                : t('settings.scheduledTasks.noTasksTitle')
-            }
-            description={
-              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-            }
-            actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
-            className="py-20"
-            onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
-          />
-        ) : (
-          <>
-            {filteredTasks.length === 0 && hasActiveFilters ? (
-              <EmptyState
-                preset="no-result"
-                title={t('settings.scheduledTasks.noMatchesTitle')}
-                description={t('settings.scheduledTasks.noMatches')}
-                actionLabel={t('settings.scheduledTasks.clearFilters')}
-                className="py-20"
-                onAction={clearFilters}
-              />
-            ) : (
-              <ItemGroup className="gap-3">
-                {filteredTasks.map((task) => (
-                  <Item
-                    key={task.id}
-                    asChild
-                    variant="outline"
-                    className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
-                    <Link
-                      to="/settings/scheduled-tasks/$taskId"
-                      params={{ taskId: task.id }}
-                      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                        <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
-                      </div>
-                      <ItemContent className="min-w-0">
-                        <ItemTitle className="truncate">{task.name}</ItemTitle>
-                        <ItemDescription className="truncate text-xs leading-4">
-                          {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
-                          {getTriggerSummary(task.trigger, t)}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions className="shrink-0">
-                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                        <ChevronRight size={16} className="text-foreground-tertiary" />
-                      </ItemActions>
-                    </Link>
-                  </Item>
-                ))}
-              </ItemGroup>
-            )}
-            {pageCount > 1 && (
-              <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      aria-disabled={!hasPrev}
-                      aria-label={t('common.previous')}
-                      tabIndex={hasPrev ? undefined : -1}
-                      className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        prevPage()
-                      }}>
-                      {t('common.previous')}
-                    </PaginationPrevious>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <SettingDescription className="mt-0 px-2 tabular-nums">
-                      {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
-                    </SettingDescription>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      aria-disabled={!hasNext}
-                      aria-label={t('common.next')}
-                      tabIndex={hasNext ? undefined : -1}
-                      className={hasNext ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        nextPage()
-                      }}>
-                      {t('common.next')}
-                    </PaginationNext>
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            )}
-          </>
-        )}
-      </div>
+      <Scrollbar className="min-h-0 flex-1 px-6 pt-4 pb-3">
+        <div className="mx-auto w-full max-w-3xl">
+          {tasks.length === 0 ? (
+            <EmptyState
+              preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+              icon={agents.length === 0 ? undefined : CalendarClock}
+              title={
+                agents.length === 0
+                  ? t('settings.scheduledTasks.noAgentsTitle')
+                  : t('settings.scheduledTasks.noTasksTitle')
+              }
+              description={
+                agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+              }
+              actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
+              className="py-20"
+              onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
+            />
+          ) : (
+            <>
+              {filteredTasks.length === 0 && hasActiveFilters ? (
+                <EmptyState
+                  preset="no-result"
+                  title={t('settings.scheduledTasks.noMatchesTitle')}
+                  description={t('settings.scheduledTasks.noMatches')}
+                  actionLabel={t('settings.scheduledTasks.clearFilters')}
+                  className="py-20"
+                  onAction={clearFilters}
+                />
+              ) : (
+                <ItemGroup className="gap-3">
+                  {filteredTasks.map((task) => (
+                    <Item
+                      key={task.id}
+                      asChild
+                      variant="outline"
+                      className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
+                      <Link
+                        to="/settings/scheduled-tasks/$taskId"
+                        params={{ taskId: task.id }}
+                        style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
+                        <TaskScheduleStatusIcon status={task.status} />
+                        <ItemContent className="min-w-0">
+                          <ItemTitle className="min-w-0 max-w-full">
+                            <span className="truncate">{task.name}</span>
+                            <Badge variant="secondary" className="shrink-0">
+                              {getTaskStatusLabel(task.status, t)}
+                            </Badge>
+                          </ItemTitle>
+                          <ItemDescription className="truncate text-xs leading-4">
+                            {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                            {getTriggerSummary(task.trigger, t)}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions className="ml-auto shrink-0">
+                          <TaskCardRunStatus task={task} />
+                          <ChevronRight size={16} className="text-foreground-tertiary" />
+                        </ItemActions>
+                      </Link>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              )}
+              {pageCount > 1 && (
+                <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        aria-disabled={!hasPrev}
+                        aria-label={t('common.previous')}
+                        tabIndex={hasPrev ? undefined : -1}
+                        className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          prevPage()
+                        }}>
+                        {t('common.previous')}
+                      </PaginationPrevious>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <SettingDescription className="mt-0 px-2 tabular-nums">
+                        {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
+                      </SettingDescription>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        aria-disabled={!hasNext}
+                        aria-label={t('common.next')}
+                        tabIndex={hasNext ? undefined : -1}
+                        className={hasNext ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          nextPage()
+                        }}>
+                        {t('common.next')}
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
+          )}
+        </div>
+      </Scrollbar>
 
       <TaskFormDialog
         open={createOpen}
@@ -1602,7 +1781,7 @@ const TasksSettings: FC = () => {
         onOpenChange={setCreateOpen}
         onCreate={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
       />
-    </SettingsContentBody>
+    </div>
   )
 }
 

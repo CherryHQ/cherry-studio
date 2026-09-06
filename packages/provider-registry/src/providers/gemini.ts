@@ -1,8 +1,12 @@
 import { defineProvider } from './types'
 
+const webToolModels = ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
+const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
+
 export default defineProvider({
   id: 'gemini',
   name: 'Gemini',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'google-generate-content',
   endpointConfigs: {
     'google-generate-content': {
@@ -11,8 +15,13 @@ export default defineProvider({
     }
   },
   serverTools: [
-    { id: 'web-search', modelScope: 'model-dependent' },
-    { id: 'url-context', modelScope: 'model-dependent' }
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webToolModels,
+      imageModelIds: webSearchImageModels
+    },
+    { id: 'url-context', modelScope: 'model-dependent', modelIdPrefixes: webToolModels }
   ],
   metadata: {
     website: {

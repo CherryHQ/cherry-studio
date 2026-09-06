@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { needsLikeFallback } from '@main/utils/trigramFtsQuery'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
-import { needsLikeFallback } from '../ftsQuery'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
 import { createKnowledgeIndexSchema } from '../schema'
@@ -187,7 +187,7 @@ describe('KnowledgeIndexStore.search', () => {
     const matches = store.search({ queryText: '公司的报销流程是什么', mode: 'bm25', topK: 10 })
 
     // OR recall admits the filler-only units (an accepted tradeoff — see
-    // ftsQuery.ts), but bm25 must put the real answer first.
+    // trigramFtsQuery.ts), but bm25 must put the real answer first.
     expect(matches.length).toBeGreaterThan(1)
     expect(matches[0].materialId).toBe('m1')
   })

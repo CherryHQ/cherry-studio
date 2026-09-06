@@ -56,7 +56,8 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
-    stats: statsFromMetadata(message.metadata)
+    stats: statsFromMetadata(message.metadata),
+    delivery: metadata.delivery
   }
 }
 
@@ -165,7 +166,11 @@ export function isMessageListItemAwaitingApproval(message: MessageListItem, part
   return parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
 }
 
-export function createMessageExportView(message: MessageListItem, parts: CherryMessagePart[]): MessageExportView {
+export function createMessageExportView(
+  message: MessageListItem,
+  parts: CherryMessagePart[],
+  priorCitationParts?: readonly CherryMessagePart[]
+): MessageExportView {
   const model = getMessageListItemModel(message)
   return {
     id: message.id,
@@ -181,6 +186,7 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,
-    parts
+    parts,
+    ...(priorCitationParts?.length ? { priorCitationParts } : {})
   }
 }

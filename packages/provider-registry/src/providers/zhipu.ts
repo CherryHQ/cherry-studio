@@ -25,9 +25,19 @@ const glm52Wire: ReasoningWireProfile = {
   }
 }
 
+const glm53Wire: ReasoningWireProfile = {
+  effort: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'reasoningEffort', value: { source: 'effort' } }
+    ]
+  }
+}
+
 export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
   reasoningFormat: {
     type: 'openai-chat',
@@ -37,7 +47,14 @@ export default openaiCompatible({
   // BigModel chat web_search tool (docs.bigmodel.cn/cn/guide/tools/web-search),
   // delivered by the zhipu transformRequestBody. `vendors` keeps other hosted
   // families (if any appear) from routing to a tool BigModel serves for GLM.
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['zhipu'] }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: ['glm-4', 'glm-5'],
+      vendors: ['zhipu']
+    }
+  ],
   website: {
     apiKey: 'https://open.bigmodel.cn/apikey/platform',
     docs: 'https://docs.bigmodel.cn/',
@@ -52,6 +69,15 @@ export default openaiCompatible({
         'openai-chat-completions': {
           support: glm52Support,
           wire: glm52Wire
+        }
+      }
+    })),
+    ...['glm-5.3', 'glm-5.3-flash'].map((modelId) => ({
+      modelId,
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: { defaultEffort: 'max' as const },
+          wire: glm53Wire
         }
       }
     })),

@@ -1,12 +1,15 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
   DoorOpen,
   FileEdit,
   FileSearch,
   FileText,
+  FileType,
   FolderSearch,
   Globe,
   ListTodo,
@@ -25,10 +28,11 @@ import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { AgentToolsType } from './shared/agentToolTypes'
+import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
+const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
 export interface ToolActivity {
   label: string
   description?: string
@@ -73,6 +77,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
   [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
   [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
   [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
   [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
   [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
@@ -83,7 +88,8 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
-  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' },
+  [TO_MARKDOWN_RUNTIME_TOOL_NAME]: { icon: <FileType size={14} />, labelKey: 'message.tools.labels.toMarkdown' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
@@ -390,6 +396,12 @@ export function getReadableToolActivity(
         label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
         description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
       }
+    case SESSION_CREATE_TOOL_NAME:
+    case SESSION_CREATE_RUNTIME_TOOL_NAME:
+      return {
+        label: t(active ? 'message.tools.sessionCreate.creating' : 'message.tools.sessionCreate.created'),
+        description: getStringArg(args, 'title') ?? t('message.tools.sessionCreate.untitled')
+      }
     case AgentToolsType.TaskCreate:
       return {
         label: t('message.tools.labels.taskCreate'),
@@ -445,6 +457,7 @@ export function getReadableToolActivity(
         description: getReadablePathTarget(getStringArg(args, 'file_path') ?? getStringArg(args, 'notebook_path'), t)
       }
     case AgentToolsType.WebSearch:
+    case PROVIDER_WEB_SEARCH_TOOL_NAME:
       return { label: labels.search, description: getReadableSearchTarget(getStringArg(args, 'query'), t) }
     case AgentToolsType.WebFetch:
       return {

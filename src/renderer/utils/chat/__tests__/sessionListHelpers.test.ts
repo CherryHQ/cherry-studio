@@ -2,6 +2,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'
 
+import { withSoleGroupLabelHidden } from '../resourceListBase'
 import {
   buildSessionDropAnchor,
   buildSessionWorkdirGroupDropAnchor,
@@ -14,6 +15,7 @@ import {
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_PINNED_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
@@ -60,6 +62,7 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
@@ -139,13 +142,70 @@ describe('SessionList helpers', () => {
       id: 'session:pinned',
       label: 'Pinned'
     })
-    expect(groupSession(createSession({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) }))).toEqual({
+    expect(groupSession(createSession({ id: 'today', lastActivityAt: localIso(2026, 5, 15, 9) }))).toEqual({
       id: 'session:time:today',
       label: 'Today'
     })
-    expect(groupSession(createSession({ id: 'earlier', updatedAt: localIso(2026, 5, 8, 9) }))).toEqual({
+    expect(groupSession(createSession({ id: 'earlier', lastActivityAt: localIso(2026, 5, 8, 9) }))).toEqual({
       id: 'session:time:earlier',
       label: 'Earlier'
+    })
+  })
+
+  it('drops the time bucket label when every session falls into the same bucket', () => {
+    const now = new Date(2026, 4, 15, 12)
+    const groupSession = createSessionDisplayGroupResolver({
+      labels: SESSION_GROUP_LABELS,
+      mode: 'time',
+      now
+    })
+    const earlierOnly = [
+      createSession({ id: 'earlier-a', lastActivityAt: localIso(2026, 5, 8, 9) }),
+      createSession({ id: 'earlier-b', lastActivityAt: localIso(2026, 5, 7, 9) })
+    ]
+
+    const soleBucket = withSoleGroupLabelHidden(groupSession, earlierOnly)
+    expect(soleBucket(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: '' })
+
+    const mixed = [...earlierOnly, createSession({ id: 'today', lastActivityAt: localIso(2026, 5, 15, 9) })]
+    const twoBuckets = withSoleGroupLabelHidden(groupSession, mixed)
+    expect(twoBuckets(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: 'Earlier' })
+  })
+
+  it('keeps the time bucket label once a pinned group shares the list, and never blanks pinned itself', () => {
+    const now = new Date(2026, 4, 15, 12)
+    const groupSession = createSessionDisplayGroupResolver({
+      labels: SESSION_GROUP_LABELS,
+      mode: 'time',
+      now
+    })
+    const pinned = createSession({ id: 'pinned', pinned: true, lastActivityAt: localIso(2026, 5, 8, 9) })
+    const earlier = createSession({ id: 'earlier', lastActivityAt: localIso(2026, 5, 7, 9) })
+
+    // "Earlier" now marks where the pinned block ends, so it keeps its label.
+    const withPinned = withSoleGroupLabelHidden(groupSession, [pinned, earlier], {
+      ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+    })
+    expect(withPinned(earlier)).toEqual({ id: 'session:time:earlier', label: 'Earlier' })
+    expect(withPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
+
+    // A list that is nothing but pinned rows still says so — "Pinned" is a state, not a time bucket.
+    const allPinned = withSoleGroupLabelHidden(groupSession, [pinned], {
+      ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+    })
+    expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
+  })
+
+  it('keeps pinned sessions inside their agent group', () => {
+    const groupSession = createSessionDisplayGroupResolver({
+      agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
+      labels: SESSION_GROUP_LABELS,
+      mode: 'agent'
+    })
+
+    expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual({
+      id: 'session:agent:agent-1',
+      label: 'Alpha agent'
     })
   })
 
@@ -249,7 +309,7 @@ describe('SessionList helpers', () => {
     )
   })
 
-  it('uses workspace rows for workdir labels and ranks independent of session order', () => {
+  it('uses all workspace rows for workdir labels and ranks independent of session order', () => {
     const sessions = [
       createSession({
         id: 'session-a',
@@ -270,6 +330,7 @@ describe('SessionList helpers', () => {
 
     expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
       new Map([
+        ['session:workspace:ws-empty', 'Empty Workspace'],
         ['session:workspace:ws-b', 'DB Beta'],
         ['session:workspace:ws-a', 'DB Alpha']
       ])
@@ -336,9 +397,9 @@ describe('SessionList helpers', () => {
 
   it('sorts display groups by mode-specific ranks', () => {
     const sessions = [
-      createSession({ id: 'older', orderKey: 'b', updatedAt: localIso(2026, 5, 14, 9) }),
-      createSession({ id: 'pinned', pinned: true, orderKey: 'z', updatedAt: localIso(2026, 5, 10, 9) }),
-      createSession({ id: 'newer', orderKey: 'a', updatedAt: localIso(2026, 5, 15, 9) })
+      createSession({ id: 'older', orderKey: 'b', lastActivityAt: localIso(2026, 5, 14, 9) }),
+      createSession({ id: 'pinned', pinned: true, orderKey: 'z', lastActivityAt: localIso(2026, 5, 10, 9) }),
+      createSession({ id: 'newer', orderKey: 'a', lastActivityAt: localIso(2026, 5, 15, 9) })
     ]
 
     expect(
@@ -361,6 +422,25 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
+  })
+
+  it('sorts pinned sessions first within each agent group', () => {
+    const sessions = [
+      createSession({ id: 'regular-b', agentId: 'agent-b', orderKey: 'b' }),
+      createSession({ id: 'regular-a', agentId: 'agent-a', orderKey: 'a' }),
+      createSession({ id: 'pinned-b', agentId: 'agent-b', orderKey: 'd', pinned: true }),
+      createSession({ id: 'pinned-a', agentId: 'agent-a', orderKey: 'c', pinned: true })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([
+          ['agent-a', 0],
+          ['agent-b', 1]
+        ]),
+        mode: 'agent'
+      }).map((session) => session.id)
+    ).toEqual(['pinned-a', 'regular-a', 'pinned-b', 'regular-b'])
   })
 
   it('keeps system workspace sessions at the bottom only in workdir mode', () => {

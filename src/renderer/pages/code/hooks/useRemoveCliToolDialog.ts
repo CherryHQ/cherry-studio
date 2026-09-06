@@ -26,6 +26,8 @@ export function useRemoveCliToolDialog({
       onOpenChange: (open) => !open && setRemoveTarget(null),
       title: t('settings.dependencies.uninstallConfirmTitle'),
       description: t('settings.dependencies.uninstallConfirmMessage', { name: toolName }),
+      cancelText: t('common.cancel'),
+      confirmText: t('common.confirm'),
       destructive: true,
       confirmLoading: isRemoving,
       onConfirm: async () => {

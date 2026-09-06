@@ -3,6 +3,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { SkillResult } from '@shared/types/skill'
+import { shell } from 'electron'
 
 const logger = loggerService.withContext('skillHandlers')
 
@@ -28,9 +29,19 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     toSkillResult(() => skillService.installFromZip({ zipFilePath }), 'Failed to install skill from ZIP'),
   'skill.install_from_directory': ({ directoryPath }) =>
     toSkillResult(() => skillService.installFromDirectory({ directoryPath }), 'Failed to install skill from directory'),
+  'skill.list_catalog': (query) => skillService.listCatalog(query),
   'skill.list_local': ({ workdir }) =>
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
   'skill.reconcile': () => skillService.reconcileSkills(),
   'skill.discover_system': () => skillService.discoverSystem(),
-  'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath })
+  'skill.import_system': ({ directoryPath }) => skillService.importSystem({ directoryPath }),
+  'skill.folder.open': async ({ skillId }, { senderId }) => {
+    if (!senderId) throw new Error('Skill folders can only be opened from a managed window')
+
+    const skill = await skillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+
+    const errorMessage = await shell.openPath(skillService.getInstalledSkillDirectory(skill))
+    if (errorMessage) throw new Error(`Failed to open skill folder: ${errorMessage}`)
+  }
 }

@@ -1,5 +1,5 @@
-import { Divider, type MarkdownSource } from '@cherrystudio/ui'
-import { Languages } from 'lucide-react'
+import { Divider, type MarkdownSource, NormalTooltip } from '@cherrystudio/ui'
+import { Languages, Trash } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,9 +9,10 @@ import ChatMarkdown from '../markdown/ChatMarkdown'
 
 interface Props {
   block: MarkdownSource & { content: string }
+  onDelete?: () => void
 }
 
-const MessageTranslate: FC<Props> = ({ block }) => {
+const MessageTranslate: FC<Props> = ({ block, onDelete }) => {
   const { t } = useTranslation()
 
   // Render Markdown unconditionally so it mounts at content="" the moment
@@ -25,10 +26,21 @@ const MessageTranslate: FC<Props> = ({ block }) => {
 
   return (
     <Fragment>
-      <div className="relative mb-2.5">
-        <Divider />
-        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-background px-2">
-          <Languages size={14} className="text-muted-foreground" />
+      <div className="my-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <Divider className="my-0" aria-hidden />
+        <Languages size={14} className="text-muted-foreground" />
+        <div className="flex items-center">
+          <Divider className="my-0 flex-1" aria-hidden />
+          {onDelete && (
+            <NormalTooltip content={t('translate.close')} side="top">
+              <button
+                type="button"
+                onClick={onDelete}
+                className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground">
+                <Trash size={14} />
+              </button>
+            </NormalTooltip>
+          )}
         </div>
       </div>
       {isAwaitingFirstChunk && (

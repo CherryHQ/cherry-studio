@@ -23,6 +23,10 @@ interface Props {
 const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   const { t } = useTranslation()
 
+  // A fold that changed nothing settles as `skipped`: clear the spinner, but draw no
+  // marker — an untouched history must not read as a completed compaction (#17837).
+  if (data?.status === 'skipped') return null
+
   /** Tokens the fold reclaimed, when the path could measure both ends. */
   const saved =
     data?.preTokens !== undefined && data?.postTokens !== undefined && data.preTokens > data.postTokens

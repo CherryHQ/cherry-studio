@@ -21,6 +21,15 @@ describe('parseDataUrl', () => {
     })
   })
 
+  it('requires base64 to be a standalone data URL token', () => {
+    const result = parseDataUrl('data:image/png;base64foo,QUJD')
+    expect(result).toEqual({
+      mediaType: 'image/png',
+      isBase64: false,
+      data: 'QUJD'
+    })
+  })
+
   it('parses a plain text data URL (non-base64)', () => {
     const result = parseDataUrl('data:text/plain,Hello%20World')
     expect(result).toEqual({
@@ -54,21 +63,17 @@ describe('parseDataUrl', () => {
     expect(result).toBeNull()
   })
 
-  it('handles large base64 data without performance issues', () => {
+  it('parses large base64 data', () => {
     // Simulate a 4K image base64 string (about 1MB)
     const largeData = 'A'.repeat(1024 * 1024)
     const dataUrl = `data:image/png;base64,${largeData}`
 
-    const start = performance.now()
     const result = parseDataUrl(dataUrl)
-    const duration = performance.now() - start
 
     expect(result).not.toBeNull()
     expect(result?.mediaType).toBe('image/png')
     expect(result?.isBase64).toBe(true)
     expect(result?.data).toBe(largeData)
-    // Should complete in under 10ms (string operations are fast)
-    expect(duration).toBeLessThan(10)
   })
 
   it('parses SVG data URL', () => {
@@ -119,6 +124,7 @@ describe('isBase64ImageDataUrl', () => {
 
   it('returns false for non-base64 image data URLs', () => {
     expect(isBase64ImageDataUrl('data:image/svg+xml,<svg></svg>')).toBe(false)
+    expect(isBase64ImageDataUrl('data:image/png;base64foo,QUJD')).toBe(false)
   })
 
   it('returns false for non-image data URLs', () => {

@@ -1,4 +1,5 @@
 import type * as FsUtils from '@main/utils/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loadDataMock, readFileMock } = vi.hoisted(() => ({
@@ -43,6 +44,7 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
   read: readFileMock
 }))
 
+vi.mock('../files/AnydocReader', () => ({ AnydocReader: class MockAnydocReader {} }))
 vi.mock('../files/DraftsExportReader', () => ({ DraftsExportReader: class MockDraftsExportReader {} }))
 vi.mock('../files/EpubReader', () => ({ EpubReader: class MockEpubReader {} }))
 
@@ -63,7 +65,7 @@ describe('knowledge reader metadata', () => {
       type: 'file',
       data: {
         source: '/tmp/original.txt',
-        relativePath: 'original.txt'
+        relativePath: 'original.txt' as PosixRelativeFilePath
       },
       status: 'processing',
       error: null,
@@ -88,7 +90,11 @@ describe('knowledge reader metadata', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'url',
-        data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example.md' },
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          relativePath: 'example.md' as PosixRelativeFilePath
+        },
         status: 'processing',
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',
@@ -133,7 +139,11 @@ describe('knowledge reader metadata', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'note',
-        data: { source: 'My note', content: '# Note title\n\nbody', relativePath: 'My note.md' },
+        data: {
+          source: 'My note',
+          content: '# Note title\n\nbody',
+          relativePath: 'My note.md' as PosixRelativeFilePath
+        },
         status: 'processing',
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',

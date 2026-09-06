@@ -4,39 +4,41 @@ How an externally-triggered agent run (inbound IM → auto agent run → tool ca
 and the gaps to close. Answers review item **D1**. The threat model: a remote party can reach a
 bound channel (Slack / Discord / Telegram / Feishu / WeChat / QQ), but only an allow-listed chat,
 channel, or user should drive an agent that can call tools and touch the session workspace with
-**no human watching the renderer**. Once admitted, the message has the same trust and agent policy
-as a request submitted through the Cherry Studio UI.
+**no human watching the renderer**. Once admitted, the message uses the Agent's normal tool policy.
 
 ## Ingress flow
 
-`adapter` (webhook/socket) → adapter allow-list check → `ChannelManager` registers
-`adapter.on('message', …)` → `ChannelMessageHandler.handleIncoming` (per-chat 8 s debounce +
-serial queue) → `processIncoming` resolves the bound session+agent →
-`startAgentSessionRun({ sessionId, userParts, listeners })`. One run at a time per
-`${agentId}:${channelId}:${chatId}`. The channel message text is passed through unchanged, apart
-from appending paths for downloaded attachments.
+`adapter` (webhook/socket) → adapter allow-list check → `ChannelManager` registers `adapter.on('message', …)`
+(`ChannelManager.ts:301`) → `ChannelMessageHandler.handleIncoming` (per-chat 8 s debounce +
+serial queue, `:54`, `:111`) → `processIncoming` resolves the bound session+agent →
+`startAgentSessionRun({ sessionId, userParts, listeners })` (`:552`). One run at a time per
+`${agentId}:${channelId}:${chatId}`.
 
 ## Defenses already in place
 
 | Layer | Where | What it does |
 |---|---|---|
-| **Channel allow-listing** | `allowed_chat_ids` / `allowed_channel_ids` in each adapter | Drops inbound messages whose chat, channel, or user ID is not configured. An empty list currently means no restriction. |
-| **Agent-owned permissions** | Claude Code settings and tool policy | An admitted channel turn uses the same prompt and tool policy as a local turn. Channel delivery remains headless, so tools that require interactive approval are denied unless the agent policy already permits them. |
 | **Output secret-redaction** | `channels/security/OutputSanitizer.ts` (`sanitizeChannelOutput`, called `ChannelMessageHandler.ts:282`) | Redacts PEM keys, AWS/GitHub/Anthropic/OpenAI keys, bearer tokens, etc. **before** any agent output leaves through the channel |
 | **Workspace isolation** | session `workspace.path`; attachments persisted under `${workspace}/.cherry-studio/channel-*` | The agent's fs reach is bounded to the session workspace — but **only as strong as the agent's tool policy**: a channel-bound agent with broad `Bash`/`Write` and no per-channel narrowing (see G3) is not effectively bounded |
+| **Channel allow-listing** | per-adapter allow-list config (`allowedChatIds` / `allowedChannelIds`) in `channels/adapters/<platform>/<Platform>Adapter.ts` | Inbound from a non-allow-listed chat/channel is silently dropped |
+| **Agent-owned permissions** | runtime tool policy | An admitted channel turn receives the Agent's normal tool surface. Approval-required tools still follow the headless interaction policy. |
 | **Per-chat serialization** | `ChannelMessageHandler.ts:111` | One stream per chat; no concurrent interleave |
 
-Trust-boundary summary: **inbound authorization is owned by the adapter allow-list**; admitted text
-is not rewritten; **inbound files/images are not content-inspected** (persisted to the workspace,
-agent reads via the Read tool, bounded by workspace); **outbound is secret-redacted**; **sender
-identity is not separately authorized in group chats** (see gap 1).
+Trust-boundary summary: **inbound text is passed through unchanged**; **inbound files/images are
+not content-inspected** (persisted to the workspace, agent reads via the Read tool, bounded by
+workspace); **outbound is secret-redacted**; **sender identity is unvalidated** (see gap 1).
 
 ## Gaps to close (the actual D1 work)
 
+### G0 — Inbound content has no provenance boundary
+Inbound text is deliberately passed to the agent unchanged. It carries no sender prefix, boundary
+marker, injection warning, normalisation, or detection logging. This is an explicit owner decision:
+prompt wrappers were removed so the agent receives the literal user message. Treat all channel
+content as untrusted when configuring the agent's tools and permissions.
+
 ### G1 — Authorization is chat-level, not sender-level
-Adapters gate on the *chat/channel* allow-list; `userId`/`userName` do not participate in that
-authorization. So **any member of an allow-listed group chat can trigger agent runs.** Proposed
-direction: an optional per-channel **sender allow-list** (user ids)
+Adapters gate on the *chat/channel* allow-list. So **any member of an allow-listed group chat can
+trigger agent runs.** Proposed direction: an optional per-channel **sender allow-list** (user ids)
 enforced in the adapter alongside the chat check; default off (chat-level remains the baseline),
 opt-in for group chats. Deny → silent drop (consistent with the chat gate).
 
@@ -68,12 +70,11 @@ option reads from.
 
 Channels are an opt-in, high-trust feature. Configure `allowed_chat_ids` or `allowed_channel_ids`
 explicitly because an empty list currently admits every reachable chat. Bind a channel only to an
-agent whose tool policy matches the control granted to those remote callers; `bypassPermissions`
-is equivalent to granting the allow-listed chat unattended control of that agent and workspace.
-G2 is the first usability gap to fix because approval-required tools cannot ask a remote caller for
-confirmation.
+Agent whose tool policy matches the control granted to those remote callers; `bypassPermissions`
+is equivalent to granting the allow-listed chat unattended control of that Agent and workspace.
 
 ## Status
 
-Channel messages are authorized by the existing per-adapter allow-list and are then delivered
-without content wrapping or channel-specific prompt restrictions. G1–G3 remain follow-up work.
+Channel messages are authorized by the existing per-adapter allow-list and delivered without
+content wrapping or channel-specific prompt restrictions. Channel-linked Cherry Assistant sessions
+retain their normal Assistant tools. G1–G3 remain follow-up work.

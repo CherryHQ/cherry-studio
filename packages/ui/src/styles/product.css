@@ -45,11 +45,19 @@
   --reference-foreground: #000;
   --reference-subtle: #f1f7ff;
   --highlight-foreground: var(--foreground);
-  --highlight: var(--cs-amber-50);
-  --highlight-accent: var(--cs-amber-100);
+  --highlight: var(--cs-amber-200);
+  --highlight-accent: var(--cs-orange-400);
+  --markdown-important: var(--cs-violet-600);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
+
+  /* Stable product domain: cross-surface resource-list rows */
+  --resource-list-row-hover: var(--background-subtle);
+  --resource-list-row-active: var(--accent);
+  --resource-list-row-active-foreground: var(--accent-foreground);
+  --resource-list-row-selected: var(--accent);
+  --resource-list-row-selected-foreground: var(--accent-foreground);
 }
 
 .dark {
@@ -66,7 +74,8 @@
   --reference-subtle: #0b0e12;
   --highlight-foreground: var(--foreground);
   --highlight: var(--cs-amber-900);
-  --highlight-accent: var(--cs-amber-800);
+  --highlight-accent: var(--cs-orange-800);
+  --markdown-important: var(--cs-violet-400);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);

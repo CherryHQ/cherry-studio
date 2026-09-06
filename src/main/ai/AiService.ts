@@ -7,7 +7,8 @@ import {
   type RuntimeProviderCallEvent,
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
 import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
@@ -34,7 +35,8 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
+import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -46,18 +48,29 @@ import {
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
+import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
-import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { hasImageTransport } from './provider/custom/imageTransportRegistry'
+import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import { resolveProviderAiSdkConfig } from './provider/config'
+import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { listModels as listModelsFromProvider } from './provider/listModels'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams } from './runtime/aiSdk'
+import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
+import {
+  Agent,
+  buildAgentParams,
+  buildApiKeyFallbackModels,
+  buildFallbackModels,
+  createRetryableWrap,
+  readRetryPolicy
+} from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
@@ -72,6 +85,48 @@ import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
+
+/**
+ * Max concurrent `doEmbed` batches for `embedMany`. AI SDK defaults to
+ * `Infinity`, which fires every batch of a long document at once and is the
+ * primary embedding rate-limit trigger. Bounded fan-out trades a little
+ * throughput for far fewer 429s.
+ */
+const EMBEDDING_MAX_PARALLEL_CALLS = 5
+
+const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+
+/** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
+const PROBE_INPUT_IMAGE_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
+const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/png;base64,'.length)
+
+/** Edit-only probes pick the first mode the model declares, in painting-tab preference order. */
+const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
+type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
+
+/** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
+export function resolveRequiredNativeFileSupport(
+  messages: ReadonlyArray<unknown> | undefined,
+  primarySupport: NativeFileSupport
+): NativeFileSupport {
+  if (!messages) return NO_NATIVE_FILE_REQUIREMENTS
+  const required: MutableNativeFileSupport = { ...NO_NATIVE_FILE_REQUIREMENTS }
+  for (const message of messages) {
+    const m = message as { parts?: unknown[]; content?: unknown }
+    const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []
+    for (const part of parts) {
+      const p = part as { type?: string; mediaType?: string }
+      if (p.type === 'image' && primarySupport.image) required.image = true
+      if (p.type !== 'file' || typeof p.mediaType !== 'string') continue
+      if (p.mediaType.startsWith('image/') && primarySupport.image) required.image = true
+      else if (p.mediaType.startsWith('video/') && primarySupport.video) required.video = true
+      else if (p.mediaType.startsWith('audio/') && primarySupport.audio) required.audio = true
+      else if (p.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
+    }
+  }
+  return required
+}
 
 // ── Model listing ──────────────────────────────────────────────────
 
@@ -100,6 +155,17 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
     : undefined
 }
 
+function resolveTextRetryPolicy(
+  configured: ReturnType<typeof readRetryPolicy>,
+  requestMaxRetries: number | undefined,
+  hasApiKeyFallbacks: boolean
+): ReturnType<typeof readRetryPolicy> {
+  if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
+    return configured
+  }
+  return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
+}
+
 function createCaptureContext(input: {
   provider: Provider
   model: Model
@@ -114,7 +180,7 @@ function createCaptureContext(input: {
     modelId: input.sdkModelId,
     modelName: input.model.name,
     pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
+    trustProviderReportedCost: input.provider.reportsActualCost,
     reportedCostCurrency: input.provider.reportedCostCurrency,
     credentialReceipt: input.credentialReceipt,
     source: input.source,
@@ -171,6 +237,8 @@ export interface AiRequestOptions extends AiTransportOptions {
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   usageContext?: InProcessUsageContext
+  /** Trusted in-process classification for remote token analytics. */
+  tokenUsageSource?: TokenUsageSource
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
@@ -182,6 +250,8 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
 
 /** Non-streaming text generation request — pure transport data. */
 export interface AiGenerateRequest extends AiBaseRequest {
+  /** Stable conversation identity used for provider routing and request tracing. */
+  chatId?: string
   system?: string
   prompt?: string
   messages?: ModelMessage[]
@@ -506,7 +576,11 @@ export class AiService extends BaseService {
       model,
       sdkModelId: sdkConfig.modelId,
       credentialReceipt,
-      source: request.usageContext ? request.usageContext.source : sourceSnapshotForAssistant(assistant),
+      // Agent turns win FIRST, `null` included — `usageContext` means "already decided", so a
+      // `??` here would attribute a deliberately-anonymous agent turn to some assistant.
+      source: request.usageContext
+        ? request.usageContext.source
+        : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
         ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
         : request.messageId
@@ -516,26 +590,110 @@ export class AiService extends BaseService {
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
 
+    const mediaCapabilities = resolveMediaCapabilities(model)
+
     // Route attachments: native files stay inline, non-native become capped text
-    // (always visible — never gated on the model calling read_file).
+    // (always visible — never gated on the model calling read_file). The cap is
+    // one shared pool, priced against what the rest of the request already spends.
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
+      // A caller that owns its context (the gateway) manages its own window;
+      // reshaping its attachments against ours would be guesswork.
+      budget:
+        fileAttachments.length && request.contextOwner !== 'caller'
+          ? ((await resolveAttachmentBudget({
+              provider,
+              model,
+              system,
+              tools,
+              maxOutputTokens: options.maxOutputTokens,
+              messages: request.messages ?? [],
+              mediaCapabilities
+            })) ?? undefined)
+          : undefined,
       signal
     })
+
+    // An explicit per-request `maxRetries: 0` means "no retries for this request"
+    // — honor it (like embedding/rerank), overriding the global retry preference.
+    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
+    const agentRef: { current?: Agent } = {}
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
+    let wrapModel: ReturnType<typeof createRetryableWrap>
+    if (!retryDisabledForRequest) {
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
+      wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
+        retryPolicy,
+        diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
+        fallbacks: buildFallbackModels({
+          request,
+          assistant,
+          signal,
+          primaryUniqueModelId: model.id,
+          primaryHasTools: !!tools && Object.keys(tools).length > 0,
+          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          extraFeatures,
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
+        }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
+        },
+        // Stable `id` so repeated retries reconcile into one live status part (latest wins).
+        // Not transient: it rides message.parts so the renderer can show it; the
+        // PersistenceListener strips it before the message is saved.
+        onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+      })
+    }
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      errorContext: { providerId: provider.id, modelId: model.apiModelId ?? model.id },
       messageId: request.messageId,
       plugins: [...plugins, usagePlugin],
+      wrapModel,
       tools,
       system,
-      options,
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [
-        this.analyticsHookPart(model),
+        this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
           ? [
               {
@@ -546,14 +704,19 @@ export class AiService extends BaseService {
           : []),
         ...hookParts
       ],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
+    agentRef.current = agent
 
     return agent.stream(preparedMessages, signal)
   }
 
-  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage))
+  private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
+    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -566,8 +729,19 @@ export class AiService extends BaseService {
     const signal = request.requestOptions?.signal
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
-    const { sdkConfig, credentialReceipt, tools, plugins, system, options, provider, model, assistant, hookParts } =
-      await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    const {
+      sdkConfig,
+      credentialReceipt,
+      tools,
+      plugins,
+      system,
+      options,
+      provider,
+      model,
+      assistant,
+      hookParts,
+      nativeFileSupport
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -578,16 +752,84 @@ export class AiService extends BaseService {
     })
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
 
+    // An explicit per-request `maxRetries: 0` disables retry for this request.
+    let wrapModel: ReturnType<typeof createRetryableWrap>
+    if (request.requestOptions?.maxRetries !== 0) {
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
+      wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
+        retryPolicy,
+        diagnosticContext: { assistantId: request.assistantId },
+        fallbacks: buildFallbackModels({
+          request,
+          assistant,
+          signal,
+          primaryUniqueModelId: model.id,
+          primaryHasTools: !!tools && Object.keys(tools).length > 0,
+          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          extraFeatures,
+          retryPolicy,
+          createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
+            createAiUsagePlugin(
+              createCaptureContext({
+                provider,
+                model,
+                sdkModelId,
+                credentialReceipt,
+                source: usageContext.source,
+                messageRef: usageContext.messageRef
+              })
+            )
+        }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
+        onPrimaryActivated: () => {
+          activeRepairToolCall = options.repairToolCall
+        }
+      })
+    }
+
+    // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
+    // SDK as-is, so without these the structured tool-result media the converter produces would
+    // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
+    const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins: [...plugins, usagePlugin],
+      wrapModel,
       tools,
       system: request.system ?? system,
-      options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -641,8 +883,11 @@ export class AiService extends BaseService {
     // the job handler is the single selection owner for this path. A transport
     // builds its own request envelope per model, so it receives the canonical
     // camelCase `vendorBag` directly (native n/size/seed travel via the job
-    // payload → `input.*`). No wire-naming, no casing probes.
-    if (request.uniqueModelId && hasImageTransport(provider.id, model.apiModelId ?? model.id)) {
+    // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
+    // not `provider.id`: a user-added instance carries a UUID id and would fall
+    // through to the direct image model, which never passes `modelDescriptor`.
+    const transportProviderId = provider.presetProviderId ?? provider.id
+    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
@@ -671,6 +916,7 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
+      maxRetries: request.requestOptions?.maxRetries ?? 0,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
@@ -793,6 +1039,7 @@ export class AiService extends BaseService {
         prompt: request.prompt,
         n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
+        ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
@@ -865,14 +1112,26 @@ export class AiService extends BaseService {
       messageRef: null
     })
 
+    const retryPolicy = readRetryPolicy()
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
+      // A long document splits into many batches and embedMany defaults to
+      // unbounded parallelism — firing them all at once is the main rate-limit
+      // trigger. Keep the pre-feature default when retry is disabled.
+      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
+      // its prior transient-error resilience (this PR only adds, never removes).
+      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
       onProviderCall: createProviderCallHandler(usageContext),
       ...(signal ? { abortSignal: signal } : {})
     })
 
-    this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+    this.trackUsage(
+      model,
+      { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 },
+      request.tokenUsageSource ?? 'chat'
+    )
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -899,6 +1158,7 @@ export class AiService extends BaseService {
       source: sourceSnapshotForAssistant(assistant),
       messageRef: null
     })
+    const retryPolicy = readRetryPolicy()
     const headers = options.headers
       ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
           string,
@@ -912,7 +1172,10 @@ export class AiService extends BaseService {
       documents: request.documents,
       ...(request.topN !== undefined ? { topN: request.topN } : {}),
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
+      // exponential-backoff retry, defaulted from the retry preference. Rerank
+      // already defaulted to 0 retries pre-feature, so keep that when disabled.
+      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
       onProviderCall: createProviderCallHandler(usageContext),
       ...(signal ? { abortSignal: signal } : {})
     }
@@ -971,11 +1234,24 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
+  /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = this.getProviderAndModel(request)
+    const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
+
+    if (isOllamaProvider(provider)) {
+      const controller = new AbortController()
+      const timeoutHandle = setTimeout(() => controller.abort(), timeout)
+      try {
+        return await probeOllamaModel(provider, model.apiModelId, controller.signal, request.apiKeyOverride)
+      } finally {
+        clearTimeout(timeoutHandle)
+      }
+    }
+
+    const primaryEndpoint = model.endpointTypes?.[0]
+    const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
@@ -999,10 +1275,74 @@ export class AiService extends BaseService {
         }
         return result
       })
-    } else if (isEmbeddingModel(model)) {
+    } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
+    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+      // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+      // `generate` mode: the bare default leaves the job path without a transport
+      // descriptor, failing before any provider request. Probe their first declared
+      // mode with a tiny inline PNG and the mode's registry defaults instead — the
+      // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
+      // that main never materializes on its own.
+      const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
+      const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
+      const probeMode: ImageGenerationMode = editOnly
+        ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
+        : 'generate'
+      const probeSupports = imageSupport?.modes?.[probeMode]?.supports
+      const probeParams: ParamValues = {}
+      for (const [key, spec] of Object.entries(probeSupports ?? {})) {
+        if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
+          probeParams[key] = spec.default
+        }
+      }
+      const transportProviderId = provider.presetProviderId ?? provider.id
+      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+        // Transport models run their submit/poll loop on the job system, whose
+        // handler re-selects a serving key — dropping the health check's
+        // `apiKeyOverride` and possibly probing a different rotated credential
+        // than the one being reported. A check needs no restart survival, so
+        // probe inline: one submit (accepted = credential + endpoint + model OK)
+        // with the caller's key, no job row, no result download.
+        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
+        probe = (async () => {
+          const { config } = await resolveProviderAiSdkConfig(provider, model, {
+            apiKeyOverride: request.apiKeyOverride
+          })
+          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+          const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+          if (!transport) {
+            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+          }
+          await transport.submit({
+            modelId: wireModelId,
+            prompt: 'a red circle',
+            n: 1,
+            size: undefined,
+            seed: undefined,
+            files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
+            mask: undefined,
+            modelDescriptor: vendorTransport
+              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
+              : undefined,
+            providerParams: probeParams,
+            signal: controller.signal
+          })
+        })()
+      } else {
+        probe = this.generateImage({
+          ...probeRequest,
+          prompt: 'a red circle',
+          ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+          paramValues: probeParams,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      }
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+      // Latency is the probe's measured output — thinking tokens would pollute it
+      // for reasoning-capable models whose provider default enables reasoning.
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
     }
 
     try {
@@ -1037,11 +1377,14 @@ export class AiService extends BaseService {
 
   // ── Token usage tracking ──
 
-  private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
+  private trackUsage(
+    model: Model,
+    usage?: { inputTokens?: number; outputTokens?: number },
+    source: TokenUsageSource = 'chat'
+  ): void {
     if (!usage || !model.providerId || !model.apiModelId) return
     const inputTokens = usage.inputTokens ?? 0
     const outputTokens = usage.outputTokens ?? 0
-    if (inputTokens === 0 && outputTokens === 0) return
 
     try {
       const analyticsService = application.get('AnalyticsService')
@@ -1049,7 +1392,8 @@ export class AiService extends BaseService {
         provider: model.providerId,
         model: model.apiModelId ?? model.id,
         input_tokens: inputTokens,
-        output_tokens: outputTokens
+        output_tokens: outputTokens,
+        source
       })
     } catch {
       // AnalyticsService may not be activated (data collection disabled)

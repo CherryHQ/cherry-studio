@@ -4,7 +4,7 @@ import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
-import TurndownService from 'turndown'
+import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
@@ -20,7 +20,7 @@ export class CdpBrowserController {
   private windows: Map<string, WindowInfo> = new Map()
   private readonly maxWindows: number
   private readonly idleTimeoutMs: number
-  private readonly turndownService: TurndownService
+  private turndownServicePromise?: Promise<TurndownService>
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
   // nativeTheme is app-global, and one controller is created per MCP connection.
@@ -38,9 +38,14 @@ export class CdpBrowserController {
   constructor(options?: { maxWindows?: number; idleTimeoutMs?: number }) {
     this.maxWindows = options?.maxWindows ?? 5
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
-    this.turndownService = new TurndownService()
 
     nativeTheme.on('updated', this.handleThemeUpdated)
+  }
+
+  private getTurndownService(): Promise<TurndownService> {
+    return (this.turndownServicePromise ??= import('turndown').then(
+      ({ default: TurndownService }) => new TurndownService()
+    ))
   }
 
   /**
@@ -80,12 +85,24 @@ export class CdpBrowserController {
     }
   }
 
+  private syncAudioState(windowInfo: WindowInfo) {
+    const windowCanPlayAudio =
+      !windowInfo.window.isDestroyed() && windowInfo.window.isVisible() && !windowInfo.window.isMinimized()
+
+    for (const tab of windowInfo.tabs.values()) {
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.setAudioMuted(!windowCanPlayAudio || tab.id !== windowInfo.activeTabId)
+      }
+    }
+  }
+
   private closeTabInternal(windowInfo: WindowInfo, tabId: string) {
     try {
       const tab = windowInfo.tabs.get(tabId)
       if (!tab) return
 
       if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.setAudioMuted(true)
         if (tab.view.webContents.debugger.isAttached()) {
           tab.view.webContents.debugger.detach()
         }
@@ -266,7 +283,7 @@ export class CdpBrowserController {
       (function() {
         window.addEventListener('message', function(e) {
           if (e.data && e.data.channel === 'tabbar-action') {
-            // Tab bar action received
+            console.log(JSON.stringify(e.data));
           }
         });
       })();
@@ -413,6 +430,14 @@ export class CdpBrowserController {
         const info = this.windows.get(windowKey)
         if (info) this.updateViewBounds(info)
       })
+      const syncAudioState = () => {
+        const info = this.windows.get(windowKey)
+        if (info) this.syncAudioState(info)
+      }
+      windowInfo.window.on('show', syncAudioState)
+      windowInfo.window.on('hide', syncAudioState)
+      windowInfo.window.on('minimize', syncAudioState)
+      windowInfo.window.on('restore', syncAudioState)
 
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
@@ -469,6 +494,7 @@ export class CdpBrowserController {
       }
     })
 
+    view.webContents.setAudioMuted(true)
     view.webContents.setUserAgent(userAgent)
 
     const windowKey = windowInfo.windowKey
@@ -489,6 +515,7 @@ export class CdpBrowserController {
           }
         }
       }
+      this.syncAudioState(windowInfo)
       this.sendTabBarUpdate(windowInfo)
     })
 
@@ -542,6 +569,7 @@ export class CdpBrowserController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Created new tab', { windowKey, tabId, privateMode })
     return { tabId, view }
@@ -749,6 +777,7 @@ export class CdpBrowserController {
             }
           }
         }
+        this.syncAudioState(windowInfo)
         this.sendTabBarUpdate(windowInfo)
       }
       logger.info('Browser CDP tab reset', { windowKey, tabId })
@@ -838,7 +867,7 @@ export class CdpBrowserController {
 
       let content: string | object
       if (format === 'markdown') {
-        content = this.turndownService.turndown(rawContent)
+        content = (await this.getTurndownService()).turndown(rawContent)
       } else if (format === 'json') {
         try {
           content = JSON.parse(rawContent)
@@ -946,6 +975,7 @@ export class CdpBrowserController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.touchTab(windowKey, tabId)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Switched active tab', { windowKey, tabId, privateMode })

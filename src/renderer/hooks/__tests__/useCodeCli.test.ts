@@ -91,6 +91,21 @@ describe('useCodeCli', () => {
       })
       expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
     })
+
+    it('keeps route search and visible selection synchronized', () => {
+      setupConfigsMock({} as CodeCliConfigs)
+      const onToolChange = vi.fn()
+      const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useCodeCli(tool, onToolChange), {
+        initialProps: { tool: CodeCli.CLAUDE_CODE }
+      })
+
+      act(() => result.current.selectTool(CodeCli.OPENAI_CODEX))
+      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
+      expect(onToolChange).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX)
+
+      rerender({ tool: CodeCli.DEEPSEEK_HARNESS })
+      expect(result.current.selectedCliTool).toBe(CodeCli.DEEPSEEK_HARNESS)
+    })
   })
 
   describe('currentProviderId / currentProviderConfig', () => {

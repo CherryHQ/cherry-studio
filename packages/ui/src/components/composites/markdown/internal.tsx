@@ -9,9 +9,13 @@
  */
 
 import { type ReactElement, useCallback, useMemo } from 'react'
+import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
+import { remarkMark } from 'remark-mark-highlight'
 import {
   type AnimateOptions,
+  Block,
+  type BlockProps,
   type Components,
   defaultRehypePlugins,
   defaultRemarkPlugins,
@@ -22,7 +26,12 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
-import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
+import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
+import {
+  FILE_LINK_MARKER_PROPERTY,
+  rehypePrepareFileLinks,
+  rehypeRestoreFileLinks
+} from './plugins/rehype-preserve-file-links'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -33,26 +42,43 @@ import {
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
 
+function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
+  const markdownCtx = useMemo(() => ({ content }), [content])
+
+  return (
+    <MarkdownBlockContext value={markdownCtx}>
+      <Block content={content} {...props} />
+    </MarkdownBlockContext>
+  )
+}
+
 interface ResolvedDefaultRehypePlugins {
   raw: Pluggable
   sanitizeFn: Pluggable
   sanitizeSchema: MarkdownSanitizeSchema
-  harden: Pluggable
+  hardenFn: Pluggable
+  hardenOptions: Record<string, unknown>
 }
 
 function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   const plugins = defaultRehypePlugins as Partial<Record<string, unknown>>
   const sanitize = plugins.sanitize
+  const harden = plugins.harden
 
-  if (!plugins.raw || !plugins.harden || !Array.isArray(sanitize) || sanitize.length < 2) {
+  if (!plugins.raw || !harden || !Array.isArray(sanitize) || sanitize.length < 2) {
     throw new Error('Unexpected Streamdown defaultRehypePlugins shape')
   }
+
+  // Streamdown ships `harden` as [plugin, options]; tolerate a bare plugin so a minor
+  // upstream release cannot turn this into a render-time throw.
+  const [hardenFn, hardenOptions] = Array.isArray(harden) ? harden : [harden, undefined]
 
   return {
     raw: plugins.raw as Pluggable,
     sanitizeFn: sanitize[0] as Pluggable,
     sanitizeSchema: sanitize[1] as MarkdownSanitizeSchema,
-    harden: plugins.harden as Pluggable
+    hardenFn: hardenFn as Pluggable,
+    hardenOptions: (hardenOptions ?? {}) as Record<string, unknown>
   }
 }
 
@@ -76,6 +102,8 @@ export interface MarkdownCoreProps {
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
   footnoteLabel?: string
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function MarkdownCore({
@@ -90,30 +118,53 @@ export function MarkdownCore({
   parseIncompleteMarkdown,
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
-  footnoteLabel = 'Footnotes'
+  footnoteLabel = 'Footnotes',
+  preserveFileLinkHrefs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
   const remarkPlugins = useMemo(() => {
-    const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
+    const list: Pluggable[] = [
+      ...STREAMDOWN_DEFAULT_REMARK_PLUGINS,
+      remarkDefinitionList as Pluggable,
+      remarkMark as Pluggable,
+      remarkAlert as Pluggable
+    ]
     if (extraRemarkPlugins?.length) list.push(...extraRemarkPlugins)
     return list
   }, [extraRemarkPlugins])
 
   const rehypePlugins = useMemo(() => {
-    const { raw, sanitizeFn, sanitizeSchema, harden } = resolveDefaultRehypePlugins()
+    const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
-    const result: Pluggable[] = [raw]
+    const effectiveSchema = preserveFileLinkHrefs
+      ? {
+          ...extendedSchema,
+          attributes: {
+            ...extendedSchema.attributes,
+            span: [
+              ...(extendedSchema.attributes?.span ?? []),
+              ...(extendedSchema.attributes?.a ?? []),
+              FILE_LINK_MARKER_PROPERTY
+            ]
+          }
+        }
+      : extendedSchema
+    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
-      [sanitizeFn, extendedSchema] as Pluggable,
+      [sanitizeFn, effectiveSchema] as Pluggable,
+      rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
-      [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
-      harden,
+      [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
+      // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
+      [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins])
+  }, [hasSvgElement, id, extraRehypePlugins, preserveFileLinkHrefs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
@@ -124,7 +175,8 @@ export function MarkdownCore({
     () => ({
       footnoteLabel,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' '
+      footnoteBackContent: ' ',
+      handlers: defListHastHandlers
     }),
     [footnoteLabel]
   )
@@ -135,6 +187,7 @@ export function MarkdownCore({
     <MarkdownBlockContext value={markdownCtx}>
       <div className={['markdown', className].filter(Boolean).join(' ')}>
         <Streamdown
+          BlockComponent={MarkdownBlock}
           mode={mode}
           plugins={plugins}
           rehypePlugins={rehypePlugins}

@@ -29,13 +29,13 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | Directory | Role |
 | --- | --- |
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
-| `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore, list), failed-base guard (`baseGuards.ts`). |
+| `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore), failed-base guard (`baseGuards.ts`). |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery. |
 | `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
 | `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
-| `query/` | Read side + Concept ID tool surface: hybrid search with visibility filtering (`KnowledgeQueryService`); Concept ID read/grep/tree plus the `kb_manage` delete/refresh writes, which delegate to `ingestion/` (`KnowledgeConceptService`). |
+| `query/` | Read side + Concept ID tool surface: base discovery and hybrid search with visibility filtering (`KnowledgeQueryService`); Concept ID read/grep/tree plus the `kb_manage` delete/refresh writes, which delegate to `ingestion/` (`KnowledgeConceptService`). |
 | `tasks/` | Job handlers — the pipeline executors (see below); `prepareItem.ts` is a prepare-root handler-private helper that expands a directory root into child items. |
 | `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |
 | `items.ts` / `types.ts` | Shared item vocabulary (type aliases, predicates, source probing, material-path derivation); branded ids, queue names, idempotency keys. |
@@ -50,7 +50,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.index-documents` | Read → chunk → embed → `rebuildMaterial` in one store transaction. | `ingestion`, prepare-root, fp-check |
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
 | `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
-| `knowledge.reindex-subtree` | Verify source → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
+| `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
 
 Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — an app restart never
 silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
@@ -59,6 +59,15 @@ interrupted items at `failed` instead. Only `knowledge.delete-subtree` uses `rec
 Item status flow: `preparing` (directory) / `processing` → `completed` | `failed`; any status →
 `deleting` → row removed. `reading`/`embedding` are transient sub-phases surfaced while the index
 job runs.
+
+**Reindex re-acquires, then rebuilds.** One rule, no per-type exception: a file re-copies the user's
+original over its `raw/` copy (and reprocesses if the base has a document processor), a directory
+rescans its original folder, a url re-fetches, and a note rewrites its snapshot from `data.content`
+(the note's text in the DB is the source; its `raw/*.md` file is a derived export). Hence the source
+must still exist — the admission gate (`classifyKnowledgeItemReacquireSource`) rejects a reindex
+whose source is gone instead of silently rebuilding from a stale copy. Restore asks a *different*
+question and keeps its own probe (`classifyKnowledgeItemRestoreSource`): it copies out of this base,
+so a file whose original vanished still restores fine.
 
 ## Concurrency
 

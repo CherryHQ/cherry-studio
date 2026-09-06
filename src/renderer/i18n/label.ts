@@ -98,21 +98,28 @@ const providerKeyMap = {
 /**
  * 获取内置供应商的本地化标签
  * @param id - 供应商的id
+ * @param fallback - 未登记该 id 时直接返回的值；省略时记录缺失 key
  * @returns 本地化后的供应商名称
  * @remarks
  * 该函数仅用于获取内置供应商的 i18n label
  *
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
-export const getProviderLabelKey = (id: string): string => {
+export const getProviderLabelKey = (id: string, fallback?: string): string => {
+  if (fallback !== undefined && !Object.hasOwn(providerKeyMap, id)) return fallback
   return getLabelKey(providerKeyMap, id)
 }
 
+// Must cover every FILE_PROCESSOR_IDS entry: getLabelKey falls back to the raw
+// id (and logs an error) for anything missing, so a gap here surfaces as
+// "local-document" sitting in a dropdown among properly named siblings.
 const fileProcessorKeyMap = {
   doc2x: 'provider.doc2x',
   mineru: 'provider.mineru',
   ovocr: 'provider.ovocr',
   paddleocr: 'provider.paddleocr',
+  'local-paddleocr': 'settings.tool.file_processing.processors.local_paddleocr.name',
+  'local-document': 'settings.tool.file_processing.processors.local_document.name',
   system: 'provider.system',
   tesseract: 'provider.tesseract',
   mistral: 'provider.mistral',
@@ -317,6 +324,7 @@ export const getFileFieldLabelKey = (key: string): string => {
 
 const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
   [BuiltinMcpServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
+  [BuiltinMcpServerNames.qveris]: 'settings.mcp.builtinServersDescriptions.qveris',
   [BuiltinMcpServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   [BuiltinMcpServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
   [BuiltinMcpServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',

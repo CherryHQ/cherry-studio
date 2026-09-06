@@ -2,7 +2,7 @@
 title: "Channel requests use the agent's normal capabilities"
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17857"
 date: 2026-08-03
 ---
 

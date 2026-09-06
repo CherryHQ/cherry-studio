@@ -39,14 +39,25 @@ describe('Fetcher', () => {
       isError: false
     })
     expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
-    expect(fetchRemoteTextMock).toHaveBeenCalledWith('https://example.com/page', {
-      headers: expect.any(Headers)
-    })
+    expect(fetchRemoteTextMock.mock.calls[0]?.[0]).toBe('https://example.com/page')
 
     const options = fetchRemoteTextMock.mock.calls[0]?.[1] as { headers: Headers }
     expect(options.headers.get('User-Agent')).toBe(DEFAULT_USER_AGENT)
     expect(options.headers.get('X-Test')).toBe('yes')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('follows a redirect instead of failing the tool call', async () => {
+    // Mirrors fetchRemoteText: hops are opt-in, and 0 turns any 3xx into an error.
+    fetchRemoteTextMock.mockImplementation(async (_url: string, options: { maxRedirects?: number }) => {
+      if (!options.maxRedirects) throw new Error('HTTP error: 301')
+      return '<h1>Skill</h1>'
+    })
+
+    await expect(Fetcher.html({ url: 'https://officecli.ai/SKILL.md' })).resolves.toEqual({
+      content: [{ type: 'text', text: '<h1>Skill</h1>' }],
+      isError: false
+    })
   })
 
   it('parses JSON from strict remote target text', async () => {

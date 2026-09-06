@@ -15,18 +15,20 @@ For comprehensive documentation, see:
 ```
 src/shared/data/
 ├── api/                     # Data API type system
-│   ├── index.ts             # Barrel exports
-│   ├── apiTypes.ts          # Core request/response types
-│   ├── apiPaths.ts          # Path template utilities
-│   ├── apiErrors.ts         # Error handling
+│   ├── types.ts             # Core request/response and pagination types
+│   ├── paths.ts             # Path template utilities
+│   ├── errors.ts            # Error handling
 │   └── schemas/             # Domain-specific API schemas
+├── bootConfig/              # Boot config schemas and key types
 ├── cache/                   # Cache system type definitions
 │   ├── cacheTypes.ts        # Core cache types
 │   ├── cacheSchemas.ts      # Cache key schemas
 │   └── cacheValueTypes.ts   # Cache value types
+├── migration/               # Cross-process v2 migration result/progress types
 ├── preference/              # Preference system type definitions
 │   ├── preferenceTypes.ts   # Core preference types
 │   └── preferenceSchemas.ts # Preference schemas
+├── presets/                 # App-owned preset catalogs
 └── types/                   # Shared data types
 ```
 
@@ -35,16 +37,17 @@ src/shared/data/
 ### Import Conventions
 
 ```typescript
-// API infrastructure types (from barrel)
-import type { DataRequest, DataResponse, ApiClient } from '@shared/data/api'
-import { ErrorCode, DataApiError, DataApiErrorFactory } from '@shared/data/api'
+// API infrastructure types (direct modules; api/ has no barrel)
+import type { DataRequest, DataResponse, ApiClient } from '@shared/data/api/types'
+import { ErrorCode, DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 
 // Domain DTOs (from schema files)
-import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topic'
+import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { Topic } from '@shared/data/types/topic'
 
 // Cache types
-import type { UseCacheKey, UseSharedCacheKey } from '@shared/data/cache'
+import type { SharedCacheKey, UseCacheKey } from '@shared/data/cache/cacheSchemas'
 
 // Preference types
-import type { PreferenceKeyType } from '@shared/data/preference'
+import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 ```

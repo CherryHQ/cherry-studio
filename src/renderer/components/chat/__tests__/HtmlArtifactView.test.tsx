@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { HtmlArtifactPopupHost, HtmlArtifactView } from '../HtmlArtifactView'
+import { HtmlArtifactPopupHost } from '../HtmlArtifactPopupContext'
+import { HtmlArtifactView } from '../HtmlArtifactView'
+import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext'
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
@@ -85,6 +87,32 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${(error as Error).message}`)
 }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+
+function renderWithScrollRuntime(
+  children: ReactNode,
+  {
+    notifyWheelIntent,
+    scrollByWheel
+  }: {
+    notifyWheelIntent?: (deltaY: number) => void
+    scrollByWheel?: (deltaY: number) => boolean
+  } = {}
+) {
+  const scrollContainerRef = { current: null as HTMLElement | null }
+  return render(
+    <div
+      ref={(element) => {
+        scrollContainerRef.current = element
+      }}>
+      <ScrollOwnershipProvider
+        scrollContainerRef={scrollContainerRef}
+        notifyWheelIntent={notifyWheelIntent}
+        scrollByWheel={scrollByWheel}>
+        {children}
+      </ScrollOwnershipProvider>
+    </div>
+  )
+}
 
 describe('HtmlArtifactView', () => {
   const originalInnerHeight = window.innerHeight
@@ -231,6 +259,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+  })
+
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
   })
 
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
@@ -382,6 +437,32 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain('const scrollActivationDelay = 300')
     expect(instrumentedHtml).toContain('event.preventDefault()')
     expect(instrumentedHtml).toContain('passive: false')
+    expect(instrumentedHtml).toContain('^(?:auto|scroll|overlay)$')
+    expect(instrumentedHtml).toContain('element.clientHeight + 1')
+    expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
+    expect(instrumentedHtml).toContain('element.scrollHeight - 1')
+  })
+
+  it('routes webview boundary wheels through the scroll runtime', () => {
+    const scrollByWheel = vi.fn(() => true)
+    renderWithScrollRuntime(<HtmlArtifactView html="<script>go()</script>" title="Preview" />, { scrollByWheel })
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    const webview = screen.getByTestId('interactive-html-webview')
+    const src = webview.getAttribute('src')
+    if (!src) throw new Error('Expected an instrumented webview source')
+    const instrumentedHtml = decodeURIComponent(src.slice(src.indexOf(',') + 1))
+    const messagePrefix = instrumentedHtml.match(/__cherry_html_artifact_[^:]+:/)?.[0]
+    if (!messagePrefix) throw new Error('Expected the bridge message prefix')
+
+    const event = new Event('console-message') as Event & { message: string }
+    Object.defineProperty(event, 'message', {
+      configurable: true,
+      value: `${messagePrefix}${JSON.stringify({ type: 'wheel', value: 480 })}`
+    })
+    webview.dispatchEvent(event)
+
+    expect(scrollByWheel).toHaveBeenCalledWith(480)
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {
@@ -441,6 +522,165 @@ describe('HtmlArtifactView', () => {
       }),
       undefined
     )
+  })
+
+  it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {
+    render(<HtmlArtifactView html="<main><p>Page</p></main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const wrapper = frameDocument.createElement('main')
+    const paragraph = frameDocument.createElement('p')
+    paragraph.style.marginBottom = '16px'
+    wrapper.append(paragraph)
+    body.replaceChildren(wrapper)
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 183 })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => Math.max(221, iframe.clientHeight)
+    })
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({
+      bottom: 204.6875,
+      height: 183.25,
+      width: 100
+    } as DOMRect)
+    vi.spyOn(paragraph, 'getBoundingClientRect').mockReturnValue({
+      bottom: 204.6875,
+      height: 20,
+      width: 100
+    } as DOMRect)
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '221px' })
+
+    for (const callback of mocks.resizeObserverCallbacks) {
+      act(() => callback([], {} as ResizeObserver))
+      expect(surface).toHaveStyle({ height: '221px' })
+    }
+  })
+
+  it('stabilizes at the natural height when bare text extends below the last element', () => {
+    render(<HtmlArtifactView html="<task-notification>Task done.</task-notification>  trailing text" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.margin = '8px'
+    const notice = frameDocument.createElement('task-notification')
+    notice.textContent = 'Task a6034e1f3607dfc0b completed.\nTask output file: /private/tmp/long-task-output.path'
+    body.replaceChildren(notice)
+    body.append('  在 macOS 的系统演进中……')
+
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 0
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 135 })
+    Object.defineProperty(documentElement, 'scrollHeight', { configurable: true, get: () => 135 })
+    // Element measurement stops at the <task-notification> box (91px); the bare text node after it
+    // reaches 127px. Without the whole-body range the surface flips 99↔135 under the observer.
+    vi.spyOn(notice, 'getBoundingClientRect').mockReturnValue({ bottom: 91, height: 40, width: 300 } as DOMRect)
+    // jsdom keeps each iframe in its own realm, so the frame's Range constructor differs from the
+    // host global; mock the one getIframeContentHeight actually calls createRange() on.
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: vi.fn(() => ({ bottom: 127, height: 30, width: 300 }) as DOMRect)
+    })
+
+    try {
+      fireEvent.load(iframe)
+      expect(surface).toHaveStyle({ height: '135px' })
+
+      for (const callback of mocks.resizeObserverCallbacks) {
+        act(() => callback([], {} as ResizeObserver))
+        expect(surface).toHaveStyle({ height: '135px' })
+      }
+    } finally {
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      }
+    }
+  })
+
+  it('uses the scroll height directly for scrollable content without sweeping every element', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const setPreviewContentHeight = createPreviewContentHeightController()
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const body = iframe.contentDocument?.body
+    if (!body) throw new Error('Expected iframe body')
+
+    const sweepSpy = vi.spyOn(body, 'querySelectorAll')
+
+    setPreviewContentHeight(1200)
+
+    expect(surface).toHaveStyle({ height: '576px' })
+    expect(sweepSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-measures on DOM mutations without rebuilding observers', async () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    const body = frameDocument?.body
+    if (!frameDocument || !body) throw new Error('Expected iframe document')
+
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    body.style.margin = '0'
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 240
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(frameDocument.documentElement, 'scrollHeight', { configurable: true, get: () => 0 })
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({ bottom: 180, height: 180, width: 100 } as DOMRect)
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '180px' })
+
+    const observeSpy = vi.spyOn(ResizeObserver.prototype, 'observe')
+    const tall = frameDocument.createElement('div')
+    vi.spyOn(tall, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 300, width: 100 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(tall)
+    })
+
+    // The mutation re-measured through syncHeight with the new content bottom.
+    expect(surface).toHaveStyle({ height: '300px' })
+
+    // Count only observer activity from here on: a size-neutral mutation must
+    // re-measure without rebuilding observers.
+    observeSpy.mockClear()
+    const idle = frameDocument.createElement('span')
+    vi.spyOn(idle, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 0, width: 0 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(idle)
+    })
+
+    expect(surface).toHaveStyle({ height: '300px' })
+    expect(observeSpy).not.toHaveBeenCalled()
   })
 
   it('renders a streaming fragment as a restricted DOM preview without controls', () => {
@@ -561,15 +801,9 @@ describe('HtmlArtifactView', () => {
     expect(scrollRoot.style.getPropertyValue('overscroll-behavior-y')).toBe('')
   })
 
-  it('replays wheels from inside the iframe onto the message scroller', () => {
-    const scrollerWheels: number[] = []
-    const { container } = render(
-      <div data-message-virtual-list-scroller onWheel={(event) => scrollerWheels.push(event.deltaY)}>
-        <HtmlArtifactView html="<main>Page</main>" title="Preview" />
-      </div>
-    )
-    const scroller = container.querySelector('[data-message-virtual-list-scroller]')
-    if (!scroller) throw new Error('Expected scroller')
+  it('routes iframe boundary wheel intent through the scroll runtime', () => {
+    const notifyWheelIntent = vi.fn()
+    renderWithScrollRuntime(<HtmlArtifactView html="<main>Page</main>" title="Preview" />, { notifyWheelIntent })
 
     const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
     fireEvent.load(iframe)
@@ -579,22 +813,36 @@ describe('HtmlArtifactView', () => {
     // A wheel inside the frame's own document never reaches the list on its own.
     frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
 
-    expect(scrollerWheels).toEqual([-120])
+    expect(notifyWheelIntent).toHaveBeenCalledWith(-120)
+  })
+
+  it('keeps wheels consumed by an iframe scroller independent from the message scroller', () => {
+    const notifyWheelIntent = vi.fn()
+    renderWithScrollRuntime(<HtmlArtifactView html="<main>Page</main>" title="Preview" />, { notifyWheelIntent })
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const region = frameDocument.createElement('div')
+    region.style.overflowY = 'auto'
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+    Object.defineProperty(region, 'scrollTop', { configurable: true, value: 50, writable: true })
+    frameDocument.body.append(region)
+
+    region.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true }))
+
+    expect(notifyWheelIntent).not.toHaveBeenCalled()
   })
 
   it('delays iframe scrolling after hover and locks it again on mouse leave', () => {
     vi.useFakeTimers()
 
     try {
-      const { container } = render(
-        <div data-message-virtual-list-scroller>
-          <HtmlArtifactView html="<main>Page</main>" title="Preview" />
-        </div>
-      )
-      const scroller = container.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
-      if (!scroller) throw new Error('Expected scroller')
-      const scrollBy = vi.fn()
-      scroller.scrollBy = scrollBy
+      const scrollByWheel = vi.fn(() => true)
+      renderWithScrollRuntime(<HtmlArtifactView html="<main>Page</main>" title="Preview" />, { scrollByWheel })
 
       const viewport = screen.getByTestId('adaptive-html-preview')
       const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
@@ -607,21 +855,21 @@ describe('HtmlArtifactView', () => {
       frameDocument.body.dispatchEvent(lockedWheel)
 
       expect(lockedWheel.defaultPrevented).toBe(true)
-      expect(scrollBy).toHaveBeenLastCalledWith({ top: 120 })
+      expect(scrollByWheel).toHaveBeenLastCalledWith(120)
 
       void act(() => vi.advanceTimersByTime(300))
       const activeWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })
       frameDocument.body.dispatchEvent(activeWheel)
 
       expect(activeWheel.defaultPrevented).toBe(false)
-      expect(scrollBy).toHaveBeenCalledTimes(1)
+      expect(scrollByWheel).toHaveBeenCalledTimes(1)
 
       fireEvent.mouseLeave(viewport)
       const relockedWheel = new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true })
       frameDocument.body.dispatchEvent(relockedWheel)
 
       expect(relockedWheel.defaultPrevented).toBe(true)
-      expect(scrollBy).toHaveBeenLastCalledWith({ top: -120 })
+      expect(scrollByWheel).toHaveBeenLastCalledWith(-120)
     } finally {
       vi.useRealTimers()
     }

@@ -4,8 +4,10 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   assistant: undefined as any,
   model: undefined as Model | undefined,
-  provider: undefined as any
+  provider: undefined as any,
+  providerLookupId: undefined as string | undefined,
+  getWebSearchProviderIconRef: vi.fn()
 }))
 
 const launcherApi: ToolLauncherApi = {
@@ -27,7 +31,17 @@ vi.mock('react-i18next', async (importOriginal) => {
 
   return {
     ...actual,
-    useTranslation: () => ({ t: (key: string) => key })
+    useTranslation: () => ({
+      t: (key: string, values?: { fallbackProvider?: string; provider?: string }) => {
+        if (key === 'chat.input.web_search.route.client_fallback_active') {
+          return `${values?.provider} is unavailable, so the query is sent to ${values?.fallbackProvider}.`
+        }
+        if (key === 'chat.input.web_search.route.client_with_fallback') {
+          return `Searches with ${values?.provider}. If unavailable, the query is automatically sent to ${values?.fallbackProvider}.`
+        }
+        return key
+      }
+    })
   }
 })
 
@@ -58,6 +72,14 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => {
+  const ProviderIcon = () => <svg data-testid="web-search-provider-icon" />
+
+  return {
+    useIcon: (iconRef: unknown) => (iconRef ? ProviderIcon : undefined)
+  }
+})
+
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
     assistant: mocks.assistant,
@@ -67,11 +89,18 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: mocks.provider })
+  useProviderById: (providerId?: string) => {
+    mocks.providerLookupId = providerId
+    return { provider: mocks.provider }
+  }
 }))
 
 vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
+}))
+
+vi.mock('@renderer/utils/webSearchProviderMeta', () => ({
+  getWebSearchProviderIconRef: mocks.getWebSearchProviderIconRef
 }))
 
 vi.mock('@renderer/utils/model', () => {
@@ -132,6 +161,8 @@ vi.mock('@renderer/types', () => {
 describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant',
@@ -154,11 +185,24 @@ describe('WebSearchButton', () => {
       isHidden: false
     }
     mocks.provider = undefined
+    mocks.providerLookupId = undefined
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', false)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
+  })
+
+  it('reads only the current model provider', () => {
+    const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.providerLookupId).toBe('anthropic')
+
+    mocks.model = undefined
+    view.unmount()
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.providerLookupId).toBeUndefined()
   })
 
   it('opens web search settings and restores trigger focus when external providers are missing', () => {
@@ -193,6 +237,20 @@ describe('WebSearchButton', () => {
     confirmOptions.focusOnClose?.()
 
     expect(button).not.toHaveFocus()
+  })
+
+  it('enables model-native search when configured services are preferred but unavailable', async () => {
+    mocks.provider = {
+      id: 'anthropic',
+      serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('disables web search when the configured provider cannot be consumed by the current model', async () => {
@@ -230,6 +288,94 @@ describe('WebSearchButton', () => {
     await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
   })
 
+  it('enables Zhipu web search with an enabled model provider API key', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+      keys: [{ id: 'zhipu-key', key: 'sk-zhipu', isEnabled: true }]
+    })
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await user.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
+  })
+
+  it('enables web search through ExaMCP when Zhipu has no enabled model provider API key', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await user.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
+  })
+
+  it('renders the effective ExaMCP provider icon while a keyless primary is selected', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
+    mocks.assistant.settings.enableWebSearch = true
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+    mocks.getWebSearchProviderIconRef.mockImplementation((providerId) =>
+      providerId === 'exa-mcp' ? { kind: 'provider', key: 'exa' } : undefined
+    )
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'common.close' })
+    expect(within(button).getByTestId('web-search-provider-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('tooltip')).toHaveAttribute(
+      'data-content',
+      'Zhipu is unavailable, so the query is sent to ExaMCP.'
+    )
+  })
+
+  it('discloses the automatic ExaMCP fallback while the selected provider is ready', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      tavily: { apiKeys: ['tavily-key'] }
+    })
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(screen.getByTestId('tooltip')).toHaveAttribute(
+      'data-content',
+      'Searches with Tavily. If unavailable, the query is automatically sent to ExaMCP.'
+    )
+  })
+
+  it('disables Zhipu web search while model provider API keys are loading', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
+    MockUseDataApiUtils.mockQueryLoading('/providers/:providerId/api-keys')
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(screen.getByRole('button', { name: 'chat.input.web_search.label' })).toBeDisabled()
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
+    expect(webSearchLauncher.disabled).toBe(true)
+  })
+
   // Both routes render the same globe, and the preference that picks between them lives in settings,
   // so the tooltip is the only place the user can see which side will serve the request.
   it('names the serving side in the tooltip', () => {
@@ -240,7 +386,7 @@ describe('WebSearchButton', () => {
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
     unmount()
 
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
     mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
 

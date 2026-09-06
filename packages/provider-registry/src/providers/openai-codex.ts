@@ -1,4 +1,5 @@
 import { defineProvider } from './types'
+import { openaiResponsesSummaryWire } from './wires'
 
 /**
  * Login-based provider that drives the ChatGPT Plus/Pro Codex backend via an
@@ -9,13 +10,17 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'openai-codex',
   name: 'OpenAI Codex',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   modelListSource: 'registry',
   authMethods: ['oauth'],
-  apiFeatures: { serviceTier: true },
   fastMode: { transport: 'openai-priority' },
   endpointConfigs: {
-    'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://chatgpt.com/backend-api/codex' }
+    'openai-responses': {
+      adapterFamily: 'openai',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
+    }
   },
   metadata: {
     website: {

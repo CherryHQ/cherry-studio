@@ -1,4 +1,4 @@
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -6,11 +6,13 @@ import { searchSkills } from '@renderer/utils/skillSearch'
 import type {
   InstalledSkill,
   LocalSkill,
+  SkillCatalogEntry,
   SkillResult,
   SkillSearchResult,
   SystemSkillCandidate
 } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { useSWRConfig } from 'swr'
 
 const logger = loggerService.withContext('useSkills')
 
@@ -41,9 +43,35 @@ function logAndRethrowSkillMutationError(action: string, error: unknown): never 
   throw error instanceof Error ? error : new Error(message)
 }
 
-async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
+const SKILL_CATALOG_KEY = 'skill.list_catalog'
+
+/** Refresh both SQLite consumers and the filesystem-enriched catalog after skill mutations. */
+export function useInvalidateSkills() {
+  const invalidate = useInvalidateCache()
+  const { mutate } = useSWRConfig()
+  return useCallback(async () => {
+    await Promise.all([invalidate('/skills'), mutate((key) => Array.isArray(key) && key[0] === SKILL_CATALOG_KEY)])
+  }, [invalidate, mutate])
+}
+
+export function useSkillCatalog(search?: string, enabled = true) {
+  const query = search?.trim() ? { search: search.trim() } : {}
+  const { data, error, isLoading, isValidating, mutate } = useSWR<SkillCatalogEntry[], Error>(
+    enabled ? [SKILL_CATALOG_KEY, query] : null,
+    () => ipcApi.request('skill.list_catalog', query),
+    { revalidateOnFocus: false, shouldRetryOnError: false, keepPreviousData: true }
+  )
+  useDataChange(enabled ? '/skills' : [], () => void mutate())
+  useReconcileSkillsOnOpen(enabled)
+  const refetch = useCallback(() => {
+    void mutate()
+  }, [mutate])
+  return { data: data ?? [], error, isLoading, isRefreshing: isValidating, refetch }
+}
+
+async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateSkills>): Promise<void> {
   try {
-    await invalidate('/skills')
+    await invalidate()
   } catch (error) {
     logger.warn('Failed to refresh skills cache after IPC mutation', { error })
   }
@@ -51,14 +79,14 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 
 /**
  * Reconcile the on-disk skill library into the catalog once each time a skill view opens, then
- * refresh `/skills`. This is how skills an agent authored via native file tools (which never hit an
+ * refresh skill lists. This is how skills an agent authored via native file tools (which never hit an
  * install route) surface without an app restart. Shared by every skill-list entry point — the
  * resource library and the agent edit dialog's Skills tab — so a skill becomes visible immediately
  * from wherever the user looks. Best-effort: a failure logs and resets so the next open retries,
  * and never blanks the list; the main process single-flights the actual reconcile.
  */
 export function useReconcileSkillsOnOpen(enabled: boolean): void {
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const reconciled = useRef(false)
   useEffect(() => {
     if (!enabled) {
@@ -89,7 +117,8 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
  * Hook to read installed skills.
  *
  * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
- * hook returns the global skill library with `isEnabled` forced to false.
+ * hook returns the global skill library with `isEnabled` forced to false and
+ * `isGlobalEnabled` carrying the library-wide switch.
  * Per-agent enablement is edited through the agent form and saved via
  * PATCH /agents (see `AgentEditDialog`), not through this hook.
  * `loading` covers the initial fetch; `refreshing` reports background
@@ -102,6 +131,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
     enabled,
     ...(agentId ? { query: { agentId } } : {})
   })
+  useDataChange(enabled ? '/skills' : [], () => refetch())
   const refresh = useCallback(async () => {
     await ipcApi.request('skill.reconcile', {})
     return refetch()
@@ -149,6 +179,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [loadedLocalSkillsWorkdir, setLoadedLocalSkillsWorkdir] = useState<string>()
   const localRequestIdRef = useRef(0)
   const nextLocalRequestId = useCallback(() => {
     localRequestIdRef.current += 1
@@ -164,6 +195,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
       return
     }
 
@@ -173,12 +205,16 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
     try {
       const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
-      if (requestId === localRequestIdRef.current) setLocalSkills(data)
+      if (requestId === localRequestIdRef.current) {
+        setLocalSkills(data)
+        setLoadedLocalSkillsWorkdir(workdir)
+      }
     } catch (error) {
       if (requestId !== localRequestIdRef.current) return
       const message = skillErrorMessage(error)
       setLocalSkills([])
       setLocalError(message)
+      setLoadedLocalSkillsWorkdir(workdir)
       logger.warn('Failed to list local skills', { workdir, error: message })
     } finally {
       if (requestId === localRequestIdRef.current) setLocalLoading(false)
@@ -191,6 +227,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
       return
     }
 
@@ -205,10 +242,11 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   }, [refreshInstalledSkills, refreshLocalSkills])
 
   const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+  const isInitialLocalLoad = enabled && Boolean(workdir) && loadedLocalSkillsWorkdir !== workdir
 
   return {
     skills,
-    loading: installed.loading || localLoading,
+    loading: installed.loading || localLoading || isInitialLocalLoad,
     error: installed.error ?? localError,
     refresh
   }
@@ -221,7 +259,7 @@ export function useSystemSkills(enabled = true) {
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState<Set<string>>(() => new Set())
   const importingRef = useRef<Set<string>>(new Set())
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const requestIdRef = useRef(0)
 
   const discover = useCallback(async () => {
@@ -338,7 +376,7 @@ export function useSkillSearch() {
  */
 export function useSkillInstall() {
   const [installingCounts, setInstallingCounts] = useState<Map<string, number>>(() => new Map())
-  const invalidate = useInvalidateCache()
+  const invalidate = useInvalidateSkills()
   const installingKey = useMemo(() => installingCounts.keys().next().value ?? null, [installingCounts])
 
   const beginInstalling = useCallback((key: string) => {

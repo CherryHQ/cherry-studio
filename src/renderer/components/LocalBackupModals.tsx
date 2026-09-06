@@ -1,8 +1,7 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
 import { backupToLocal } from '@renderer/services/BackupService'
-import dayjs from 'dayjs'
+import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,12 +62,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
   }
 
   const showBackupModal = useCallback(async () => {
-    // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await window.api.system.getHostname()
-    const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
-    setCustomFileName(defaultFileName)
+    setCustomFileName(await createDefaultBackupFileName())
     setIsModalVisible(true)
   }, [])
 
@@ -80,10 +74,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
     setBackuping(true)
     try {
-      await backupToLocal({
-        showMessage: true,
-        customFileName: customFileName || undefined
-      })
+      await backupToLocal({ customFileName })
       setIsModalVisible(false)
     } catch (error) {
       logger.error('Backup failed:', error as Error)

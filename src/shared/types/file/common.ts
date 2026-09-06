@@ -85,6 +85,27 @@ export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>
  * counterpart at all. See that module's JSDoc for the full contract.
  */
 
+/**
+ * The relative counterpart lives in `@shared/utils/file/relativeFilePath`:
+ * `PosixRelativeFilePath` / `WindowsRelativeFilePath`, with `RelativeFilePath`
+ * as their union. Not re-exported here.
+ *
+ * It is shape-only in the same sense as `AbsoluteFilePath` — assert-only parse,
+ * no normalization — but proves strictly less, because a relative path is not
+ * self-sufficient: `docs/notes.md` means nothing without its base, so the brand
+ * certifies shape and never correspondence to a particular base.
+ *
+ * Note the asymmetry in how the two handle platforms. The absolute schema above
+ * hand-rolls a union of POSIX / drive / UNC shapes inline; the relative side
+ * factors that question out into `@shared/utils/file/pathSpec`
+ * (`isPosixPath` / `isWindowsPath`) and composes it, so a consumer can ask
+ * "legal on Windows?" — the question a cross-platform migration needs. This
+ * schema should eventually be rebuilt on the same layer, which is why the
+ * inline union is left alone rather than half-migrated: its output feeds
+ * `canonicalizeFilePath` and the persisted `file_entry.externalPath`, so
+ * changing it requires a paired migration.
+ */
+
 // TODO: Add schema for them
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`

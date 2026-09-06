@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'grok',
   name: 'Grok',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
     'openai-chat-completions': {
@@ -29,7 +30,7 @@ export default defineProvider({
       }
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: ['grok-4'] }],
   metadata: {
     website: {
       docs: 'https://docs.x.ai/',

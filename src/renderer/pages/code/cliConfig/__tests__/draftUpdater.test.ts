@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
@@ -12,6 +13,12 @@ import {
   readCliConfigDraft,
   updateCliConfigDraftConfig
 } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 function mockGet(handlers: Record<string, () => unknown>) {
   const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
@@ -61,13 +68,14 @@ async function buildDraft(
 }
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-    }
-  })
+  // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+  mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+    files: input.targets.map((target) => ({
+      target,
+      path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+      content: ''
+    }))
+  }))
 })
 
 async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promise<CliConfigFileDraft[]> {
@@ -169,6 +177,23 @@ describe('updateCliConfigDraftConfig', () => {
     })
   })
 
+  it('preserves OpenCode compaction settings during a config-only update', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const config = JSON.parse(files[0].content)
+    config.autoCompact = true
+    config.compaction = { auto: false, prune: false, reserved: 10000 }
+    files[0].content = JSON.stringify(config)
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+    const parsed = JSON.parse(updated[0].content)
+
+    expect(parsed.compaction).toEqual({ auto: true, prune: false, reserved: 10000 })
+    expect(parsed).not.toHaveProperty('autoCompact')
+
+    const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, {})
+    expect(JSON.parse(disabled[0].content).compaction).toEqual({ prune: false, reserved: 10000 })
+  })
+
   it('returns the files unchanged when there is no managed connection', () => {
     const files: CliConfigFileDraft[] = [
       { target: 'codex-config' as CliConfigTarget, label: '', path: '', language: 'toml', content: '' }
@@ -236,7 +261,7 @@ describe('updateCliConfigDraftConfig', () => {
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
     const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
-    expect(parsed.autoCompact).toBe(true)
+    expect(parsed.compaction.auto).toBe(true)
     expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
     expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
   })

@@ -5,21 +5,38 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { regionService } from '@main/services/RegionService'
+import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
+import {
+  hasMultiLanguageReleaseNotes,
+  localizeReleaseNotes,
+  mergeReleaseHistory,
+  parseReleaseHistory,
+  type ReleaseNotesEntry
+} from '@shared/utils/releaseNotes'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { autoUpdater } from 'electron-updater'
+import { AppUpdater, autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
 
-function getUpdateHeaders(region: ReleaseRegion) {
+const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
+const RELEASE_HISTORY_TIMEOUT_MS = 10_000
+const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
+
+function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): string {
+  return edition === 'cn' ? `${channel}-cn` : channel
+}
+
+function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition: AppEdition }) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
@@ -27,15 +44,23 @@ function getUpdateHeaders(region: ReleaseRegion) {
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
     OS: process.platform,
+    'X-Edition': edition,
     'X-Region': region
   }
 }
 
-// Language markers constants for multi-language release notes
-const LANG_MARKERS = {
-  EN_START: '<!--LANG:en-->',
-  ZH_CN_START: '<!--LANG:zh-CN-->',
-  END: '<!--LANG:END-->'
+class ReleaseNotesUpdater extends AppUpdater {
+  constructor() {
+    super(undefined)
+  }
+
+  protected doDownloadUpdate(): Promise<string[]> {
+    return Promise.reject(new Error('Release-notes updater cannot download updates'))
+  }
+
+  quitAndInstall(): never {
+    throw new Error('Release-notes updater cannot install updates')
+  }
 }
 
 // Auto update-check scheduling. The cadence lives in the main process (this
@@ -153,7 +178,7 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
 
-  private async configureUpdaterForCheck() {
+  private async getUpdateRequest() {
     const currentVersion = app.getVersion()
     const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan
@@ -162,22 +187,101 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
+    const edition = getAppEdition()
+    const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders(region)
+    const updateHeaders = getUpdateHeaders({ region, edition })
+
+    return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
+  }
+
+  private async configureUpdaterForCheck() {
+    const { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders } =
+      await this.getUpdateRequest()
+
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       ...updateHeaders
     }
 
     logger.info(
-      `Using managed update feed for version ${currentVersion}, testPlan: ${testPlan}, channel: ${requestedChannel}, region: ${region} (IP country: ${ipCountry})`
+      `Using managed update feed for version ${currentVersion}, edition: ${edition}, testPlan: ${testPlan}, channel: ${updateChannel}, region: ${region} (IP country: ${ipCountry})`
     )
-    autoUpdater.channel = requestedChannel
+    autoUpdater.channel = updateChannel
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
     // Keep differential downloads disabled for the current release artifacts.
     autoUpdater.disableDifferentialDownload = true
+  }
+
+  private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
+    try {
+      const { updateHeaders } = await this.getUpdateRequest()
+      const response = await net.fetch(RELEASE_HISTORY_URL, {
+        headers: updateHeaders,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(RELEASE_HISTORY_TIMEOUT_MS)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Release history request failed with HTTP ${response.status}`)
+      }
+
+      const contentLength = Number(response.headers.get('content-length'))
+      if (Number.isFinite(contentLength) && contentLength > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      const source = await response.text()
+      if (Buffer.byteLength(source, 'utf8') > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      return parseReleaseHistory(source)
+    } catch (error) {
+      logger.warn('Failed to fetch release history', error as Error)
+      return null
+    }
+  }
+
+  public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
+    try {
+      const { updateChannel, updateHeaders } = await this.getUpdateRequest()
+      const updater = new ReleaseNotesUpdater()
+      updater.logger = logger as Logger
+      updater.forceDevUpdateConfig = !app.isPackaged
+      updater.autoDownload = false
+      updater.autoInstallOnAppQuit = false
+      updater.requestHeaders = updateHeaders
+      updater.channel = updateChannel
+      updater.allowDowngrade = false
+
+      const result = await updater.checkForUpdates()
+      if (!result?.isUpdateAvailable) {
+        return null
+      }
+
+      const releaseNotes = result.updateInfo.releaseNotes
+      if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
+        return null
+      }
+
+      return { releaseNotes, version: result.updateInfo.version }
+    } catch (error) {
+      logger.warn('Failed to fetch latest release notes', error as Error)
+      return null
+    }
+  }
+
+  public async getReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
+    const [history, latestRelease] = await Promise.all([this.fetchReleaseHistory(), this.getLatestReleaseNotes()])
+
+    if (!history) {
+      return latestRelease ? [latestRelease] : null
+    }
+
+    return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
   public cancelDownload() {
@@ -287,57 +391,6 @@ export class AppUpdaterService extends BaseService {
   }
 
   /**
-   * Check if release notes contain multi-language markers
-   */
-  private hasMultiLanguageMarkers(releaseNotes: string): boolean {
-    return releaseNotes.includes(LANG_MARKERS.EN_START)
-  }
-
-  /**
-   * Parse multi-language release notes and return the appropriate language version
-   * @param releaseNotes - Release notes string with language markers
-   * @returns Parsed release notes for the user's language
-   *
-   * Expected format:
-   * <!--LANG:en-->English content<!--LANG:zh-CN-->Chinese content<!--LANG:END-->
-   */
-  private parseMultiLangReleaseNotes(releaseNotes: string): string {
-    try {
-      const language = application.get('PreferenceService').get('app.language')
-      const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
-
-      // Create regex patterns using constants
-      const enPattern = new RegExp(
-        `${LANG_MARKERS.EN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-      const zhPattern = new RegExp(
-        `${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-
-      // Extract language sections
-      const enMatch = releaseNotes.match(enPattern)
-      const zhMatch = releaseNotes.match(zhPattern)
-
-      // Return appropriate language version with proper fallback
-      if (isChineseUser && zhMatch) {
-        return zhMatch[1].trim()
-      } else if (enMatch) {
-        return enMatch[1].trim()
-      } else {
-        // Clean fallback: remove all language markers
-        logger.warn('Failed to extract language-specific release notes, using cleaned fallback')
-        return releaseNotes
-          .replace(new RegExp(`${LANG_MARKERS.EN_START}|${LANG_MARKERS.ZH_CN_START}|${LANG_MARKERS.END}`, 'g'), '')
-          .trim()
-      }
-    } catch (error) {
-      logger.error('Failed to parse multi-language release notes', error as Error)
-      // Return original notes as safe fallback
-      return releaseNotes
-    }
-  }
-
-  /**
    * Process release info to handle multi-language release notes
    * @param releaseInfo - Original release info from updater
    * @returns Processed release info with localized release notes
@@ -347,9 +400,13 @@ export class AppUpdaterService extends BaseService {
 
     // Handle multi-language release notes in string format
     if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
-      // Check if it contains multi-language markers
-      if (this.hasMultiLanguageMarkers(releaseInfo.releaseNotes)) {
-        processedInfo.releaseNotes = this.parseMultiLangReleaseNotes(releaseInfo.releaseNotes)
+      if (hasMultiLanguageReleaseNotes(releaseInfo.releaseNotes)) {
+        try {
+          const language = application.get('PreferenceService').get('app.language')
+          processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
+        } catch (error) {
+          logger.error('Failed to localize release notes', error as Error)
+        }
       }
     }
 

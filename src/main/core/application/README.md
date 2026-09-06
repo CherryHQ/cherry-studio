@@ -38,4 +38,4 @@ application/
 └── serviceRegistry.ts  # Central service registry (add services here); imported directly, not via a barrel
 ```
 
-No `index.ts` barrel: the two files are independent (the locator vs the bootstrap manifest), so each is imported directly by its consumers rather than bundled behind a door (per [Naming §6.4](../../../../docs/references/naming-conventions.md)).
+No `index.ts` barrel: the two files are independent (the locator vs the bootstrap manifest), so each is imported directly by its consumers rather than bundled behind a door (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md)).

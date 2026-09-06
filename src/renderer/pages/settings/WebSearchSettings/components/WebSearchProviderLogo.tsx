@@ -1,6 +1,7 @@
+import { useIcon } from '@cherrystudio/ui/icons'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
-import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
+import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
@@ -12,6 +13,8 @@ interface WebSearchProviderLogoProps {
 }
 
 const WebSearchProviderLogo: FC<WebSearchProviderLogoProps> = ({ providerId, providerName, size = 15, className }) => {
+  const Icon = useIcon(providerId === 'fetch' ? undefined : getWebSearchProviderIconRef(providerId))
+
   if (providerId === 'fetch') {
     return (
       <img
@@ -24,10 +27,8 @@ const WebSearchProviderLogo: FC<WebSearchProviderLogoProps> = ({ providerId, pro
     )
   }
 
-  const logo = getWebSearchProviderLogo(providerId)
-
-  if (logo) {
-    return <logo.Avatar size={size} shape="rounded" className={className} />
+  if (Icon) {
+    return <Icon.Avatar size={size} shape="rounded" className={className} />
   }
 
   const initial = providerName.trim().charAt(0).toUpperCase() || '?'

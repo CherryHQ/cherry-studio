@@ -112,6 +112,7 @@ export class CacheService {
   // Shared cache ready state for initialization sync
   private sharedCacheReady = false
   private sharedCacheReadyCallbacks: Array<() => void> = []
+  private sharedKeysUpdatedDuringInitialSync = new Set<string>()
 
   constructor() {
     this.initialize()
@@ -968,6 +969,8 @@ export class CacheService {
       let syncedCount = 0
 
       for (const [key, entry] of Object.entries(allShared)) {
+        if (this.sharedKeysUpdatedDuringInitialSync.has(key)) continue
+
         // Skip expired entries
         if (entry.expireAt && Date.now() > entry.expireAt) {
           continue
@@ -993,6 +996,7 @@ export class CacheService {
     } catch (error) {
       logger.error('Failed to sync shared cache from Main:', error as Error)
     } finally {
+      this.sharedKeysUpdatedDuringInitialSync.clear()
       this.markSharedCacheReady()
     }
   }
@@ -1107,7 +1111,7 @@ export class CacheService {
   }
 
   /**
-   * Schedule persist cache save with 200ms debounce to avoid excessive writes
+   * Schedule persist cache save with 350ms debounce to avoid excessive writes
    */
   private schedulePersistSave(): void {
     this.persistDirty = true
@@ -1144,6 +1148,8 @@ export class CacheService {
     // Listen for cache sync messages from other windows
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
+        if (!this.sharedCacheReady) this.sharedKeysUpdatedDuringInitialSync.add(message.key)
+
         if (message.value === undefined) {
           // Deletion tombstone: physically remove and always notify so
           // observers see the value disappear (unlike main's

@@ -1,12 +1,16 @@
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInputNumber,
+  InputGroupText,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -26,6 +30,7 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
@@ -33,8 +38,14 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
+import {
+  MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_THRESHOLD_PERCENT,
+  MIN_TRUNCATE_THRESHOLD
+} from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -61,6 +72,7 @@ import {
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
@@ -90,6 +102,8 @@ type AssistantEditFormValues = {
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
+  contextMaxMessages: number | null
+  contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -101,7 +115,6 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_MAX_TOOL_CALLS = 100
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -130,6 +143,8 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
+    contextMaxMessages: form.contextMaxMessages,
+    contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
@@ -168,6 +183,8 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
+    contextMaxMessages: values.contextMaxMessages,
+    contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
@@ -179,6 +196,7 @@ export function AssistantEditDialog({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
 }: AssistantEditDialogProps) {
   if (!resource) return null
@@ -189,6 +207,7 @@ export function AssistantEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={initialTab}
     />
   )
@@ -199,6 +218,7 @@ function AssistantEditDialogContent({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
@@ -222,6 +242,7 @@ function AssistantEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'advanced', label: t('library.config.agent.model_config') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -234,8 +255,8 @@ function AssistantEditDialogContent({
     [t]
   )
 
-  // Tracks the exact form snapshot that failed so the first close keeps the
-  // error visible, while a repeated close can explicitly discard that snapshot.
+  // Tracks the exact form snapshot that failed so it cannot be retried until
+  // the user changes the form, while a later close can explicitly discard it.
   const failedSaveKeyRef = useRef<string | null>(null)
 
   const wasOpenRef = useRef(false)
@@ -264,11 +285,16 @@ function AssistantEditDialogContent({
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
   const changeKey = canPersist ? JSON.stringify(values) : null
+  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const persist = async () => {
     const pending = saveIntent
-    if (!pending) return
+    if (!pending || !changeKey) return
     const attemptedKey = changeKey
+
+    // A close-triggered flush does not cancel the already scheduled debounce.
+    // Keep both paths from resending an unchanged payload that already failed.
+    if (failedSaveKeyRef.current === attemptedKey) return
 
     form.clearErrors('root')
     failedSaveKeyRef.current = null
@@ -278,7 +304,8 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
-      form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      form.setError('root', { message: saveFailedMessage })
+      toast.error(saveFailedMessage)
     }
   }
 
@@ -301,12 +328,13 @@ function AssistantEditDialogContent({
       return
     }
     if (failedSaveKeyRef.current === changeKey) {
+      toast.error(saveFailedMessage)
       onOpenChange(false)
       return
     }
     void (async () => {
       await flush()
-      if (failedSaveKeyRef.current === changeKey) return
+      if (failedSaveKeyRef.current !== null) return
       onOpenChange(false)
     })()
   }
@@ -347,6 +375,7 @@ function AssistantEditDialogContent({
           <AssistantBasicFields
             form={form}
             modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -371,6 +400,13 @@ function AssistantEditDialogContent({
             portalContainer={dialogContentElement}
           />
         </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'assistant', id: resource.id }}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
         {isAssistantToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
             {activeTab === 'tools.mcp' ? (
@@ -385,6 +421,8 @@ function AssistantEditDialogContent({
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AssistantAdvancedFields
             form={form}
+            modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -403,6 +441,7 @@ function AssistantEditDialogContent({
 function AssistantBasicFields({
   form,
   modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -415,7 +454,8 @@ function AssistantBasicFields({
   onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
-  modelFilter?: (model: Model) => boolean
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -471,6 +511,7 @@ function AssistantBasicFields({
         label={t('common.model')}
         allowClear
         filter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -642,11 +683,15 @@ function AssistantToolsFields({
 
 function AssistantAdvancedFields({
   form,
+  modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels
 }: {
   form: UseFormReturn<AssistantEditFormValues>
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -655,9 +700,12 @@ function AssistantAdvancedFields({
   const values = form.watch()
   // Global defaults, shown as the seed when the user turns the override on for
   // an assistant that has none stored yet.
+  const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [globalCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
     { value: 1, label: '1' },
@@ -732,16 +780,14 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxTokens"
             render={({ field }) => (
-              <EditableNumber
-                block
+              <InputNumber
                 min={1}
+                max={Number.MAX_SAFE_INTEGER}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tokens')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
                 }
               />
@@ -785,7 +831,9 @@ function AssistantAdvancedFields({
                 count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
               })
         }
-        description={t('library.config.basic.field.max_tool_calls.hint')}
+        description={t('library.config.basic.field.max_tool_calls.hint', {
+          count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+        })}
         enabled={values.enableMaxToolCalls}
         onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
         control={
@@ -793,17 +841,14 @@ function AssistantAdvancedFields({
             control={form.control}
             name="maxToolCalls"
             render={({ field }) => (
-              <EditableNumber
-                block
-                min={1}
-                max={UI_MAX_TOOL_CALLS}
+              <InputNumber
+                min={MIN_TOOL_CALLS}
+                max={MAX_TOOL_CALLS}
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                aria-label={t('library.config.basic.max_tool_calls')}
+                className="h-8 rounded-lg px-2.5"
                 value={field.value}
-                onChange={(value) =>
+                onBlur={(value) =>
                   field.onChange(
                     typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
                   )
@@ -816,12 +861,17 @@ function AssistantAdvancedFields({
 
       <ContextManagementFields
         form={form}
+        modelFilter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
         globalDefaults={{
+          enabled: globalContextEnabled,
           compressEnabled: globalCompressEnabled,
+          maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
+          compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
         }}
       />
@@ -843,16 +893,27 @@ function AssistantAdvancedFields({
 
 function ContextManagementFields({
   form,
+  modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
   globalDefaults
 }: {
   form: UseFormReturn<AssistantEditFormValues>
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  globalDefaults: { compressEnabled: boolean; truncateThreshold: number; compressModelId: string | null }
+  globalDefaults: {
+    enabled: boolean
+    compressEnabled: boolean
+    truncateThreshold: number
+    maxMessages: number | null
+    compressThreshold: number
+    compressModelId: string | null
+  }
 }) {
   const { t } = useTranslation()
   const values = form.watch()
@@ -872,14 +933,64 @@ function ContextManagementFields({
 
   return (
     <>
+      <FormField
+        control={form.control}
+        name="contextMaxMessages"
+        render={({ field }) => (
+          <FormItem>
+            <FieldLabelWithHelp
+              label={t('library.config.basic.context_count')}
+              help={t('library.config.basic.field.context_count.hint')}
+            />
+            <FormControl>
+              {/* Outside the override group: scope is not an overflow policy. */}
+              <InputNumber
+                min={1}
+                step={1}
+                placeholder={
+                  globalDefaults.maxMessages === null
+                    ? t('library.config.basic.context_count_unlimited')
+                    : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
+                }
+                className="h-8 rounded-lg px-2.5"
+                value={field.value}
+                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
       <ToggleFieldGroup
         label={t('library.config.basic.context_management')}
         description={t('library.config.basic.field.context_management.hint')}
         enabled={values.contextOverrideEnabled}
         onEnabledChange={onOverrideToggle}
       />
+      {!globalDefaults.enabled ? (
+        // Stored but inert while the global master switch is off — say so
+        // rather than showing live-looking controls.
+        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+          {t('library.config.basic.context_globally_disabled')}
+        </div>
+      ) : null}
+      {!values.contextOverrideEnabled && globalDefaults.enabled ? (
+        // Name what is being inherited: the values only become visible once the
+        // override is on, so without this the user overrides a blank.
+        <div className="-mt-2 text-muted-foreground text-xs leading-5">
+          {t('library.config.basic.context_inherited', {
+            compress: globalDefaults.compressEnabled
+              ? t('library.config.basic.context_inherited_compress_on')
+              : t('library.config.basic.context_inherited_compress_off'),
+            threshold: globalDefaults.truncateThreshold
+          })}
+        </div>
+      ) : null}
       {values.contextOverrideEnabled ? (
-        <div className="grid gap-4 border-border/60 border-l pl-4">
+        // Indent alone carries the subordination — a rule here spanned the
+        // parent row's padding and read as a stray edge.
+        <div className="-mt-2 grid gap-4 pl-4">
           <FormField
             control={form.control}
             name="contextCompressEnabled"
@@ -906,6 +1017,43 @@ function ContextManagementFields({
             )}
           />
 
+          {values.contextCompressEnabled ? (
+            <FormField
+              control={form.control}
+              name="contextCompressThresholdPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FieldLabelWithHelp
+                    label={t('library.config.basic.context_compress_threshold')}
+                    help={t('library.config.basic.field.context_compress_threshold.hint')}
+                  />
+                  <InputGroup className="h-8 rounded-lg">
+                    {/* Inside the group, not around it: `FormControl` is a `Slot` and
+                        hands the label's `htmlFor` target to its immediate child. */}
+                    <FormControl>
+                      <InputGroupInputNumber
+                        min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                        max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                        step={5}
+                        // Empty = inherit; the placeholder names the global in force.
+                        placeholder={t('library.config.basic.context_compress_threshold_follow_global', {
+                          percent: globalDefaults.compressThreshold
+                        })}
+                        className="px-2.5"
+                        value={field.value}
+                        onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
+                      />
+                    </FormControl>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
+
           <FormField
             control={form.control}
             name="contextTruncateThreshold"
@@ -916,17 +1064,19 @@ function ContextManagementFields({
                   help={t('library.config.basic.field.context_truncate_threshold.hint')}
                 />
                 <FormControl>
-                  <EditableNumber
-                    block
-                    min={1}
-                    step={1000}
-                    precision={0}
-                    align="start"
-                    changeOnBlur
-                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                  <InputNumber
+                    // Same floor and step as the global panel — this doubles as
+                    // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
+                    min={MIN_TRUNCATE_THRESHOLD}
+                    step={1}
+                    className="h-8 rounded-lg px-2.5"
                     value={field.value}
-                    onChange={(value) =>
-                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                    onBlur={(value) =>
+                      field.onChange(
+                        typeof value === 'number' && Number.isFinite(value)
+                          ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))
+                          : globalDefaults.truncateThreshold
+                      )
                     }
                   />
                 </FormControl>
@@ -942,7 +1092,8 @@ function ContextManagementFields({
             allowClear
             emptyLabel={t('library.config.basic.context_compress_model_follow')}
             // A compression model summarizes history — only chat-capable models qualify.
-            filter={(model) => !isNonChatModel(model)}
+            filter={(model, provider) => !isNonChatModel(model) && (modelFilter?.(model, provider) ?? true)}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -1079,6 +1230,9 @@ function CustomParameterRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
+  const parameterValueLabel = param.name.trim()
+    ? `${t('library.config.basic.custom_params_value')}: ${param.name.trim()}`
+    : t('library.config.basic.custom_params_value')
   const jsonString =
     param.type === 'json'
       ? typeof param.value === 'string'
@@ -1119,13 +1273,16 @@ function CustomParameterRow({
         {param.type !== 'json' ? (
           <div className="flex-1">
             {param.type === 'number' ? (
-              <Input
-                type="number"
-                value={String(param.value)}
-                onChange={(event) => {
-                  const parsed = parseFloat(event.target.value)
-                  onValueChange(Number.isFinite(parsed) ? parsed : 0)
-                }}
+              // Neither `min` nor `step`: custom parameters accept any real
+              // number, including negatives and fractions.
+              <InputNumber
+                aria-label={parameterValueLabel}
+                value={typeof param.value === 'number' ? param.value : null}
+                onValueChange={(value) => onValueChange(value ?? 0)}
+                // Settles an abandoned `-` / `1e` back to what the edit started
+                // from; the live callback stays silent on those, so without this
+                // the field keeps whatever the clear before them wrote.
+                onBlur={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (
@@ -1140,7 +1297,11 @@ function CustomParameterRow({
               </Select>
             ) : null}
             {param.type === 'string' ? (
-              <Input value={String(param.value)} onChange={(event) => onValueChange(event.target.value)} />
+              <Input
+                aria-label={parameterValueLabel}
+                value={String(param.value)}
+                onChange={(event) => onValueChange(event.target.value)}
+              />
             ) : null}
           </div>
         ) : null}

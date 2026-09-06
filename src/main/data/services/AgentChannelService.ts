@@ -1,6 +1,7 @@
 import { application } from '@application'
 import {
   type AgentChannelRow as ChannelRow,
+  agentChannelSessionTable as channelSessionsTable,
   agentChannelTable as channelsTable,
   agentChannelTaskTable as channelTaskSubscriptionsTable,
   type InsertAgentChannelRow as InsertChannelRow
@@ -11,7 +12,12 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
+} from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -84,8 +90,54 @@ export class AgentChannelService {
 
   findBySessionId(sessionId: string): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
-    const result = database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1).all()
-    return result[0] ? this.rowToEntity(result[0]) : null
+    const result = database
+      .select({ channel: channelsTable })
+      .from(channelSessionsTable)
+      .innerJoin(channelsTable, eq(channelSessionsTable.channelId, channelsTable.id))
+      .where(eq(channelSessionsTable.sessionId, sessionId))
+      .limit(1)
+      .all()
+    return result[0] ? this.rowToEntity(result[0].channel) : null
+  }
+
+  getActiveSessionId(channelId: string, conversationId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const [row] = database
+      .select({ sessionId: channelSessionsTable.sessionId })
+      .from(channelSessionsTable)
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, channelId),
+          eq(channelSessionsTable.conversationId, conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .limit(1)
+      .all()
+    return row?.sessionId ?? null
+  }
+
+  activateSessionTx(
+    tx: DbOrTx,
+    input: {
+      channelId: string
+      conversationId: string
+      sessionId: string
+    }
+  ): void {
+    tx.update(channelSessionsTable)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, input.channelId),
+          eq(channelSessionsTable.conversationId, input.conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .run()
+    tx.insert(channelSessionsTable)
+      .values({ ...input, isActive: true })
+      .run()
   }
 
   listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {
@@ -100,6 +152,38 @@ export class AgentChannelService {
       : database.select().from(channelsTable).all()
 
     return rows.map((row) => this.rowToEntity(row))
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return tx
+      .select({ id: channelsTable.id, name: channelsTable.name, workspace: channelsTable.workspace })
+      .from(channelsTable)
+      .all()
+      .filter((channel) => {
+        const workspace = AgentSessionWorkspaceSourceSchema.safeParse(channel.workspace)
+        return (
+          workspace.success &&
+          workspace.data.type === AGENT_WORKSPACE_TYPE.USER &&
+          workspace.data.workspaceId === workspaceId
+        )
+      })
+      .map(({ id, name }) => ({ id, name }))
+  }
+
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = this.listWorkspaceReferencesTx(tx, workspaceId)
+    if (references.length === 0) return references
+
+    tx.update(channelsTable)
+      .set({ workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })
+      .where(
+        inArray(
+          channelsTable.id,
+          references.map((channel) => channel.id)
+        )
+      )
+      .run()
+    return references
   }
 
   /**
@@ -119,10 +203,9 @@ export class AgentChannelService {
   updateChannel(
     id: string,
     updates: Partial<
-      Pick<
-        ChannelRow,
-        'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'
-      > & { workspace: AgentSessionWorkspaceSource }
+      Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
+        workspace: AgentSessionWorkspaceSource
+      }
     >
   ): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()

@@ -25,7 +25,13 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: undefined })
+  useDefaultModel: () => ({ defaultModel: undefined }),
+  useModels: () => ({ models: [] })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => () => true,
+  useAgentModelDisabled: () => () => false
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -35,6 +41,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
   resourceDialogCloseButtonClassName: '',
   resourceDialogHeaderClassName: '',
+  resourceDialogRailItemClassName: '',
   resourceDialogTitleClassName: '',
   KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
     <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
@@ -67,10 +74,10 @@ vi.mock('../steps/BasicInfoStep', () => ({
     </>
   )
 }))
-vi.mock('../steps/PersonaStep', () => ({
-  PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
+vi.mock('../steps/SystemPromptStep', () => ({
+  SystemPromptStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
     <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-      fill persona
+      fill system prompt
     </button>
   )
 }))
@@ -157,6 +164,11 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
     EmojiAvatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Form: ({ children }: { children: ReactNode }) => <>{children}</>,
+    MenuItem: ({ label, disabled, onClick }: { label: ReactNode; disabled?: boolean; onClick?: () => void }) => (
+      <button type="button" disabled={disabled} onClick={onClick}>
+        {label}
+      </button>
+    ),
     Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
   }
 })
@@ -303,7 +315,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     const renderCountAfterNavigation = dialog.renderCount
 
-    await user.click(screen.getByRole('button', { name: 'fill persona' }))
+    await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
 
     expect(dialog.renderCount).toBe(renderCountAfterNavigation)
   })

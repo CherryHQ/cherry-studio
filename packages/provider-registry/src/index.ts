@@ -23,7 +23,9 @@ export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,
   imageParamsSchema,
+  normalizeImageParamNumber,
   paramCatalogEntry,
+  parseImageParamValue,
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
@@ -42,7 +44,12 @@ export type {
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES, selectFormatWire } from './reasoningProfiles'
+export {
+  configureOpenAIResponsesSummary,
+  openaiResponsesSummaryWire,
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
+} from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -59,15 +66,30 @@ export type {
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'
 export type {
+  EndpointDialect,
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
+  ProviderEdition,
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
-  ServerToolConfig
+  ServerToolConfig,
+  ServiceTierDelivery,
+  ServiceTierOptions,
+  ServiceTierRequestControl,
+  ServiceTierSelection
 } from './schemas/provider'
-export { FastModeTransportSchema, REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
+export {
+  FastModeTransportSchema,
+  ProviderEditionSchema,
+  REASONING_FORMAT_TYPES,
+  ServerToolConfigSchema,
+  ServiceTierDeliverySchema,
+  ServiceTierOptionsSchema,
+  ServiceTierRequestControlSchema,
+  ServiceTierSelectionSchema
+} from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,
@@ -91,7 +113,13 @@ export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
-export { normalizeModelId } from './utils/normalize'
+export {
+  normalizeModelId,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
+} from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'

@@ -11,12 +11,15 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
-import { resolveDmxapiChatFamily } from './dmxapiRouting'
+import { resolveDmxapiNativeImageFamily } from './dmxapiImageRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
+
+export { dmxapiUsesCustomTransport } from './dmxapiImageRouting'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
@@ -52,37 +55,6 @@ const EMBEDDING_FAMILY_TABLE: Array<{
 
 function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
   return EMBEDDING_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
-}
-
-type DmxapiNativeImageFamily = 'openai-compat-image' | 'openai-native' | 'gemini-native'
-
-const NATIVE_IMAGE_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiNativeImageFamily, 'openai-compat-image'>
-  match: (modelId: string) => boolean
-}> = [
-  { family: 'openai-native', match: (id) => /^(gpt-image|dall-e)/i.test(id) },
-  // Native Google image — covers both `imagen-*` (Imagen API) and
-  // `gemini-*-image*` previews (Gemini generateContent with image output).
-  // The Google SDK dispatches internally; pointing it at DMXAPI's baseURL
-  // routes the request through the gateway's Gemini-compatible path.
-  { family: 'gemini-native', match: (id) => /^imagen-/i.test(id) || /^gemini-.*image/i.test(id) }
-]
-
-function resolveNativeImageFamily(modelId: string): DmxapiNativeImageFamily {
-  return NATIVE_IMAGE_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat-image'
-}
-
-/**
- * Whether a DMXAPI image model is routed to the bespoke submit/poll transport
- * (Doubao Seedream / Wan / async Qwen-image) rather than a native AI SDK
- * adapter or the OpenAI-compatible image model. MUST mirror the routing in
- * `createImageModelV3` below — the image-generation job's transport registry
- * (`resolveImageTransport`) uses this to decide whether DMXAPI generation goes
- * through the job. Native families (gpt-image / dall-e / imagen / gemini-image)
- * and the `openai-flat` compat fallback keep the in-SDK path.
- */
-export function dmxapiUsesCustomTransport(modelId: string): boolean {
-  return resolveNativeImageFamily(modelId) === 'openai-compat-image' && resolveDmxapiFamily(modelId) !== 'openai-flat'
 }
 
 /**
@@ -190,7 +162,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     // Putting these ahead of `resolveDmxapiFamily` ensures a model that has
     // a first-party adapter is never accidentally routed to the bespoke
     // transport just because a family-table matcher overlaps.
-    switch (resolveNativeImageFamily(modelId)) {
+    switch (resolveDmxapiNativeImageFamily(modelId)) {
       case 'openai-native':
         return new OpenAIImageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.openai-image`,

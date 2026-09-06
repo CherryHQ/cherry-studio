@@ -4,8 +4,8 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { classifyError } from '@renderer/utils/errorClassifier'
+import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
@@ -33,6 +33,14 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+
+  const claudeCodeExit = getClaudeCodeExitInfo(error)
+  if (claudeCodeExit) {
+    const { reference, exitCode, exitSignal } = claudeCodeExit
+    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+    return t('error.claude_code_exit.start', { reference })
+  }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -66,12 +74,12 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
       </span>
     )
   }
 
-  return error?.message || ''
+  return providerErrorText(error)
 }
 
 const MessageErrorInfo: React.FC<{
@@ -87,59 +95,24 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
-  const errorStatus =
-    (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
-  const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
-  const errorData = (error as Record<string, unknown> | undefined)?.data
-  const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
-  const classificationStatus =
-    typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
-  const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
-  let classificationData: string | undefined
-  if (typeof errorData === 'string') {
-    classificationData = errorData
-  } else if (errorData !== undefined && errorData !== null) {
-    try {
-      classificationData = JSON.stringify(errorData)
-    } catch {
-      // Ignore non-serializable provider data.
-    }
-  }
-  const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
-  const classification = useMemo(() => {
-    const classificationError: SerializedError = {
-      name: null,
-      message: errorMessage ?? null,
-      stack: null,
-      ...(classificationStatus !== undefined
-        ? {
-            status: classificationStatus,
-            statusCode: classificationStatus
-          }
-        : {}),
-      ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
-      ...(classificationData !== undefined ? { data: classificationData } : {}),
-      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
-    }
-
-    return classifyError(classificationError, providerId)
-  }, [
-    classificationData,
-    classificationFinishReason,
-    classificationResponseBody,
-    classificationStatus,
-    errorMessage,
-    providerId
-  ])
+  const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
 
   useEffect(() => {
-    if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
+    if (
+      claudeCodeExitCategory !== undefined ||
+      hasAppOwnedI18nKey ||
+      classification.category !== 'unknown' ||
+      !errorMessage ||
+      !error ||
+      !diagnoseMessageError
+    )
       return
     let cancelled = false
     diagnoseMessageError({
@@ -159,7 +132,16 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, hasAppOwnedI18nKey, i18n.language, message, partId])
+  }, [
+    claudeCodeExitCategory,
+    classification.category,
+    diagnoseMessageError,
+    errorMessage,
+    hasAppOwnedI18nKey,
+    i18n.language,
+    message,
+    partId
+  ])
 
   const diagnosisContext = useMemo(
     () => ({
@@ -239,7 +221,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
+        className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>

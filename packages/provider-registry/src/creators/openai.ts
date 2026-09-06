@@ -1,6 +1,26 @@
 import { openaiCompatible } from './_api'
 import { defineCreator } from './types'
 
+const gptImageFullSupports = {
+  background: { options: ['auto', 'transparent', 'opaque'], type: 'enum' as const },
+  moderation: { options: ['auto', 'low'], type: 'enum' as const },
+  numImages: { default: 1, max: 10, min: 1, type: 'range' as const },
+  quality: { options: ['auto', 'low', 'medium', 'high'], type: 'enum' as const },
+  size: {
+    default: '1024x1024',
+    options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+    render: 'chips' as const,
+    type: 'enum' as const
+  }
+}
+
+const gptImageFullImageGeneration = {
+  modes: {
+    edit: { supports: gptImageFullSupports },
+    generate: { supports: gptImageFullSupports }
+  }
+}
+
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
@@ -44,7 +64,6 @@ export default defineCreator({
     'davinci',
     'babbage'
   ],
-  serverTools: { 'web-search': ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4'] },
   // "Web search does not support gpt-5 with minimal reasoning" (platform.openai.com
   // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
@@ -56,66 +75,7 @@ export default defineCreator({
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
-      imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              background: {
-                options: ['auto', 'transparent', 'opaque'],
-                type: 'enum'
-              },
-              moderation: {
-                options: ['auto', 'low'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              background: {
-                options: ['auto', 'transparent', 'opaque'],
-                type: 'enum'
-              },
-              moderation: {
-                options: ['auto', 'low'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      imageGeneration: gptImageFullImageGeneration
     },
     {
       id: 'dall-e-3',
@@ -217,66 +177,7 @@ export default defineCreator({
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              background: {
-                options: ['auto', 'transparent', 'opaque'],
-                type: 'enum'
-              },
-              moderation: {
-                options: ['auto', 'low'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              background: {
-                options: ['auto', 'transparent', 'opaque'],
-                type: 'enum'
-              },
-              moderation: {
-                options: ['auto', 'low'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      imageGeneration: gptImageFullImageGeneration
     },
     // GPT-5 chat / reasoning SKUs. models.dev over-tags these with `image-generation`
     // + an `image` output modality — GPT-5 emits images only via the Responses

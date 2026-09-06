@@ -2,28 +2,37 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import {
+  HtmlArtifactPopupHost,
+  useHtmlArtifactPopupContext,
+  useOptionalHtmlArtifactPopupContext
+} from '@renderer/components/chat/HtmlArtifactPopupContext'
+import {
+  canConsumeVerticalWheel,
+  findVerticalWheelConsumer,
+  useScrollRuntimeBoundary
+} from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
-import HtmlPreviewFrame, {
-  HTML_PREVIEW_RESTRICTED_CSP,
-  injectHtmlPreviewHeadElement
-} from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
+import {
+  getMaxPreviewHeight,
+  htmlArtifactPreviewRequiresInteractive,
+  HtmlArtifactPreviewSurface,
+  InteractiveHtmlPreview,
+  routeWheelScroll,
+  SCROLL_ACTIVATION_DELAY_MS
+} from '@renderer/components/CodeBlockView/HtmlArtifactPreviewSurface'
+import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
-import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ConsoleMessageEvent, WebviewTag } from 'electron'
+import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
-  createContext,
   lazy,
   memo,
-  type ReactNode,
   type RefObject,
   Suspense,
-  use,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -42,10 +51,12 @@ const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
-const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
+/** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
+ *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
 const STREAMING_PREVIEW_REFRESH_MS = 250
-const SCROLL_ACTIVATION_DELAY_MS = 300
+const STREAMING_PREVIEW_MAX_REFRESH_MS = 4000
+const STREAMING_PREVIEW_CHARS_PER_MS = 2000
 
 interface HtmlArtifactViewProps {
   /** Stable Markdown-node identity used only to preserve an open popup across renderer remounts. */
@@ -55,143 +66,28 @@ interface HtmlArtifactViewProps {
   onSave?: (html: string) => void
   editable?: boolean
   /**
-   * Drives the safety gate: only a whole `document` can be promoted to an interactive webview,
-   * and only after consent. A `fragment` embedded in prose always stays in the script-less
-   * preview frame, so it needs no gate. Defaults to `document` — a missing classification must
-   * fail closed.
+   * Drives the INLINE safety gate: only a whole `document` can be promoted to the inline
+   * interactive webview, and only after consent; a `fragment` embedded in prose always
+   * stays in the script-less inline frame. The maximize popup tiers by content alone
+   * (see HtmlArtifactPopupOutlet) — an active fragment opens the webview there. Defaults
+   * to `document` — a missing classification must fail closed.
    */
   kind?: HtmlArtifactKind
   /** Purely presentational: caps the height and hides the toolbar / code view while generating. */
   isStreaming?: boolean
 }
 
-interface HtmlArtifactPopupSession {
-  artifactId: string
-  html: string
-  title: string
-  onSave?: (html: string) => void
-  editable: boolean
-  kind: HtmlArtifactKind
-  zoom: number
-}
+function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
+  const targetNode = event.target as Node | null
+  const element =
+    targetNode?.nodeType === Node.ELEMENT_NODE ? (targetNode as Element) : (targetNode?.parentElement ?? null)
+  const frameDocument = element?.ownerDocument
+  if (!frameDocument) return false
 
-type HtmlArtifactPopupUpdate = Omit<HtmlArtifactPopupSession, 'zoom'>
+  if (findVerticalWheelConsumer(element, event.deltaY, frameDocument.documentElement)) return true
 
-interface HtmlArtifactPopupContextValue {
-  approvedInteractiveHtmlById: Readonly<Record<string, string>>
-  popupSession: HtmlArtifactPopupSession | null
-  approveInteractiveHtml: (artifactId: string, html: string) => void
-  openPopup: (session: HtmlArtifactPopupSession) => void
-  syncPopup: (update: HtmlArtifactPopupUpdate) => void
-  closePopup: () => void
-}
-
-const HtmlArtifactPopupContext = createContext<HtmlArtifactPopupContextValue | null>(null)
-
-function useHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue {
-  const popupContext = use(HtmlArtifactPopupContext)
-  if (!popupContext) {
-    throw new Error('HTML artifact popup components must be rendered within HtmlArtifactPopupHost')
-  }
-  return popupContext
-}
-
-type HtmlArtifactBridgeMessage =
-  | { type: 'height'; value: number }
-  | {
-      type: 'wheel'
-      value: number
-    }
-
-function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDelay: number): string {
-  return `(() => {
-    const sendConsoleMessage = console.debug.bind(console)
-    document.currentScript?.remove()
-    const send = (type, value) => {
-      sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
-    }
-    let lastReportedHeight = -1
-    const reportHeight = () => {
-      const bodyHeight = document.body?.scrollHeight ?? 0
-      const rootHeight = document.documentElement?.scrollHeight ?? 0
-      const scrollingHeight = document.scrollingElement?.scrollHeight ?? 0
-      const height = Math.max(bodyHeight, rootHeight, scrollingHeight)
-      if (height === lastReportedHeight) return
-      lastReportedHeight = height
-      send('height', height)
-    }
-    const canScroll = (element, deltaY, isRoot = false) => {
-      if (!element || element.scrollHeight <= element.clientHeight + 1) return false
-      if (!isRoot) {
-        const overflowY = getComputedStyle(element).overflowY
-        if (!/(auto|scroll|overlay)/.test(overflowY)) return false
-      }
-      if (deltaY < 0) return element.scrollTop > 0
-      return element.scrollTop + element.clientHeight < element.scrollHeight - 1
-    }
-    const scrollActivationDelay = ${scrollActivationDelay}
-    let isScrollActive = true
-    let scrollActivationTimer = null
-    const lockScroll = () => {
-      if (scrollActivationTimer !== null) {
-        clearTimeout(scrollActivationTimer)
-        scrollActivationTimer = null
-      }
-      isScrollActive = false
-    }
-    const scheduleScrollActivation = () => {
-      if (scrollActivationDelay === 0) return
-      lockScroll()
-      scrollActivationTimer = setTimeout(() => {
-        scrollActivationTimer = null
-        isScrollActive = true
-      }, scrollActivationDelay)
-    }
-    const handleWheel = (event) => {
-      if (!event.isTrusted || !Number.isFinite(event.deltaY) || event.deltaY === 0) return
-      if (!isScrollActive) {
-        event.preventDefault()
-        send('wheel', event.deltaY)
-        return
-      }
-
-      let element = event.target instanceof Element ? event.target : event.target?.parentElement
-      while (element && element !== document.documentElement) {
-        if (canScroll(element, event.deltaY)) return
-        element = element.parentElement
-      }
-
-      const root = document.scrollingElement ?? document.documentElement
-      if (!canScroll(root, event.deltaY, true)) send('wheel', event.deltaY)
-    }
-
-    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reportHeight)
-    if (resizeObserver) {
-      resizeObserver.observe(document.documentElement)
-      if (document.body) resizeObserver.observe(document.body)
-    }
-    window.addEventListener('load', reportHeight, true)
-    window.addEventListener('resize', reportHeight)
-    window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
-    if (scrollActivationDelay > 0) {
-      document.documentElement.addEventListener('mouseenter', scheduleScrollActivation)
-      document.documentElement.addEventListener('mouseleave', lockScroll)
-      if (document.documentElement.matches(':hover')) scheduleScrollActivation()
-    }
-    reportHeight()
-  })()`
-}
-
-function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string): HtmlArtifactBridgeMessage | null {
-  if (!message.startsWith(messagePrefix)) return null
-
-  try {
-    const payload = JSON.parse(message.slice(messagePrefix.length)) as Partial<HtmlArtifactBridgeMessage>
-    if ((payload.type !== 'height' && payload.type !== 'wheel') || !Number.isFinite(payload.value)) return null
-    return payload as HtmlArtifactBridgeMessage
-  } catch {
-    return null
-  }
+  const root = frameDocument.scrollingElement ?? frameDocument.documentElement
+  return canConsumeVerticalWheel(root, event.deltaY, true)
 }
 
 function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
@@ -202,6 +98,18 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const frameWindow = iframe.contentWindow
     if (!frameDocument || !body || !documentElement || !frameWindow) return null
 
+    const documentScrollHeight = Math.max(
+      body.scrollHeight,
+      documentElement.scrollHeight,
+      frameDocument.scrollingElement?.scrollHeight ?? 0
+    )
+
+    // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
+    // exists only for collapsed bottom margins in non-scrolling documents.
+    if (documentScrollHeight > iframe.clientHeight + 1) {
+      return documentScrollHeight
+    }
+
     const bodyStyle = frameWindow.getComputedStyle(body)
     const bodyEndSpacing =
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
@@ -209,64 +117,35 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
     let renderedContentBottom = 0
 
-    for (const child of body.children) {
-      const bounds = child.getBoundingClientRect()
+    for (const element of body.querySelectorAll('*')) {
+      const bounds = element.getBoundingClientRect()
       if (bounds.width === 0 && bounds.height === 0) continue
 
-      const childMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(child).marginBottom) || 0
+      const elementMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(element).marginBottom) || 0
       renderedContentBottom = Math.max(
         renderedContentBottom,
-        bounds.bottom + scrollTop + Math.max(childMarginBottom, bodyMarginBottom) + bodyEndSpacing
+        bounds.bottom + scrollTop + Math.max(elementMarginBottom, bodyMarginBottom) + bodyEndSpacing
       )
     }
 
-    const documentScrollHeight = Math.max(
-      body.scrollHeight,
-      documentElement.scrollHeight,
-      frameDocument.scrollingElement?.scrollHeight ?? 0
-    )
-    const renderedContentHeight = Math.ceil(renderedContentBottom)
-
-    if (documentScrollHeight > iframe.clientHeight + 1) {
-      return Math.max(documentScrollHeight, renderedContentHeight)
+    // Bare text after the last element escapes querySelectorAll('*'), so measure the whole body
+    // range too (jsdom omits Range#getBoundingClientRect, hence the guard).
+    const contentRange = frameDocument.createRange()
+    contentRange.selectNodeContents(body)
+    if (typeof contentRange.getBoundingClientRect === 'function') {
+      const contentRangeRect = contentRange.getBoundingClientRect()
+      if (contentRangeRect.height > 0 || contentRangeRect.bottom > 0) {
+        renderedContentBottom = Math.max(
+          renderedContentBottom,
+          contentRangeRect.bottom + scrollTop + bodyMarginBottom + bodyEndSpacing
+        )
+      }
     }
 
+    const renderedContentHeight = Math.ceil(renderedContentBottom)
     return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
   } catch {
     return null
-  }
-}
-
-/**
- * Replays a wheel that happened inside the preview onto the message list's scroller.
- *
- * A wheel inside the preview never reaches that scroller by itself: an iframe dispatches it in
- * its own document, and the webview is a separate process. The list stamps user scroll intent
- * from a wheel listener there, and without that stamp it reads the scroll that boundary chaining
- * just produced as drift -- so on an already user-owned viewport it answers by re-asserting the
- * frozen scrollTop before the next paint (`chatVirtualizerRuntime.tsx`, the non-user-initiated
- * branch of `onScroll`). Every further wheel chains again and is undone again, which is the
- * jitter. This carries the intent only: the scroll itself still comes from native chaining
- * (iframe) or the explicit `scrollBy` below (webview), since a synthetic wheel scrolls nothing.
- */
-function replayWheelIntentOnScroller(viewport: HTMLElement, deltaY: number): void {
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-  const view = viewport.ownerDocument.defaultView
-  if (!scroller || !view) return
-
-  // Bubbling like a genuine wheel, so listeners attached by delegation see it too.
-  scroller.dispatchEvent(new view.WheelEvent('wheel', { deltaY, bubbles: true }))
-}
-
-function forwardWheelToPage(viewport: HTMLElement, deltaY: number): void {
-  const boundedDeltaY = Math.max(-200, Math.min(200, deltaY))
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-  if (scroller) {
-    // Must precede the write: an unannounced `scrollBy` reads as drift and gets undone.
-    replayWheelIntentOnScroller(viewport, boundedDeltaY)
-    scroller.scrollBy({ top: boundedDeltaY })
-  } else {
-    window.scrollBy({ top: boundedDeltaY })
   }
 }
 
@@ -307,13 +186,6 @@ function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObjec
   return isScrollActiveRef
 }
 
-function getMaxPreviewHeight(viewport: HTMLElement): number {
-  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-  const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
-  const availableHeight = scrollerHeight > 0 ? scrollerHeight : window.innerHeight
-  return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
-}
-
 /**
  * Paces the HTML handed to the preview frame while generating.
  *
@@ -331,13 +203,23 @@ function useStreamingPacedHtml(html: string, isStreaming: boolean): string {
   useEffect(() => {
     if (!isStreaming) return
 
-    // Show whatever has arrived by the time generation starts, then rebuild on a fixed cadence.
+    // Show whatever has arrived by the time generation starts, then rebuild on a
+    // cadence that stretches as the document grows.
     setPacedHtml(latestHtmlRef.current)
-    const timer = setInterval(() => {
-      setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
-    }, STREAMING_PREVIEW_REFRESH_MS)
+    let timer: number
+    const schedule = () => {
+      const interval = Math.min(
+        STREAMING_PREVIEW_MAX_REFRESH_MS,
+        Math.max(STREAMING_PREVIEW_REFRESH_MS, latestHtmlRef.current.length / STREAMING_PREVIEW_CHARS_PER_MS)
+      )
+      timer = window.setTimeout(() => {
+        setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
+        schedule()
+      }, interval)
+    }
+    schedule()
 
-    return () => clearInterval(timer)
+    return () => window.clearTimeout(timer)
   }, [isStreaming])
 
   return isStreaming ? pacedHtml : html
@@ -357,7 +239,11 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   const viewportRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
+  const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
+  // Same tier contract as StaticHtmlPreview: the static inline preview is a preview,
+  // never navigation, so meta-refresh is stripped before the frame sees the bytes.
+  const staticHtml = useMemo(() => stripMetaRefresh(html), [html])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -373,7 +259,10 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       const contentHeight = getIframeContentHeight(iframe)
       if (contentHeight === null) return
 
-      const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
+      const nextHeight = Math.min(
+        getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
+        Math.max(1, Math.ceil(contentHeight * zoomScale))
+      )
       onHeightChange(nextHeight)
     }
 
@@ -381,11 +270,12 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       const wheelEvent = event as WheelEvent
       if (!isScrollActiveRef.current) {
         wheelEvent.preventDefault()
-        forwardWheelToPage(viewport, wheelEvent.deltaY)
+        routeWheelScroll(viewport, scrollRuntime, wheelEvent.deltaY)
         return
       }
 
-      replayWheelIntentOnScroller(viewport, wheelEvent.deltaY)
+      if (isWheelConsumedByEmbeddedDocument(wheelEvent)) return
+      scrollRuntime.notifyWheelIntent(wheelEvent.deltaY)
     }
 
     const observeDocument = () => {
@@ -406,13 +296,16 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
       if (typeof ResizeObserver !== 'undefined') {
         documentResizeObserver = new ResizeObserver(syncHeight)
+        // In-flow child changes propagate to body size (per-child observe is
+        // quadratic); out-of-flow self-resizes trade on other triggers.
         documentResizeObserver.observe(body)
         documentResizeObserver.observe(frameDocument.documentElement)
-        for (const child of body.children) documentResizeObserver.observe(child)
       }
 
       if (typeof MutationObserver !== 'undefined') {
-        documentMutationObserver = new MutationObserver(observeDocument)
+        // Re-measure only; observers stay attached because body itself is what
+        // they watch, and document replacement is covered by the load listener.
+        documentMutationObserver = new MutationObserver(() => syncHeight())
         documentMutationObserver.observe(body, { childList: true, subtree: true, characterData: true })
       }
 
@@ -430,8 +323,8 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     if (typeof ResizeObserver !== 'undefined') {
       layoutResizeObserver = new ResizeObserver(syncHeight)
       layoutResizeObserver.observe(viewport)
-      const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-      if (scroller) layoutResizeObserver.observe(scroller)
+      const scroller = scrollRuntime.getScrollContainer()
+      if (scroller?.contains(viewport)) layoutResizeObserver.observe(scroller)
     }
 
     return () => {
@@ -444,7 +337,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       iframe.removeEventListener('load', observeDocument)
       window.removeEventListener('resize', syncHeight)
     }
-  }, [html, isScrollActiveRef, onHeightChange, zoomScale])
+  }, [html, isScrollActiveRef, onHeightChange, scrollRuntime, zoomScale])
 
   return (
     <div ref={viewportRef} data-testid="adaptive-html-preview" className="relative h-full w-full overflow-hidden">
@@ -458,132 +351,11 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
         }}>
         {/* Keep same-origin only for parent-side sizing; generated scripts and forms stay blocked. */}
         <HtmlPreviewFrame
-          html={html}
+          html={staticHtml}
           title={title}
           iframeRef={iframeRef}
           sandbox="allow-same-origin"
           csp={HTML_PREVIEW_RESTRICTED_CSP}
-        />
-      </div>
-    </div>
-  )
-})
-
-const StaticHtmlPopupPreview = memo(function StaticHtmlPopupPreview({
-  html,
-  title,
-  zoom,
-  iframeRef
-}: {
-  html: string
-  title: string
-  zoom: number
-  iframeRef: RefObject<HTMLIFrameElement | null>
-}) {
-  const zoomScale = zoom / 100
-
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      <div
-        className="origin-top-left"
-        style={{
-          width: `${100 / zoomScale}%`,
-          height: `${100 / zoomScale}%`,
-          transform: `scale(${zoomScale})`
-        }}>
-        <HtmlPreviewFrame
-          html={html}
-          title={title}
-          iframeRef={iframeRef}
-          sandbox="allow-same-origin"
-          csp={HTML_PREVIEW_RESTRICTED_CSP}
-        />
-      </div>
-    </div>
-  )
-})
-
-const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
-  html,
-  title,
-  zoom,
-  onHeightChange,
-  forwardBoundaryWheel = true
-}: {
-  html: string
-  title: string
-  zoom: number
-  onHeightChange?: (height: number) => void
-  forwardBoundaryWheel?: boolean
-}) {
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const webviewRef = useRef<WebviewTag | null>(null)
-  const contentHeightRef = useRef<number | null>(null)
-  const zoomScale = zoom / 100
-  const [messagePrefix] = useState(() => `__cherry_html_artifact_${crypto.randomUUID()}:`)
-  const src = useMemo(() => {
-    const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
-    const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
-    const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
-    return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
-  }, [forwardBoundaryWheel, html, messagePrefix])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const webview = webviewRef.current
-    if (!viewport || !webview) return
-
-    const handleConsoleMessage = (event: ConsoleMessageEvent) => {
-      const message = parseHtmlArtifactBridgeMessage(event.message, messagePrefix)
-      if (!message) return
-
-      if (message.type === 'height') {
-        contentHeightRef.current = message.value
-        if (!onHeightChange) return
-
-        const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(message.value * zoomScale)))
-        onHeightChange(nextHeight)
-        return
-      }
-
-      if (!forwardBoundaryWheel) return
-
-      forwardWheelToPage(viewport, message.value)
-    }
-
-    webview.addEventListener('console-message', handleConsoleMessage)
-
-    return () => {
-      webview.removeEventListener('console-message', handleConsoleMessage)
-    }
-  }, [forwardBoundaryWheel, messagePrefix, onHeightChange, zoomScale])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const contentHeight = contentHeightRef.current
-    if (!viewport || contentHeight === null || !onHeightChange) return
-
-    const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
-    onHeightChange(nextHeight)
-  }, [onHeightChange, zoomScale])
-
-  return (
-    <div ref={viewportRef} data-testid="interactive-html-preview" className="relative h-full w-full overflow-hidden">
-      <div
-        data-testid="interactive-html-zoom-layer"
-        className="origin-top-left"
-        style={{
-          width: `${100 / zoomScale}%`,
-          height: `${100 / zoomScale}%`,
-          transform: `scale(${zoomScale})`
-        }}>
-        <webview
-          ref={webviewRef}
-          data-testid="interactive-html-webview"
-          src={src}
-          partition={HTML_ARTIFACT_PREVIEW_PARTITION}
-          aria-label={title}
-          className="inline-flex h-full w-full bg-white"
         />
       </div>
     </div>
@@ -634,14 +406,17 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   )
 })
 
-function HtmlArtifactPopupOutlet() {
+export function HtmlArtifactPopupOutlet() {
   const popupContext = useHtmlArtifactPopupContext()
   const popupSession = popupContext.popupSession
   if (!popupSession) return null
 
-  // Opening the full-screen popup is the explicit viewing action, so it never renders a consent surface.
-  const requiresInteractivePreview =
-    popupSession.kind === 'document' && htmlArtifactRequiresUserConsent(popupSession.html)
+  // Opening the full-screen popup is the explicit viewing action, so it never renders a
+  // consent surface — active content (fragment or document) goes straight to the webview.
+  const requiresInteractivePreview = htmlArtifactPreviewRequiresInteractive(popupSession.html)
+  // Only a whole document may be promoted in the INLINE view after viewing, so the
+  // approve-on-close memory stays kind-gated (fragments remain script-less inline).
+  const approvesInlineInteractive = requiresInteractivePreview && popupSession.kind === 'document'
 
   return (
     <Suspense fallback={null}>
@@ -651,81 +426,27 @@ function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
+        // Maximize opens the interactive tier directly (upstream for documents, this
+        // PR's extension for active fragments); the card path defers to View webpage.
         canCapturePreview={!requiresInteractivePreview}
-        renderPreview={(iframeRef) =>
-          requiresInteractivePreview ? (
-            <InteractiveHtmlPreview
-              html={popupSession.html}
-              title={popupSession.title}
-              zoom={popupSession.zoom}
-              forwardBoundaryWheel={false}
-            />
-          ) : (
-            <StaticHtmlPopupPreview
-              html={popupSession.html}
-              title={popupSession.title}
-              zoom={popupSession.zoom}
-              iframeRef={iframeRef}
-            />
-          )
-        }
+        renderPreview={(iframeRef) => (
+          <HtmlArtifactPreviewSurface
+            html={popupSession.html}
+            title={popupSession.title}
+            authorized
+            zoom={popupSession.zoom}
+            iframeRef={iframeRef}
+            forwardBoundaryWheel={false}
+          />
+        )}
         onClose={() => {
-          if (requiresInteractivePreview) {
+          if (approvesInlineInteractive) {
             popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
           }
           popupContext.closePopup()
         }}
       />
     </Suspense>
-  )
-}
-
-export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
-  const [approvedInteractiveHtmlById, setApprovedInteractiveHtmlById] = useState<Record<string, string>>({})
-  const [popupSession, setPopupSession] = useState<HtmlArtifactPopupSession | null>(null)
-  const approveInteractiveHtml = useCallback((artifactId: string, html: string) => {
-    setApprovedInteractiveHtmlById((current) =>
-      current[artifactId] === html ? current : { ...current, [artifactId]: html }
-    )
-  }, [])
-  const openPopup = useCallback((session: HtmlArtifactPopupSession) => {
-    setPopupSession(session)
-  }, [])
-  const syncPopup = useCallback((update: HtmlArtifactPopupUpdate) => {
-    setPopupSession((current) => {
-      if (!current || current.artifactId !== update.artifactId) return current
-      if (
-        current.html === update.html &&
-        current.title === update.title &&
-        current.onSave === update.onSave &&
-        current.editable === update.editable &&
-        current.kind === update.kind
-      ) {
-        return current
-      }
-      return { ...current, ...update }
-    })
-  }, [])
-  const closePopup = useCallback(() => {
-    setPopupSession(null)
-  }, [])
-  const contextValue = useMemo<HtmlArtifactPopupContextValue>(
-    () => ({
-      approvedInteractiveHtmlById,
-      popupSession,
-      approveInteractiveHtml,
-      openPopup,
-      syncPopup,
-      closePopup
-    }),
-    [approvedInteractiveHtmlById, approveInteractiveHtml, closePopup, openPopup, popupSession, syncPopup]
-  )
-
-  return (
-    <HtmlArtifactPopupContext value={contextValue}>
-      {children}
-      <HtmlArtifactPopupOutlet />
-    </HtmlArtifactPopupContext>
   )
 }
 
@@ -746,7 +467,10 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const hasContent = html.trim().length > 0
   const previewHtml = useStreamingPacedHtml(html, isStreaming)
-  const requiresUserConsent = useMemo(() => kind === 'document' && htmlArtifactRequiresUserConsent(html), [html, kind])
+  const requiresUserConsent = useMemo(
+    () => kind === 'document' && htmlArtifactPreviewRequiresInteractive(html),
+    [html, kind]
+  )
   const approvedInteractiveHtml = popupContext.approvedInteractiveHtmlById[artifactId]
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
@@ -958,7 +682,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
 })
 
 export const HtmlArtifactView = memo(function HtmlArtifactView(props: HtmlArtifactViewProps) {
-  const popupContext = use(HtmlArtifactPopupContext)
+  const popupContext = useOptionalHtmlArtifactPopupContext()
   const generatedArtifactId = useId()
   const artifactId = props.artifactId ?? generatedArtifactId
 

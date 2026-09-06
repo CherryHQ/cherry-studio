@@ -5,16 +5,16 @@ const {
   listMock,
   findOrCreateByPathResultMock,
   getByIdMock,
+  getReferencesMock,
   updateMock,
-  deleteWorkspaceCascadeMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   findOrCreateByPathResultMock: vi.fn(),
   getByIdMock: vi.fn(),
+  getReferencesMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteWorkspaceCascadeMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -24,15 +24,10 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
     list: listMock,
     findOrCreateByPathResult: findOrCreateByPathResultMock,
     getById: getByIdMock,
+    getReferences: getReferencesMock,
     update: updateMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    deleteWorkspaceCascade: deleteWorkspaceCascadeMock
   }
 }))
 
@@ -119,17 +114,21 @@ describe('agentWorkspaceHandlers', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('delegates workspace deletion cascade to AgentSessionService', async () => {
-    const result = { deletedIds: ['session-1'] }
-    deleteWorkspaceCascadeMock.mockReturnValueOnce(result)
+  it('delegates workspace reference lookup to AgentWorkspaceService', async () => {
+    const references = {
+      sessions: { items: [{ id: 'session-1', name: 'Session' }], total: 1 },
+      channels: { items: [{ id: 'channel-1', name: 'Channel' }], total: 1 },
+      tasks: { items: [{ id: 'task-1', name: 'Task' }], total: 1 }
+    }
+    getReferencesMock.mockReturnValueOnce(references)
 
     await expect(
-      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
         params: { workspaceId: workspace.id }
       } as never)
-    ).resolves.toBe(result)
+    ).resolves.toBe(references)
 
-    expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
+    expect(getReferencesMock).toHaveBeenCalledWith(workspace.id)
   })
 
   it('delegates order mutations', async () => {

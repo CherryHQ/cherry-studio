@@ -2,7 +2,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl } from '../resolvers'
+import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -95,5 +95,91 @@ describe('resolveGeminiBaseUrl', () => {
         })
       )
     ).toBe('http://127.0.0.1:23333')
+  })
+})
+
+describe('resolveHermesProviderInfo', () => {
+  // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
+  // fallback would pick it; the model supports only openai-responses (a later catalog
+  // entry), so selecting it proves model preference beats catalog order rather than
+  // coinciding with it.
+  it('prefers the model-supported endpoint over an earlier one in catalog order', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      apiMode: 'codex_responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('maps a selected anthropic-messages endpoint to its mode and strips the trailing API version', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
+        ['anthropic-messages']
+      )
+    ).toEqual({
+      apiMode: 'anthropic_messages',
+      baseUrl: 'https://anthropic.example',
+      endpointType: 'anthropic-messages'
+    })
+  })
+
+  it('maps an OpenAI Responses endpoint to the Codex transport', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({ endpointConfigs: { 'openai-responses': { baseUrl: 'https://openai.example' } } })
+      )
+    ).toEqual({
+      apiMode: 'codex_responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+})
+
+describe('resolvePiProviderInfo', () => {
+  it('prefers a model-supported endpoint and maps it to Pi API names', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('normalizes the Google endpoint to the v1beta API required by Pi', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'google-generate-content',
+          endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+        })
+      )
+    ).toEqual({
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      endpointType: 'google-generate-content'
+    })
   })
 })

@@ -1,22 +1,32 @@
 import type * as FsUtils from '@main/utils/file'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
-  doc: vi.fn(async (filePath: string) => [{ metadata: { reader: 'doc', filePath } }]),
-  drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
-  epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
+  drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }])
 }))
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
-  docx: vi.fn(async (filePath: string) => [{ metadata: { reader: 'docx', filePath } }]),
   html: vi.fn(async (filePath: string) => [{ metadata: { reader: 'html', filePath } }]),
   json: vi.fn(async (filePath: string) => [{ metadata: { reader: 'json', filePath } }]),
   markdown: vi.fn(async (filePath: string) => [{ metadata: { reader: 'markdown', filePath } }]),
   pdf: vi.fn(async (filePath: string) => [{ metadata: { reader: 'pdf', filePath } }]),
   text: vi.fn(async (filePath: string) => [{ metadata: { reader: 'text', filePath } }])
+}))
+const fallbackReaderSpies = vi.hoisted(() => ({
+  doc: vi.fn(async () => []),
+  docx: vi.fn(async () => []),
+  epub: vi.fn(async () => []),
+  text: vi.fn(async () => [])
+}))
+const toMarkdownBytesMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@firecrawl/anydoc', () => ({
+  toMarkdownBytes: toMarkdownBytesMock
 }))
 
 vi.mock('@logger', () => ({
@@ -49,7 +59,7 @@ vi.mock('@vectorstores/readers/csv', () => ({
 
 vi.mock('@vectorstores/readers/docx', () => ({
   DocxReader: class {
-    loadData = readerSpies.docx
+    loadDataAsContent = fallbackReaderSpies.docx
   }
 }))
 
@@ -80,12 +90,13 @@ vi.mock('@vectorstores/readers/pdf', () => ({
 vi.mock('@vectorstores/readers/text', () => ({
   TextFileReader: class {
     loadData = readerSpies.text
+    loadDataAsContent = fallbackReaderSpies.text
   }
 }))
 
 vi.mock('../files/DocReader', () => ({
   DocReader: class {
-    loadData = customReaderSpies.doc
+    loadDataAsContent = fallbackReaderSpies.doc
   }
 }))
 
@@ -97,7 +108,7 @@ vi.mock('../files/DraftsExportReader', () => ({
 
 vi.mock('../files/EpubReader', () => ({
   EpubReader: class {
-    loadData = customReaderSpies.epub
+    loadDataAsContent = fallbackReaderSpies.epub
   }
 }))
 
@@ -109,6 +120,7 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 }))
 
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
+const { createSupportedFileReader } = await import('../KnowledgeFileReader')
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -122,12 +134,12 @@ function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
       source: sourcePath ?? `/tmp/sample${ext}`,
-      relativePath: `sample${ext}`
+      relativePath: `sample${ext}` as PosixRelativeFilePath
     }
   }
 }
 
-function createNoteItem(content: string, relativePath = 'note-1.md'): KnowledgeItemOf<'note'> {
+function createNoteItem(content: string, relativePath = 'note-1.md' as PosixRelativeFilePath): KnowledgeItemOf<'note'> {
   return {
     id: 'note-1',
     baseId: 'base-1',
@@ -158,7 +170,7 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
     data: {
       source: 'https://example.com',
       url: 'https://example.com',
-      relativePath: 'example-page.md'
+      relativePath: 'example-page.md' as PosixRelativeFilePath
     }
   }
 }
@@ -181,14 +193,13 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
 
 describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
-    fetchMock.mockReset()
-    loggerWarnMock.mockReset()
+    vi.clearAllMocks()
+    toMarkdownBytesMock.mockRejectedValue(new Error('anydoc conversion failed'))
   })
 
   it.each([
     ['.pdf', 'pdf'],
     ['.csv', 'csv'],
-    ['.docx', 'docx'],
     ['.html', 'html'],
     ['.htm', 'html'],
     ['.json', 'json'],
@@ -226,8 +237,8 @@ describe('loadKnowledgeItemDocuments', () => {
       ...createFileItem('.pdf', '/tmp/source.pdf'),
       data: {
         source: '/tmp/source.pdf',
-        relativePath: 'source.pdf',
-        indexedRelativePath: 'source.md'
+        relativePath: 'source.pdf' as PosixRelativeFilePath,
+        indexedRelativePath: 'source.md' as PosixRelativeFilePath
       }
     }
 
@@ -241,17 +252,40 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('uses the doc reader for legacy binary .doc files', async () => {
-    const item = createFileItem('.doc')
+  it.each([
+    ['.doc', fallbackReaderSpies.doc],
+    ['.docx', fallbackReaderSpies.docx],
+    ['.epub', fallbackReaderSpies.epub]
+  ])('routes %s files through anydoc with the intended fallback reader', async (ext, expectedFallback) => {
+    const content = new Uint8Array([1, 2, 3])
+    const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
 
-    const docs = await loadKnowledgeItemDocuments(item)
+    await reader.loadDataAsContent(content, `sample${ext}`)
 
-    expect(customReaderSpies.doc).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.doc')
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.doc'
-      }
-    })
+    expect(expectedFallback).toHaveBeenCalledWith(content, `sample${ext}`)
+  })
+
+  it.each(['.ppt', '.pptx', '.xls', '.xlsx'])(
+    'throws instead of falling back to TextFileReader for %s when anydoc conversion fails',
+    async (ext) => {
+      const failure = new Error('anydoc conversion failed')
+      toMarkdownBytesMock.mockRejectedValueOnce(failure)
+      const content = new Uint8Array([1, 2, 3])
+      const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
+
+      await expect(reader.loadDataAsContent(content, `sample${ext}`)).rejects.toBe(failure)
+      expect(fallbackReaderSpies.text).not.toHaveBeenCalled()
+    }
+  )
+
+  it('uses the EPUB fallback when anydoc produces no text', async () => {
+    toMarkdownBytesMock.mockResolvedValue('')
+    const content = new Uint8Array([1, 2, 3])
+    const reader = createSupportedFileReader('/tmp/sample.epub' as AbsoluteFilePath)
+
+    await reader.loadDataAsContent(content, 'sample.epub')
+
+    expect(fallbackReaderSpies.epub).toHaveBeenCalledWith(content, 'sample.epub')
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {
@@ -269,22 +303,9 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('uses the epub reader for .epub files', async () => {
-    const item = createFileItem('.epub')
-
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(customReaderSpies.epub).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.epub')
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.epub'
-      }
-    })
-  })
-
   it('creates a note reader that returns a single Document from its snapshot', async () => {
     readFileMock.mockResolvedValueOnce('hello world')
-    const item = createNoteItem('hello world', 'my-note.md')
+    const item = createNoteItem('hello world', 'my-note.md' as PosixRelativeFilePath)
     const docs = await loadKnowledgeItemDocuments(item)
 
     expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/my-note.md')

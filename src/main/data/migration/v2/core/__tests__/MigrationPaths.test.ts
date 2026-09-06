@@ -70,7 +70,8 @@ vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME: '/mock/home/.cherrystudio',
   CHERRY_HOME_DIRNAME: '.cherrystudio',
   BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
-  LOGS_DIR: '/mock/logs'
+  LOGS_DIR: '/mock/logs',
+  resolveDevUserDataPath: () => '/mock/userDataDev'
 }))
 
 vi.mock('@logger', () => ({
@@ -369,6 +370,11 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     expect(result.paths.legacyClaudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, '.claude', 'projects'))
     expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))
     expect(result.paths.claudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude', 'projects'))
+    expect(result.paths.migrationReduxExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'redux_export'))
+    expect(result.paths.migrationDexieExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'dexie_export'))
+    expect(result.paths.migrationLocalStorageExportFile).toBe(
+      path.join(DEFAULT_USER_DATA, 'migration_temp', 'localstorage_export', 'localStorage.json')
+    )
   })
 
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {

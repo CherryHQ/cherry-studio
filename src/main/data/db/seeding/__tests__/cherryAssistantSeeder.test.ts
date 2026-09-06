@@ -66,7 +66,6 @@ describe('CherryAssistantSeeder', () => {
     expect(agent.configuration).toMatchObject({
       avatar: '🍒',
       permission_mode: 'acceptEdits',
-      max_turns: 100,
       bootstrap_completed: true,
       env_vars: {},
       builtin_role: 'assistant'

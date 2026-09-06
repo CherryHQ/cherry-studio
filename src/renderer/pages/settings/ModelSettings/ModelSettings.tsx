@@ -1,8 +1,7 @@
-import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -16,17 +15,17 @@ import {
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { ComponentProps, FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { FC, ReactNode, Ref } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicNamingSettings } from './TopicNamingSettings'
@@ -42,6 +41,7 @@ interface ModelSettingsProps {
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  focus?: 'default' | 'translate'
   className?: string
 }
 
@@ -50,35 +50,59 @@ interface ModelSettingRowProps {
   title: ReactNode
   description?: ReactNode
   compact?: boolean
+  inlineWhenCompact?: boolean
   children: ReactNode
+  rowRef?: Ref<HTMLDivElement>
+  showFocusGuide?: boolean
+  /** Search anchor id; only passed by the settings-page (non-compact) mount */
+  id?: string
 }
 
-const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
-    <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2">
-        {icon}
-        {title}
-      </SettingRowTitle>
-      {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
-    </div>
-    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
-      {children}
-    </div>
-  </SettingRow>
+const ModelSettingRow: FC<ModelSettingRowProps> = ({
+  icon,
+  title,
+  description,
+  compact,
+  inlineWhenCompact,
+  children,
+  rowRef,
+  showFocusGuide,
+  id
+}) => (
+  <div ref={rowRef} id={id} className={id ? 'scroll-mt-6' : undefined}>
+    <SettingRow
+      className={cn(
+        compact
+          ? inlineWhenCompact
+            ? 'items-center gap-3 py-1'
+            : 'flex-col items-stretch gap-3 py-1'
+          : 'items-start gap-6 py-1.5'
+      )}>
+      <div className="min-w-0 flex-1">
+        <SettingRowTitle className="gap-2">
+          {icon}
+          {title}
+        </SettingRowTitle>
+        {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
+      </div>
+      <div
+        className={cn(
+          'relative flex items-center gap-2',
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
+        )}>
+        {showFocusGuide && (
+          <span
+            aria-hidden="true"
+            data-testid="model-settings-focus-guide"
+            className="animation-provider-model-pull-guide motion-reduce:-translate-y-1/2 motion-reduce:!animate-none pointer-events-none absolute top-1/2 right-full z-10 mr-1 flex h-4 w-5 items-center justify-end text-muted-foreground">
+            <ArrowRight className="size-4" strokeWidth={2.5} />
+          </span>
+        )}
+        {children}
+      </div>
+    </SettingRow>
+  </div>
 )
-
-interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
-  model?: Model
-  providers: Provider[]
-  placeholder: string
-  compact?: boolean
-}
-
-interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
-  filter: (model: Model) => boolean
-  onSelect: (model: Model | undefined) => void
-}
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
@@ -87,66 +111,6 @@ const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
-
-const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
-
-const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
-  model,
-  providers,
-  placeholder,
-  compact,
-  className,
-  ...props
-}) => {
-  const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
-  const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = useIcon(model ? getModelLogoRef(model) : undefined)
-
-  return (
-    <Button
-      {...props}
-      type="button"
-      variant="outline"
-      size={compact ? 'lg' : 'default'}
-      className={cn(
-        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
-        compact ? 'h-9' : 'h-7.5',
-        className
-      )}>
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        {model && icon ? (
-          <icon.Avatar size={20} />
-        ) : model ? (
-          <Avatar size="sm">
-            <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
-          </Avatar>
-        ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
-        {providerName && <span className="max-w-[32%] truncate text-muted-foreground text-xs">{providerName}</span>}
-      </span>
-      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-    </Button>
-  )
-}
-
-const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
-  model,
-  providers,
-  placeholder,
-  compact,
-  filter,
-  onSelect
-}) => (
-  <ModelSelector
-    multiple={false}
-    value={model}
-    onSelect={onSelect}
-    filter={filter}
-    trigger={
-      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
-    }
-  />
-)
 
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
@@ -157,6 +121,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   autoFillEmptyModels = false,
   onDefaultModelSelected,
   compact = false,
+  focus,
   className
 }) => {
   const {
@@ -173,6 +138,10 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const defaultRowRef = useRef<HTMLDivElement | null>(null)
+  const translateRowRef = useRef<HTMLDivElement | null>(null)
+  const [showFocusGuide, setShowFocusGuide] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
@@ -180,9 +149,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
+  const translateModelFilter = useCallback(
+    (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
+    [modelFilter]
+  )
+  const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
-  const selectableTranslateModel = translateModel && chatModelFilter(translateModel) ? translateModel : undefined
+  const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -235,6 +209,18 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     setActivePanel(null)
   }, [])
 
+  useEffect(() => {
+    if (compact || !focus) return
+
+    const target = focus === 'default' ? defaultRowRef.current : translateRowRef.current
+    if (!target) return
+
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    scrollIntoView(target, { behavior, block: 'center', inline: 'nearest' })
+    setShowFocusGuide(true)
+    setTimeoutTimer('model-settings-focus-guide', () => setShowFocusGuide(false), 1200)
+  }, [compact, focus, setTimeoutTimer])
+
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
 
   const ContainerComponent = compact ? SettingContainer : SettingsContentColumn
@@ -252,6 +238,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           )}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-default-assistant-model'}
+            rowRef={defaultRowRef}
+            showFocusGuide={focus === 'default' && showFocusGuide}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -267,6 +256,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-quick-model'}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
@@ -297,13 +287,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-translate-model'}
+            rowRef={translateRowRef}
+            showFocusGuide={focus === 'translate' && showFocusGuide}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
             <DefaultModelSelector
               model={selectableTranslateModel}
               providers={providers}
-              filter={chatModelFilter}
+              filter={translateModelFilter}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}
@@ -333,13 +326,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               <SettingDivider />
               <ModelSettingRow
                 compact={compact}
+                id={compact ? undefined : 'setting-model-painting-model'}
                 icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
                 title={t('settings.models.painting_model')}
                 description={showDescription ? t('settings.models.painting_model_description') : undefined}>
                 <DefaultModelSelector
                   model={paintingModel}
                   providers={providers}
-                  filter={isGenerateImageModel}
+                  filter={paintingModelFilter}
                   compact={compact}
                   onSelect={onSelectPainting}
                   placeholder={t('settings.models.empty')}

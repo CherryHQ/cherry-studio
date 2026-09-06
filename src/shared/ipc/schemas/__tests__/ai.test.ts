@@ -1,3 +1,4 @@
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
 import { aiRequestSchemas } from '../ai'
@@ -34,6 +35,83 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   })
 })
 
+describe('ai.stream.open IPC schema', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+
+  it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'reserved-user',
+        userMessageParts: [{ type: 'text', text: 'continue branch' }],
+        targetMode: 'reserved-branch'
+      })
+    ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  it('rejects an unknown target mode', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        targetMode: 'current-stream'
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        mentionedModelIds: ['openai::gpt-4o']
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        mentionedModelIds: ['anthropic::claude-sonnet']
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects duplicate mentioned model ids before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
+  })
+})
+
 describe('ai.agent.create IPC schema', () => {
   const createAgent = aiRequestSchemas['ai.agent.create'].input
   const base = {
@@ -62,21 +140,34 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
-describe('ai.agent.feedback_session.create IPC schema', () => {
-  const createFeedbackSession = aiRequestSchemas['ai.agent.feedback_session.create'].input
-  const createFeedbackSessionResult = aiRequestSchemas['ai.agent.feedback_session.create'].output
+describe('ai.agent.session.delete IPC schema', () => {
+  const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
+
+  it('bounds one deletion command to the supported SQLite batch size', () => {
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 200 }, (_, i) => `session-${i}`) }).success
+    ).toBe(true)
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
+    ).toBe(false)
+  })
+})
+
+describe('ai.agent.support_session.create IPC schema', () => {
+  const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
+  const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output
 
   it('accepts only a void command payload', () => {
-    expect(createFeedbackSession.safeParse(undefined).success).toBe(true)
-    expect(createFeedbackSession.safeParse({}).success).toBe(false)
+    expect(createSupportSession.safeParse(undefined).success).toBe(true)
+    expect(createSupportSession.safeParse({}).success).toBe(false)
   })
 
   it('returns only the created session id', () => {
-    expect(createFeedbackSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+    expect(createSupportSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
       sessionId: 'feedback-session'
     })
     expect(
-      createFeedbackSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-assistant' }).success
+      createSupportSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-support' }).success
     ).toBe(false)
   })
 })

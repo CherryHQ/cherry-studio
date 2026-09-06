@@ -14,11 +14,16 @@ import { pinService } from '@data/services/PinService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api/errors'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 describe('ProviderService.delete — preset protection boundary', () => {
   const dbh = setupTestDatabase()
@@ -39,6 +44,29 @@ describe('ProviderService.delete — preset protection boundary', () => {
 
     // Verify row is still present
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('rejects deleting the managed Cherry Cloud provider', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      presetProviderId: CHERRYAI_PROVIDER_ID,
+      name: 'CherryAI',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    let error: unknown
+    try {
+      providerService.delete(CHERRY_CLOUD_PROVIDER_ID)
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION, status: 400 })
+
+    const rows = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
     expect(rows).toHaveLength(1)
   })
 
@@ -159,6 +187,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       targetPins.push(pinService.pin({ entityType: 'model', entityId }))
     }
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    notifyDataApiDataChangeMock.mockClear()
 
     providerService.delete('openai-work')
 
@@ -167,6 +196,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
     }
     expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {

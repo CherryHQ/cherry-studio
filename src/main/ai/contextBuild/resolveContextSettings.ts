@@ -1,38 +1,48 @@
 /**
- * Pure collapse of the 3-layer context-settings model (global → assistant
- * → topic) into a resolved `EffectiveContextSettings`. Per-field precedence:
- * `topic ?? assistant ?? globals`.
+ * Pure collapse of the 2-layer context-settings model (global → assistant)
+ * into a resolved `EffectiveContextSettings`. Per-field precedence:
+ * `assistant ?? globals`.
  *
- * The compression model gets only its EXPLICIT pick here (`topic ??
- * assistant ?? globals`, else null). The "fall back to the current request
- * model" step is the CALLER's job (buildAgentParams) — keeping this helper
- * pure and free of request/model context so it stays trivially testable.
+ * The compression model gets only its EXPLICIT pick here (`assistant ??
+ * globals`, else null). The "fall back to the current request model" step is
+ * the CALLER's job (buildAgentParams) — keeping this helper pure and free of
+ * request/model context so it stays trivially testable.
  *
- * The assistant layer is wired (P2-D); the topic layer is accepted but not
- * yet supplied by the pipeline.
+ * `maxMessages` is three-state and therefore merged by PROPERTY PRESENCE, not
+ * `??`: `undefined` (absent) inherits, while an explicit `null` means "no
+ * limit at this layer" and must beat a finite global. `??` cannot express that
+ * — it treats null and undefined alike, so an assistant set to unlimited would
+ * silently inherit a finite global instead.
  */
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
 export interface ResolveContextSettingsInput {
   /** Resolved global defaults (from `chat.context_settings.*` prefs). */
   globals: EffectiveContextSettings
   /** Per-assistant override (assistant.settings.contextSettings; null = none stored). */
   assistant?: ContextSettingsOverride | null
-  /** Per-topic override (topic.contextSettings). */
-  topic?: ContextSettingsOverride | null
 }
 
 export function resolveContextSettings(input: ResolveContextSettingsInput): EffectiveContextSettings {
-  const { globals, assistant, topic } = input
+  const { globals, assistant } = input
 
   return {
-    enabled: topic?.enabled ?? assistant?.enabled ?? globals.enabled,
-    truncateThreshold: topic?.truncateThreshold ?? assistant?.truncateThreshold ?? globals.truncateThreshold,
+    enabled: assistant?.enabled ?? globals.enabled,
+    truncateThreshold: assistant?.truncateThreshold ?? globals.truncateThreshold,
+    maxMessages: assistant && 'maxMessages' in assistant ? (assistant.maxMessages ?? null) : globals.maxMessages,
     compress: {
-      enabled: topic?.compress?.enabled ?? assistant?.compress?.enabled ?? globals.compress.enabled,
+      enabled: assistant?.compress?.enabled ?? globals.compress.enabled,
       // `??` treats null/undefined alike: users disable compression via
       // `compress.enabled = false`, never by nulling the modelId.
-      modelId: topic?.compress?.modelId ?? assistant?.compress?.modelId ?? globals.compress.modelId
+      modelId: assistant?.compress?.modelId ?? globals.compress.modelId,
+      // Clamped at the MERGE, not on the globals alone: the assistant layer is
+      // a JSON column that production never `.parse()`s, so a stored 0 would
+      // otherwise reach the trigger and fold on every step.
+      thresholdPercent:
+        assistant?.compress?.thresholdPercent === undefined
+          ? globals.compress.thresholdPercent
+          : clampThresholdPercent(assistant.compress.thresholdPercent)
     }
   }
 }

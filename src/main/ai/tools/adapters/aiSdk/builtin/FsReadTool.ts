@@ -312,6 +312,9 @@ export function createFsReadToolEntry(): ToolEntry {
     namespace: 'fs',
     description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',
     defer: 'never',
-    tool: fsReadTool
+    tool: fsReadTool,
+    // Read-back must exist wherever offload can; resolveTools additionally
+    // drops a lone fs_read, which has nothing to read back.
+    applies: (scope) => scope.hasPersistedOutputs === true || scope.canOffloadToolOutputs === true
   }
 }

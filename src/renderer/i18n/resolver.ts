@@ -6,6 +6,7 @@ import 'dayjs/locale/ja'
 import 'dayjs/locale/pt'
 import 'dayjs/locale/ro'
 import 'dayjs/locale/ru'
+import 'dayjs/locale/tr'
 import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
@@ -27,16 +28,17 @@ const logger = loggerService.withContext('I18N')
 const localeLoaders = {
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
-  'zh-TW': () => import('./translate/zh-tw.json'),
-  'de-DE': () => import('./translate/de-de.json'),
-  'el-GR': () => import('./translate/el-gr.json'),
-  'es-ES': () => import('./translate/es-es.json'),
-  'fr-FR': () => import('./translate/fr-fr.json'),
-  'ja-JP': () => import('./translate/ja-jp.json'),
-  'pt-PT': () => import('./translate/pt-pt.json'),
-  'ro-RO': () => import('./translate/ro-ro.json'),
-  'ru-RU': () => import('./translate/ru-ru.json'),
-  'vi-VN': () => import('./translate/vi-vn.json')
+  'zh-TW': () => import('./locales/zh-tw.json'),
+  'de-DE': () => import('./locales/de-de.json'),
+  'el-GR': () => import('./locales/el-gr.json'),
+  'es-ES': () => import('./locales/es-es.json'),
+  'fr-FR': () => import('./locales/fr-fr.json'),
+  'ja-JP': () => import('./locales/ja-jp.json'),
+  'pt-PT': () => import('./locales/pt-pt.json'),
+  'ro-RO': () => import('./locales/ro-ro.json'),
+  'ru-RU': () => import('./locales/ru-ru.json'),
+  'vi-VN': () => import('./locales/vi-vn.json'),
+  'tr-TR': () => import('./locales/tr-tr.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {
@@ -60,7 +62,8 @@ const dayjsLocaleMap: Record<string, string> = {
   'fr-FR': 'fr',
   'pt-PT': 'pt',
   'ro-RO': 'ro',
-  'vi-VN': 'vi'
+  'vi-VN': 'vi',
+  'tr-TR': 'tr'
 }
 
 export const setDayjsLocale = (language: string) => {
@@ -89,6 +92,8 @@ const doInit = async (): Promise<void> => {
       // Load only the exact locale code (e.g. `zh-CN`), never the bare base
       // (`zh`), which has no pack and would trigger a doomed extra fetch.
       load: 'currentOnly',
+      // Catalogs are flat: `settings.provider.title` is one literal key, not a path.
+      keySeparator: false,
       // Drop i18next's internal setTimeout(0) so init settles without a
       // macrotask (keeps fake-timer tests deterministic). Renamed `initAsync`
       // in i18next v24, and the compat alias is removed in v26 — rename when

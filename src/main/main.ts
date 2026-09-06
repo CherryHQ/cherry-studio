@@ -22,20 +22,26 @@ import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
 import { runDataReset } from '@main/services/dataReset'
+import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
+import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
+// Privileged schemes must be declared before the app is ready, and only ONCE per
+// process — startApp() itself awaits app.whenReady(), so this cannot move in there.
+protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
 
 import { electronApp } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { app } from 'electron'
+import { app, protocol } from 'electron'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
@@ -65,7 +71,7 @@ const startApp = async () => {
   // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
   // Must run before any window is created or notification fires, hence after the
   // migration gate returns and before lifecycle bootstrap.
-  electronApp.setAppUserModelId('com.kangfenmao.CherryStudio')
+  electronApp.setAppUserModelId(getApplicationId())
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

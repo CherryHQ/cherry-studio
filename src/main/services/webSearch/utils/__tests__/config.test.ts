@@ -1,7 +1,17 @@
+import { providerService } from '@main/data/services/ProviderService'
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { describe, expect, it } from 'vitest'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: {
+    getApiKeys: vi.fn(() => [] as ApiKeyEntry[])
+  }
+}))
+
+const getLlmProviderApiKeys = vi.mocked(providerService.getApiKeys)
 
 const preferenceValues: Record<string, unknown> = {
   'chat.web_search.max_results': 5,
@@ -29,6 +39,11 @@ const mockPreferenceReader = {
 }
 
 describe('webSearch config utils', () => {
+  beforeEach(() => {
+    getLlmProviderApiKeys.mockReset()
+    getLlmProviderApiKeys.mockReturnValue([])
+  })
+
   it('resolves all supported provider types from layered presets + overrides by default', async () => {
     const resolved = await getResolvedConfig(mockPreferenceReader)
     const providerIds = resolved.providers.map((provider) => provider.id)
@@ -153,6 +168,112 @@ describe('webSearch config utils', () => {
         }
       ]
     })
+  })
+
+  it('shares the exa provider api keys with exa-mcp when exa-mcp has no keys', async () => {
+    const provider = await getProviderById('exa-mcp', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.id).toBe('exa-mcp')
+    expect(provider.apiKeys).toEqual(['shared-exa-key'])
+  })
+
+  it('keeps exa-mcp own api keys over shared exa keys', async () => {
+    const provider = await getProviderById('exa-mcp', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] },
+            'exa-mcp': { apiKeys: ['own-mcp-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.apiKeys).toEqual(['own-mcp-key'])
+  })
+
+  it('does not inherit exa keys when exa has no keys configured', async () => {
+    const provider = await getProviderById('exa-mcp', mockPreferenceReader)
+
+    expect(provider.id).toBe('exa-mcp')
+    expect(provider.apiKeys).toEqual([])
+  })
+
+  it('shares exa api keys to exa-mcp in the resolved provider list', async () => {
+    const resolved = await getResolvedConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    const exaMcp = resolved.providers.find((provider) => provider.id === 'exa-mcp')
+    expect(exaMcp?.apiKeys).toEqual(['shared-exa-key'])
+  })
+
+  it('authenticates zhipu web search with the zhipu model provider key', async () => {
+    // The web search settings page has no key input for zhipu; it sends users to model
+    // provider settings, so the key only ever exists on the model provider.
+    getLlmProviderApiKeys.mockReturnValue([{ id: 'entry-1', key: 'zhipu-llm-key', isEnabled: true }])
+
+    const provider = await getProviderById('zhipu', mockPreferenceReader)
+
+    expect(getLlmProviderApiKeys).toHaveBeenCalledWith('zhipu', { enabled: true })
+    expect(provider.apiKeys).toEqual(['zhipu-llm-key'])
+  })
+
+  it('ignores stale web search keys when no zhipu model provider row exists', async () => {
+    getLlmProviderApiKeys.mockImplementation(() => {
+      throw new Error('Provider not found: zhipu')
+    })
+
+    const provider = await getProviderById('zhipu', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return { zhipu: { apiKeys: ['stale-websearch-key'] } } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider).toMatchObject({
+      id: 'zhipu',
+      apiKeys: []
+    })
+  })
+
+  it('ignores a stale web search key when the zhipu model provider key changes', async () => {
+    getLlmProviderApiKeys.mockReturnValue([{ id: 'entry-1', key: 'zhipu-llm-key', isEnabled: true }])
+
+    const provider = await getProviderById('zhipu', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return { zhipu: { apiKeys: ['zhipu-websearch-key'] } } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.apiKeys).toEqual(['zhipu-llm-key'])
   })
 
   it('resolves default providers by capability', async () => {

@@ -1,3 +1,10 @@
+---
+description: Decision framework for whether a main-process service belongs in the lifecycle system or stays a plain singleton
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application/serviceRegistry.ts
+---
+
 # Lifecycle Decision Guide
 
 **Lifecycle manages resources, not logic.** Being named "Service" does not mean it belongs here. The question is: does it **own resources or side effects that outlive a single method call and need cleanup on shutdown**?
@@ -22,7 +29,7 @@
 | -------------------- | ------------------------------------------------------------------ |
 | Event listeners      | `nativeTheme.on()`, `powerMonitor.on()`, `autoUpdater.on()`        |
 | Global shortcuts     | `globalShortcut.register()`                                        |
-| Subscriptions        | `preferenceService.subscribeChange()`, `configManager.subscribe()` |
+| Subscriptions        | `preferenceService.subscribeChange()`                               |
 | Session interceptors | `session.webRequest.onHeadersReceived()`                           |
 | IPC handlers         | `ipcMain.handle()` registration (see below)                        |
 | Global API mutations | Monkey-patching global APIs                                        |
@@ -174,23 +181,23 @@ Does the service need to be entirely excluded on some platforms?
 2. **Request-scoped ≠ long-lived** — `BackupManager` creates S3 connections inside `backup()` and releases on return. That's request-scoped. No lifecycle needed.
 3. **"Depends on PreferenceService"** — not a lifecycle concern. Any code can call `application.get('PreferenceService')`. Only register if the service itself owns resources.
 4. **Using `@Conditional` for runtime conditions** — `@Conditional` is evaluated once at boot. For conditions that change at runtime (user preferences, events), use `Activatable` instead.
-5. **Redundant cross-phase `@DependsOn`** — WhenReady services do not need `@DependsOn('PreferenceService')` or `@DependsOn('DbService')`. Phase ordering is enforced by the container; BeforeReady is always ready before WhenReady starts. Only declare `@DependsOn` for same-phase services.
+5. **Redundant cross-phase `@DependsOn`** — WhenReady services do not need `@DependsOn(['PreferenceService'])` or `@DependsOn(['DbService'])`. Phase ordering is enforced by the container; BeforeReady is always ready before WhenReady starts. Only declare `@DependsOn` for same-phase services.
 
    ```typescript
    // ❌ Redundant — PreferenceService is BeforeReady, guaranteed ready
    @Injectable('MainWindowService')
    @ServicePhase(Phase.WhenReady)
-   @DependsOn('PreferenceService')   // <-- remove this
+   @DependsOn(['PreferenceService'])   // <-- remove this
    export class MainWindowService extends BaseService { ... }
 
    // ✅ Correct — only declare same-phase deps
    @Injectable('AgentBootstrapService')
    @ServicePhase(Phase.WhenReady)
-   @DependsOn('ApiServerService')    // ApiServerService is also WhenReady
+   @DependsOn(['ApiServerService'])    // ApiServerService is also WhenReady
    export class AgentBootstrapService extends BaseService { ... }
    ```
 
-6. **Awaiting business work inside `onAllReady`** — `onAllReady` is a post-bootstrap supplement, not part of initialization. The framework invokes every service's hook in parallel and **does not await completion** (fire-and-forget). An `await someLongRunning()` inside `onAllReady` becomes silent background work; bootstrap proceeds without it. If the service truly needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the Promise on the instance, and join it from `onStop`. See [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern) for the template.
+6. **Awaiting business work inside `onAllReady`** — `onAllReady` is a post-bootstrap supplement, not part of initialization. The framework invokes every service's hook in parallel and **does not await completion** (fire-and-forget). An `await someLongRunning()` inside `onAllReady` becomes silent background work; bootstrap proceeds without it. If the service truly needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the Promise on the instance, and join it from `onStop`. That join is bounded on the shutdown path — see [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern) for the template and the ceiling.
 
 7. **Treating `ALL_SERVICES_READY` as "all side effects done"** — the event fires immediately after every `onAllReady` hook has been **invoked**, not after they complete. A listener that needs to wait on a specific service's deferred work must coordinate with that service directly (e.g. a `Signal` emitted by the service when its work finishes), not subscribe to `ALL_SERVICES_READY`.
 

@@ -134,8 +134,6 @@ export interface AgentDiffResult {
  *
  * `configuration` contains only the keys edited by this form. Main merges those
  * keys into the latest persisted configuration inside the write transaction.
- * `max_turns` is explicitly removed whenever this form changes configuration,
- * because that retired field is intentionally not surfaced by the dialog.
  */
 export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
@@ -211,7 +209,7 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...cfgPatch, max_turns: undefined }
+    dto.configuration = cfgPatch
     dirty = true
   }
 

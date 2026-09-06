@@ -47,6 +47,7 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
+import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import * as z from 'zod'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
@@ -95,10 +96,12 @@ export type TextOutput = {
 }
 
 export interface SkillToolInput {
-  skill: string
+  /** Claude uses `skill`; dsh's native skill tool uses `name`. */
+  skill?: string
+  name?: string
   args?: string
 }
-export type SkillToolOutput = string
+export type SkillToolOutput = string | TextOutput[]
 
 export type ReadToolInput = FileReadInput
 export type ReadToolOutput = FileReadOutput | string | TextOutput[]
@@ -124,9 +127,9 @@ export type SearchToolOutput = string
 export type GlobToolInput = GlobInput
 export type GlobToolOutput = GlobOutput | string
 
-export type TodoItem = TodoWriteInput['todos'][number]
-export type TodoWriteToolInput = TodoWriteInput
-export type TodoWriteToolOutput = TodoWriteOutput | string
+export type TodoItem = Omit<TodoWriteInput['todos'][number], 'activeForm'> & { activeForm?: string }
+export type TodoWriteToolInput = { todos: TodoItem[] }
+export type TodoWriteToolOutput = TodoWriteOutput | string | TextOutput[]
 
 export type WebSearchToolInput = WebSearchInput
 export type WebSearchToolOutput = WebSearchOutput | string
@@ -218,6 +221,9 @@ export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
 export function isAskUserQuestionToolName(toolName: unknown): boolean {
   return toolName === AgentToolsType.AskUserQuestion || toolName === 'builtin_AskUserQuestion'
 }
+
+/** cherry-tools document converter — an MCP tool, so it is keyed by its runtime wire name. */
+export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_TOOL_NAME}`
 
 /**
  * Whether an `Agent`/`Task` result is a launch receipt for a subagent that is still running. A

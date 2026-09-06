@@ -81,7 +81,7 @@ export class CommandService extends BaseService {
     })
 
     this.registerHandler('app.settings.open', () => {
-      openSettingsInMainWindow('/settings/provider')
+      openSettingsInMainWindow()
     })
 
     this.registerHandler('quick_assistant.toggle', () => {
@@ -107,6 +107,9 @@ export class CommandService extends BaseService {
     this.registerHandler('selection.capture_text', () => {
       application.get('SelectionService').processSelectTextByShortcut()
     })
+
+    // Returns the promise so execute() can log a rejection instead of dropping it.
+    this.registerHandler('screenshot.capture', () => application.get('ScreenshotOverlayService').startCapture())
   }
 
   private getDefaultContext(): ContextReader {
@@ -114,6 +117,7 @@ export class CommandService extends BaseService {
     return {
       'feature.quick_assistant.enabled': Boolean(preferenceService.get('feature.quick_assistant.enabled')),
       'feature.selection.enabled': Boolean(preferenceService.get('feature.selection.enabled')),
+      'feature.screenshot.enabled': Boolean(preferenceService.get('feature.screenshot.enabled')),
       platform: process.platform
     }
   }

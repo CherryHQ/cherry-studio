@@ -11,7 +11,6 @@ const exportMenuOptions: TopicActionContext['exportMenuOptions'] = {
   joplin: true,
   markdown: true,
   markdown_reason: true,
-  notes: true,
   notion: true,
   obsidian: true,
   plain_text: true,
@@ -23,6 +22,7 @@ const topic: Topic = {
   id: 'topic-a',
   assistantId: 'assistant-a',
   name: 'Topic A',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: [],
@@ -63,19 +63,18 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
 }
 
 describe('topic context menu actions', () => {
-  it('respects export menu preferences for notes and copy actions', () => {
+  it('keeps Save to Notes independent from export and copy preferences', () => {
     const actions = resolveTopicMenuActions(
       createTopicActionFixture({
         exportMenuOptions: {
           ...exportMenuOptions,
           image: false,
-          notes: false,
           plain_text: false
         }
       })
     )
 
-    expect(actions.map((action) => action.id)).not.toContain('topic.save-notes')
+    expect(actions.map((action) => action.id)).toContain('topic.save-notes')
 
     const copyAction = actions.find((action) => action.id === 'topic.copy')
     expect(copyAction?.children.map((action) => action.id)).toEqual(['topic.copy.markdown'])

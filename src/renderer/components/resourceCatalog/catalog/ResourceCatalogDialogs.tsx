@@ -7,7 +7,6 @@ import {
   SkillMarketplaceDialog,
   SystemSkillDialog
 } from '@renderer/components/resourceCatalog/dialogs/skill'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import type { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
@@ -27,8 +26,6 @@ export function ResourceCatalogDialogs({
   onRefetch,
   resourceType
 }: ResourceCatalogDialogsProps) {
-  const agentModelFilter = useAgentModelFilter('claude-code')
-
   return (
     <>
       <SkillDetailDialog
@@ -60,9 +57,7 @@ export function ResourceCatalogDialogs({
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}
         isSubmitting={dialogs.creatingResource}
-        modelFilter={
-          dialogs.createDialogKind === 'agent' ? agentModelFilter : (candidate) => !isNonChatModel(candidate)
-        }
+        modelFilter={dialogs.createDialogKind === 'agent' ? undefined : (candidate) => !isNonChatModel(candidate)}
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
       />

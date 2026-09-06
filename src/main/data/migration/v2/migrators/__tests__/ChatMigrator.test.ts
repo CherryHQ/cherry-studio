@@ -119,6 +119,92 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('preserves the useful response as the terminal active node', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const b3 = block('b3', 'a2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', ['b3'], { askId: 'u1', useful: true })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b3])
+
+    expect(result?.topic.activeNodeId).toBe('a2')
+  })
+
+  it('keeps active-node fallback within the terminal group when the useful response is skipped', async () => {
+    const blocks = [block('b1', 'u1'), block('b2', 'a1'), block('b3', 'a2'), block('b4', 'u2'), block('b5', 'a3')]
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', ['b3'], { askId: 'u1' }),
+      msg('u2', 'user', ['b4']),
+      msg('a3', 'assistant', ['b5'], { askId: 'u2' }),
+      msg('a4', 'assistant', ['missing-block'], { askId: 'u2', foldSelected: true, useful: true })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), blocks)
+
+    expect(result?.topic.activeNodeId).toBe('a3')
+  })
+
+  it('links a later user to a surviving sibling when the useful response is skipped', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const b4 = block('b4', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1' }),
+      msg('a2', 'assistant', ['missing-block'], { askId: 'u1', useful: true }),
+      msg('u2', 'user', ['b4'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b4])
+
+    expect(toMsgMap(result?.messages ?? []).get('u2')?.parentId).toBe('a1')
+  })
+
+  it('derives v1 topic activity from imported user creation and assistant completion times', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const messages = [
+      msg('u1', 'user', ['b1'], {
+        createdAt: '2025-01-01T00:01:00.000Z',
+        updatedAt: '2025-01-01T00:10:00.000Z'
+      }),
+      msg('a1', 'assistant', ['b2'], {
+        createdAt: '2025-01-01T00:02:00.000Z',
+        updatedAt: '2025-01-01T00:03:00.000Z'
+      })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
+
+    expect(result).not.toBeNull()
+    expect(result?.topic.lastActivityAt).toBe(Date.parse('2025-01-01T00:03:00.000Z'))
+  })
+
+  it('uses creation time for a transient v1 assistant message', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const messages = [
+      msg('u1', 'user', ['b1'], {
+        createdAt: '2025-01-01T00:01:00.000Z'
+      }),
+      msg('a1', 'assistant', ['b2'], {
+        status: 'pending',
+        createdAt: '2025-01-01T00:02:00.000Z',
+        updatedAt: '2025-01-01T00:10:00.000Z'
+      })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
+
+    expect(result?.topic.lastActivityAt).toBe(Date.parse('2025-01-01T00:02:00.000Z'))
+  })
+
   it('normalizes duplicate IDs before computing parent and active-node references', async () => {
     const b1 = block('b1', 'duplicate')
     const b2 = block('b2', 'duplicate')
@@ -576,6 +662,35 @@ describe('ChatMigrator.prepareTopicData', () => {
   })
 })
 
+describe('ChatMigrator empty topic name', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('leaves an unnamed v1 topic unnamed so the UI localizes it at render time', async () => {
+    // The migrator used to stamp a hardcoded English 'Unnamed Topic' here, which a
+    // Chinese user saw verbatim in an otherwise Chinese topic list. A natively-created
+    // v2 topic carries an empty name and the UI renders t('chat.conversation.new') for
+    // it, so writing any literal both freezes one language and disagrees with what
+    // every other unnamed topic shows.
+    const b1 = block('b1', 'u1')
+    const unnamed: OldTopic = { ...topic('t-unnamed', [msg('u1', 'user', ['b1'])]), name: '' }
+
+    const result = await prepareTopic(unnamed, [b1])
+
+    expect(result?.topic.name).toBe('')
+  })
+
+  it('keeps a real v1 topic name as-is', async () => {
+    const b1 = block('b1', 'u1')
+    const named: OldTopic = { ...topic('t-named', [msg('u1', 'user', ['b1'])]), name: '季度总结' }
+
+    const result = await prepareTopic(named, [b1])
+
+    expect(result?.topic.name).toBe('季度总结')
+  })
+})
+
 describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -640,12 +755,18 @@ describe('ChatMigrator message block index', () => {
     vi.clearAllMocks()
   })
 
-  it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
+  it('indexes one decoded block at a time before resolving it from temporary SQLite', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'u1')
-    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
-      await onBatch([b2, b1])
-      return 2
+    const sourceBlocks = [b2, b1]
+    const decodedBatchSizes: number[] = []
+    const readInBatches = vi.fn(async (batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      for (let index = 0; index < sourceBlocks.length; index += batchSize) {
+        const batch = sourceBlocks.slice(index, index + batchSize)
+        decodedBatchSizes.push(batch.length)
+        await onBatch(batch)
+      }
+      return sourceBlocks.length
     })
     const migrator = new ChatMigrator()
     const m = migrator as unknown as Record<string, unknown>
@@ -675,7 +796,8 @@ describe('ChatMigrator message block index', () => {
     expect(result?.messages).toHaveLength(1)
     expect(result?.messages[0]?.searchableText).toContain('Content of b1')
     expect(result?.messages[0]?.searchableText).toContain('Content of b2')
-    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
+    expect(readInBatches).toHaveBeenCalledWith(1, expect.any(Function))
+    expect(decodedBatchSizes).toEqual([1, 1])
   })
 })
 
@@ -854,6 +976,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       assistantId: null,
       activeNodeId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }
@@ -1023,6 +1146,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       assistantId: null,
       activeNodeId: null,
       orderKey: '',
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }

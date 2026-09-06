@@ -1,5 +1,5 @@
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
@@ -8,7 +8,7 @@ import { truncateOutput } from '../shared/truncateOutput'
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed'
 
-interface TaskListItem {
+export interface TaskListItem {
   id: string
   subject: string
   status: TaskStatus
@@ -69,7 +69,7 @@ function getTaskTargetLabel(taskId: string | undefined, t: ReturnType<typeof use
   return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
 }
 
-function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
+export function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
     <div className="space-y-1.5">
       {tasks.map((task) => (
@@ -92,7 +92,7 @@ function TaskTextOutput({ text, t }: { text: string; t: ReturnType<typeof useTra
     <div>
       <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
       <div className="rounded-md bg-muted/30 p-2">
-        <Streamdown mode="static">{text}</Streamdown>
+        <StaticMarkdown>{text}</StaticMarkdown>
       </div>
     </div>
   )

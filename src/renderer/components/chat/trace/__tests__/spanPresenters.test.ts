@@ -1,4 +1,3 @@
-import { SPAN_NAME_TURN } from '@mcp-trace/trace-core'
 import { describe, expect, it } from 'vitest'
 
 import { buildSpanView } from '../spanPresenters'
@@ -18,9 +17,7 @@ function node(overrides: Partial<TraceNode>): TraceNode {
     endTime: 1,
     attributes: {},
     events: [],
-    children: [],
-    percent: 100,
-    start: 0,
+    childIds: [],
     ...overrides
   } as unknown as TraceNode
 }
@@ -99,7 +96,7 @@ describe('buildSpanView span-type registry', () => {
   it('ai.turn span: identity/shape rows + boundary input/output tabs', () => {
     const view = buildSpanView(
       node({
-        name: SPAN_NAME_TURN,
+        name: 'ai.turn',
         status: 'OK',
         modelName: 'gpt-4',
         attributes: {

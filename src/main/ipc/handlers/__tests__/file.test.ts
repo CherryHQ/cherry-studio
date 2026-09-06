@@ -1,11 +1,14 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import type * as FileUtilsModule from '@main/utils/file'
 import { fileRequestSchemas } from '@shared/ipc/schemas/file'
+import type { InputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
   assertOutsideManagedStorageMutationMock,
+  copyNewMock,
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
@@ -15,6 +18,7 @@ const {
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
+  copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
@@ -23,6 +27,10 @@ const {
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtilsModule>()),
+  copyNew: copyNewMock
+}))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
@@ -43,6 +51,11 @@ vi.mock('@main/services/file', async () => {
         super('stale')
       }
     },
+    DirectoryTreeStoppedError: class DirectoryTreeStoppedError extends Error {
+      constructor() {
+        super('DirectoryTreeManager stopped during in-flight builder creation')
+      }
+    },
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
@@ -54,9 +67,10 @@ vi.mock('@main/services/file', async () => {
   }
 })
 
-import { ContentCommittedMetadataPendingError } from '@main/services/file'
+import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { fileHandlers } from '../file'
 
@@ -91,15 +105,31 @@ const fileManager = {
   batchCreateInternalEntries: vi.fn()
 }
 
+const directoryTreeManager = {
+  create: vi.fn(),
+  activateTree: vi.fn(),
+  dispose: vi.fn(),
+  rename: vi.fn()
+}
+
+const senderWebContents = { id: 7 }
+const windowManager = { getWindow: vi.fn() }
+
 beforeEach(() => {
   vi.clearAllMocks()
+  windowManager.getWindow.mockImplementation((id: string) =>
+    id === 'win-1' ? { webContents: senderWebContents } : undefined
+  )
   appGetMock.mockImplementation((name: string) => {
     if (name === 'FileManager') return fileManager
+    if (name === 'DirectoryTreeManager') return directoryTreeManager
+    if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
 
 const ctx = { senderId: null }
+const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
   it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
@@ -122,6 +152,50 @@ describe('fileHandlers', () => {
     ).resolves.toBe(result)
 
     expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary' })
+  })
+
+  it('forwards withContentHash to the path read so the hash binds to the returned bytes', async () => {
+    const result = {
+      content: new Uint8Array([3, 4]),
+      mime: 'text/markdown',
+      version,
+      contentHash: 'xxh3-64:00000000deadbeef'
+    }
+    readByPathMock.mockResolvedValueOnce(result)
+
+    await expect(
+      fileHandlers['file.read'](
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          options: { mode: 'full', encoding: 'binary', withContentHash: true }
+        },
+        ctx
+      )
+    ).resolves.toBe(result)
+
+    expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary', withContentHash: true })
+  })
+
+  it('pairs withContentHash exclusively with path-handle full reads in the derived input type', () => {
+    const valid: InputFor<'file.read'> = {
+      handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    }
+    const entryHash = {
+      handle: { kind: 'entry', entryId: ids[0] },
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    } as const
+    const rangeHash = {
+      handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+      options: { mode: 'range', offset: 0, length: 1, withContentHash: true }
+    } as const
+    // @ts-expect-error — an entry handle cannot request a bound content hash
+    const invalidEntry: InputFor<'file.read'> = entryHash
+    // @ts-expect-error — range reads cannot request a bound content hash
+    const invalidRange: InputFor<'file.read'> = rangeHash
+    void valid
+    void invalidEntry
+    void invalidRange
   })
 
   it('reads binary content from a managed entry through the generic FileHandle route', async () => {
@@ -223,6 +297,50 @@ describe('fileHandlers', () => {
       code: fileErrorCodes.COMMITTED_METADATA_PENDING,
       data: { entryId: ids[0], version: committedVersion }
     })
+  })
+
+  it('copy guards only the destination and delegates to the create-only primitive', async () => {
+    await fileHandlers['file.copy'](
+      {
+        sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+        destPath: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath
+      },
+      windowCtx
+    )
+
+    // source lives in managed storage legitimately — guarding it would refuse attachments
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledTimes(1)
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
+    expect(copyNewMock).toHaveBeenCalledWith('/data/Files/a.png', '/tmp/exports/assets/img-a.png')
+  })
+
+  it('copy refuses a trusted-but-unmanaged sender before touching anything', async () => {
+    await expect(
+      fileHandlers['file.copy'](
+        {
+          sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+          destPath: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath
+        },
+        ctx
+      )
+    ).rejects.toThrow('requires a managed window sender')
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(copyNewMock).not.toHaveBeenCalled()
+  })
+
+  it('copy does not touch the filesystem when the destination guard rejects', async () => {
+    assertOutsideManagedStorageMutationMock.mockRejectedValueOnce(new Error('managed storage'))
+
+    await expect(
+      fileHandlers['file.copy'](
+        {
+          sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+          destPath: '/data/Files/inside-managed.png' as AbsoluteFilePath
+        },
+        windowCtx
+      )
+    ).rejects.toThrow('managed storage')
+    expect(copyNewMock).not.toHaveBeenCalled()
   })
 
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
@@ -368,5 +486,74 @@ describe('fileHandlers', () => {
 
     await expect(fileHandlers['file.batch_create_internal_entries']({ items }, ctx)).resolves.toBe(result)
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
+  })
+
+  it('creates a directory tree addressed to the caller window WebContents', async () => {
+    const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
+    directoryTreeManager.create.mockResolvedValueOnce(created)
+
+    await expect(
+      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
+    ).resolves.toBe(created)
+
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+  })
+
+  it('refuses to create a directory tree for a sender that is not a managed window', async () => {
+    await expect(
+      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: undefined }, ctx)
+    ).rejects.toThrow('managed window sender')
+    expect(directoryTreeManager.create).not.toHaveBeenCalled()
+  })
+
+  it('maps a shutdown-in-flight create to the DIRECTORY_TREE_STOPPED code', async () => {
+    directoryTreeManager.create.mockRejectedValueOnce(new DirectoryTreeStoppedError())
+
+    // Without the code the router would normalize it to INTERNAL and the renderer
+    // would toast a shutdown as a real failure.
+    const error = await fileHandlers['file.tree.create'](
+      { rootPath: '/tmp/ws' as AbsoluteFilePath, options: undefined },
+      windowCtx
+    ).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect((error as IpcError).code).toBe(fileErrorCodes.DIRECTORY_TREE_STOPPED)
+  })
+
+  it('delegates activate / dispose / rename with the caller as the claimed owner', async () => {
+    directoryTreeManager.activateTree.mockReturnValueOnce(true)
+    directoryTreeManager.rename.mockReturnValueOnce(true)
+
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, windowCtx)).resolves.toBe(true)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, windowCtx)).resolves.toBeUndefined()
+    await expect(
+      fileHandlers['file.tree.rename'](
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
+        windowCtx
+      )
+    ).resolves.toBe(true)
+
+    // The manager compares this id against the consumer's owner, so a treeId alone
+    // does not authorize anything.
+    expect(directoryTreeManager.activateTree).toHaveBeenCalledWith('t-1', 3, senderWebContents.id)
+    expect(directoryTreeManager.dispose).toHaveBeenCalledWith('t-1', senderWebContents.id)
+    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', 'b.md', senderWebContents.id)
+  })
+
+  it('refuses tree follow-ups from a sender that is not a managed window', async () => {
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, ctx)).resolves.toBe(false)
+    await expect(
+      fileHandlers['file.tree.rename'](
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
+        ctx
+      )
+    ).resolves.toBe(false)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, ctx)).resolves.toBeUndefined()
+
+    // No claimed owner means no way to authorize, so nothing reaches the manager —
+    // notably `dispose` must not fall through to the unauthenticated internal path.
+    expect(directoryTreeManager.activateTree).not.toHaveBeenCalled()
+    expect(directoryTreeManager.rename).not.toHaveBeenCalled()
+    expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
   })
 })

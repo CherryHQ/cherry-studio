@@ -1,22 +1,26 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
+const { mockGetToolsForScope, mockQuickPanelValue, mockTranslate, mockUseQuickPanel } = vi.hoisted(() => {
   const mockQuickPanelValue = {
     close: vi.fn(),
+    initialSearchText: undefined as string | undefined,
     isVisible: false,
     open: vi.fn(),
     symbol: '',
+    updateFooterActions: vi.fn(),
     updateList: vi.fn()
   }
 
   return {
     mockGetToolsForScope: vi.fn(),
     mockQuickPanelValue,
+    mockTranslate: (key: string) => key,
     mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
   }
 })
@@ -37,12 +41,8 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => mockUseQuickPanel()
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: () => ({ provider: { id: 'provider-1' } })
-}))
-
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockTranslate })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -59,6 +59,7 @@ vi.mock('@cherrystudio/ui', () => ({
 import {
   ComposerActiveToolControls,
   ComposerPinnedToolsProvider,
+  ComposerToolFooterActionsSync,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -96,6 +97,23 @@ const runtimeLauncher: ComposerToolLauncher = {
   label: 'Fake runtime',
   icon: 'fake'
 }
+
+const footerAction = (id: string, panelSymbol: string, order: number) => ({
+  id,
+  panelSymbol,
+  order,
+  label: id,
+  ariaLabel: id,
+  icon: 'settings',
+  action: vi.fn()
+})
+
+const registeredFooterActions = [
+  footerAction('manage-global', 'quick-phrases', 30),
+  footerAction('manage-current', 'quick-phrases', 20),
+  footerAction('manage-notes', 'notes', 10),
+  footerAction('customize-toolbar', '/', 10)
+]
 
 const LauncherObserver = ({
   onSnapshot,
@@ -146,6 +164,23 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
   return null
 }
 
+const ToolStateControls = () => {
+  const { setFiles, setSelectedKnowledgeBases } = useComposerToolDispatch()
+
+  return (
+    <>
+      <button type="button" onClick={() => setFiles([{ id: 'file-1', path: '/tmp/file.txt' } as any])}>
+        Add file
+      </button>
+      <button
+        type="button"
+        onClick={() => setSelectedKnowledgeBases([{ id: 'knowledge-1', name: 'Knowledge' } as any])}>
+        Select knowledge
+      </button>
+    </>
+  )
+}
+
 const LauncherRegistrationProbe = ({
   onReady
 }: {
@@ -167,12 +202,49 @@ const LauncherRegistrationProbe = ({
   return null
 }
 
+const FooterActionRegistrationProbe = ({
+  onReady
+}: {
+  onReady: (value: { disposeFirst: () => void; readIds: (panelSymbol: string) => string[] }) => void
+}) => {
+  const { toolsRegistry, triggers } = useComposerToolDispatch()
+
+  useEffect(() => {
+    const disposeFirst = toolsRegistry.registerLaunchers(
+      'quick-phrases',
+      [],
+      [footerAction('stale-manage', 'quick-phrases', 30)]
+    )
+    const disposeLatest = toolsRegistry.registerLaunchers('quick-phrases', [], registeredFooterActions.slice(0, 3))
+
+    onReady({
+      disposeFirst,
+      readIds: (panelSymbol) => triggers.getFooterActions(panelSymbol).map((action) => action.id)
+    })
+    return disposeLatest
+  }, [onReady, toolsRegistry, triggers])
+
+  return null
+}
+
+const RegisteredFooterActions = () => {
+  const { toolsRegistry } = useComposerToolDispatch()
+
+  useEffect(() => toolsRegistry.registerLaunchers('quick-phrases', [], registeredFooterActions), [toolsRegistry])
+
+  return null
+}
+
 beforeEach(() => {
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
   mockQuickPanelValue.close.mockClear()
   mockQuickPanelValue.open.mockClear()
+  mockQuickPanelValue.updateFooterActions.mockClear()
   mockQuickPanelValue.updateList.mockClear()
+  mockQuickPanelValue.isVisible = false
+  mockQuickPanelValue.initialSearchText = undefined
+  mockQuickPanelValue.symbol = ''
 })
 
 const renderRuntime = (tools: any[], node: ReactNode) => {
@@ -316,6 +388,59 @@ describe('ComposerToolRuntimeHost', () => {
     expect(runtimeRegisterCount).toBe(1)
   })
 
+  it('re-registers only tools whose declared state dependencies change', async () => {
+    const user = userEvent.setup()
+    const createFileItems = vi.fn<
+      (context: ToolRenderContext<readonly ['files'], readonly []>) => ComposerToolLauncher[]
+    >(() => [menuLauncher])
+    const createKnowledgeItems = vi.fn<
+      (context: ToolRenderContext<readonly ['selectedKnowledgeBases'], readonly []>) => ComposerToolLauncher[]
+    >(() => [runtimeLauncher])
+
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'file-tool',
+        label: 'File tool',
+        dependencies: { state: ['files'] },
+        composer: { menuItems: { createItems: createFileItems } }
+      },
+      {
+        key: 'knowledge-tool',
+        label: 'Knowledge tool',
+        dependencies: { state: ['selectedKnowledgeBases'] },
+        composer: { menuItems: { createItems: createKnowledgeItems } }
+      }
+    ])
+
+    render(
+      <ComposerToolRuntimeProvider
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
+        <ToolStateControls />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => {
+      expect(createFileItems).toHaveBeenCalledTimes(1)
+      expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Add file' }))
+
+    await waitFor(() => expect(createFileItems).toHaveBeenCalledTimes(2))
+    expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
+    expect(createFileItems.mock.lastCall?.[0].state.files).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Select knowledge' }))
+
+    await waitFor(() => expect(createKnowledgeItems).toHaveBeenCalledTimes(2))
+    expect(createFileItems).toHaveBeenCalledTimes(2)
+    expect(createKnowledgeItems.mock.lastCall?.[0].state.selectedKnowledgeBases).toHaveLength(1)
+  })
+
   it('keeps the latest launcher registration when a stale disposer runs', async () => {
     let registration: { disposeFirst: () => void; readIds: () => string[] } | undefined
     const onReady = vi.fn((value) => {
@@ -329,6 +454,91 @@ describe('ComposerToolRuntimeHost', () => {
     act(() => registration?.disposeFirst())
 
     expect(registration?.readIds()).toEqual(['agent-skills'])
+  })
+
+  it('composes ordered footer actions for one panel and cleans up the owning registration', async () => {
+    let registration:
+      | {
+          disposeFirst: () => void
+          readIds: (panelSymbol: string) => string[]
+        }
+      | undefined
+    const onReady = vi.fn((value) => {
+      registration = value
+    })
+
+    const renderContent = (showProbe: boolean) => (
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        {showProbe ? <FooterActionRegistrationProbe onReady={onReady} /> : null}
+      </ComposerToolRuntimeProvider>
+    )
+    const view = render(renderContent(true))
+
+    await waitFor(() => {
+      expect(registration?.readIds('quick-phrases')).toEqual(['manage-current', 'manage-global'])
+    })
+    expect(registration?.readIds('notes')).toEqual(['manage-notes'])
+    expect(registration?.readIds('mcp-status')).toEqual([])
+
+    act(() => registration?.disposeFirst())
+    expect(registration?.readIds('quick-phrases')).toEqual(['manage-current', 'manage-global'])
+
+    view.rerender(renderContent(false))
+    expect(registration?.readIds('quick-phrases')).toEqual([])
+    expect(registration?.readIds('notes')).toEqual([])
+  })
+
+  it('publishes registered actions for the active quick panel outside its result list', async () => {
+    mockQuickPanelValue.isVisible = true
+    mockQuickPanelValue.symbol = 'quick-phrases'
+
+    const renderContent = () => (
+      <ComposerToolRuntimeProvider
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <RegisteredFooterActions />
+        <ComposerToolFooterActionsSync />
+      </ComposerToolRuntimeProvider>
+    )
+    mockGetToolsForScope.mockReturnValue([])
+    const view = render(renderContent())
+
+    await waitFor(() => {
+      expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
+        expect.objectContaining({ id: 'manage-current' }),
+        expect.objectContaining({ id: 'manage-global' })
+      ])
+    })
+    expect(mockQuickPanelValue.updateList).not.toHaveBeenCalled()
+
+    mockQuickPanelValue.symbol = 'notes'
+    view.rerender(renderContent())
+    await waitFor(() => {
+      expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
+        expect.objectContaining({ id: 'manage-notes' })
+      ])
+    })
+
+    mockQuickPanelValue.symbol = '/'
+    mockQuickPanelValue.initialSearchText = 'skills'
+    view.rerender(renderContent())
+    await waitFor(() => {
+      expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
+        expect.objectContaining({ id: 'customize-toolbar' })
+      ])
+    })
+
+    mockQuickPanelValue.isVisible = false
+    view.rerender(renderContent())
+    expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'customize-toolbar' })
+    ])
+
+    mockQuickPanelValue.symbol = ''
+    view.rerender(renderContent())
+    expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([])
   })
 
   it('does not subscribe the runtime host to quick panel state', async () => {

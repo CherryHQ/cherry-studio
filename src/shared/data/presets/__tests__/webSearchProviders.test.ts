@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { WEB_SEARCH_PROVIDER_IDS, type WebSearchProvider } from '../../preference/preferenceTypes'
+import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
-  isWebSearchProviderReady,
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
@@ -47,6 +46,33 @@ describe('web search provider schemas', () => {
     expect(jina!.capabilities.find((capability) => capability.feature === 'fetchUrls')?.apiHost).toBe(
       'https://r.jina.ai'
     )
+  })
+
+  it('models Firecrawl as one provider with keyword search and URL fetch capabilities', () => {
+    const firecrawl = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'firecrawl')
+
+    expect(firecrawl).toBeDefined()
+    expect(firecrawl!.capabilities.map((capability) => capability.feature)).toEqual(['searchKeywords', 'fetchUrls'])
+    expect(firecrawl!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
+      feature: 'fetchUrls',
+      requiresApiHost: true,
+      requiresApiKey: false,
+      apiHost: 'https://api.firecrawl.dev'
+    })
+  })
+
+  it('models Parallel as an API-key-authenticated keyword search provider', () => {
+    const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
+
+    expect(parallel).toBeDefined()
+    expect(parallel!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.parallel.ai'
+      }
+    ])
   })
 
   it('models Fetch as a hostless built-in URL fetch provider', () => {
@@ -113,49 +139,5 @@ describe('web search provider schemas', () => {
 
     expect(idResult.success).toBe(false)
     expect(overridesResult.success).toBe(false)
-  })
-})
-
-describe('client web provider readiness', () => {
-  const provider = (id: WebSearchProvider['id'], apiKeys: string[] = []): WebSearchProvider => {
-    const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((candidate) => candidate.id === id)!
-    return {
-      ...preset,
-      apiKeys,
-      capabilities: [...preset.capabilities],
-      engines: [],
-      basicAuthUsername: '',
-      basicAuthPassword: ''
-    }
-  }
-
-  it('accepts keyless and optional-key search providers with a valid host', () => {
-    expect(isWebSearchProviderReady(provider('exa-mcp'), 'searchKeywords')).toBe(true)
-    expect(isWebSearchProviderReady(provider('searxng'), 'searchKeywords')).toBe(true)
-    expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
-  })
-
-  it('requires an API key for providers that authenticate every search request', () => {
-    expect(isWebSearchProviderReady(provider('tavily'), 'searchKeywords')).toBe(false)
-    expect(isWebSearchProviderReady(provider('tavily', [' key ']), 'searchKeywords')).toBe(true)
-  })
-
-  it('supports both hostless and hosted URL-fetch capabilities without provider-id rules', () => {
-    expect(isWebSearchProviderReady(provider('fetch'), 'fetchUrls')).toBe(true)
-    expect(isWebSearchProviderReady(provider('jina'), 'fetchUrls')).toBe(true)
-    expect(isWebSearchProviderReady(provider('fetch'), 'searchKeywords')).toBe(false)
-  })
-
-  it('rejects invalid hosts when the capability metadata requires one', () => {
-    const exaMcp = provider('exa-mcp')
-    expect(
-      isWebSearchProviderReady(
-        {
-          ...exaMcp,
-          capabilities: [{ ...exaMcp.capabilities[0], apiHost: 'not-a-url' }]
-        },
-        'searchKeywords'
-      )
-    ).toBe(false)
   })
 })

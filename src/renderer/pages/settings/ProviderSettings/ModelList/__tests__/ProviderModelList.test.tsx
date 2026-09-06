@@ -38,10 +38,26 @@ vi.mock('../ModelDrawer', () => ({
   EditModelDrawer: () => null
 }))
 
-const { modelListGroupMock, modelListStateMock, searchTextMock } = vi.hoisted(() => ({
+vi.mock('../modelListHealthContext', () => ({
+  useModelListHealthRun: () => ({
+    apiKeyEntries: [],
+    savingKeyId: null,
+    toggleApiKey: vi.fn()
+  })
+}))
+
+const { modelListGroupMock, modelListStateMock, providerMetaState, searchTextMock } = vi.hoisted(() => ({
   modelListGroupMock: vi.fn(({ groupName }: { groupName: string }) => <div>{groupName}</div>),
   modelListStateMock: { hasNoModels: false, hasVisibleModels: true },
+  providerMetaState: {
+    isApiKeyFieldVisible: true,
+    provider: { id: 'openai', authOptional: false, apiKeys: [] as Array<{ id: string; isEnabled: boolean }> }
+  },
   searchTextMock: { value: '' }
+}))
+
+vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: () => providerMetaState
 }))
 
 vi.mock('../ModelListGroup', () => ({
@@ -83,6 +99,7 @@ describe('ProviderModelList', () => {
     vi.clearAllMocks()
     modelListStateMock.hasNoModels = false
     modelListStateMock.hasVisibleModels = true
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [] }
     searchTextMock.value = ''
   })
 
@@ -90,11 +107,35 @@ describe('ProviderModelList', () => {
     modelListStateMock.hasNoModels = true
     modelListStateMock.hasVisibleModels = false
 
-    const { container } = render(<ProviderModelList providerId="openai" disabled={false} />)
+    render(<ProviderModelList providerId="openai" disabled={false} />)
 
     expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
     expect(screen.getByText('settings.models.empty_hint')).toBeInTheDocument()
-    expect(container.querySelector('svg[viewBox="0 0 64 41"]')).toBeInTheDocument()
+  })
+
+  it('offers to continue setup when a required provider already has a saved key but no models', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [{ id: 'key-1', isEnabled: true }] }
+    const onContinueApiSetup = vi.fn()
+
+    render(<ProviderModelList providerId="openai" disabled={false} onContinueApiSetup={onContinueApiSetup} />)
+
+    expect(screen.getByText('settings.provider.api_setup.models_empty_hint')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.continue_models' }))
+    expect(onContinueApiSetup).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer model setup when every saved key is disabled', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+    providerMetaState.provider = { id: 'openai', authOptional: false, apiKeys: [{ id: 'key-1', isEnabled: false }] }
+
+    render(<ProviderModelList providerId="openai" disabled={false} onContinueApiSetup={vi.fn()} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'settings.provider.api_setup.continue_models' })
+    ).not.toBeInTheDocument()
   })
 
   it('renders model groups without section action rows', () => {

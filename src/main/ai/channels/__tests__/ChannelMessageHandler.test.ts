@@ -2,7 +2,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
@@ -12,7 +12,7 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
-const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
+const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
   class MockAgentSessionWorkspaceError extends Error {
     constructor(message: string) {
       super(message)
@@ -21,15 +21,20 @@ const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError 
   }
 
   return {
-    mockPrepareClaudeCodeWorkspaceDirectory: vi.fn(),
+    mockPrepareAgentSessionWorkspaceDirectory: vi.fn(),
     MockAgentSessionWorkspaceError
   }
 })
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => ({
+const persistedChannelSessions = vi.hoisted(() => ({
+  bindings: new Map<string, string>(),
+  sessions: new Map<string, Record<string, unknown>>()
+}))
+
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
   isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-  prepareClaudeCodeWorkspaceDirectory: mockPrepareClaudeCodeWorkspaceDirectory
+  prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
 vi.mock('@logger', () => ({
@@ -61,10 +66,18 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: vi.fn(),
-    create: vi.fn()
-  }
+  agentSessionService: (() => {
+    const create = vi.fn()
+    return {
+      getById: vi.fn((id: string) => persistedChannelSessions.sessions.get(id)),
+      create,
+      createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
+        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        persistedChannelSessions.sessions.set(id, { ...template, id })
+      }),
+      notifyReadModelChange: vi.fn()
+    }
+  })()
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
@@ -86,7 +99,15 @@ vi.mock('@data/services/AgentChannelService', () => ({
       .fn()
       .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
     updateChannel: vi.fn().mockResolvedValue(null),
-    findBySessionId: vi.fn().mockResolvedValue(null)
+    findBySessionId: vi.fn().mockResolvedValue(null),
+    getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
+      persistedChannelSessions.bindings.get(`${channelId}:${conversationId}`)
+    ),
+    activateSessionTx: vi.fn(
+      (_tx: unknown, input: { channelId: string; conversationId: string; sessionId: string }) => {
+        persistedChannelSessions.bindings.set(`${input.channelId}:${input.conversationId}`, input.sessionId)
+      }
+    )
   }
 }))
 
@@ -115,6 +136,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
         }
         await listener.onDone({ status: 'success' })
       }
+      return { mode: 'started' }
     }
   )
 }
@@ -139,7 +161,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  * then await the returned promise to wait for processing to complete.
  */
 async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapter>, message: ChannelMessageEvent) {
-  const promise = channelMessageHandler.handleIncoming(adapter, message)
+  const promise = channelMessageHandler.handleIncoming(adapter, { ...message })
   // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
   await vi.advanceTimersByTimeAsync(10500)
   return promise
@@ -155,8 +177,13 @@ describe('ChannelMessageHandler', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockReset()
-    mockPrepareClaudeCodeWorkspaceDirectory.mockResolvedValue(undefined)
+    mockPrepareAgentSessionWorkspaceDirectory.mockReset()
+    mockPrepareAgentSessionWorkspaceDirectory.mockResolvedValue(undefined)
+    persistedChannelSessions.bindings.clear()
+    persistedChannelSessions.sessions.clear()
+    vi.mocked(agentSessionService.getById).mockImplementation(
+      (id) => persistedChannelSessions.sessions.get(id) as never
+    )
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -195,7 +222,44 @@ describe('ChannelMessageHandler', () => {
     // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
+  })
+
+  it('settles a busy channel message and leaves the chat queue usable', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValue(session as any)
+    mockStartAgentSessionRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'The Agent Session is busy. Please try again shortly.', {
+      replyToMessageId: undefined
+    })
+    const typingCallsAfterBusy = adapter.sendTypingIndicator.mock.calls.length
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(adapter.sendTypingIndicator).toHaveBeenCalledTimes(typingCallsAfterBusy)
+
+    simulateStream([{ type: 'text-delta', delta: 'second completed' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second completed', undefined)
   })
 
   it('passes channel message text to the agent unchanged', async () => {
@@ -258,7 +322,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(sanitizeChannelOutput).toHaveBeenCalled()
     // The redacted text — not the raw secret — is what reaches the adapter.
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>', undefined)
 
     // Restore the identity default so later tests are unaffected.
     vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({ text, redacted: false }))
@@ -311,7 +375,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockRejectedValueOnce(
+    mockPrepareAgentSessionWorkspaceDirectory.mockRejectedValueOnce(
       new AgentSessionWorkspaceError('workspace is missing')
     )
 
@@ -323,7 +387,9 @@ describe('ChannelMessageHandler', () => {
       images: [{ media_type: 'image/png', data: 'AA==' }]
     })
 
-    expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
+    expect(mockPrepareAgentSessionWorkspaceDirectory).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: 'agent-1', workspace: session.workspace })
+    )
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
@@ -350,7 +416,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!')
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined)
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -381,7 +447,7 @@ describe('ChannelMessageHandler', () => {
     // and has been removed; ChannelAdapterListener delivers the full text once and
     // each adapter splits per its own platform limit.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText, undefined)
   })
 
   it('handleCommand /new creates a new session in the channel-bound workspace', async () => {
@@ -401,11 +467,18 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
-    expect(agentSessionService.create).toHaveBeenCalledWith({
+    expect(agentSessionService.createTx).toHaveBeenCalledWith(expect.anything(), expect.any(String), {
       agentId: 'agent-1',
       name: 'Channel session',
       workspace: { type: 'user', workspaceId: 'workspace-bound' }
     })
+    expect(channelService.activateSessionTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        channelId: 'channel-1',
+        conversationId: 'chat-1'
+      })
+    )
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
   })
 
@@ -430,13 +503,15 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
+    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
     expect(mockStartAgentSessionRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'session-1',
+        sessionId: createdSessionId,
         userParts: [{ type: 'text', text: '/compact' }],
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
         headless: true,
+        requireIdle: { expectedAgentId: 'agent-1' },
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])
@@ -445,7 +520,47 @@ describe('ChannelMessageHandler', () => {
     // ChannelAdapterListener delivers the compact output once; the handler no longer
     // also sends it (would have been a double-send once the `.delta` read was fixed).
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.', undefined)
+  })
+
+  it('serializes commands after earlier messages in the same conversation', async () => {
+    const adapter = createMockAdapter()
+    let releaseStream!: () => void
+    let markStreamStarted!: () => void
+    const streamStarted = new Promise<void>((resolve) => (markStreamStarted = resolve))
+
+    mockStartAgentSessionRun.mockImplementationOnce(
+      async ({ listeners }: { listeners: Array<{ onDone: (result: { status: string }) => void | Promise<void> }> }) => {
+        markStreamStarted()
+        await new Promise<void>((resolve) => (releaseStream = resolve))
+        for (const listener of listeners) await listener.onDone({ status: 'success' })
+      }
+    )
+
+    const message = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Use the current session'
+    })
+    const command = channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+
+    await streamStarted
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).not.toHaveBeenCalledWith('chat-1', 'New session created.', expect.anything())
+
+    releaseStream()
+    await Promise.all([message, command])
+
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', {
+      replyToMessageId: undefined
+    })
   })
 
   it('handleCommand /help sends help text with agent info', async () => {
@@ -466,6 +581,7 @@ describe('ChannelMessageHandler', () => {
     const helpText = adapter.sendMessage.mock.calls[0][1] as string
     expect(helpText).toContain('*TestAgent*')
     expect(helpText).toContain('_A test agent_')
+    expect(helpText).toContain('Available commands:')
     expect(helpText).toContain('/new')
     expect(helpText).toContain('/compact')
     expect(helpText).toContain('/help')
@@ -475,13 +591,8 @@ describe('ChannelMessageHandler', () => {
   it('handleCommand /help merges the bound session slash commands (control wins on collision)', async () => {
     const adapter = createMockAdapter()
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
-    vi.mocked(channelService.getChannel).mockReturnValueOnce({
-      id: 'channel-1',
-      sessionId: 'session-xyz',
-      workspace: { type: 'system' }
-    } as any)
-    // The bound session belongs to this agent, so its catalog is allowed to merge.
-    vi.mocked(agentSessionService.getById).mockReturnValue({ id: 'session-xyz', agentId: 'agent-1' } as any)
+    persistedChannelSessions.bindings.set('channel-1:chat-merge', 'session-xyz')
+    persistedChannelSessions.sessions.set('session-xyz', { id: 'session-xyz', agentId: 'agent-1' })
     MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), [
       { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
       // Collides with the control command — control description must win, session dup dropped.
@@ -508,13 +619,8 @@ describe('ChannelMessageHandler', () => {
   it('handleCommand /help ignores a channel session that belongs to another agent', async () => {
     const adapter = createMockAdapter()
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
-    vi.mocked(channelService.getChannel).mockReturnValueOnce({
-      id: 'channel-1',
-      sessionId: 'stale-session',
-      workspace: { type: 'system' }
-    } as any)
-    // Channel was reassigned: the persisted session link now points at another agent's session.
-    vi.mocked(agentSessionService.getById).mockReturnValue({ id: 'stale-session', agentId: 'other-agent' } as any)
+    persistedChannelSessions.bindings.set('channel-1:chat-stale', 'stale-session')
+    persistedChannelSessions.sessions.set('stale-session', { id: 'stale-session', agentId: 'other-agent' })
     MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), [
       { name: 'leak', description: 'commands from the wrong agent', argumentHint: '' }
     ])
@@ -573,8 +679,7 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
-    // Now send a message — should use the tracked session
-    vi.mocked(agentSessionService.getById).mockReturnValueOnce(newSession as any)
+    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
     simulateStream([{ type: 'text-delta', delta: 'OK' }])
 
     await handleIncomingAndFlush(adapter, {
@@ -584,7 +689,7 @@ describe('ChannelMessageHandler', () => {
       text: 'test'
     })
 
-    expect(agentSessionService.getById).toHaveBeenCalledWith('new-session')
+    expect(agentSessionService.getById).toHaveBeenCalledWith(createdSessionId)
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {
@@ -612,13 +717,7 @@ describe('ChannelMessageHandler', () => {
     // Clear session tracker
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    // Next interaction should find existing session via channel's session_id
-    vi.mocked(channelService.getChannel).mockReturnValueOnce({
-      id: 'channel-1',
-      sessionId: 'session-1',
-      permissionMode: null
-    } as any)
-    vi.mocked(agentSessionService.getById).mockReturnValueOnce(session1 as any)
+    // Next interaction should restore the persisted conversation binding.
     simulateStream([{ type: 'text-delta', delta: 'R2' }])
 
     await handleIncomingAndFlush(adapter, {
@@ -628,10 +727,143 @@ describe('ChannelMessageHandler', () => {
       text: 'msg2'
     })
 
-    // After clearing tracker, should look up channel then getSession instead of creating new session
-    expect(channelService.getChannel).toHaveBeenCalledWith('channel-1')
-    // Only 1 createSession call (the first one), not 2
+    expect(channelService.getActiveSessionId).toHaveBeenCalledWith('channel-1', 'chat-1')
     expect(agentSessionService.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps conversations isolated and restores each persisted session after tracker reset', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+
+    for (const chatId of ['dm-alice', 'dm-bob']) {
+      simulateStream([{ type: 'text-delta', delta: `reply:${chatId}` }])
+      await handleIncomingAndFlush(adapter, {
+        chatId,
+        userId: chatId,
+        userName: chatId,
+        text: 'hello'
+      })
+    }
+
+    channelMessageHandler.clearSessionTracker('agent-1')
+    simulateStream([{ type: 'text-delta', delta: 'welcome back' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'dm-alice',
+      userId: 'dm-alice',
+      userName: 'Alice',
+      text: 'again'
+    })
+
+    const sessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
+    expect(sessionIds[0]).not.toBe(sessionIds[1])
+    const listenerIds = mockStartAgentSessionRun.mock.calls.map(
+      ([input]) => input.listeners.find((listener: { id: string }) => listener.id.startsWith('channel:'))?.id
+    )
+    expect(listenerIds[0]).not.toBe(listenerIds[1])
+    expect(sessionIds[2]).toBe(sessionIds[0])
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves first-arrival order across senders whose debounce timers expire out of order', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'A reply' }])
+    simulateStream([{ type: 'text-delta', delta: 'B reply' }])
+
+    const firstA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A1'
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    const B = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'bob',
+      userName: 'Bob',
+      text: 'B1'
+    })
+    await vi.advanceTimersByTimeAsync(6000)
+    const secondA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A2'
+    })
+
+    await vi.advanceTimersByTimeAsync(9000)
+    await Promise.all([firstA, B, secondA])
+
+    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2', 'B1'])
+  })
+
+  it('caps a sender debounce so queued messages from another sender are eventually admitted', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'A reply' }])
+    simulateStream([{ type: 'text-delta', delta: 'B reply' }])
+
+    const firstA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A1'
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    const B = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'bob',
+      userName: 'Bob',
+      text: 'B1'
+    })
+    await vi.advanceTimersByTimeAsync(6000)
+    const secondA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A2'
+    })
+    await vi.advanceTimersByTimeAsync(7000)
+    const thirdA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A3'
+    })
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await Promise.all([firstA, B, secondA, thirdA])
+
+    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2\nA3', 'B1'])
+  })
+
+  it('isolates threads in the same chat and preserves their reply context', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+
+    for (const conversationId of ['thread:one', 'thread:two']) {
+      simulateStream([{ type: 'text-delta', delta: conversationId }])
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'group-1',
+        conversationId,
+        userId: 'user-1',
+        userName: 'User',
+        messageId: `${conversationId}:message`,
+        replyInThread: true,
+        text: 'hello'
+      })
+    }
+
+    const sessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
+    expect(sessionIds[0]).not.toBe(sessionIds[1])
+    expect(channelService.activateSessionTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'thread:one' })
+    )
+    expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:one', {
+      replyToMessageId: 'thread:one:message',
+      replyInThread: true
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:two', {
+      replyToMessageId: 'thread:two:message',
+      replyInThread: true
+    })
   })
 
   // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'
@@ -667,10 +899,11 @@ describe('ChannelMessageHandler', () => {
       userName: 'User',
       command: 'new'
     })
+    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
     mockStreamAbort.mockClear()
 
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-x'), 'agent-cleared')
+    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId(createdSessionId), 'agent-cleared')
   })
 })

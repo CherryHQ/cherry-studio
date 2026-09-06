@@ -35,6 +35,71 @@ describe('toolResponse adapter', () => {
     expect(response.response).toBe('ok')
   })
 
+  it('uses raw MCP metadata instead of a hashed non-ASCII wire id for display', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-ocr',
+      toolName: 'mcp__ocr__tool_1234567890abcdef1234',
+      state: 'output-available',
+      input: { image: 'invoice.png' },
+      output: {
+        content: 'ok',
+        metadata: {
+          description: '识别票据中的结构化字段',
+          name: '识别发票',
+          serverName: '票据 OCR',
+          serverId: 'ocr-server',
+          type: 'mcp'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+
+    expect(response.tool.name).toBe('识别发票')
+    expect((response.tool as any).description).toBe('识别票据中的结构化字段')
+    expect((response.tool as any).serverName).toBe('票据 OCR')
+  })
+
+  it.each([
+    {
+      state: 'approval-requested',
+      approval: { id: 'approval-ocr' }
+    },
+    {
+      state: 'output-error',
+      errorText: 'OCR failed'
+    }
+  ] as const)('uses tool metadata for a hashed non-ASCII MCP id in $state state', (stateFields) => {
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-ocr',
+      toolName: 'mcp__ocr__tool_1234567890abcdef1234',
+      input: { image: 'invoice.png' },
+      toolMetadata: {
+        cherry: {
+          tool: {
+            description: '识别票据中的结构化字段',
+            name: '识别发票',
+            serverName: '票据 OCR',
+            serverId: 'ocr-server',
+            type: 'mcp'
+          }
+        }
+      },
+      ...stateFields
+    }
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+
+    expect(response.tool.name).toBe('识别发票')
+    expect((response.tool as any).serverName).toBe('票据 OCR')
+  })
+
   it('keeps structured MCP arrays bare for dedicated tool renderers', () => {
     const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
     const part = {
@@ -172,6 +237,122 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
+  it('projects a persisted denial and its reason into cancelled tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-denied',
+      state: 'approval-responded',
+      input: { command: 'rm -rf build' },
+      approval: { id: 'approval-denied', approved: false, reason: 'use a copy instead' },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'cancelled',
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+  })
+
+  it('projects a persisted approval into pending tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-approved',
+      state: 'approval-responded',
+      input: { command: 'pnpm test' },
+      approval: { id: 'approval-approved', approved: true },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'pending',
+      approval: { approved: true }
+    })
+  })
+
+  it('projects a persisted denial without a reason into cancelled tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-denied-without-reason',
+      state: 'approval-responded',
+      input: { command: 'rm -rf build' },
+      approval: { id: 'approval-denied-without-reason', approved: false },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'cancelled',
+      approval: { approved: false }
+    })
+    expect(response?.approval?.reason).toBeUndefined()
+  })
+
+  it('marks provider-executed Responses tools as provider tools', () => {
+    const part = {
+      type: 'tool-webSearch',
+      toolCallId: 'provider-search',
+      state: 'output-available',
+      input: {},
+      output: { action: { type: 'search' } },
+      providerExecuted: true
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('webSearch')
+  })
+
+  it.each([
+    ['pi-agent', 'bash', 'Bash'],
+    ['dsh-agent', 'bash', 'Bash'],
+    ['dsh-agent', 'pwsh', 'Bash'],
+    ['dsh-agent', 'read', 'Read'],
+    ['dsh-agent', 'write', 'Write'],
+    ['dsh-agent', 'edit', 'Edit'],
+    ['dsh-agent', 'skill', 'Skill'],
+    ['dsh-agent', 'todo_write', 'TodoWrite']
+  ])('maps %s builtin %s to the shared %s renderer identity', (transport, toolName, expectedName) => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName,
+      toolCallId: `${transport}-${toolName}`,
+      state: 'output-available',
+      input: { command: 'ls' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: { transport, tool: { type: 'builtin', name: toolName } }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('done')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe(expectedName)
+  })
+
+  it('does not reinterpret an untagged lowercase dynamic tool as an agent builtin', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'read',
+      toolCallId: 'external-read',
+      state: 'output-available',
+      input: {},
+      output: 'ok'
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('mcp')
+    expect(response?.tool.name).toBe('read')
+  })
+
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
     const part = {
       type: 'dynamic-tool',
@@ -253,6 +434,26 @@ describe('toolResponse adapter', () => {
       output: 'ok',
       callProviderMetadata: {
         'claude-code': {
+          parentToolCallId: 'parent-call'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.parentToolUseId).toBe('parent-call')
+  })
+
+  it('extracts parent tool id from the runtime-neutral cherry metadata (dsh subagents)', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'read',
+      toolCallId: 'child-call',
+      state: 'output-available',
+      input: { file_path: '/tmp/a.ts' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: {
+          transport: 'dsh-agent',
           parentToolCallId: 'parent-call'
         }
       }

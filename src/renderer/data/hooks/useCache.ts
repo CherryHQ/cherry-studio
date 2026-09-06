@@ -33,9 +33,9 @@ const logger = loggerService.withContext('useCache')
  *
  * @example
  * ```typescript
- * // Given schema has 'app.user.avatar' and 'scroll.position.${id}'
+ * // Given schema has 'app.path.resources' and 'scroll.position.${id}'
  *
- * findMatchingUseCacheSchemaKey('app.user.avatar')       // 'app.user.avatar'
+ * findMatchingUseCacheSchemaKey('app.path.resources')    // 'app.path.resources'
  * findMatchingUseCacheSchemaKey('scroll.position.123')   // 'scroll.position.${id}'
  * findMatchingUseCacheSchemaKey('unknown.key')           // undefined
  * ```
@@ -72,10 +72,10 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': '' (default)
+ * // 'app.path.resources': '' (default)
  * // 'scroll.position.${id}': 0 (default)
  *
- * getUseCacheDefaultValue('app.user.avatar')       // ''
+ * getUseCacheDefaultValue('app.path.resources')    // ''
  * getUseCacheDefaultValue('scroll.position.123')   // 0
  * getUseCacheDefaultValue('unknown.key')           // undefined
  * ```
@@ -113,7 +113,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * Data is lost when the app restarts.
  *
  * Supports both fixed keys and template keys:
- * - Fixed keys: `useCache('app.user.avatar')`
+ * - Fixed keys: `useCache('app.path.resources')`
  * - Template keys: `useCache('scroll.position.topic123')` (matches schema `'scroll.position.${id}'`)
  *
  * Template keys follow the same dot-separated pattern as fixed keys.
@@ -127,7 +127,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * @example
  * ```typescript
  * // Fixed key usage
- * const [avatar, setAvatar] = useCache('app.user.avatar')
+ * const [resourcesPath, setResourcesPath] = useCache('app.path.resources')
  *
  * // Template key usage (schema: 'scroll.position.${id}': number)
  * const [scrollPos, setScrollPos] = useCache('scroll.position.topic123')
@@ -137,7 +137,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * const [generating, setGenerating] = useCache('chat.web_search.searching', true)
  *
  * // Update the value
- * setAvatar('new-avatar-url')
+ * setResourcesPath('/path/to/resources')
  *
  * // Functional update — resolved against the latest stored value (safe across awaits)
  * setOpened((prev) => prev.filter((item) => item.id !== id))

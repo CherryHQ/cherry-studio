@@ -26,6 +26,7 @@ function createFallbackTopic(messages: MessageListItem[]): Topic {
     id: topicId,
     assistantId: firstMessage?.assistantId || '',
     name: '',
+    lastActivityAt: firstMessage?.updatedAt || firstMessage?.createdAt || '',
     createdAt: firstMessage?.createdAt || '',
     updatedAt: firstMessage?.updatedAt || '',
     messages: []

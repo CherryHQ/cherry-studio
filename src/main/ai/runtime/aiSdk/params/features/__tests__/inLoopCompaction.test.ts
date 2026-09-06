@@ -22,20 +22,31 @@ const COMPRESSION_LANGUAGE_MODEL = { id: 'compression-model' } as any
  *  so the summarize call is budgeted against the compressor and not the chat model. */
 const COMPRESSION_MODEL = { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: null } as any
 
+/** Endpoint wiring is only read to pick the per-dialect media cost table. */
+const provider = (adapterFamily = 'anthropic') =>
+  ({
+    id: 'prov',
+    defaultChatEndpoint: 'anthropic-messages',
+    endpointConfigs: { 'anthropic-messages': { adapterFamily } }
+  }) as any
+
 const scope = (overrides: {
   chatId?: string
   contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
+  thresholdPercent?: number
   compressionModel?: unknown
+  adapterFamily?: string
 }) =>
   ({
     request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
+    provider: provider(overrides.adapterFamily),
     contextSettings: {
       enabled: overrides.enabled ?? true,
-      compress: { enabled: overrides.compressEnabled ?? true }
+      compress: { enabled: overrides.compressEnabled ?? true, thresholdPercent: overrides.thresholdPercent ?? 80 }
     },
     compressionModel: 'compressionModel' in overrides ? overrides.compressionModel : COMPRESSION_MODEL
   }) as any
@@ -62,6 +73,20 @@ const toolMessage = (approxTokens: number): ModelMessage => ({
       toolName: 't',
       output: { type: 'text', value: 'word '.repeat(approxTokens) }
     }
+  ]
+})
+
+/**
+ * A first-turn user message: a little text plus a large inlined base64 media attachment.
+ * `base64Chars` sizes the payload — scored as natural-language text it lands in the
+ * millions of tokens, which is exactly the #17837 report (13 MB MP3 → 18 M base64 chars →
+ * 3.7 M estimated vs the provider's real 20 k).
+ */
+const audioAttachmentMessage = (base64Chars: number): ModelMessage => ({
+  role: 'user',
+  content: [
+    { type: 'text', text: 'Please transcribe this audio.' },
+    { type: 'file', mediaType: 'audio/mpeg', filename: 'clip.mp3', data: 'QUJDRA'.repeat(Math.ceil(base64Chars / 6)) }
   ]
 })
 
@@ -146,6 +171,33 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).not.toHaveBeenCalled()
   })
 
+  // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
+  // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
+  // at ~3.7 M tokens (~183x the provider's 20 k), firing compaction on a first turn that has
+  // nothing to fold. Media must be priced by modality, never by payload length.
+  it('does not price a base64 media attachment as text (no false first-turn compaction)', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+    // ~3M base64 chars: as text that dwarfs the 80k trigger; as audio it costs the bounded
+    // per-dialect fallback, so the first turn stays under budget and never folds.
+    const messages = [audioAttachmentMessage(3_000_000)]
+    const result = await prepareStep({ messages } as any) // step 0 → no usage anchor → full local pass
+    expect(compactModelMessages).not.toHaveBeenCalled()
+    expect(result).toBeUndefined()
+  })
+
+  // The media exclusion must not blind the trigger to real text.
+  it('still compacts when oversized text sits alongside a large media attachment', async () => {
+    compactModelMessages.mockClear()
+    const compacted = [userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const prepareStep = getPrepareStep()
+    const messages = [audioAttachmentMessage(3_000_000), assistantMessage(5), userMessage(90_000)]
+    const result = await prepareStep({ messages } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: compacted })
+  })
+
   it('compacts and returns { messages } when the prompt reaches 80% of the window', async () => {
     compactModelMessages.mockClear()
     const compacted = [userMessage(10)]
@@ -165,6 +217,37 @@ describe('inLoopCompactionFeature', () => {
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
     expect(result).toEqual({ messages: compacted })
+  })
+
+  // The keep budget is a fraction of the TRIGGER, not of the window: sized
+  // against the window (the old 0.3x) it EXCEEDS the trigger below 30%, so the
+  // fold kept the entire history — handing back a prompt still over budget for
+  // the next step to re-fold, one summarizer round trip per step.
+  it('keeps a fold target under the trigger at a low threshold', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 20 })
+    )
+    // Trigger = 20% of 100k = 20k; 30 turns x ~1k = ~30k is over it.
+    const messages = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? userMessage(1000) : assistantMessage(1000)))
+    await prepareStep({ messages } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    // Keep budget = 0.375 x 20k = 7.5k, so ~8 of the ~1k turns survive — well
+    // under the trigger. A window-relative budget (0.3 x 100k = 30k) would have
+    // swallowed all 30 and handed back a prompt still over budget.
+    expect(compactModelMessages.mock.calls[0][2].keepRecentTurns).toBeLessThan(20)
+  })
+
+  it('honors a configured threshold below the default', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 50 })
+    )
+    // ~60k tokens: under the 80k default trigger, over the 50k configured one.
+    await prepareStep({ messages: [userMessage(60_000)] } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
   // The summarize call goes to the COMPRESSOR, so its budget must come from the
@@ -227,12 +310,42 @@ describe('inLoopCompactionFeature', () => {
       expect(events.every((e) => e.phase === 'in-loop')).toBe(true)
     })
 
-    it('settles even when the compressor fails (no stuck spinner)', async () => {
+    it('settles even when the compressor fails (no stuck spinner, no false marker)', async () => {
       compactModelMessages.mockClear()
       compactModelMessages.mockRejectedValue(new Error('429 rate limited'))
       const { events, prepareStep } = withSink()
       await prepareStep({ messages: [userMessage(90_000)] } as any)
-      expect(events.map((e) => e.status)).toEqual(['compacting', 'done'])
+      // Nothing was folded, so the spinner clears as `skipped` rather than claiming a compaction.
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'skipped'])
+    })
+
+    // #17837's second half: the `done` anchor was emitted BEFORE the `compacted === candidate`
+    // check, so a fold that replaced nothing still surfaced as a completed compaction —
+    // preTokens === postTokens, foldedCount 0, yet the UI said "context compacted".
+    it('reports a no-op fold as skipped, with no before/after metrics', async () => {
+      compactModelMessages.mockClear()
+      const { events, prepareStep } = withSink()
+      const messages = [userMessage(90_000)]
+      // No-op contract: compactModelMessages returns the input reference unchanged.
+      compactModelMessages.mockResolvedValue(messages)
+      const result = await prepareStep({ messages } as any)
+      expect(result).toBeUndefined()
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'skipped'])
+      const settled = events.at(-1)!
+      expect(settled).not.toHaveProperty('preTokens')
+      expect(settled).not.toHaveProperty('postTokens')
+      expect(settled).not.toHaveProperty('foldedCount')
+    })
+
+    it('still reports a real fold as done, with its metrics', async () => {
+      compactModelMessages.mockClear()
+      compactModelMessages.mockResolvedValue([userMessage(10)])
+      const { events, prepareStep } = withSink()
+      await prepareStep({ messages: [userMessage(90_000)] } as any)
+      const settled = events.at(-1) as unknown as Record<string, unknown>
+      expect(settled.status).toBe('done')
+      expect(settled.preTokens).toBeGreaterThan(settled.postTokens as number)
+      expect(settled.foldedCount).toBe(0) // 1 message → 1 message, but the CONTENT was replaced
     })
 
     // A tool-heavy turn folds repeatedly; a shared id made every later fold
@@ -410,7 +523,7 @@ describe('computeKeepRecentTurns', () => {
         msg('user'),
         msg('assistant')
       ]
-      expect(computeKeepRecentTurns(messages, 1e9)).toBe(4)
+      expect(computeKeepRecentTurns(messages, 1e9, 'anthropic')).toBe(4)
     })
 
     it('[user, assistant, tool, user, assistant] with huge budget → 4 turns', () => {
@@ -421,7 +534,7 @@ describe('computeKeepRecentTurns', () => {
       //   i=0 user                  → turn 4, i=-1
       // Math.max(4, 1) = 4
       const messages: ModelMessage[] = [msg('user'), msg('assistant'), msg('tool'), msg('user'), msg('assistant')]
-      expect(computeKeepRecentTurns(messages, 1e9)).toBe(4)
+      expect(computeKeepRecentTurns(messages, 1e9, 'anthropic')).toBe(4)
     })
   })
 
@@ -429,12 +542,12 @@ describe('computeKeepRecentTurns', () => {
     it('system-only history → 1 (clamp floor)', () => {
       // Walk: i=0 system → break immediately, turns=0. Math.max(0,1)=1.
       const messages: ModelMessage[] = [msg('system', 'You are helpful.')]
-      expect(computeKeepRecentTurns(messages, 1e9)).toBe(1)
+      expect(computeKeepRecentTurns(messages, 1e9, 'anthropic')).toBe(1)
     })
 
     it('empty history → 1 (clamp floor)', () => {
       // Walk: i=-1 → while exits immediately, turns=0. Math.max(0,1)=1.
-      expect(computeKeepRecentTurns([], 1e9)).toBe(1)
+      expect(computeKeepRecentTurns([], 1e9, 'anthropic')).toBe(1)
     })
   })
 
@@ -448,7 +561,7 @@ describe('computeKeepRecentTurns', () => {
         msg('user', 'world'),
         msg('assistant', 'ok')
       ]
-      expect(computeKeepRecentTurns(messages, 1)).toBe(1)
+      expect(computeKeepRecentTurns(messages, 1, 'anthropic')).toBe(1)
     })
   })
 })

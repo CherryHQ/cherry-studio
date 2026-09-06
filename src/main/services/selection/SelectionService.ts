@@ -4,6 +4,7 @@ import { createLatestReconciler, type LatestReconciler } from '@main/core/concur
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { getApplicationId } from '@main/utils/appEdition'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import type { BrowserWindow } from 'electron'
@@ -597,8 +598,10 @@ export class SelectionService extends BaseService implements Activatable {
       y: posY
     })
 
-    // setAlwaysOnTop(true, 'screen-saver') is re-applied by the macReapplyAlwaysOnTop
-    // quirk after every show()/showInactive() call (see WindowManager.applyQuirks).
+    // setAlwaysOnTop(true, 'screen-saver') is re-applied on every platform by the
+    // reapplyAlwaysOnTop quirk after each show()/showInactive() call (see
+    // WindowManager.applyQuirks) — on Windows that re-assert is what keeps the
+    // toolbar above third-party topmost windows.
 
     if (!isMac) {
       this.toolbarWindow!.show()
@@ -622,7 +625,7 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] a hacky way
     // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
     // so we just don't set `skipTransformProcessType: true` when in self app
-    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
+    const isSelf = ['com.github.Electron', getApplicationId()].includes(programName)
 
     if (!isSelf) {
       // [macOS] an ugly hacky way

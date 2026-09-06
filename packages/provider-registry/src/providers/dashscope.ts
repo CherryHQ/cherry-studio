@@ -4,6 +4,55 @@ import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
+const webSearchModelPrefixes = [
+  'qwen3-8-flash',
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash',
+  'qwen-turbo',
+  'qwq-plus',
+  'qwen-plus-character',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v3-2',
+  'deepseek-v3-1',
+  'deepseek-r1',
+  'deepseek-v3',
+  'kimi-k2',
+  'kimi-k3',
+  'kimi-latest',
+  'glm-4',
+  'glm-5'
+]
+
+// Web-extractor (help.aliyun.com/zh/model-studio/web-extractor) is served for the Qwen Max/Plus/Flash
+// lines only — a subset of the web-search models (no DeepSeek/Kimi/GLM/QwQ/turbo). Extraction rides web
+// search, so eligibility here also gates the chat `agent_max` strategy in getWebSearchParams.
+const webExtractorModelPrefixes = [
+  'qwen3-8-flash',
+  'qwen3-8-max',
+  'qwen3-8-max-preview',
+  'qwen3-7-max',
+  'qwen3-6-max-preview',
+  'qwen3-max',
+  'qwen3-7-plus',
+  'qwen3-6-plus',
+  'qwen3-5-plus',
+  'qwen-plus',
+  'qwen3-6-flash',
+  'qwen3-5-flash',
+  'qwen-flash'
+]
+
 /** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
 const wanxT2iSupports: ImageModeDef['supports'] = {
   addWatermark: { default: false, type: 'switch' },
@@ -18,6 +67,26 @@ const wanxT2iSupports: ImageModeDef['supports'] = {
     type: 'enum'
   }
 }
+
+/** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
+const qwenImage3Mode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 6, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      default: 'auto',
+      options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
 const qwenChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
@@ -59,6 +128,13 @@ const qwenResponsesSupport: ReasoningSupport = {
   ],
   defaultEffort: 'xhigh',
   supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+}
+
+/** `qwen3.8-max-preview` serves thinking mode only, so its Responses contract drops the `'none'` tier. */
+const qwenResponsesThinkingOnlySupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'xhigh' }],
+  defaultEffort: 'xhigh',
+  supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
 const qwen38Support: ReasoningSupport = {
@@ -161,6 +237,7 @@ const responsesModels = new Set([
   'qwen3.7-plus',
   'qwen3.7-max',
   'qwen3-max',
+  'qwen3.8-flash',
   'qwen3.8-max',
   'qwen3.8-max-preview'
 ])
@@ -203,13 +280,23 @@ const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.
 const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   ...qwenReasoningOverrides,
   {
+    apiModelId: 'qwen3.8-flash',
+    modelId: 'qwen3-8-flash',
+    name: 'Qwen3.8 Flash',
+    ...endpointPin('qwen3.8-flash'),
+    reasoningContracts: {
+      'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
+      'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
+    }
+  },
+  {
     apiModelId: 'qwen3.8-max',
     modelId: 'qwen3-8-max',
     name: 'Qwen3.8 Max',
     ...endpointPin('qwen3.8-max'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
-      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+      'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
     }
   },
   {
@@ -219,7 +306,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     ...endpointPin('qwen3.8-max-preview'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38PreviewSupport, wire: qwen38PreviewChatWire },
-      'openai-responses': { support: qwen38PreviewSupport, wire: qwen38PreviewResponsesWire }
+      'openai-responses': { support: qwenResponsesThinkingOnlySupport, wire: qwen38PreviewResponsesWire }
     }
   },
   {
@@ -271,6 +358,7 @@ export default defineProvider({
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
   name: 'Bailian',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -288,7 +376,19 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: ['minimax-m2-1']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webExtractorModelPrefixes
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
@@ -322,6 +422,16 @@ export default defineProvider({
         }
       },
       modelId: 'qwen-image'
+    },
+    {
+      apiModelId: 'qwen-image-3.0',
+      imageGeneration: qwenImage3ImageGeneration,
+      modelId: 'qwen-image-3-0'
+    },
+    {
+      apiModelId: 'qwen-image-3.0-pro',
+      imageGeneration: qwenImage3ImageGeneration,
+      modelId: 'qwen-image-3-0-pro'
     },
     {
       apiModelId: 'qwen-image-edit',

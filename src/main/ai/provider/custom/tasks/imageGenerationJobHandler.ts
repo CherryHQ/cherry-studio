@@ -9,6 +9,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
@@ -79,7 +80,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       modelId: sdkConfig.modelId,
       modelName: model.name,
       pricing: model.pricing,
-      trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+      trustProviderReportedCost: provider.reportsActualCost,
       reportedCostCurrency: provider.reportedCostCurrency,
       credentialReceipt,
       source: input.source ?? null,
@@ -150,6 +151,7 @@ async function buildSubmitInput(
     prompt: input.prompt,
     n: input.n,
     size: input.size as `${number}x${number}` | undefined,
+    aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
     seed: input.seed,
     files,
     mask,
@@ -197,7 +199,16 @@ async function pollUntilDone(
   }
 }
 
-/** Download result URLs (always non-empty — the caller guards) and persist each as an internal FileEntry. */
+/** Resolve a transport result to a base64 data URL: inline `data:` results (from
+ *  `b64_json`-style responses) are used as-is; anything else is downloaded. */
+async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
+  if (url.startsWith('data:')) return url as Base64String
+  const downloaded = await downloadImageAsBase64(url)
+  if (!downloaded) return null
+  return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
+}
+
+/** Persist result URLs (always non-empty — the caller guards) as internal FileEntries. */
 async function downloadAndPersistImageUrls(
   urls: string[],
   signal: AbortSignal,
@@ -207,15 +218,9 @@ async function downloadAndPersistImageUrls(
   const files: FileEntry[] = []
   for (const url of urls) {
     if (signal.aborted) throw createAbortError('Image generation aborted')
-    const downloaded = await downloadImageAsBase64(url)
-    if (!downloaded) continue
-    files.push(
-      await fileManager.createInternalEntry({
-        source: 'base64',
-        data: `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`,
-        cleanupPolicy
-      })
-    )
+    const data = await resolveImageDataUrl(url)
+    if (!data) continue
+    files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
   }
   // The remote generation succeeded (it returned URLs); surfacing a hard failure
   // when none could be downloaded avoids reporting a paid generation as an empty,

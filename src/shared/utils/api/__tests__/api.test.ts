@@ -5,6 +5,7 @@ import {
   formatApiKeys,
   getTrailingApiVersion,
   hasApiVersion,
+  isBareVertexApiHost,
   isWithTrailingSharp,
   joinApiKeyString,
   splitApiKeyString,
@@ -353,6 +354,35 @@ describe('api', () => {
     it('preserves URL with trailing # and other content', () => {
       expect(withoutTrailingSharp('https://api.example.com/v1#')).toBe('https://api.example.com/v1')
       expect(withoutTrailingSharp('https://api.example.com/v2beta#')).toBe('https://api.example.com/v2beta')
+    })
+  })
+
+  describe('isBareVertexApiHost', () => {
+    it.each([
+      'https://aiplatform.googleapis.com',
+      'https://aiplatform.googleapis.com/',
+      'https://us-central1-aiplatform.googleapis.com',
+      'http://aiplatform.googleapis.com',
+      // Wire-identical to the bare host: URL normalises :443 away and a lone
+      // trailing '#' parses to an empty hash.
+      'https://aiplatform.googleapis.com:443',
+      'https://aiplatform.googleapis.com#',
+      '  https://aiplatform.googleapis.com  '
+    ])('treats %s as the official default host', (host) => {
+      expect(isBareVertexApiHost(host)).toBe(true)
+    })
+
+    it.each([
+      'https://aiplatform.googleapis.com:8443',
+      'https://aiplatform.googleapis.com/v1',
+      'https://us-central1-aiplatform.googleapis.com/v1/projects/p/locations/l',
+      'https://aiplatform.googleapis.com/?key=1',
+      'https://aiplatform.googleapis.com#generateContent',
+      'https://custom.googleapis.com/vertex',
+      'not a url',
+      ''
+    ])('treats %s as a user override', (host) => {
+      expect(isBareVertexApiHost(host)).toBe(false)
     })
   })
 })

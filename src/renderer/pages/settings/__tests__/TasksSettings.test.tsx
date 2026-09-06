@@ -1,4 +1,6 @@
-import type { ScheduledTaskEntity } from '@shared/data/types/agent'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
@@ -6,16 +8,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
 
+type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
+
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
     id: 'log-1',
     scheduleId: 'task-1',
     sessionId: 'session-1' as string | null,
     startedAt: '2026-06-25T00:00:00.000Z',
-    durationMs: 1200,
-    status: 'completed' as const,
-    result: 'done',
-    error: null
+    durationMs: 1200 as number | null,
+    status: 'completed' as 'completed' | 'running' | 'failed' | 'cancelled',
+    result: 'done' as string | null,
+    error: null as string | null
   }
 
   return {
@@ -35,6 +39,8 @@ const taskDataMock = vi.hoisted(() => {
     trigger: { kind: 'interval' as const, ms: 60_000 },
     timeoutMinutes: 10,
     workspace: { type: 'system' as const },
+    reuseSession: false,
+    reuseSessionId: null,
     channelIds: [] as string[],
     nextRun: null,
     lastRun: null,
@@ -47,9 +53,14 @@ const taskDataMock = vi.hoisted(() => {
   return {
     defaultTask,
     task: { ...defaultTask },
-    tasks: null as null | ScheduledTaskEntity[]
+    tasks: null as null | ScheduledTaskListItem[]
   }
 })
+
+const toListTask = (
+  task: ScheduledTaskEntity,
+  runSummary: ScheduledTaskListItem['runSummary'] = null
+): ScheduledTaskListItem => ({ ...task, runSummary })
 
 const agentDataMock = vi.hoisted(() => ({
   agents: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -97,7 +108,7 @@ const channelDataMock = vi.hoisted(() => ({
 
 const translationMock = vi.hoisted(() => ({
   i18n: { language: 'en-US' },
-  t: (key: string) => key
+  t: ((key: string) => key) as TranslationFunction
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())
@@ -183,7 +194,7 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
     useAllTasks: () => {
       React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
       return {
-        tasks: taskDataMock.tasks ?? [taskDataMock.task],
+        tasks: taskDataMock.tasks ?? [toListTask(taskDataMock.task)],
         total: taskPaginationMock.total,
         page: taskPaginationMock.page,
         pageCount: taskPaginationMock.pageCount,
@@ -784,9 +795,24 @@ describe('scheduled task frequency conversion', () => {
   })
 })
 
+describe('task session reuse copy', () => {
+  it('requires two saved updates to reset a reused session', () => {
+    expect(enUS['agent.tasks.reuseSession.warning']).toContain('disable and save, then enable and save')
+    expect(zhCN['agent.tasks.reuseSession.warning']).toContain('先关闭并保存，再开启并保存')
+  })
+})
+
+describe('task run summary copy', () => {
+  it('describes queued jobs as waiting instead of running', () => {
+    expect(enUS['agent.tasks.runSummary.queued']).toBe('Waiting to run')
+    expect(zhCN['agent.tasks.runSummary.queued']).toBe('等待执行')
+  })
+})
+
 describe('TasksSettings routing and creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    translationMock.t = (key: string) => key
     navigationMocks.taskId = 'task-1'
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -803,7 +829,12 @@ describe('TasksSettings routing and creation', () => {
     taskPaginationMock.hasNext = false
     taskPaginationMock.hasPrev = false
     taskMutationMocks.createTask.mockResolvedValue(undefined)
-    taskMutationMocks.deleteTask.mockResolvedValue(true)
+    taskMutationMocks.deleteTask.mockImplementation(
+      async (_agentId: string, _taskId: string, options?: { onDeleted?: () => void | Promise<void> }) => {
+        await options?.onDeleted?.()
+        return true
+      }
+    )
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
@@ -824,6 +855,90 @@ describe('TasksSettings routing and creation', () => {
       to: '/settings/scheduled-tasks/$taskId',
       params: { taskId: 'task-1' }
     })
+  })
+
+  it('keeps schedule status visible and shows the projected run summary', async () => {
+    navigationMocks.taskId = undefined
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      nextRun: '2026-06-26T09:00:00.000Z'
+    }
+    taskDataMock.tasks = [
+      toListTask(taskDataMock.task, {
+        status: 'failed',
+        finishedAt: '2026-06-25T00:01:00.000Z'
+      })
+    ]
+    translationMock.t = (key, values) => {
+      switch (key) {
+        case 'agent.tasks.nextRun':
+          return enUS['agent.tasks.nextRun']
+        case 'agent.tasks.runSummary.failed':
+          return enUS['agent.tasks.runSummary.failed'].replace('{{time}}', String(values?.time ?? ''))
+        default:
+          return key
+      }
+    }
+
+    render(<TasksSettings />)
+
+    expect((await screen.findAllByText('agent.tasks.status.active')).length).toBeGreaterThan(1)
+    expect(screen.getByText(/^Next Run · \S/)).toBeInTheDocument()
+    expect(screen.getByText(/^Last run failed · \S/).closest('a')).toHaveAttribute(
+      'href',
+      '/settings/scheduled-tasks/task-1'
+    )
+  })
+
+  it('shows only valid next-run information for each task state', async () => {
+    navigationMocks.taskId = undefined
+    taskDataMock.tasks = [
+      toListTask(
+        {
+          ...taskDataMock.defaultTask,
+          id: 'running-task',
+          name: 'Running task',
+          nextRun: '2026-06-26T09:00:00.000Z'
+        },
+        { status: 'running' }
+      ),
+      toListTask({
+        ...taskDataMock.defaultTask,
+        id: 'never-run-task',
+        name: 'Never-run task',
+        nextRun: '2026-06-26T10:00:00.000Z'
+      }),
+      toListTask(
+        {
+          ...taskDataMock.defaultTask,
+          id: 'queued-task',
+          name: 'Queued task',
+          nextRun: '2026-06-26T11:00:00.000Z'
+        },
+        { status: 'queued' }
+      ),
+      toListTask({
+        ...taskDataMock.defaultTask,
+        id: 'paused-task',
+        name: 'Paused task',
+        status: 'paused',
+        nextRun: '2026-06-26T11:00:00.000Z'
+      })
+    ]
+
+    render(<TasksSettings />)
+
+    const runningTask = await screen.findByRole('link', { name: /Running task/ })
+    const neverRunTask = screen.getByRole('link', { name: /Never-run task/ })
+    const queuedTask = screen.getByRole('link', { name: /Queued task/ })
+    const pausedTask = screen.getByRole('link', { name: /Paused task/ })
+
+    expect(within(runningTask).getByText('agent.tasks.runSummary.running')).toBeInTheDocument()
+    expect(within(queuedTask).getByText('agent.tasks.runSummary.queued')).toBeInTheDocument()
+    expect(within(runningTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(neverRunTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(queuedTask).getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
+    expect(within(pausedTask).queryByText(/agent.tasks.nextRun/)).not.toBeInTheDocument()
   })
 
   it('navigates all task-list pages instead of stopping at the first page', async () => {
@@ -858,7 +973,7 @@ describe('TasksSettings routing and creation', () => {
       name: 'Weekly review',
       status: 'paused' as const
     }
-    taskDataMock.tasks = [taskDataMock.defaultTask, pausedTask]
+    taskDataMock.tasks = [toListTask(taskDataMock.defaultTask), toListTask(pausedTask)]
 
     render(<TasksSettings />)
 
@@ -925,7 +1040,13 @@ describe('TasksSettings routing and creation', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'agent.tasks.delete.label' }))
 
-    await waitFor(() => expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1'))
+    await waitFor(() =>
+      expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({ onDeleted: expect.any(Function) })
+      )
+    )
     expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
     expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
   })
@@ -1167,6 +1288,26 @@ describe('TasksSettings detail behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
+  })
+
+  it('renders a dash for a run without a duration', async () => {
+    taskLogsMock.logs = [
+      {
+        ...taskLogsMock.defaultTaskLog,
+        id: 'log-null-duration',
+        status: 'cancelled' as const,
+        durationMs: null,
+        result: null,
+        error: 'cancelled before start'
+      }
+    ]
+
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    const row = await screen.findByRole('row', { name: /agent\.tasks\.logs\.cancelled/ })
+    expect(within(row).getByText('-')).toBeInTheDocument()
   })
 
   it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {

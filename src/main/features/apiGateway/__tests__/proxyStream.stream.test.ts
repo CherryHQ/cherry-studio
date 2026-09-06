@@ -1,5 +1,7 @@
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { StreamListener } from '@main/ai/streamManager/types'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -9,15 +11,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * lookup, and adapter factories are stubbed; the real listener/stream glue runs.
  */
 
-const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, mockResolveAgentSessionUsage, captured } =
-  vi.hoisted(() => ({
-    mockStreamPrompt: vi.fn(),
-    mockAbort: vi.fn(),
-    mockGetProvider: vi.fn(),
-    mockListModels: vi.fn(),
-    mockResolveAgentSessionUsage: vi.fn(),
-    captured: { listener: undefined as StreamListener | undefined }
-  }))
+const {
+  mockStreamPrompt,
+  mockAbort,
+  mockGetProvider,
+  mockListModels,
+  mockResolveAgentSessionUsage,
+  mockIsInternalAgentRequest,
+  mockToUIMessages,
+  mockToAiSdkTools,
+  mockExtractStreamOptions,
+  mockExtractProviderOptions,
+  mockLoggerWarn,
+  captured
+} = vi.hoisted(() => ({
+  mockStreamPrompt: vi.fn(),
+  mockAbort: vi.fn(),
+  mockGetProvider: vi.fn(),
+  mockListModels: vi.fn(),
+  mockResolveAgentSessionUsage: vi.fn(),
+  mockIsInternalAgentRequest: vi.fn(),
+  mockToUIMessages: vi.fn<(params: MessageCreateParams) => CherryUIMessage[]>(),
+  mockToAiSdkTools: vi.fn(() => undefined),
+  mockExtractStreamOptions: vi.fn(() => ({})),
+  mockExtractProviderOptions: vi.fn<
+    (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
+  >(() => undefined),
+  mockLoggerWarn: vi.fn(),
+  captured: { listener: undefined as StreamListener | undefined }
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -25,11 +47,17 @@ vi.mock('@application', () => ({
       name === 'AiStreamManager'
         ? { streamPrompt: mockStreamPrompt, abort: mockAbort }
         : name === 'ApiGatewayService'
-          ? { resolveAgentSessionUsage: mockResolveAgentSessionUsage }
+          ? {
+              resolveAgentSessionUsage: mockResolveAgentSessionUsage,
+              isInternalAgentRequest: mockIsInternalAgentRequest,
+              getAgentSessionId: vi.fn(() => undefined)
+            }
           : undefined
     )
   }
 }))
+
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
@@ -41,7 +69,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -49,10 +77,10 @@ vi.mock('@logger', () => ({
 vi.mock('../adapters', () => ({
   MessageConverterFactory: {
     create: () => ({
-      toUIMessages: () => [],
-      toAiSdkTools: () => undefined,
-      extractStreamOptions: () => ({}),
-      extractProviderOptions: () => undefined
+      toUIMessages: mockToUIMessages,
+      toAiSdkTools: mockToAiSdkTools,
+      extractStreamOptions: mockExtractStreamOptions,
+      extractProviderOptions: mockExtractProviderOptions
     })
   },
   StreamAdapterFactory: {
@@ -69,6 +97,44 @@ vi.mock('../adapters', () => ({
 }))
 
 import { processMessage } from '../proxyStream'
+import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
+
+function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMessage[] {
+  const messages: CherryUIMessage[] = []
+
+  params.messages.forEach((message, index) => {
+    const parts: CherryUIMessage['parts'] = []
+    if (typeof message.content === 'string') {
+      if (message.content.length > 0) {
+        parts.push({ type: 'text', text: message.content })
+      }
+    } else {
+      for (const block of message.content) {
+        if (block.type === 'text') {
+          parts.push({ type: 'text', text: block.text })
+        } else if (block.type === 'thinking') {
+          parts.push({ type: 'reasoning', text: block.thinking })
+        } else if (block.type === 'redacted_thinking') {
+          parts.push({ type: 'reasoning', text: block.data })
+        } else if (block.type === 'tool_use') {
+          parts.push({
+            type: 'dynamic-tool',
+            toolName: block.name,
+            toolCallId: block.id,
+            state: 'input-available',
+            input: block.input
+          })
+        }
+      }
+    }
+
+    if (parts.length > 0) {
+      messages.push({ id: `converted-${index}`, role: message.role, parts })
+    }
+  })
+
+  return messages
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -86,6 +152,8 @@ beforeEach(() => {
     captured.listener = opts.listener
   })
   mockResolveAgentSessionUsage.mockReturnValue(undefined)
+  mockIsInternalAgentRequest.mockReturnValue(false)
+  mockToUIMessages.mockImplementation(convertMockAnthropicMessages)
 })
 
 async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<string> {
@@ -116,12 +184,395 @@ function commit(listener: StreamListener): void {
   listener.onChunk({ type: 'text-delta', id: 't1', delta: 'hello' } as any)
 }
 
+function useGatewayModel(
+  apiModelId: string,
+  endpointType: EndpointType = ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  providerId = 'aihubmix'
+): void {
+  mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
+  mockListModels.mockReturnValue([
+    {
+      id: createUniqueModelId(providerId, apiModelId),
+      providerId,
+      apiModelId,
+      capabilities: [],
+      endpointTypes: [endpointType]
+    }
+  ])
+}
+
+function createAnthropicParams(
+  apiModelId: string,
+  messages: MessageCreateParams['messages'],
+  streaming = true,
+  providerId = 'aihubmix'
+): MessageCreateParams {
+  return {
+    model: `${providerId}:${apiModelId}`,
+    max_tokens: 1024,
+    messages,
+    stream: streaming
+  } as MessageCreateParams
+}
+
+async function processAndCaptureStreamMessages(
+  params: MessageCreateParams,
+  inputFormat: 'anthropic' | 'openai' = 'anthropic'
+): Promise<CherryUIMessage[]> {
+  const response = processMessage({
+    params,
+    inputFormat,
+    outputFormat: 'anthropic',
+    requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+  })
+  await vi.waitFor(() => expect(mockToUIMessages).toHaveBeenCalled())
+  await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+  if (params.stream === true) {
+    commit(captured.listener!)
+  }
+  await captured.listener!.onDone({} as any)
+  await response
+
+  return mockStreamPrompt.mock.calls[0][0].messages as CherryUIMessage[]
+}
+
+describe('processMessage (internal Agent continuation normalization)', () => {
+  it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const call = {
+      type: 'tool_use' as const,
+      id: 'c1',
+      name: 'read_file',
+      input: { path: '/tmp/secret-input' }
+    }
+    const output = {
+      type: 'tool_result' as const,
+      tool_use_id: 'c1',
+      content: 'SECRET_RESULT'
+    }
+    const params = createAnthropicParams(
+      'gpt-5',
+      [
+        { role: 'assistant', content: [call, structuredClone(call)] },
+        { role: 'user', content: [output, structuredClone(output)] }
+      ],
+      true,
+      'openai'
+    )
+    const snapshot = structuredClone(params)
+
+    await processAndCaptureStreamMessages(params)
+
+    const effectiveParams = mockToUIMessages.mock.calls[0][0]
+    expect(effectiveParams).not.toBe(params)
+    expect(effectiveParams.messages[0].content).toEqual([call])
+    expect(effectiveParams.messages[1].content).toEqual([output])
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams)
+    expect(mockExtractStreamOptions).toHaveBeenCalledWith(effectiveParams)
+    expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(effectiveParams)
+    expect(params).toEqual(snapshot)
+    expect(mockLoggerWarn).toHaveBeenCalledWith('Repaired duplicate tool history in internal Agent request', {
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      duplicateToolUseCount: 1,
+      duplicateToolResultCount: 1
+    })
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('/tmp/secret-input')
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('SECRET_RESULT')
+  })
+
+  it('leaves duplicate external Anthropic history unchanged', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(false)
+    const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'assistant', content: [call, structuredClone(call)] }
+    ])
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(params)
+    expect(mockExtractStreamOptions).toHaveBeenCalledWith(params)
+    expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(params)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('leaves duplicate internal history unchanged for a non-Anthropic input format', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
+    const params = createAnthropicParams(
+      'gpt-5',
+      [{ role: 'assistant', content: [call, structuredClone(call)] }],
+      true,
+      'openai'
+    )
+
+    await processAndCaptureStreamMessages(params, 'openai')
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('rejects conflicting internal history before conversion or stream startup', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const controller = new AbortController()
+    controller.abort()
+    const params = createAnthropicParams('claude-opus-5', [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'c1', name: 'read_file', input: { path: '/tmp/secret-input' } },
+          { type: 'tool_use', id: 'c1', name: 'write_file', input: { content: 'SECRET_WRITE' } }
+        ]
+      }
+    ])
+
+    await expect(
+      processMessage({
+        params,
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        signal: controller.signal,
+        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
+    expect(mockToUIMessages).not.toHaveBeenCalled()
+    expect(mockToAiSdkTools).not.toHaveBeenCalled()
+    expect(mockExtractStreamOptions).not.toHaveBeenCalled()
+    expect(mockExtractProviderOptions).not.toHaveBeenCalled()
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('/tmp/secret-input')
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('SECRET_WRITE')
+  })
+
+  it('appends a continuation for an internal Agent request without mutating config params', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Build the requested feature' },
+      { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
+    ])
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    expect(messages).toEqual([
+      { id: 'converted-0', role: 'user', parts: [{ type: 'text', text: 'Build the requested feature' }] },
+      {
+        id: 'converted-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Deferred tools, agents, and skills context' }]
+      },
+      {
+        id: 'no-prefill-continuation',
+        role: 'user',
+        parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+      }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
+  it('appends after conversion when a trailing empty user message is dropped', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Run the background agent task' },
+      { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
+      { role: 'user', content: '' }
+    ])
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0]).toBe(params)
+    expect(messages).toEqual([
+      { id: 'converted-0', role: 'user', parts: [{ type: 'text', text: 'Run the background agent task' }] },
+      {
+        id: 'converted-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Deferred tools, agents, and skills context' }]
+      },
+      {
+        id: 'no-prefill-continuation',
+        role: 'user',
+        parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+      }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
+  it('appends a continuation for an internal request without an active usage context', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockResolveAgentSessionUsage.mockReturnValue(undefined)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Run the background agent task' },
+      { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+
+  it('leaves an external gateway request unchanged', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(false)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'External request' },
+      { role: 'assistant', content: 'Intentional prefill' }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(2)
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
+  })
+
+  it('appends a continuation for an internal request targeting an older Claude model', async () => {
+    useGatewayModel('claude-opus-4-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-4-5', [
+      { role: 'user', content: 'Original request' },
+      { role: 'assistant', content: 'Supported prefill' }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+
+  it('does not duplicate a continuation when the request already ends with a user message', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Original request' }])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(-1)).toMatchObject({ role: 'user' })
+  })
+
+  it('leaves a trailing assistant tool_use block unchanged', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Original request' },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'tool-1', name: 'read_file', input: { path: '/tmp/file' } }]
+      }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(2)
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      parts: [expect.objectContaining({ type: 'dynamic-tool' })]
+    })
+  })
+
+  it('appends a continuation for an internal request targeting an OpenAI-compatible endpoint', async () => {
+    useGatewayModel('claude-opus-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Original request' },
+      { role: 'assistant', content: 'Intentional prefill' }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+
+  it('appends a continuation for Doubao GLM-5.2 through OpenAI Responses', async () => {
+    useGatewayModel('glm-5-2-260617', ENDPOINT_TYPE.OPENAI_RESPONSES, 'doubao')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'glm-5-2-260617',
+      [
+        { role: 'user', content: 'Original request' },
+        { role: 'assistant', content: 'Deferred Agent context' }
+      ],
+      true,
+      'doubao'
+    )
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+
+  it('leaves a non-Anthropic input format unchanged', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Original request' },
+      { role: 'assistant', content: 'Intentional prefill' }
+    ])
+
+    const messages = await processAndCaptureStreamMessages(params, 'openai')
+
+    expect(messages).toHaveLength(2)
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
+  })
+
+  it.each([true, false])('normalizes before the streaming branch when stream is %s', async (streaming) => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'claude-opus-5',
+      [
+        { role: 'user', content: 'Original request' },
+        { role: 'assistant', content: 'Deferred tools context' }
+      ],
+      streaming
+    )
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toHaveLength(3)
+    expect(messages.at(-1)).toEqual({
+      id: 'no-prefill-continuation',
+      role: 'user',
+      parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
+    })
+  })
+})
+
 describe('processMessage (streaming)', () => {
   it('passes validated internal agent-session correlation to provider-call usage capture', async () => {
     const usageContext = {
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     }
+    mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
     const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
     const response = processMessage({
@@ -133,7 +584,26 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ usageContext }))
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it('marks internal Agent usage when no active turn correlation is available', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
+    expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    expect(streamPromptInput).not.toHaveProperty('usageContext')
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
@@ -242,6 +712,21 @@ describe('processMessage (streaming)', () => {
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')
     await expect(res.json()).resolves.toEqual({ done: true })
+  })
+
+  it('marks non-streaming internal Agent usage as agent usage', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const resPromise = processMessage({
+      params: { model: 'openai:gpt-4', messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    })
+
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    await captured.listener!.onDone({} as any)
+    await resPromise
   })
 })
 

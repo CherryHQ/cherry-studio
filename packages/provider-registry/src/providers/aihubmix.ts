@@ -1,8 +1,26 @@
 import { defineProvider } from './types'
 
+const claudeWebToolModels = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+const geminiWebToolModels = [
+  'gemini-2',
+  'gemini-3',
+  'gemini-flash-latest',
+  'gemini-pro-latest',
+  'gemini-flash-lite-latest'
+]
+const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
+
 export default defineProvider({
   id: 'aihubmix',
   name: 'AiHubMix',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -27,8 +45,19 @@ export default defineProvider({
   // real vendor factory. `vendors` keeps the openai-compatible passthrough line (grok, deepseek,
   // qwen …) out — those resolve to `aihubmix.chat`, which owns no tool factory.
   serverTools: [
-    { id: 'web-search', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] },
-    { id: 'url-context', modelScope: 'model-dependent', vendors: ['anthropic', 'gemini'] }
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
+      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      vendors: ['anthropic', 'gemini', 'openai']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels],
+      vendors: ['anthropic', 'gemini']
+    }
   ],
   metadata: {
     website: {

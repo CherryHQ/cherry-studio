@@ -1,14 +1,31 @@
+import { MIGRATION_LOCAL_STORAGE_KEYS } from '@shared/data/migration/v2/types'
 import { describe, expect, it } from 'vitest'
 
 import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
+import { BOOT_CONFIG_LOCALSTORAGE_MAPPINGS } from '../BootConfigMappings'
 import {
   COMPLEX_PREFERENCE_MAPPINGS,
   getComplexMappingById,
   getComplexMappingTargetKeys
 } from '../ComplexPreferenceMappings'
-import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
+import { ELECTRON_STORE_MAPPINGS, LOCALSTORAGE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
+  it('exports exactly the localStorage keys consumed by all migration mappings', () => {
+    const complexLocalStorageKeys = COMPLEX_PREFERENCE_MAPPINGS.flatMap((mapping) =>
+      Object.values(mapping.sources)
+        .filter((source) => source.source === 'localStorage')
+        .map((source) => source.key)
+    )
+    const mappedLocalStorageKeys = [
+      ...LOCALSTORAGE_MAPPINGS.map((mapping) => mapping.originalKey),
+      ...BOOT_CONFIG_LOCALSTORAGE_MAPPINGS.map((mapping) => mapping.originalKey),
+      ...complexLocalStorageKeys
+    ]
+
+    expect([...new Set(mappedLocalStorageKeys)].sort()).toEqual([...MIGRATION_LOCAL_STORAGE_KEYS].sort())
+  })
+
   it('maps the v1 Electron Store clientId instead of the unrelated Redux userId', () => {
     expect(ELECTRON_STORE_MAPPINGS).toContainEqual({
       originalKey: 'clientId',
@@ -64,16 +81,14 @@ describe('PreferencesMappings', () => {
       const mapping = getComplexMappingById('llm_model_ids_to_unique')
       expect(mapping).toBeDefined()
       expect(mapping!.sources).toHaveProperty('defaultModel')
-      expect(mapping!.sources).toHaveProperty('topicNamingModel')
       expect(mapping!.sources).toHaveProperty('quickModel')
       expect(mapping!.sources).toHaveProperty('translateModel')
     })
 
-    it('targets 4 UniqueModelId preference keys', () => {
+    it('targets 3 UniqueModelId preference keys', () => {
       const mapping = getComplexMappingById('llm_model_ids_to_unique')
       expect(mapping!.targetKeys).toEqual([
         'chat.default_model_id',
-        'topic.naming.model_id',
         'feature.quick_assistant.model_id',
         'feature.translate.model_id'
       ])

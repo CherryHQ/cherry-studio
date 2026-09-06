@@ -179,18 +179,17 @@
           "originalKey": "topicNamingModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "classified",
-          "category": "preferences",
+          "status": "deleted",
+          "category": null,
           "targetKey": null,
           "children": [
             {
               "category": null,
               "defaultValue": "gpt-4",
               "originalKey": "id",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
-              "type": "string",
-              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
+              "type": "string"
             },
             {
               "category": null,
@@ -851,8 +850,8 @@
         },
         {
           "originalKey": "sendMessageShortcut",
-          "type": "PreferenceTypes.SendMessageShortcut",
-          "defaultValue": "Enter",
+          "type": "PreferenceTypes.ComposerShortcut",
+          "defaultValue": "VALUE: ['Enter']",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.send_message_shortcut"
@@ -940,7 +939,7 @@
         {
           "originalKey": "showInputEstimatedTokens",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.show_estimated_tokens"
@@ -1071,17 +1070,17 @@
           "originalKey": "pasteLongTextAsFile",
           "type": "boolean",
           "defaultValue": false,
-          "status": "deleted",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_as_file"
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
           "defaultValue": 1500,
-          "status": "deleted",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_threshold"
         },
         {
           "originalKey": "clickAssistantToShowTopic",
@@ -1422,7 +1421,7 @@
         {
           "originalKey": "messageNavigation",
           "type": "PreferenceTypes.ChatMessageNavigationMode",
-          "defaultValue": "none",
+          "defaultValue": "anchor",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.navigation_mode"
@@ -1957,7 +1956,7 @@
         {
           "originalKey": "exportMenuOptions",
           "type": "unknown",
-          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
+          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -2041,14 +2040,6 @@
               "status": "classified",
               "targetKey": "data.export.menus.plain_text",
               "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "notes",
-              "status": "classified",
-              "targetKey": "data.export.menus.notes",
-              "type": "boolean"
             }
           ]
         },
@@ -2131,14 +2122,6 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.export.menus.plain_text"
-        },
-        {
-          "originalKey": "notes",
-          "type": "boolean",
-          "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.export.menus.notes"
         },
         {
           "originalKey": "openAI",
@@ -2705,7 +2688,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2714,8 +2697,8 @@
                 "enabled": true
               },
               "originalKey": "clear_topic",
-              "status": "deleted",
-              "targetKey": null,
+              "status": "classified",
+              "targetKey": "shortcut.topic.clear_messages",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

@@ -2,12 +2,18 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(async () => undefined)
+  appEdition: 'cn' as 'cn' | 'global',
+  ipcRequest: vi.fn(
+    async (route: string): Promise<unknown> =>
+      route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
+  ),
+  statusListener: null as ((status: { phase: string; displayName: string | null }) => void) | null
 }))
 
 type PopoverContextValue = {
@@ -28,8 +34,8 @@ vi.mock('@cherrystudio/ui', () => {
     AvatarImage: ({ src, ...props }: { src?: string; [key: string]: unknown }) => (
       <img data-testid="avatar-image" src={src} alt="" {...props} />
     ),
-    Button: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <button type="button" {...props}>
+    Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean; [key: string]: unknown }) => (
+      <button type="button" aria-busy={loading || undefined} disabled={loading || undefined} {...props}>
         {children}
       </button>
     ),
@@ -129,7 +135,14 @@ vi.mock('@cherrystudio/ui', () => {
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest }
+  ipcApi: { request: mocks.ipcRequest },
+  useIpcOn: (_event: string, listener: (status: { phase: string; displayName: string | null }) => void) => {
+    mocks.statusListener = listener
+  }
+}))
+
+vi.mock('@renderer/utils/appEdition', () => ({
+  getAppEdition: () => mocks.appEdition
 }))
 
 vi.mock('@renderer/utils/naming', () => ({
@@ -170,6 +183,11 @@ describe('UserPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    mocks.appEdition = 'cn'
+    mocks.statusListener = null
+    mocks.ipcRequest.mockImplementation(async (route: string) =>
+      route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
+    )
   })
 
   afterEach(() => {
@@ -213,7 +231,7 @@ describe('UserPopup', () => {
     )
   })
 
-  it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
+  it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {
     showUserPopup()
 
     // Open the avatar popover to reveal the upload control + hidden file input.
@@ -221,10 +239,11 @@ describe('UserPopup', () => {
     fireEvent.click(trigger)
 
     // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
-    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+    const file = Object.assign(new File(['webp'], 'a.webp', { type: 'image/webp' }), {
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
     })
     const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    expect(input.accept.split(/,\s*/)).toContain('image/webp')
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => {
@@ -254,5 +273,77 @@ describe('UserPopup', () => {
         expect.objectContaining({ kind: 'image' })
       )
     })
+  })
+
+  it('starts and cancels Cherry Studio browser authorization', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
+      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
+      return undefined
+    })
+    showUserPopup()
+
+    const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
+    await user.click(loginButton)
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.start')
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toHaveAttribute(
+      'aria-busy',
+      'true'
+    )
+
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
+    expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
+  })
+
+  it('hides the Cherry Cloud login action in the global edition', async () => {
+    mocks.appEdition = 'global'
+    showUserPopup()
+
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.status.get'))
+
+    expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
+  })
+
+  it('revokes the current Cherry Cloud session and returns to the login action', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-in', displayName: 'Sora' }
+      if (route === 'cherry_cloud.session.revoke') return { phase: 'signed-out', displayName: null }
+      return undefined
+    })
+    showUserPopup()
+
+    const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
+    expect(screen.getByRole('status')).toHaveTextContent('Sora')
+    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
+    expect(logoutButton).toHaveAttribute('variant', 'outline')
+    await user.click(logoutButton)
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')
+    expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
+  })
+
+  it('offers a retry when the Cloud account status cannot be loaded', async () => {
+    let statusAttempts = 0
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') {
+        statusAttempts += 1
+        if (statusAttempts === 1) throw new Error('service unavailable')
+        return { phase: 'signed-in', displayName: 'Sora' }
+      }
+      return undefined
+    })
+    showUserPopup()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.http.503')
+    await userEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Sora')
+    expect(statusAttempts).toBe(2)
   })
 })

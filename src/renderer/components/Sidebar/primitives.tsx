@@ -31,20 +31,19 @@ export function DefaultLogo({ title }: { title: string }) {
 }
 
 export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 14 : size === 'md' ? 16 : 22
+  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 23
   const { miniApp } = tab
 
   if (miniApp.logo) {
-    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="bare" size={pixelSize} />
+    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="sidebar" size={pixelSize} />
   }
 
-  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : size === 'md' ? 'h-4 w-4' : 'h-[22px] w-[22px]'
-  const fontSize = size === 'sm' ? 'text-[6px]' : size === 'md' ? 'text-[8px]' : 'text-[11px]'
+  const fontSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[9px]' : 'text-xs'
 
   return (
     <div
-      className={`${iconSize} ${fontSize} flex flex-shrink-0 items-center justify-center rounded-[3px] text-white`}
-      style={{ background: miniApp.color ?? 'transparent' }}>
+      className={`${fontSize} flex flex-shrink-0 items-center justify-center rounded-full bg-muted text-white`}
+      style={{ width: pixelSize, height: pixelSize, background: miniApp.color }}>
       {tab.title?.[0] ?? ''}
     </div>
   )
@@ -86,7 +85,7 @@ export function UserAvatar({
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
+        <EmojiIcon emoji={user.avatar!} fluid fontSize={17} />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

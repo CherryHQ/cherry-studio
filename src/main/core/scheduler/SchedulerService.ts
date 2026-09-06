@@ -14,10 +14,13 @@ const MAX_TIMER_DELAY_MS = 2 ** 31 - 1
 
 export type ScheduleCallback = () => void | Promise<void>
 
-interface IntervalEntry {
+interface TimeoutEntry {
   handle: ReturnType<typeof setTimeout>
+  kind: 'interval' | 'once'
   ms: number
   callback: ScheduleCallback
+  nextRunAt: number
+  running: boolean
 }
 
 /**
@@ -44,7 +47,7 @@ interface IntervalEntry {
 @ServicePhase(Phase.WhenReady)
 export class SchedulerService extends BaseService {
   private cronJobs = new Map<string, Cron>()
-  private intervalHandles = new Map<string, IntervalEntry>()
+  private intervalHandles = new Map<string, TimeoutEntry>()
 
   protected override onInit(): void {
     logger.info('SchedulerService initialized')
@@ -111,7 +114,7 @@ export class SchedulerService extends BaseService {
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
-    return this.registerDisposable(() => this.unregister(id))
+    return { dispose: () => this.unregister(id) }
   }
 
   /**
@@ -200,14 +203,22 @@ export class SchedulerService extends BaseService {
   }
 
   /**
-   * Next scheduled fire time for a cron schedule.
+   * Next automatic fire time for any registered schedule. A chained interval
+   * installs its next timeout after the callback settles; while the callback
+   * is running, this reports the due time it would receive if it settled at
+   * the query instant.
    *
    * @param id - Schedule identifier passed to `registerSchedule`
-   * @returns The next fire `Date`, or `null` for unknown id or non-cron triggers
+   * @returns The next fire `Date`, or `null` for an unknown or consumed id
    */
   getNextRun(id: string): Date | null {
     const cron = this.cronJobs.get(id)
     if (cron) return cron.nextRun() ?? null
+    const timeout = this.intervalHandles.get(id)
+    if (timeout) {
+      const nextRunAt = timeout.kind === 'interval' && timeout.running ? Date.now() + timeout.ms : timeout.nextRunAt
+      return new Date(nextRunAt)
+    }
     return null
   }
 
@@ -248,28 +259,34 @@ export class SchedulerService extends BaseService {
       }
     }, delay)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, ms: delay, callback })
+    this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
 
   private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
     const fire = async (): Promise<void> => {
+      const entry = this.intervalHandles.get(id)
+      if (!entry || entry.kind !== 'interval') return
+      entry.running = true
       try {
         await callback()
       } catch (err) {
         logger.error('interval-schedule callback error', { id, error: err })
       }
-      // Re-arm only if not unregistered during callback. The map entry was set
-      // before the previous setTimeout fired; if it's still there, we're free
-      // to re-arm. unregister() during callback would have deleted the entry.
-      if (!this.intervalHandles.has(id)) return
+      // Re-arm only when this exact entry still owns the id. unregister()
+      // removes it, while a re-entrant registerSchedule(id, ...) replaces it.
+      if (this.intervalHandles.get(id) !== entry) return
+      const nextRunAt = Date.now() + ms
       const nextHandle = setTimeout(fire, ms)
       nextHandle.unref?.()
-      this.intervalHandles.set(id, { handle: nextHandle, ms, callback })
+      entry.handle = nextHandle
+      entry.nextRunAt = nextRunAt
+      entry.running = false
     }
 
+    const nextRunAt = Date.now() + ms
     const handle = setTimeout(fire, ms)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, ms, callback })
+    this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
   }
 
   private clearAll(): void {

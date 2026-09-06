@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -37,6 +38,12 @@ export class MainWindowService extends BaseService {
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private lastRendererProcessCrashTime: number = 0
+  /**
+   * Armed only between onReady and the initial window's ready-to-show:
+   * launch-to-tray suppresses exactly one show — the process's first Main
+   * window. Runtime rebuilds (showMainWindow with init data) always show.
+   */
+  private suppressInitialLaunchShow = false
 
   constructor() {
     super()
@@ -58,6 +65,7 @@ export class MainWindowService extends BaseService {
   protected async onInit() {
     const windowManager = application.get('WindowManager')
     this.setupHtmlArtifactPreviewSession()
+    this.setupSpellCheck()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -66,11 +74,21 @@ export class MainWindowService extends BaseService {
         this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
+        // Tab attach delivery is only valid while the renderer's listener is
+        // mounted; a reload or crash tears it down. Mirrors ProtocolService's
+        // readiness reset wiring.
+        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
         this.mainWindow = null
+        // Destroyed-before-ready leaves the launch flag armed; clear it so the
+        // next rebuild is not suppressed. Also drops tab delivery readiness
+        // (queue is kept — it flushes into the next ready renderer).
+        this.suppressInitialLaunchShow = false
+        resetMainRendererTabAttachDelivery()
       })
     )
 
@@ -111,6 +129,8 @@ export class MainWindowService extends BaseService {
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
+      // Suppress only the process-launch window; runtime rebuilds must show.
+      this.suppressInitialLaunchShow = true
     }
 
     // Dev-only: load DevTools extensions before the main window's page loads so
@@ -147,7 +167,9 @@ export class MainWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+    this.ipcHandle(IpcChannel.App_QuoteToMain, (event, text: string) => {
+      this.quoteToMainWindow(text, event.sender)
+    })
   }
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
@@ -168,6 +190,16 @@ export class MainWindowService extends BaseService {
   /** Reload the main window if present (read at call time for singleton-reopen safety). */
   public reloadMainWindow(): void {
     this.mainWindow?.reload()
+  }
+
+  /** Start the native close flow when `windowId` identifies the current main window. */
+  public requestClose(windowId: string): boolean {
+    const mainWindow = this.mainWindow
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (application.get('WindowManager').getWindowId(mainWindow) !== windowId) return false
+
+    mainWindow.close()
+    return true
   }
 
   /**
@@ -216,7 +248,6 @@ export class MainWindowService extends BaseService {
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupHtmlArtifactWebviews(mainWindow)
-    this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
@@ -225,17 +256,29 @@ export class MainWindowService extends BaseService {
     // Content loading is handled by WindowManager via the registry's htmlPath.
   }
 
-  private setupSpellCheck(mainWindow: BrowserWindow) {
+  /**
+   * Spell check is preference-driven and not window-scoped: `defaultSession` is shared by
+   * every app window, so it converges once here and on every subsequent preference change.
+   * Miniapp webviews live in their own partition and reconcile themselves.
+   */
+  private setupSpellCheck() {
     const preferenceService = application.get('PreferenceService')
-    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
-    if (enableSpellCheck) {
+    const apply = () => {
       try {
-        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        const enabled = preferenceService.get('app.spell_check.enabled')
+        const languages = preferenceService.get('app.spell_check.languages')
+        session.defaultSession.setSpellCheckerEnabled(enabled)
+        if (enabled && languages.length > 0) {
+          session.defaultSession.setSpellCheckerLanguages(languages)
+        }
       } catch (error) {
-        logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to apply spell check settings:', error as Error)
       }
     }
+    apply()
+    this.registerDisposable(
+      preferenceService.subscribeMultipleChanges(['app.spell_check.enabled', 'app.spell_check.languages'], apply)
+    )
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
@@ -328,9 +371,11 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // showMode is 'manual' for the main window — first show is owned here.
-      // tray-on-launch suppresses the initial show; otherwise restore Dock and show.
-      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
-      if (!isLaunchToTray) {
+      // Launch-to-tray suppresses only the process's initial window (armed in
+      // onReady, consumed once); runtime rebuilds must always become visible.
+      const suppressShow = this.suppressInitialLaunchShow
+      this.suppressInitialLaunchShow = false
+      if (!suppressShow) {
         //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
         void app.dock?.show()
         mainWindow.show()
@@ -582,21 +627,60 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * 引用文本到主窗口
+   * 引用文本到发起窗口（子窗口）或主窗口
    * @param text 原始文本（未格式化）
+   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
+   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
+   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
    */
-  public quoteToMainWindow(text: string): void {
+  public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
+    // Track the intended landing spot so a failure log names the right window:
+    // quotes either go to a detached SubWindow (identified by id) or fall back
+    // to the main window — debugging them requires telling the two paths apart.
+    let quoteTarget = 'main window'
     try {
+      const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
+      if (sourceWindow) {
+        quoteTarget = `sub window ${sourceWindow.id}`
+        // SubWindow already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into the detached window.
+        // Deliberately no Dock-visibility side effects: quoting into a detached
+        // window must not undo the user's close-to-tray choice (macOS keeps the
+        // Dock icon hidden while Main stays hidden; the tray still shows the app).
+        sourceWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+        return
+      }
+
       this.showMainWindow()
 
       const mainWindow = this.mainWindow
       if (mainWindow && !mainWindow.isDestroyed()) {
         setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          // Re-check at fire time: the window can be destroyed during the 100ms
+          // gap (e.g. user quits via tray), and sending to destroyed webContents
+          // would throw outside the enclosing try/catch.
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          }
         }, 100)
       }
     } catch (error) {
-      logger.error('Failed to quote to main window:', error as Error)
+      logger.error(`Failed to quote to ${quoteTarget}:`, error as Error)
     }
+  }
+
+  /**
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
+   * SubWindow. Returns null otherwise — including when that window is already
+   * destroyed — so callers need no further liveness check on the result.
+   */
+  private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
+    if (!sourceWebContents) return null
+    const windowManager = application.get('WindowManager')
+    const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
+    if (!sourceWindowId) return null
+    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindow = windowManager.getWindow(sourceWindowId)
+    return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }
 }

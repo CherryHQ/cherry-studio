@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'stepfun',
   name: 'StepFun',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.stepfun.com',
   anthropic: 'https://api.stepfun.com',
   website: {

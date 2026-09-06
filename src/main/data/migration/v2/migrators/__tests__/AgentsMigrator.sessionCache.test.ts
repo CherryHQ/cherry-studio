@@ -261,6 +261,17 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(messages.map((message) => message.runtimeResumeToken).sort()).toEqual(
       [CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[1], ''].sort()
     )
+    expect(session.lastActivityAt).toBe(
+      Math.max(
+        session.createdAt,
+        ...messages.flatMap((message) => {
+          if (message.role === 'user') return [message.createdAt]
+          if (message.role === 'assistant') return [Math.max(message.createdAt, message.updatedAt)]
+          return []
+        })
+      )
+    )
+    expect(oldSession.lastActivityAt).toBe(oldSession.createdAt)
     // The shared v1 workspace content is materialized only into the latest
     // session; the older session keeps an empty system workspace (issue #17830).
     expect(await readFile(path.join(workspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
@@ -287,6 +298,36 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(await readFile(path.join(legacyProjectDirectory, `${CLAUDE_SESSION_IDS[1]}.jsonl`), 'utf8')).toBe(
       '{"session":"second"}\n'
     )
+  })
+
+  it('uses creation time for a transient v1 assistant session message', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime('2026-09-30T00:00:00.000Z')
+    const { legacyAgentDbFile, context } = await createMigrationFixture(tempRoots)
+    const legacyDatabase = new Database(legacyAgentDbFile)
+    legacyDatabase.prepare(`UPDATE session_messages SET content = ?, updated_at = ? WHERE id = 4`).run(
+      JSON.stringify({
+        message: {
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [{ type: 'text', text: 'unfinished response' }] }
+        },
+        blocks: []
+      }),
+      '2026-07-22T10:00:00.000Z'
+    )
+    legacyDatabase.close()
+
+    const migrationContext = {
+      ...context,
+      db: dbh.db
+    } as unknown as MigrationContext
+    dbh.sqlite.pragma('foreign_keys = OFF')
+
+    await new AgentsMigrator().execute(migrationContext)
+
+    const [session] = await dbh.db.select().from(agentSessionTable)
+    expect(session.lastActivityAt).toBe(Date.parse('2026-07-22T03:00:00.000Z'))
   })
 
   it('preserves workspace output and resume tokens when the latest Claude JSONL is missing', async () => {

@@ -13,6 +13,7 @@ import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import { extractToolErrorText } from '../toolError'
 
 const removeSystemReminderTags = (text: string): string => {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
@@ -62,18 +63,21 @@ const getOutputStats = (outputString: string | null) => {
 
 export function ReadTool({
   input,
-  output
+  output,
+  hasError
 }: {
   input?: ReadToolInputType
   output?: ReadToolOutputType
+  hasError?: boolean
 }): ToolDisclosureItem {
   const { t } = useTranslation()
-  const outputString = normalizeOutputString(output)
-  const stats = getOutputStats(outputString)
+  const errorText = hasError ? extractToolErrorText(output) : undefined
+  const outputString = errorText ?? normalizeOutputString(output)
+  const stats = errorText ? null : getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
   const language = getLanguageByFilePath(input?.file_path ?? '')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
-  const strippedOutput = truncatedOutput ? stripLineNumbers(truncatedOutput) : null
+  const strippedOutput = truncatedOutput ? (errorText ? truncatedOutput : stripLineNumbers(truncatedOutput)) : null
 
   return {
     key: AgentToolsType.Read,
@@ -100,7 +104,7 @@ export function ReadTool({
       <div>
         <CodeViewer
           value={strippedOutput}
-          language={language}
+          language={errorText ? 'text' : language}
           expanded={false}
           wrapped={false}
           maxHeight={240}

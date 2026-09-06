@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'perplexity',
   name: 'Perplexity',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {
@@ -10,7 +11,7 @@ export default defineProvider({
       baseUrl: 'https://api.perplexity.ai/'
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: ['sonar'] }],
   metadata: {
     website: {
       apiKey: 'https://www.perplexity.ai/settings/api',

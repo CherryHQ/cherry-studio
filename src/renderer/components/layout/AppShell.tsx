@@ -1,12 +1,16 @@
+import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { ipcApi } from '@renderer/ipc'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -15,6 +19,10 @@ import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
+
+// Routes whose pages stay usable below the global minimum window width.
+const isCompactMinWidthRoute = (url?: string): boolean =>
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -32,37 +40,106 @@ export const AppShell = () => {
     openTab
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const canCycleTabs = tabs.length > 1 && !!activeTab
+  const isSettingsTabActive = isSettingsPath(activeTab?.url)
+  const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
+  if (activeTab && !isSettingsTabActive) {
+    previousWorkspaceTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
+    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+      if (isSettingsPath(tab.url)) return latest
+      return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+    }, undefined)?.id
+  }
+  const tabBarTabs = useMemo(
+    () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
+    [activeTab, isSettingsTabActive, tabs]
+  )
+  const isFullscreen = useNativeFullscreen()
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+
+  // Split state is window-wide and does not follow the last mini-app tab out, so
+  // the next mini app would open into a stale split with its app still pooled.
+  const clearSplitWithLastMiniAppTab = useCallback(
+    (id: string, url: string | undefined) => {
+      if (!splitOpen || !miniAppIdFromTabUrl(url)) return
+      const hasOtherMiniAppTab = tabs.some(
+        (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
+      )
+      if (hasOtherMiniAppTab) return
+      setSplitOpen(false)
+      setSplitMiniAppId('')
+    },
+    [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
+  )
+
+  const handleCloseTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      if (isSettingsPath(tab?.url)) {
+        closeTabs([id], previousWorkspaceTabIdRef.current)
+        return
+      }
+      clearSplitWithLastMiniAppTab(id, tab?.url)
+      closeTab(id)
+    },
+    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
+  )
+
+  const handleDetachTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      clearSplitWithLastMiniAppTab(id, tab?.url)
+      detachTab(id)
+      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
+        setActiveTab(previousWorkspaceTabIdRef.current)
+      }
+    },
+    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+  )
 
   const handleOpenGlobalSearch = useCallback(() => {
+    if (isSettingsTabActive) return
     void GlobalSearchPopup.show()
-  }, [])
+  }, [isSettingsTabActive])
+
+  // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
+  const cycleTab = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (tabs.length <= 1) return
+      const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
+      if (currentIndex === -1) return
+
+      const offset = direction === 'next' ? 1 : -1
+      const nextIndex = (currentIndex + offset + tabs.length) % tabs.length
+      setActiveTab(tabs[nextIndex].id)
+    },
+    [tabs, activeTabId, setActiveTab]
+  )
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
   useEffect(() => {
-    if (!isMac) return
+    if (isSettingsTabActive) {
+      GlobalSearchPopup.hide()
+    }
+  }, [isSettingsTabActive])
 
-    let cancelled = false
-    void ipcApi
-      .request('window.is_full_screen')
-      .then((value) => {
-        if (!cancelled) {
-          setIsFullscreen(value)
-        }
-      })
-      .catch(() => undefined)
-
+  // The compact minimum tracks the active tab's route here, at window level.
+  // It must not live in the pages themselves: they sit inside <Activity>, whose
+  // hide/show re-runs mount effects, so a per-page []-dep effect re-issues this
+  // IPC pair on every tab switch.
+  const activeTabAllowsCompactWidth = isCompactMinWidthRoute(activeTab?.url)
+  useEffect(() => {
+    if (!activeTabAllowsCompactWidth) return
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
     return () => {
-      cancelled = true
+      void ipcApi.request('window.main.reset_minimum_size')
     }
-  }, [])
-
-  useIpcOn('window.fullscreen_changed', (value) => {
-    if (isMac) {
-      setIsFullscreen(value)
-    }
-  })
+  }, [activeTabAllowsCompactWidth])
 
   const recordRouteVisit = useCallback((tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
     if (!tab) return
@@ -94,7 +171,7 @@ export const AppShell = () => {
           title: getDefaultRouteTitle(url),
           icon: undefined,
           lastAccessTime: Date.now(),
-          metadata: clearTabInstanceMetadata(tab?.metadata)
+          metadata: undefined
         }
     updateTab(tabId, patch)
 
@@ -105,22 +182,23 @@ export const AppShell = () => {
 
   const tabBar = (
     <AppShellTabBar
-      tabs={tabs}
+      tabs={tabBarTabs}
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
+      isFocusedTab={isSettingsTabActive}
       setActiveTab={setActiveTab}
-      closeTab={closeTab}
+      closeTab={handleCloseTab}
       closeTabs={closeTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}
-      detachTab={detachTab}
+      detachTab={handleDetachTab}
       openTab={openTab}
     />
   )
 
   const contentArea = (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
       <main
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
@@ -158,7 +236,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        <Sidebar />
+        {!isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -177,16 +255,18 @@ export const AppShell = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
-        {!isFullscreen && (
-          <div
-            aria-hidden="true"
-            data-testid="macos-traffic-light-spacer"
-            className="h-11 shrink-0 [-webkit-app-region:drag]"
-          />
-        )}
-        <Sidebar />
-      </div>
+      {!isSettingsTabActive && (
+        <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+          {!isFullscreen && (
+            <div
+              aria-hidden="true"
+              data-testid="macos-traffic-light-spacer"
+              className="h-11 shrink-0 [-webkit-app-region:drag]"
+            />
+          )}
+          <Sidebar isFullscreen={isFullscreen} />
+        </div>
+      )}
       {contentColumn}
     </div>
   )

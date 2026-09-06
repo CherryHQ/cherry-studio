@@ -32,15 +32,17 @@ import {
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
 
-const { copyMutation, platformState } = vi.hoisted(() => ({
+const { copyMutation, platformState, realpathFailures } = vi.hoisted(() => ({
   copyMutation: {
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
-    beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
-    beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
+    beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
+    linkFailure: undefined as undefined | NodeJS.ErrnoException,
+    linkCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
-  platformState: { isMac: false, isWin: false }
+  platformState: { isMac: false, isWin: false },
+  realpathFailures: new Map<string, NodeJS.ErrnoException>()
 }))
 
 vi.mock('@main/core/platform', async (importOriginal) => {
@@ -71,6 +73,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
             Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
             throw error
           }
+          if (included) await copyMutation.beforeCpEntry?.(String(sourcePath), String(destinationPath))
           return included
         }
       })
@@ -81,13 +84,18 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
     },
+    link: async (...args: Parameters<typeof original.link>) => {
+      copyMutation.linkCalls.push([String(args[0]), String(args[1])])
+      if (copyMutation.linkFailure) throw copyMutation.linkFailure
+      return original.link(...args)
+    },
     realpath: async (...args: Parameters<typeof original.realpath>) => {
-      await copyMutation.beforeRealpath?.(String(args[0]))
+      const failure = realpathFailures.get(path.resolve(String(args[0])))
+      if (failure) throw failure
       return original.realpath(...args)
     },
     symlink: async (...args: Parameters<typeof original.symlink>) => {
       copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
-      await copyMutation.beforeSymlink?.(String(args[0]), String(args[1]), args[2])
       return original.symlink(...args)
     }
   }
@@ -153,10 +161,12 @@ describe('agentsFilesystemMigration', () => {
 
   afterEach(async () => {
     copyMutation.afterCopyFile = undefined
-    copyMutation.beforeRealpath = undefined
-    copyMutation.beforeSymlink = undefined
+    copyMutation.beforeCpEntry = undefined
     copyMutation.copyFileCalls.length = 0
+    copyMutation.linkFailure = undefined
+    copyMutation.linkCalls.length = 0
     copyMutation.symlinkCalls.length = 0
+    realpathFailures.clear()
     platformState.isMac = false
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -184,6 +194,24 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(source, 'projects', 'legacy-project', 'session.jsonl'), 'utf8')).toBe(
       '{"session":true}'
     )
+  })
+
+  it('allows Claude config source metadata to change after its content snapshot', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    const sourceFile = path.join(source, 'settings.json')
+    await mkdir(source, { recursive: true })
+    await writeFile(sourceFile, '{"theme":"dark"}')
+    const originalStat = await stat(sourceFile)
+    copyMutation.beforeCpEntry = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourceFile) return
+      await utimes(sourceFile, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
   })
 
   it('reports incremental scan, copy, and verification progress for a large Claude config', async () => {
@@ -255,6 +283,22 @@ describe('agentsFilesystemMigration', () => {
     }
 
     await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
+  })
+
+  it.runIf(process.platform !== 'win32')('skips a symlinked legacy Claude config root', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const sourceTarget = path.join(tempRoot, 'external-claude')
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(sourceTarget)
+    await writeFile(path.join(sourceTarget, 'settings.json'), '{"source":true}')
+    await symlink(sourceTarget, source, 'dir')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
+
+    await expect(access(destination)).rejects.toThrow()
+    expect(await readFile(path.join(sourceTarget, 'settings.json'), 'utf8')).toBe('{"source":true}')
+    expect((await lstat(source)).isSymbolicLink()).toBe(true)
   })
 
   it('skips an existing identical Claude config destination on retry', async () => {
@@ -364,6 +408,48 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(destinationProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`), 'utf8')).toBe(
       '{"external":true}\n'
     )
+  })
+
+  it('allows Claude session source metadata to change after its content snapshot', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    const legacyProjectsDirectory = path.join(tempRoot, '.claude', 'projects')
+    const destinationProjectsDirectory = path.join(agentsDataRoot, '.claude', 'projects')
+    const sourceProjectDirectory = path.join(
+      legacyProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(legacyWorkspace))
+    )
+    const sourceTranscript = path.join(sourceProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`)
+    await mkdir(sourceProjectDirectory, { recursive: true })
+    await writeFile(sourceTranscript, '{"source":true}\n')
+    const originalStat = await stat(sourceTranscript)
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourceTranscript) return
+      await utimes(sourceTranscript, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      runtimeResumeTokens: [CLAUDE_SESSION_ID]
+    })
+
+    await expect(
+      copyLegacyClaudeSessionData({
+        agentsDataRoot,
+        sourceProjectsDirectories: [legacyProjectsDirectory],
+        destinationProjectsDirectory,
+        sessions: [session]
+      })
+    ).resolves.toBeUndefined()
+
+    const destinationTranscript = path.join(
+      destinationProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(session.systemWorkspacePath!)),
+      `${CLAUDE_SESSION_ID}.jsonl`
+    )
+    expect(await readFile(destinationTranscript, 'utf8')).toBe('{"source":true}\n')
   })
 
   it('replaces only the exact globally discovered Claude JSONL target', async () => {
@@ -527,43 +613,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'recreates copied directory links as Windows junctions without asking fs.cp to copy the link',
-    async () => {
-      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
-      const skillSource = path.join(tempRoot, 'Data', 'Skills', 'find-skills')
-      const sourceLink = path.join(legacyWorkspace, 'skills', 'find-skills')
-      await mkdir(skillSource, { recursive: true })
-      await writeFile(path.join(skillSource, 'SKILL.md'), '# Find Skills')
-      await mkdir(path.dirname(sourceLink), { recursive: true })
-      await symlink(skillSource, sourceLink, 'dir')
-      copyMutation.symlinkCalls.length = 0
-      platformState.isWin = true
-
-      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_latest',
-        finalSessionId: FINAL_LATEST_SESSION_ID,
-        createdAt: Date.parse('2026-07-22T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-23T00:00:00Z')
-      })
-
-      await stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [latestSession]
-      })
-
-      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'skills', 'find-skills')
-      expect(await readlink(destinationLink)).toBe(skillSource)
-      expect(copyMutation.symlinkCalls).toContainEqual([
-        skillSource,
-        expect.stringMatching(/[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+[\\/]find-skills$/),
-        'junction'
-      ])
-    }
-  )
-
-  it.runIf(process.platform !== 'win32')(
-    'falls back to a directory symlink when publishing a top-level Windows junction fails',
+    'skips top-level workspace symlinks without attempting to recreate them on Windows',
     async () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const sharedDirectory = path.join(tempRoot, 'shared-directory')
@@ -573,12 +623,6 @@ describe('agentsFilesystemMigration', () => {
       await mkdir(legacyWorkspace, { recursive: true })
       await symlink(sharedDirectory, sourceLink, 'dir')
       copyMutation.symlinkCalls.length = 0
-      copyMutation.beforeSymlink = async (_target, _linkPath, type) => {
-        if (type !== 'junction') return
-        const error = new Error('junction target is not supported')
-        Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
-        throw error
-      }
       platformState.isWin = true
 
       const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
@@ -594,120 +638,98 @@ describe('agentsFilesystemMigration', () => {
         sessions: [latestSession]
       })
 
-      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'shared-directory')
-      const stagingLinkPattern = /[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+$/
-      expect(await readlink(destinationLink)).toBe(sharedDirectory)
-      expect(copyMutation.symlinkCalls).toEqual(
-        expect.arrayContaining([
-          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'junction'],
-          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'dir'],
-          [sharedDirectory, destinationLink, 'junction'],
-          [sharedDirectory, destinationLink, 'dir']
-        ])
-      )
+      await expect(access(path.join(latestSession.systemWorkspacePath!, 'shared-directory'))).rejects.toThrow()
+      expect(copyMutation.symlinkCalls).toEqual([])
     }
   )
 
-  it.runIf(process.platform !== 'win32')(
-    'splits identity from workspace content, materializes internal identity links, and preserves ordinary links',
-    async () => {
-      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
-      await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
-      await writeFile(path.join(legacyWorkspace, 'identity-source.md'), 'agent soul')
-      await symlink('identity-source.md', path.join(legacyWorkspace, 'SOUL.md'))
-      await writeFile(path.join(legacyWorkspace, 'USER.md'), 'agent user')
-      await symlink('SOUL.md', path.join(legacyWorkspace, 'soul-link'))
-      await symlink(path.join(legacyWorkspace, 'USER.md'), path.join(legacyWorkspace, 'absolute-user-link'))
-      await writeFile(path.join(legacyWorkspace, 'fact-source.md'), 'remember this')
-      await symlink('../fact-source.md', path.join(legacyWorkspace, 'memory', 'FACT.md'))
-      await symlink('memory/FACT.md', path.join(legacyWorkspace, 'memory-link'))
-      await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
-      await symlink('ordinary.txt', path.join(legacyWorkspace, 'relative-link'))
-      const sharedTarget = path.join(agentsDataRoot, 'shared', 'target.txt')
-      await mkdir(path.dirname(sharedTarget), { recursive: true })
-      await writeFile(sharedTarget, 'shared target')
-      await symlink('../shared/target.txt', path.join(legacyWorkspace, 'external-relative-link'))
-      await mkdir(path.join(legacyWorkspace, 'nested'))
-      await symlink('../../shared/target.txt', path.join(legacyWorkspace, 'nested', 'external-relative-link'))
-      const absoluteTarget = path.join(tempRoot, 'absolute-target.txt')
-      await writeFile(absoluteTarget, 'external target')
-      await symlink(absoluteTarget, path.join(legacyWorkspace, 'absolute-link'))
-      await symlink('missing-target', path.join(legacyWorkspace, 'dangling-link'))
+  it.runIf(process.platform !== 'win32')('splits identity from workspace content and skips every symlink', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'identity-source.md'), 'agent soul')
+    await symlink('identity-source.md', path.join(legacyWorkspace, 'SOUL.md'))
+    await writeFile(path.join(legacyWorkspace, 'USER.md'), 'agent user')
+    await symlink('SOUL.md', path.join(legacyWorkspace, 'soul-link'))
+    await symlink(path.join(legacyWorkspace, 'USER.md'), path.join(legacyWorkspace, 'absolute-user-link'))
+    await writeFile(path.join(legacyWorkspace, 'fact-source.md'), 'remember this')
+    await symlink('../fact-source.md', path.join(legacyWorkspace, 'memory', 'FACT.md'))
+    await symlink('memory/FACT.md', path.join(legacyWorkspace, 'memory-link'))
+    await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
+    await symlink('ordinary.txt', path.join(legacyWorkspace, 'relative-link'))
+    const sharedTarget = path.join(agentsDataRoot, 'shared', 'target.txt')
+    await mkdir(path.dirname(sharedTarget), { recursive: true })
+    await writeFile(sharedTarget, 'shared target')
+    await symlink('../shared/target.txt', path.join(legacyWorkspace, 'external-relative-link'))
+    await mkdir(path.join(legacyWorkspace, 'nested'))
+    await symlink('../../shared/target.txt', path.join(legacyWorkspace, 'nested', 'external-relative-link'))
+    const absoluteTarget = path.join(tempRoot, 'absolute-target.txt')
+    await writeFile(absoluteTarget, 'external target')
+    await symlink(absoluteTarget, path.join(legacyWorkspace, 'absolute-link'))
+    await symlink('missing-target', path.join(legacyWorkspace, 'dangling-link'))
 
-      const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_old',
-        finalSessionId: FINAL_OLD_SESSION_ID,
-        createdAt: Date.parse('2026-07-20T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-21T00:00:00Z')
-      })
-      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_latest',
-        finalSessionId: FINAL_LATEST_SESSION_ID,
-        createdAt: Date.parse('2026-07-22T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-23T00:00:00Z')
-      })
+    const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-07-20T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-21T00:00:00Z')
+    })
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
 
-      const input = {
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [oldSession, latestSession]
-      }
-      await stageLegacyAgentFiles(input)
-
-      const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
-      expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('agent soul')
-      expect((await lstat(path.join(agentDataPath, 'SOUL.md'))).isSymbolicLink()).toBe(false)
-      expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('agent user')
-      expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
-      expect((await lstat(path.join(agentDataPath, 'memory', 'FACT.md'))).isSymbolicLink()).toBe(false)
-
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'workspace content'
-      )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'relative-link'))).toBe('ordinary.txt')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'external-relative-link'), 'utf8')).toBe(
-        'shared target'
-      )
-      expect(
-        await readFile(path.join(latestSession.systemWorkspacePath!, 'nested', 'external-relative-link'), 'utf8')
-      ).toBe('shared target')
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-link'))).toBe(absoluteTarget)
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'dangling-link'))).toBe('missing-target')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'))).toBe(
-        path.join(agentDataPath, 'USER.md')
-      )
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
-      // The shared v1 workspace is materialized only into the latest session; the
-      // older session keeps an empty system workspace (issue #17830).
-      expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
-      expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
-
-      // The complete v1 workspace remains available for downgrade compatibility
-      // even after the v2 destinations have been verified and published.
-      expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('agent soul')
-      expect((await lstat(path.join(legacyWorkspace, 'SOUL.md'))).isSymbolicLink()).toBe(true)
-      expect(await readFile(path.join(legacyWorkspace, 'USER.md'), 'utf8')).toBe('agent user')
-      expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
-      expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
-
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'), 'utf8')).toBe(
-        'agent user'
-      )
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'external-relative-link'), 'utf8')).toBe(
-        'shared target'
-      )
-
-      // Stable remapped IDs make a retry converge on the same destinations.
-      await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
-      expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'workspace content'
-      )
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [oldSession, latestSession]
     }
-  )
+    await stageLegacyAgentFiles(input)
+
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('')
+    expect((await lstat(path.join(agentDataPath, 'SOUL.md'))).isSymbolicLink()).toBe(false)
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('agent user')
+    await expect(access(path.join(agentDataPath, 'memory', 'FACT.md'))).rejects.toThrow()
+
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'workspace content'
+    )
+    for (const skippedEntry of [
+      'relative-link',
+      'external-relative-link',
+      'absolute-link',
+      'dangling-link',
+      'soul-link',
+      'absolute-user-link',
+      'memory-link'
+    ]) {
+      await expect(access(path.join(latestSession.systemWorkspacePath!, skippedEntry))).rejects.toThrow()
+    }
+    await expect(
+      access(path.join(latestSession.systemWorkspacePath!, 'nested', 'external-relative-link'))
+    ).rejects.toThrow()
+    // The shared v1 workspace is materialized only into the latest session; the
+    // older session keeps an empty system workspace (issue #17830).
+    expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
+    expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
+
+    // The complete v1 workspace remains available for downgrade compatibility
+    // even after the v2 destinations have been verified and published.
+    expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('agent soul')
+    expect((await lstat(path.join(legacyWorkspace, 'SOUL.md'))).isSymbolicLink()).toBe(true)
+    expect(await readFile(path.join(legacyWorkspace, 'USER.md'), 'utf8')).toBe('agent user')
+    expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
+    expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+
+    // Stable remapped IDs make a retry converge on the same destinations.
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 0 })
+    expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'workspace content'
+    )
+  })
 
   it('copies the shared workspace content only into the most recently active managed session', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
@@ -817,9 +839,12 @@ describe('agentsFilesystemMigration', () => {
         sessions: [session]
       })
       try {
-        await vi.waitFor(() => {
-          expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
-        })
+        await vi.waitFor(
+          () => {
+            expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
       } finally {
         releaseFirst()
         await migration
@@ -868,7 +893,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'materializes a directory that contains symlinks into the latest session',
+    'copies regular directory content while skipping nested symlinks',
     async () => {
       const { agentsDataRoot, legacyWorkspace } = await createFixture()
       const sourceBundle = path.join(legacyWorkspace, 'bundle')
@@ -902,17 +927,15 @@ describe('agentsFilesystemMigration', () => {
       expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
         'workspace content'
       )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload-link'))).toBe(
-        'payload.txt'
-      )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))).toBe(
-        path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt')
-      )
+      await expect(access(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload-link'))).rejects.toThrow()
+      await expect(
+        access(path.join(latestSession.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))
+      ).rejects.toThrow()
       expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
     }
   )
 
-  it('aborts if the workspace source changes while its private copy is verified', async () => {
+  it('publishes the verified workspace snapshot if the source changes after its private copy', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourceFile = path.join(legacyWorkspace, 'ordinary.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -930,40 +953,21 @@ describe('agentsFilesystemMigration', () => {
       createdAt: Date.parse('2026-07-22T00:00:00Z'),
       updatedAt: Date.parse('2026-07-23T00:00:00Z')
     })
-    // Mutate the source right after it is cloned into staging so the final
-    // source-metadata re-check detects the change and aborts before publishing.
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
       if (copiedSourcePath !== sourceFile) return
       copyMutation.afterCopyFile = undefined
       await writeFile(sourceFile, 'changed workspace content')
     }
 
-    await expect(
-      stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [oldSession, latestSession]
-      })
-    ).rejects.toThrow(/changed while being (copied|read)/)
-
-    expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
-    for (const session of [oldSession, latestSession]) {
-      await expect(access(path.join(session.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
-      expect(
-        (await readdir(path.dirname(session.systemWorkspacePath!))).every(
-          (entry) => !entry.startsWith(`.${path.basename(session.systemWorkspacePath!)}.migration-`)
-        )
-      ).toBe(true)
-    }
-    copyMutation.afterCopyFile = undefined
     await stageLegacyAgentFiles({
       agentsDataRoot,
       agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
       sessions: [oldSession, latestSession]
     })
 
+    expect(await readFile(sourceFile, 'utf8')).toBe('changed workspace content')
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-      'changed workspace content'
+      'original workspace content'
     )
     expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
   })
@@ -1040,8 +1044,52 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('fallback fact')
   })
 
+  it('allows identity source metadata to change when its content stays unchanged', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'USER.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'user identity')
+    const originalStat = await stat(sourcePath)
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourcePath) return
+      await utimes(sourcePath, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
+    }
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: []
+      })
+    ).resolves.toEqual({ skippedTargetCount: 0 })
+
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'USER.md'), 'utf8')).toBe('user identity')
+  })
+
+  it('publishes the verified identity snapshot when source content changes after it is copied', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'USER.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'original identity')
+    copyMutation.afterCopyFile = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourcePath) return
+      await writeFile(sourcePath, 'changed identity')
+    }
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: []
+    })
+
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('original identity')
+    expect((await readdir(agentDataPath)).every((entry) => !entry.startsWith('.USER.md.migration-'))).toBe(true)
+    expect(await readFile(sourcePath, 'utf8')).toBe('changed identity')
+  })
+
   it.runIf(process.platform !== 'win32')(
-    'aborts instead of falling back when identity changes after its snapshot',
+    'skips a symlinked identity entry and falls back to an older real identity file',
     async () => {
       const { tempRoot, agentsDataRoot } = await createFixture()
       const olderWorkspace = path.join(tempRoot, 'older-workspace')
@@ -1054,13 +1102,6 @@ describe('agentsFilesystemMigration', () => {
       await writeFile(newestIdentitySource, 'newest soul')
       await symlink('identity-source.md', newestSoulPath)
       await writeFile(olderSoulPath, 'older soul')
-
-      let newestSoulRealpathCalls = 0
-      copyMutation.beforeRealpath = async (sourcePath) => {
-        if (sourcePath !== newestSoulPath || ++newestSoulRealpathCalls !== 2) return
-        await rm(newestSoulPath)
-        await symlink('missing-source.md', newestSoulPath)
-      }
 
       const olderSession = sessionPlan(agentsDataRoot, olderWorkspace, {
         sourceSessionId: 'session_old',
@@ -1077,46 +1118,301 @@ describe('agentsFilesystemMigration', () => {
         managed: false
       })
 
-      await expect(
-        stageLegacyAgentFiles({
-          agentsDataRoot,
-          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-          sessions: [olderSession, newestSession]
-        })
-      ).rejects.toThrow(/identity changed while being copied/i)
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [olderSession, newestSession]
+      })
 
       const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
-      await expect(access(path.join(agentDataPath, 'SOUL.md'))).rejects.toThrow()
+      expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('older soul')
       expect((await readdir(agentDataPath)).every((entry) => !entry.startsWith('.SOUL.md.migration-'))).toBe(true)
-      expect(await readlink(newestSoulPath)).toBe('missing-source.md')
+      expect(await readlink(newestSoulPath)).toBe('identity-source.md')
       expect(await readFile(newestIdentitySource, 'utf8')).toBe('newest soul')
       expect(await readFile(olderSoulPath, 'utf8')).toBe('older soul')
     }
   )
 
-  it('validates every cleanup target before deleting any destination', async () => {
+  it('preserves an overlapping source while clearing unrelated stale targets', async () => {
     const { agentsDataRoot } = await createFixture()
     const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
-    const overlappingAgentId = 'overlap'
-    const overlappingSource = legacyAgentWorkspacePath(agentsDataRoot, overlappingAgentId)
+    const overlappingSource = path.join(agentsDataRoot, 'overlap')
     await mkdir(preservedTarget, { recursive: true })
     await writeFile(path.join(preservedTarget, 'keep.txt'), 'keep me')
     await mkdir(overlappingSource, { recursive: true })
     await writeFile(path.join(overlappingSource, 'SOUL.md'), 'legacy source')
 
+    const externalSession = sessionPlan(agentsDataRoot, overlappingSource, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    externalSession.sourceAgentId = 'source-owner'
+    externalSession.finalAgentId = 'source-owner-final'
+
+    const input = {
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
+        { sourceAgentId: 'target-owner', finalAgentId: 'overlap' },
+        { sourceAgentId: 'source-owner', finalAgentId: 'source-owner-final' }
+      ],
+      sessions: [externalSession]
+    }
+
+    const result = await stageLegacyAgentFiles(input)
+
+    expect(result.skippedTargetCount).toBe(1)
+    await expect(access(path.join(preservedTarget, 'keep.txt'))).rejects.toThrow()
+    expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+    expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+    expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+    expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
+  })
+
+  it('skips filesystem output when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    const realpathError = Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+      code: 'UNKNOWN',
+      errno: -4094,
+      path: externalWorkspace,
+      syscall: 'realpath'
+    })
+    realpathFailures.set(path.resolve(externalWorkspace), realpathError)
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    await expect(access(path.join(agentsDataRoot, FINAL_AGENT_ID))).rejects.toThrow()
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+  })
+
+  it('preserves existing targets when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    const existingTargetId = 'existing-target'
+    const existingTarget = path.join(agentsDataRoot, existingTargetId)
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+    await mkdir(existingTarget)
+    await writeFile(path.join(existingTarget, 'keep.txt'), 'keep existing target')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(externalWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: externalWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    const input = {
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
+        { sourceAgentId: 'unrelated-source', finalAgentId: existingTargetId }
+      ],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+  })
+
+  it('keeps realpath UNKNOWN fatal for a source inside the agents root', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    const managedSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(legacyWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${legacyWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: legacyWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
     await expect(
       stageLegacyAgentFiles({
         agentsDataRoot,
-        agents: [
-          { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
-          { sourceAgentId: overlappingAgentId, finalAgentId: overlappingAgentId }
-        ],
-        sessions: []
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
       })
-    ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
+  })
 
-    expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
-    expect(await readFile(path.join(overlappingSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
+  it('keeps realpath UNKNOWN fatal for a case-only agents root on Windows', async () => {
+    const { agentsDataRoot } = await createFixture()
+    platformState.isWin = true
+    const caseVariantRoot = agentsDataRoot.toUpperCase()
+    const managedSession = sessionPlan(agentsDataRoot, caseVariantRoot, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(caseVariantRoot),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${caseVariantRoot}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: caseVariantRoot,
+        syscall: 'realpath'
+      })
+    )
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
+      })
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
+  })
+
+  it('preserves an Agent target that is also its own legacy Session workspace', async () => {
+    const { agentsDataRoot } = await createFixture()
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(path.join(agentDataPath, 'memory'), { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'legacy soul')
+    await writeFile(path.join(agentDataPath, 'USER.md'), 'legacy user')
+    await writeFile(path.join(agentDataPath, 'workspace.txt'), 'legacy workspace')
+
+    const externalSession = sessionPlan(agentsDataRoot, agentDataPath, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    })
+
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('legacy user')
+    expect(await readFile(path.join(agentDataPath, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
+  })
+
+  it('preserves an Agent target when another Agent also references its legacy workspace', async () => {
+    const { agentsDataRoot } = await createFixture()
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(path.join(agentDataPath, 'memory'), { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'shared legacy soul')
+    await writeFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'shared legacy memory')
+    await writeFile(path.join(agentDataPath, 'workspace.txt'), 'shared legacy workspace')
+
+    const otherAgentSession = sessionPlan(agentsDataRoot, agentDataPath, {
+      sourceSessionId: 'other_agent_session',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-07-20T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-21T00:00:00Z'),
+      managed: false
+    })
+    otherAgentSession.sourceAgentId = 'other-source-agent'
+    otherAgentSession.finalAgentId = 'other-final-agent'
+    const owningAgentSession = sessionPlan(agentsDataRoot, agentDataPath, {
+      sourceSessionId: 'owning_agent_session',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    const input = {
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
+        { sourceAgentId: 'other-source-agent', finalAgentId: 'other-final-agent' }
+      ],
+      sessions: [otherAgentSession, owningAgentSession]
+    }
+
+    await stageLegacyAgentFiles(input)
+
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('shared legacy soul')
+    expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('shared legacy memory')
+    expect(await readFile(path.join(agentDataPath, 'workspace.txt'), 'utf8')).toBe('shared legacy workspace')
+    expect(await readFile(path.join(agentsDataRoot, 'other-final-agent', 'SOUL.md'), 'utf8')).toBe('shared legacy soul')
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 0 })
+    expect(await readFile(path.join(agentDataPath, 'workspace.txt'), 'utf8')).toBe('shared legacy workspace')
+  })
+
+  it.each([
+    { platform: 'macOS', isMac: true, isWin: false },
+    { platform: 'Windows', isMac: false, isWin: true }
+  ])('preserves a same-Agent case-only source/target overlap on $platform', async ({ isMac, isWin }) => {
+    platformState.isMac = isMac
+    platformState.isWin = isWin
+    const { agentsDataRoot } = await createFixture()
+    const finalAgentId = 'CaseSensitiveTarget'
+    const agentDataPath = path.join(agentsDataRoot, finalAgentId)
+    const caseVariantSource = path.join(agentsDataRoot, finalAgentId.toLowerCase())
+    await mkdir(agentDataPath, { recursive: true })
+    await writeFile(path.join(agentDataPath, 'keep.txt'), 'preserved target')
+    await mkdir(caseVariantSource, { recursive: true })
+    await writeFile(path.join(caseVariantSource, 'SOUL.md'), 'legacy soul')
+
+    const externalSession = sessionPlan(agentsDataRoot, caseVariantSource, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    externalSession.finalAgentId = finalAgentId
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId }],
+      sessions: [externalSession]
+    })
+
+    expect(await readFile(path.join(agentDataPath, 'keep.txt'), 'utf8')).toBe('preserved target')
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    expect(await readFile(path.join(caseVariantSource, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
   it('rejects nested cleanup targets before deleting either destination', async () => {
@@ -1144,7 +1440,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
   })
 
-  it('rejects a legacy source nested inside a cleanup target before deleting it', async () => {
+  it('skips an Agent target containing a nested legacy source', async () => {
     const { agentsDataRoot } = await createFixture()
     const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
     const nestedSource = path.join(preservedTarget, 'legacy-source')
@@ -1159,18 +1455,16 @@ describe('agentsFilesystemMigration', () => {
       managed: false
     })
 
-    await expect(
-      stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [externalSession]
-      })
-    ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    })
 
     expect(await readFile(path.join(nestedSource, 'SOUL.md'), 'utf8')).toBe('legacy source')
   })
 
-  it('rejects a cleanup target nested inside a legacy source before deleting it', async () => {
+  it('skips an Agent target nested inside a legacy source', async () => {
     const { agentsDataRoot } = await createFixture()
     const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
     await mkdir(preservedTarget, { recursive: true })
@@ -1184,15 +1478,37 @@ describe('agentsFilesystemMigration', () => {
       managed: false
     })
 
-    await expect(
-      stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [externalSession]
-      })
-    ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    })
 
     expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
+  })
+
+  it('skips a managed Session target that overlaps its legacy workspace', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
+    await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'legacy workspace')
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_overlap',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    session.systemWorkspacePath = legacyWorkspace
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [session]
+    })
+
+    expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('legacy workspace')
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
   it('does not treat a path-component prefix as an ancestor', async () => {
@@ -1226,7 +1542,7 @@ describe('agentsFilesystemMigration', () => {
   it.each([
     { platform: 'macOS', isMac: true, isWin: false },
     { platform: 'Windows', isMac: false, isWin: true }
-  ])('rejects case-only path overlaps on $platform', async ({ isMac, isWin }) => {
+  ])('skips cross-Agent case-only path overlaps on $platform', async ({ isMac, isWin }) => {
     platformState.isMac = isMac
     platformState.isWin = isWin
     const { agentsDataRoot } = await createFixture()
@@ -1243,14 +1559,17 @@ describe('agentsFilesystemMigration', () => {
       updatedAt: Date.parse('2026-07-23T00:00:00Z'),
       managed: false
     })
+    externalSession.sourceAgentId = 'other-source-agent'
+    externalSession.finalAgentId = 'other-final-agent'
 
-    await expect(
-      stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId }],
-        sessions: [externalSession]
-      })
-    ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId },
+        { sourceAgentId: 'other-source-agent', finalAgentId: 'other-final-agent' }
+      ],
+      sessions: [externalSession]
+    })
 
     expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
   })
@@ -1304,33 +1623,57 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(caseVariantSource, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
+  it.runIf(process.platform !== 'win32')('skips a target whose real path is also a legacy source', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    const linkedSource = path.join(tempRoot, 'linked-source')
+    await mkdir(preservedTarget, { recursive: true })
+    await writeFile(path.join(preservedTarget, 'keep.txt'), 'keep me')
+    await symlink(preservedTarget, linkedSource)
+
+    const externalSession = sessionPlan(agentsDataRoot, linkedSource, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    })
+
+    expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
+  })
+
   it.runIf(process.platform !== 'win32')(
-    'rejects a legacy source whose real path points at a cleanup target',
+    'skips an absent target whose resolved parent is a legacy source',
     async () => {
       const { tempRoot, agentsDataRoot } = await createFixture()
-      const preservedTarget = path.join(agentsDataRoot, FINAL_AGENT_ID)
       const linkedSource = path.join(tempRoot, 'linked-source')
-      await mkdir(preservedTarget, { recursive: true })
-      await writeFile(path.join(preservedTarget, 'keep.txt'), 'keep me')
-      await symlink(preservedTarget, linkedSource)
-
-      const externalSession = sessionPlan(agentsDataRoot, linkedSource, {
-        sourceSessionId: 'session_external',
+      const session = sessionPlan(agentsDataRoot, linkedSource, {
+        sourceSessionId: 'session_resolved_parent_overlap',
         finalSessionId: FINAL_LATEST_SESSION_ID,
         createdAt: Date.parse('2026-07-22T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-23T00:00:00Z'),
-        managed: false
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+      const targetPath = session.systemWorkspacePath!
+      const targetParent = path.dirname(targetPath)
+      await mkdir(targetParent, { recursive: true })
+      await writeFile(path.join(targetParent, 'SOUL.md'), 'legacy source')
+      await symlink(targetParent, linkedSource)
+
+      const result = await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [session]
       })
 
-      await expect(
-        stageLegacyAgentFiles({
-          agentsDataRoot,
-          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-          sessions: [externalSession]
-        })
-      ).rejects.toThrow(/cleanup target overlaps a legacy source/i)
-
-      expect(await readFile(path.join(preservedTarget, 'keep.txt'), 'utf8')).toBe('keep me')
+      expect(result.skippedTargetCount).toBe(1)
+      await expect(access(targetPath)).rejects.toThrow()
+      expect(await readFile(path.join(targetParent, 'SOUL.md'), 'utf8')).toBe('legacy source')
     }
   )
 
@@ -1392,6 +1735,44 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
+  it('preserves an Agent data directory that already contains identity files', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(agentDataPath, { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'existing soul')
+    await writeFile(path.join(agentDataPath, 'V2-ONLY.md'), 'stale agent data')
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [latestSession]
+    }
+
+    // First run: source exists, target is cleared and re-populated.
+    const result1 = await stageLegacyAgentFiles(input)
+    expect(result1.skippedTargetCount).toBe(0)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    // V2-ONLY.md is removed because the target was cleared.
+    await expect(access(path.join(agentDataPath, 'V2-ONLY.md'))).rejects.toThrow()
+
+    // Remove the v1 source workspace to simulate an app update cleanup.
+    await rm(legacyWorkspace, { recursive: true })
+
+    // Second run: source is gone, target with identity files is preserved.
+    const result2 = await stageLegacyAgentFiles(input)
+    expect(result2.skippedTargetCount).toBe(1)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+  })
+
   it('replaces an existing identity target without changing the legacy source', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
@@ -1414,7 +1795,7 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ skippedTargetCount: 0 })
 
     expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
     await expect(access(path.join(agentDataPath, 'V2-ONLY.md'))).rejects.toThrow()
@@ -1446,7 +1827,7 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ skippedTargetCount: 0 })
 
     expect(await readFile(path.join(destinationMemoryPath, 'FACT.md'), 'utf8')).toBe('new legacy fact')
     expect(await readFile(path.join(destinationMemoryPath, 'JOURNAL.jsonl'), 'utf8')).toBe('{"legacy":true}\n')
@@ -1473,11 +1854,11 @@ describe('agentsFilesystemMigration', () => {
     }
 
     await stageLegacyAgentFiles(input)
-    await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 0 })
 
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'newer soul')
     await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'newer fact')
-    await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 0 })
 
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('newer soul')
     expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('newer fact')
@@ -1515,6 +1896,38 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
   })
 
+  it('publishes an identity file when Windows reports EISDIR for hard links', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceSoulPath = path.join(legacyWorkspace, 'SOUL.md')
+    const destinationSoulPath = path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceSoulPath, 'legacy soul')
+    copyMutation.linkFailure = Object.assign(new Error('illegal operation on a directory'), {
+      code: 'EISDIR',
+      syscall: 'link'
+    })
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).resolves.toEqual({ skippedTargetCount: 0 })
+
+    expect(copyMutation.linkCalls).toHaveLength(1)
+    expect(copyMutation.copyFileCalls.some(([, destinationPath]) => destinationPath === destinationSoulPath)).toBe(true)
+    expect(await readFile(destinationSoulPath, 'utf8')).toBe('legacy soul')
+    expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
+  })
+
   it('replaces an existing ordinary workspace target without changing the source', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
@@ -1535,7 +1948,7 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ skippedTargetCount: 0 })
 
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'conflict.txt'), 'utf8')).toBe(
       'legacy workspace value'
@@ -1602,7 +2015,7 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ skippedTargetCount: 0 })
 
     expect(await readFile(path.join(destinationBundle, 'first.txt'), 'utf8')).toBe('first')
     expect(await readFile(path.join(sourceBundle, 'second.txt'), 'utf8')).toBe('second')
@@ -1667,7 +2080,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'completed.txt'), 'utf8')).toBe('copied value')
   })
 
-  it('aborts before publishing when a source changes during the copy window', async () => {
+  it('allows workspace source metadata to change during the copy window', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     const sourcePath = path.join(legacyWorkspace, 'race.txt')
     await mkdir(legacyWorkspace, { recursive: true })
@@ -1675,8 +2088,7 @@ describe('agentsFilesystemMigration', () => {
     const originalStat = await stat(sourcePath)
     copyMutation.afterCopyFile = async (copiedSourcePath) => {
       if (copiedSourcePath !== sourcePath) return
-      await writeFile(sourcePath, 'newest value')
-      await utimes(sourcePath, originalStat.atime, originalStat.mtime)
+      await utimes(sourcePath, originalStat.atime, new Date(originalStat.mtimeMs + 60_000))
     }
     const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
       sourceSessionId: 'session_latest',
@@ -1691,14 +2103,14 @@ describe('agentsFilesystemMigration', () => {
         agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
         sessions: [latestSession]
       })
-    ).rejects.toThrow(/changed while being (?:read|copied)/)
+    ).resolves.toEqual({ skippedTargetCount: 0 })
 
-    expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
-    await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
+    expect(await readFile(sourcePath, 'utf8')).toBe('copied value')
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'race.txt'), 'utf8')).toBe('copied value')
   })
 
   it.runIf(process.platform !== 'win32')(
-    'treats a symlinked v1 root as an external user workspace without following or deleting it',
+    'skips a symlinked v1 workspace root without following or deleting it',
     async () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const externalWorkspace = path.join(tempRoot, 'external-workspace')
@@ -1726,7 +2138,7 @@ describe('agentsFilesystemMigration', () => {
       expect((await lstat(legacyWorkspace)).isSymbolicLink()).toBe(true)
       expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('external soul')
       expect(await readFile(path.join(externalWorkspace, 'ordinary.txt'), 'utf8')).toBe('external ordinary')
-      expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('external soul')
+      expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('')
     }
   )
 

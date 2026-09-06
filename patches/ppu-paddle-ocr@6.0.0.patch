@@ -1,0 +1,21 @@
+diff --git a/core/session-factory.js b/core/session-factory.js
+index f7fffbaca77c5545c74e1f20a441263aae070afb..4b6d02e261908aa87b472e35ae5cbc106a524fff 100644
+--- a/core/session-factory.js
++++ b/core/session-factory.js
+@@ -1 +1 @@
+-let ALWAYS_AVAILABLE_FALLBACKS=new Set(["cpu","wasm"]);function providerName(provider){return typeof provider==="string"?provider:provider.name}export async function createSessionWithFallback(ort,modelData,sessionOpts,logger,onFallback){let opts=sessionOpts??{};try{return await ort.InferenceSession.create(modelData,opts)}catch(err){let providers=opts.executionProviders??[];let names=providers.map(providerName);let alreadySafe=names.every((n)=>ALWAYS_AVAILABLE_FALLBACKS.has(n));if(alreadySafe||names.length===0){throw err}let fallback=names.find((n)=>ALWAYS_AVAILABLE_FALLBACKS.has(n));let fallbackName=fallback??(names.includes("wasm")?"wasm":"cpu");let msg=err instanceof Error?err.message:String(err);logger(`executionProviders=${JSON.stringify(names)} failed (${msg}); `+`falling back to ["${fallbackName}"].`);let fallbackOpts={...opts,executionProviders:[fallbackName]};onFallback?.(fallbackOpts);return ort.InferenceSession.create(modelData,fallbackOpts)}}
+\ No newline at end of file
++let ALWAYS_AVAILABLE_FALLBACKS=new Set(["cpu","wasm"]);function providerName(provider){return typeof provider==="string"?provider:provider.name}export async function createSessionWithFallback(ort,modelData,sessionOpts,logger,onFallback){let{onSessionFallback,...opts}=sessionOpts??{};try{return await ort.InferenceSession.create(modelData,opts)}catch(err){let providers=opts.executionProviders??[];let names=providers.map(providerName);let alreadySafe=names.every((n)=>ALWAYS_AVAILABLE_FALLBACKS.has(n));if(alreadySafe||names.length===0){throw err}let fallback=names.find((n)=>ALWAYS_AVAILABLE_FALLBACKS.has(n));let fallbackName=fallback??(names.includes("wasm")?"wasm":"cpu");let msg=err instanceof Error?err.message:String(err);logger(`executionProviders=${JSON.stringify(names)} failed (${msg}); `+`falling back to ["${fallbackName}"].`);let fallbackOpts={...opts,executionProviders:[fallbackName]};onFallback?.(fallbackOpts);let session=await ort.InferenceSession.create(modelData,fallbackOpts);onSessionFallback?.(err);return session}}
+diff --git a/interface.d.ts b/interface.d.ts
+index e3332557c36c4c6dc47298529c5bc685289676dc..4f469e4c475098d8fe57612ddbc48ef87de96b97 100644
+--- a/interface.d.ts
++++ b/interface.d.ts
+@@ -265,6 +265,8 @@ export type SessionOptions = InferenceSession.SessionOptions & {
+      * @default ['cpu']
+      */
+     executionProviders?: InferenceSession.SessionOptions["executionProviders"];
++    /** Called when session creation fails and the service retries with a safe provider. */
++    onSessionFallback?: (error: unknown) => void;
+ };
+ /**
+  * Simple rectangle representation.

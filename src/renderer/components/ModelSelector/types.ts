@@ -9,15 +9,18 @@ export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
+export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
+  isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
@@ -83,6 +86,7 @@ export interface ModelSelectorGroupItem {
 export interface ModelSelectorModelItem {
   key: string
   type: 'model'
+  groupKind: 'pinned' | 'provider'
   model: Model
   provider: Provider
   modelId: UniqueModelId
@@ -95,10 +99,11 @@ export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
   enabled?: boolean
+  includeAgentOnlyModels?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
