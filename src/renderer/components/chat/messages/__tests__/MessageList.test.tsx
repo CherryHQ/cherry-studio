@@ -851,9 +851,10 @@ describe('MessageList', () => {
 
   it('copies topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableMock = vi.mocked(captureScrollable)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const copyImage = vi.fn().mockResolvedValue(undefined)
     const imageBlob = new Blob(['topic'], { type: 'image/png' })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ blob: async () => imageBlob } as Response)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
       bindRuntime: (nextRuntime) => {
@@ -865,14 +866,12 @@ describe('MessageList', () => {
       copyImage
     }
 
-    captureScrollableMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
       expect(capturedText).toContain('user-2')
-      return {
-        toBlob: (callback: BlobCallback) => callback(imageBlob)
-      } as unknown as HTMLCanvasElement
+      return 'data:image/png;base64,dG9waWM='
     })
 
     render(
@@ -896,6 +895,8 @@ describe('MessageList', () => {
     await act(async () => {
       await copyPromise
     })
+    expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,dG9waWM=')
+    fetchSpy.mockRestore()
     expect(copyImage).toHaveBeenCalledWith(imageBlob)
   })
 

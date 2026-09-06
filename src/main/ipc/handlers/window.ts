@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { captureScreenshotViaCdp } from '@main/utils/cdpScreenshot'
 import type { windowRequestSchemas } from '@shared/ipc/schemas/window'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -41,6 +42,17 @@ export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
     senderId ? application.get('WindowManager').isFullScreen(senderId) : false,
   'window.get_init_data': async (_input, { senderId }) =>
     senderId ? application.get('WindowManager').getInitData(senderId) : null,
+  // Native-compositor rasterization of the caller's own page. Errors propagate as
+  // INTERNAL — the renderer treats any failure as "native unavailable" and falls
+  // back to the html-to-image path, so no dedicated error code is warranted.
+  'window.capture_screenshot': async ({ clip, scale }, { senderId }) => {
+    const win = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+    if (!win || win.isDestroyed()) {
+      throw new Error('Caller window not found')
+    }
+    const dataUrl = await captureScreenshotViaCdp(win.webContents, clip, scale)
+    return { dataUrl }
+  },
 
   // Sub-window-only contract: reject unless the caller resolves to a SubWindow-type window
   // (a non-null senderId is insufficient — the main window must not pin itself).
