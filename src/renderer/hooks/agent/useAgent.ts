@@ -67,12 +67,13 @@ export const useAgent = (id: string | null) => {
  * @param options.enabled - Skip the list query when the caller has nothing to render
  *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = (options: { enabled?: boolean } = {}) => {
+export const useAgents = (options: { enabled?: boolean; ids?: readonly string[] } = {}) => {
   const { t } = useTranslation()
-  const enabled = options.enabled ?? true
+  const ids = options.ids
+  const enabled = (options.enabled ?? true) && (ids === undefined || ids.length > 0)
   const { data, isLoading, error, refetch } = useQuery('/agents', {
     enabled,
-    query: { limit: AGENTS_MAX_LIMIT }
+    query: { ids: ids ? [...ids] : undefined, limit: ids?.length ?? AGENTS_MAX_LIMIT }
   })
   useDataChange(enabled ? '/agents' : [], () => void refetch())
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])

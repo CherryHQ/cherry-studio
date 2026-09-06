@@ -35,6 +35,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   // App preferences
   'app.user.name': 'MockUser',
   'app.language': 'zh-CN',
+  'agent.session.hidden_builtin_ids': [],
 
   // Mirrors the generated schema defaults — without them the hook returns
   // null and UI gated on the master switch renders its disabled state.
@@ -47,34 +48,43 @@ export const mockPreferenceDefaults: Record<string, any> = {
   // Add more defaults as needed
 }
 
+export const mockPreferenceState: Record<string, any> = { ...mockPreferenceDefaults }
+
 /**
  * Mock implementation of PreferenceService
  */
-export const createMockPreferenceService = (customDefaults: Record<string, any> = {}) => {
-  const mergedDefaults = { ...mockPreferenceDefaults, ...customDefaults }
+export const createMockPreferenceService = (
+  customDefaults: Record<string, any> = {},
+  state: Record<string, any> = { ...mockPreferenceDefaults, ...customDefaults }
+) => {
+  Object.assign(state, customDefaults)
 
   return {
     get: vi.fn((key: string) => {
-      const value = mergedDefaults[key]
+      const value = state[key]
       return Promise.resolve(value !== undefined ? value : null)
     }),
 
     getMultiple: vi.fn((keys: Record<string, string>) => {
       const result: Record<string, any> = {}
       Object.entries(keys).forEach(([alias, key]) => {
-        const value = mergedDefaults[key]
+        const value = state[key]
         result[alias] = value !== undefined ? value : null
       })
       return Promise.resolve(result)
     }),
 
     set: vi.fn((key: string, value: any) => {
-      mergedDefaults[key] = value
+      state[key] = value
       return Promise.resolve()
     }),
 
+    update: vi.fn(async (key: string, updater: (currentValue: any) => any) => {
+      state[key] = updater(state[key] ?? mockPreferenceDefaults[key] ?? null)
+    }),
+
     setMultiple: vi.fn((values: Record<string, any>) => {
-      Object.assign(mergedDefaults, values)
+      Object.assign(state, values)
       return Promise.resolve()
     }),
 
@@ -83,34 +93,34 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
     preloadAll: vi.fn(() => Promise.resolve()),
 
     getCachedValue: vi.fn((key: string) => {
-      return mergedDefaults[key]
+      return state[key]
     }),
 
     isCached: vi.fn((key: string) => {
-      return mergedDefaults[key] !== undefined
+      return state[key] !== undefined
     }),
 
     delete: vi.fn((key: string) => {
-      delete mergedDefaults[key]
+      delete state[key]
       return Promise.resolve()
     }),
 
     clear: vi.fn(() => {
-      Object.keys(mergedDefaults).forEach((key) => delete mergedDefaults[key])
+      Object.keys(state).forEach((key) => delete state[key])
       return Promise.resolve()
     }),
 
     // Internal state access for testing
-    _getMockState: () => ({ ...mergedDefaults }),
+    _getMockState: () => ({ ...state }),
     _resetMockState: () => {
-      Object.keys(mergedDefaults).forEach((key) => delete mergedDefaults[key])
-      Object.assign(mergedDefaults, mockPreferenceDefaults, customDefaults)
+      Object.keys(state).forEach((key) => delete state[key])
+      Object.assign(state, mockPreferenceDefaults, customDefaults)
     }
   }
 }
 
 // Default mock instance
-export const mockPreferenceService = createMockPreferenceService()
+export const mockPreferenceService = createMockPreferenceService({}, mockPreferenceState)
 
 // Export for easy mocking in individual tests
 export const MockPreferenceService = {

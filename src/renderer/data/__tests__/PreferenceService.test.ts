@@ -10,6 +10,7 @@
  * (one round-trip for N keys), dedupe concurrent subscriptions, and re-attempt
  * subscription for keys that are cached but not yet subscribed.
  */
+import { isEqual } from 'es-toolkit/compat'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
@@ -26,6 +27,7 @@ const subscribe = vi.fn(async () => {})
 const get = vi.fn(async (): Promise<unknown> => true)
 const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
 const set = vi.fn(async () => {})
+const compareAndSet = vi.fn<(key: string, expected: unknown, value: unknown) => Promise<boolean>>()
 const setMultiple = vi.fn(async () => {})
 
 beforeEach(() => {
@@ -33,9 +35,10 @@ beforeEach(() => {
   onChangedCleanup.mockClear()
   getAll.mockClear()
   subscribe.mockClear()
-  get.mockClear()
+  get.mockReset().mockResolvedValue(true)
   getMultipleRaw.mockClear()
-  set.mockClear()
+  set.mockReset().mockResolvedValue(undefined)
+  compareAndSet.mockReset().mockResolvedValue(true)
   setMultiple.mockClear()
   emitChanged = undefined
 
@@ -49,6 +52,7 @@ beforeEach(() => {
         get,
         getMultipleRaw,
         set,
+        compareAndSet,
         setMultiple
       }
     }
@@ -62,6 +66,19 @@ afterEach(() => {
 async function createService() {
   const { PreferenceService } = await import('../PreferenceService')
   return new PreferenceService()
+}
+
+function mockCommittedIds(initialIds: string[]) {
+  let committedIds = [...initialIds]
+  get.mockImplementation(async () => [...committedIds])
+  compareAndSet.mockImplementation(async (_key, expected, value) => {
+    const expectedIds = expected as string[]
+    const nextIds = value as string[]
+    if (!isEqual(committedIds, expectedIds)) return false
+    committedIds = [...nextIds]
+    return true
+  })
+  return () => committedIds
 }
 
 describe('renderer PreferenceService preloadAll', () => {
@@ -200,5 +217,108 @@ describe('renderer PreferenceService write consistency', () => {
     expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('composes queued updates from the latest persisted value', async () => {
+    const committedIds = mockCommittedIds(['agent-a'])
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+
+    const showFirst = service.update('agent.session.hidden_builtin_ids', (ids) => ids.filter((id) => id !== 'agent-a'))
+    const hideSecond = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+
+    await Promise.all([showFirst, hideSecond])
+
+    expect(committedIds()).toEqual(['agent-b'])
+    expect(compareAndSet).toHaveBeenNthCalledWith(1, 'agent.session.hidden_builtin_ids', ['agent-a'], [])
+    expect(compareAndSet).toHaveBeenNthCalledWith(2, 'agent.session.hidden_builtin_ids', [], ['agent-b'])
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['agent-b'])
+  })
+
+  it('composes the next update after a failed update rolls back', async () => {
+    mockCommittedIds(['agent-a'])
+    const error = new Error('write failed')
+    compareAndSet.mockRejectedValueOnce(error)
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+
+    const showFirst = service.update('agent.session.hidden_builtin_ids', (ids) => ids.filter((id) => id !== 'agent-a'))
+    const showFirstResult = expect(showFirst).rejects.toBe(error)
+    const hideSecond = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+
+    await showFirstResult
+    await hideSecond
+
+    expect(compareAndSet).toHaveBeenNthCalledWith(
+      2,
+      'agent.session.hidden_builtin_ids',
+      ['agent-a'],
+      ['agent-a', 'agent-b']
+    )
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['agent-a', 'agent-b'])
+  })
+
+  it('continues the queue when a rollback listener throws', async () => {
+    mockCommittedIds(['agent-a'])
+    const writeError = new Error('write failed')
+    compareAndSet.mockRejectedValueOnce(writeError)
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+    let notificationCount = 0
+    service.subscribeChange('agent.session.hidden_builtin_ids')(() => {
+      notificationCount += 1
+      if (notificationCount === 2) throw new Error('listener failed during rollback')
+    })
+
+    const first = service.update('agent.session.hidden_builtin_ids', () => [])
+    const second = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+
+    await expect(first).rejects.toBe(writeError)
+    await second
+
+    expect(compareAndSet).toHaveBeenNthCalledWith(
+      2,
+      'agent.session.hidden_builtin_ids',
+      ['agent-a'],
+      ['agent-a', 'agent-b']
+    )
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['agent-a', 'agent-b'])
+  })
+
+  it('composes updates from two windows against the main-process value', async () => {
+    const committedIds = mockCommittedIds(['agent-a'])
+    const firstWindow = await createService()
+    const secondWindow = await createService()
+    await Promise.all([
+      firstWindow.get('agent.session.hidden_builtin_ids'),
+      secondWindow.get('agent.session.hidden_builtin_ids')
+    ])
+
+    await Promise.all([
+      firstWindow.update('agent.session.hidden_builtin_ids', (ids) => ids.filter((id) => id !== 'agent-a')),
+      secondWindow.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+    ])
+
+    expect(committedIds()).toEqual(['agent-b'])
+    expect(compareAndSet).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not overwrite a stored value when the authoritative read fails', async () => {
+    mockCommittedIds(['agent-a'])
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+    const readError = new Error('read failed')
+    get.mockRejectedValueOnce(readError)
+
+    const failed = service.update('agent.session.hidden_builtin_ids', () => ['agent-b'])
+    const next = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-c'])
+
+    await expect(failed).rejects.toBe(readError)
+    await next
+    expect(compareAndSet).toHaveBeenCalledExactlyOnceWith(
+      'agent.session.hidden_builtin_ids',
+      ['agent-a'],
+      ['agent-a', 'agent-c']
+    )
   })
 })

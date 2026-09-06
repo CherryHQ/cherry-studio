@@ -5,10 +5,26 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  currentHiddenIds: ['other-agent', 'cherry-support'] as string[],
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
+  setPreference: vi.fn(),
   toastError: vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.currentHiddenIds, mocks.setPreference]
+}))
+
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    update: async (_key: string, updater: (currentValue: string[]) => string[]) => {
+      const value = updater(mocks.currentHiddenIds)
+      await mocks.setPreference(value)
+      mocks.currentHiddenIds = value
+    }
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -49,7 +65,9 @@ function ControlledFeedbackDialog() {
 describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.currentHiddenIds = ['other-agent', 'cherry-support']
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
+    mocks.setPreference.mockResolvedValue(undefined)
   })
 
   it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
@@ -80,6 +98,50 @@ describe('FeedbackDialog', () => {
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('adds Cherry Support back to the task list before opening feedback', async () => {
+    let finishPreferenceUpdate: (() => void) | undefined
+    mocks.setPreference.mockImplementationOnce(() => new Promise<void>((resolve) => (finishPreferenceUpdate = resolve)))
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.setPreference).toHaveBeenCalledWith(['other-agent']))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
+
+    finishPreferenceUpdate?.()
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
+    await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
+  })
+
+  it('restores Cherry Support from the committed preference when the render snapshot is stale', async () => {
+    mocks.currentHiddenIds = []
+    render(<ControlledFeedbackDialog />)
+    mocks.currentHiddenIds = ['other-agent', 'cherry-support']
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.setPreference).toHaveBeenCalledWith(['other-agent']))
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
+    expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session'))
+  })
+
+  it('does not create an orphan feedback session when restoring Cherry Support fails', async () => {
+    mocks.setPreference.mockRejectedValueOnce(new Error('restore failed'))
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('common.error'))
+    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to update built-in Agent list visibility', {
+      agentId: 'cherry-support',
+      error: expect.any(Error),
+      visible: true
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('opens the one-step diagnostic upload dialog', async () => {

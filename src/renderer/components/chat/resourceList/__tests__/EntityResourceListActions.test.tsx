@@ -105,7 +105,13 @@ vi.mock('@data/hooks/usePreference', () => ({
     }
 
     const defaultValue =
-      key === 'topic.tab.display_mode' ? 'assistant' : key === 'agent.session.display_mode' ? 'agent' : undefined
+      key === 'topic.tab.display_mode'
+        ? 'assistant'
+        : key === 'agent.session.display_mode'
+          ? 'agent'
+          : key === 'agent.session.hidden_builtin_ids'
+            ? []
+            : undefined
 
     return [
       preferenceMocks.values.get(key) ?? defaultValue,
@@ -117,6 +123,16 @@ vi.mock('@data/hooks/usePreference', () => ({
         return Promise.resolve()
       }
     ]
+  }
+}))
+
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    update: async (key: string, updater: (currentValue: string[]) => string[]) => {
+      const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
+      preferenceMocks.values.set(key, value)
+      await preferenceMocks.setPreference(key, value)
+    }
   }
 }))
 
@@ -891,7 +907,8 @@ describe('classic layout entity resource list actions', () => {
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
-  it('deletes only tasks for the built-in Cherry Assistant in the classic layout', async () => {
+  it('hides the built-in Cherry Assistant from the classic layout without deleting tasks', async () => {
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -902,39 +919,41 @@ describe('classic layout entity resource list actions', () => {
         modelName: 'Claude Sonnet 4'
       }
     ]
-    const onActiveAgentDeleted = vi.fn()
-    agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-not-loaded'] })
 
-    render(
+    const view = render(
       <AgentResourceList
         activeAgentId="agent-1"
         agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={vi.fn()}
-        onActiveAgentDeleted={onActiveAgentDeleted}
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.hide_from_list')
     expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.delete.title')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.hide_from_list' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'agent.session.agent.delete.title',
-          content: 'agent.session.agent.delete.content'
-        })
-      )
-    )
-    await waitFor(() =>
-      expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['agent-1'])
     )
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
-    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+    expect(agentDataMocks.deleteAgentSessions).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
+
+    view.rerender(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        historyRecordsActive={false}
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('region', { name: 'Cherry Assistant' })).not.toBeInTheDocument()
   })
 
   it('creates a new session for the hovered agent row', () => {

@@ -292,6 +292,13 @@
       "description": "Agent session sidebar display grouping mode"
     },
     {
+      "targetKey": "agent.session.hidden_builtin_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Built-in Agent ids hidden from the Agent session list"
+    },
+    {
       "targetKey": "agent.session.position",
       "type": "PreferenceTypes.TopicTabPosition",
       "defaultValue": "left",
