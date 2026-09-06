@@ -6,7 +6,13 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/types'
-import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
+import type {
+  BranchMessagesResponse,
+  ExportTreeResponse,
+  Message,
+  MessageData,
+  TreeResponse
+} from '@shared/data/types/message'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -247,6 +253,23 @@ export type MessageSchemas = {
       params: { topicId: string }
       query: PathThroughQueryParams
       response: Message[]
+    }
+  }
+
+  /**
+   * Whole-tree export model for branch-aware topic export.
+   *
+   * Returns the active-path chain (trunk), sibling variants folded per turn,
+   * and every branch subtree recursively — assembled server-side in one query
+   * set so export renderers never re-derive tree logic. Unpaginated by design:
+   * export semantics is whole-tree.
+   *
+   * @example GET /topics/abc123/export-tree
+   */
+  '/topics/:topicId/export-tree': {
+    GET: {
+      params: { topicId: string }
+      response: ExportTreeResponse
     }
   }
 
