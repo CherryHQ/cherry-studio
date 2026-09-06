@@ -139,8 +139,11 @@ describe('KnowledgeBaseToolRuntime', () => {
       expect.objectContaining({
         multiple: true,
         parentPanel: { list: [], symbol: '/' },
+        queryAnchor: undefined,
         symbol: ComposerPanelSymbol.KnowledgeBase,
         title: 'Knowledge Base',
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         triggerInfo: { type: 'button' }
       })
     )

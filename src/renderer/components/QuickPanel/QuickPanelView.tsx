@@ -70,6 +70,25 @@ function getTrackedInputSearchText(options: {
   return options.inputSearchText
 }
 
+function getButtonTrackedSearchText(
+  text: string,
+  queryAnchor: number,
+  cursorOffset: number,
+  leftoverSuffix: string
+): string | undefined {
+  // Draft after the caret at open is leftover, not live-filter text to consume.
+  if (leftoverSuffix.length === 0) {
+    return text.slice(queryAnchor, cursorOffset)
+  }
+
+  const afterAnchor = text.slice(queryAnchor)
+  if (!afterAnchor.endsWith(leftoverSuffix)) {
+    return undefined
+  }
+
+  return afterAnchor.slice(0, afterAnchor.length - leftoverSuffix.length)
+}
+
 interface Props {
   inputAdapter?: QuickPanelInputAdapter
 }
@@ -119,9 +138,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [inputSearchText, setInputSearchText] = useState('')
   const queryAnchorRef = useRef<number | undefined>(undefined)
+  const leftoverSuffixRef = useRef('')
+  const consumableSearchQueryRef = useRef('')
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
+  // Outgoing panel's flag — open() overwrites ctx.consumeQueryOnDismiss before layout runs.
+  const prevConsumeQueryOnDismissRef = useRef(false)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
   const isTrackedInputPanel = Boolean(
     ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
@@ -190,14 +213,44 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   )
   const navigationItems = useMemo<QuickPanelListItem[]>(() => [...list, ...footerActions], [footerActions, list])
 
+  const consumeInputQuery = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    if (ctx.triggerInfo?.type === 'button') {
+      const searchQuery = consumableSearchQueryRef.current
+      if (!searchQuery) return
+      const queryEnd = queryAnchor + searchQuery.length
+      if (text.slice(queryAnchor, queryEnd) !== searchQuery) return
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryEnd })
+      return
+    }
+
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset <= queryAnchor) return
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+
+  const consumeInputQueryOnce = useCallback(() => {
+    if (inputQueryConsumedRef.current) return
+    inputQueryConsumedRef.current = true
+    consumeInputQuery()
+  }, [consumeInputQuery])
+
   useLayoutEffect(() => {
     if (!ctx.isVisible && !ctx.symbol) {
       prevSymbolRef.current = ''
       prevSearchTextRef.current = ''
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
+      prevConsumeQueryOnDismissRef.current = false
       previousNavigationItemsRef.current = []
       setActiveIndex(-1)
       setIsKeyboardNavigating(false)
@@ -225,10 +278,22 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return nextIndex === -1 ? firstQuickPanelSelectableIndex(navigationItems) : nextIndex
     }
     if (isPanelGenerationChanged) {
+      // panel_replaced batches isVisible false→true (dismiss never runs) — reclaim outgoing filter.
+      // Skip direct input-suggestion handoffs: ctx is already the new panel; consume would wipe its trigger.
+      const isDirectInputSuggestionHandoff =
+        ctx.trackInputQuery && ctx.triggerInfo?.type === 'input' && !ctx.consumeQueryOnDismiss
+      if (
+        prevPanelGenerationRef.current !== undefined &&
+        prevConsumeQueryOnDismissRef.current &&
+        !isDirectInputSuggestionHandoff
+      ) {
+        consumeInputQueryOnce()
+      }
       listRef.current?.scrollToOffset?.(0, { align: 'start' })
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = panelGeneration
     }
+    prevConsumeQueryOnDismissRef.current = Boolean(ctx.consumeQueryOnDismiss)
 
     if (ctx.readOnly) {
       setActiveIndex(isPanelGenerationChanged ? -1 : preserveActiveItem)
@@ -275,26 +340,20 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     prevSearchTextRef.current = activeSearchQuery
     prevSymbolRef.current = ctx.symbol
   }, [
+    activeSearchQuery,
+    consumeInputQueryOnce,
+    ctx.consumeQueryOnDismiss,
     ctx.isVisible,
     ctx.defaultIndex,
     ctx.manageListExternally,
     ctx.readOnly,
     ctx.symbol,
     ctx.trackInputQuery,
+    ctx.triggerInfo?.type,
     getPanelGeneration,
-    activeSearchQuery,
     list,
     navigationItems
   ])
-
-  const handleClose = useCallback(
-    (action?: QuickPanelCloseAction) => {
-      const cleanSearchText = activeSearchQuery.trim()
-      ctx.close(action, cleanSearchText)
-      scrollTriggerRef.current = 'initial'
-    },
-    [ctx, activeSearchQuery]
-  )
 
   const getCurrentPanelOptions = useCallback(
     (defaultIndex?: number): QuickPanelOpenOptions => ({
@@ -310,6 +369,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       parentPanel: ctx.parentPanel,
       triggerInfo: ctx.triggerInfo,
       trackInputQuery: ctx.trackInputQuery,
+      consumeQueryOnDismiss: ctx.consumeQueryOnDismiss,
       initialSearchText: activeSearchQuery,
       beforeAction: ctx.beforeAction,
       afterAction: ctx.afterAction,
@@ -321,29 +381,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     [activeSearchQuery, ctx]
   )
 
-  const consumeInputQuery = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-
-    if (ctx.triggerInfo?.type === 'button') {
-      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
-      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
-    }
-
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
-
-  const consumeInputQueryOnce = useCallback(() => {
-    if (inputQueryConsumedRef.current) return
-    inputQueryConsumedRef.current = true
-    consumeInputQuery()
-  }, [consumeInputQuery])
+  const handleClose = useCallback(
+    (action?: QuickPanelCloseAction) => {
+      if (ctx.consumeQueryOnDismiss) {
+        consumeInputQueryOnce()
+      }
+      const cleanSearchText = activeSearchQuery.trim()
+      ctx.close(action, cleanSearchText)
+      scrollTriggerRef.current = 'initial'
+    },
+    [activeSearchQuery, consumeInputQueryOnce, ctx]
+  )
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction, isFooterAction = false) => {
@@ -373,12 +421,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQueryOnce()
+        // Button-tracked queries are live filters (e.g. Knowledge Base). Consuming them
+        // on first select deletes the typed filter and re-shows the unfiltered list.
+        const keepLiveFilter = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'button')
+        if (!keepLiveFilter) {
+          consumeInputQueryOnce()
+        }
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
-        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
-        setInputSearchText('')
+        if (!keepLiveFilter) {
+          queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+          setInputSearchText('')
+        }
         return
       }
 
@@ -400,8 +455,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputTriggerConsumedRef.current = true
           consumeInputQuery()
         }
-      } else {
+      } else if (item.keepOpenOnAction) {
+        // Editable MCP status toggles stay open. Once would leave a later typed filter in the draft.
         consumeInputQuery()
+        inputQueryConsumedRef.current = false
+        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+        setInputSearchText('')
+      } else {
+        consumeInputQueryOnce()
       }
       ctx.beforeAction?.(quickPanelCallBackOptions)
       item?.action?.(quickPanelCallBackOptions)
@@ -461,7 +522,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current)
+        : text.slice(queryAnchor, cursorOffset)
+    if (nextSearchText === undefined) {
+      closePanel('input_session_invalid')
+      return
+    }
+
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -486,6 +555,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     )
   }, [
     closePanel,
+    ctx.consumeQueryOnDismiss,
     ctx.initialSearchText,
     ctx.triggerInfo?.type,
     inputAdapter,
@@ -499,12 +569,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     if (!inputAdapter) {
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
       setInputSearchText('')
       return
     }
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const selectionEndOffset = inputAdapter.getSelectionEndOffset?.() ?? cursorOffset
+    const hasSelectedText = selectionEndOffset > cursorOffset
     const queryAnchor = Math.max(
       0,
       Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
@@ -515,7 +588,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
+    // Text after the selection is leftover draft, not a live filter for later consume.
+    leftoverSuffixRef.current =
+      ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(selectionEndOffset) : ''
     if (!isTrackedInputPanel) {
+      leftoverSuffixRef.current = ''
       setInputSearchText('')
       inputAdapter.focus()
       return
@@ -531,7 +608,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    const nextSearchText =
+      ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
+        ? hasSelectedText
+          ? ''
+          : (getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current) ?? '')
+        : text.slice(queryAnchor, cursorOffset)
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
@@ -558,6 +640,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     return inputAdapter.subscribeInput?.((event) => {
       if (event?.isComposing) return
+      // Token insertion is leftover composer content, not live-filter typing.
+      if (event?.cause === 'state-sync') return
       updateSearchFromInput()
     })
   }, [
@@ -569,6 +653,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
     ctx.trackInputQuery,
+    ctx.consumeQueryOnDismiss,
     closePanel,
     inputAdapter,
     inputTriggerSymbol,
@@ -576,19 +661,33 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     updateSearchFromInput
   ])
 
+  useLayoutEffect(() => {
+    if (!ctx.isVisible) return
+    // Snapshot only while visible so a batched resume keystroke cannot widen dismiss consume.
+    consumableSearchQueryRef.current = activeSearchQuery
+  }, [activeSearchQuery, ctx.isVisible])
+
   useEffect(() => {
     if (ctx.isVisible) return
+
+    // Close paths that skip handleClose (toolbar toggle, KB resume-on-input) still need to
+    // reclaim the live-filter query before the 200ms cleanup drops the anchor.
+    if (ctx.consumeQueryOnDismiss) {
+      consumeInputQueryOnce()
+    }
 
     const timer = setTimeout(() => {
       setInputSearchText('')
       queryAnchorRef.current = undefined
+      leftoverSuffixRef.current = ''
+      consumableSearchQueryRef.current = ''
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
     }, 200)
 
     return () => clearTimeout(timer)
-  }, [ctx.isVisible])
+  }, [consumeInputQueryOnce, ctx.consumeQueryOnDismiss, ctx.isVisible])
 
   useLayoutEffect(() => {
     if (!listRef.current || activeIndex < 0 || scrollTriggerRef.current === 'none') return

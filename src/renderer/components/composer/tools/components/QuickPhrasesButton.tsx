@@ -1,7 +1,10 @@
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import {
+  ComposerPanelSymbol,
+  getQuickPanelSearchAliases,
+  prepareComposerQuickPanelSearch
+} from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
@@ -255,12 +258,16 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])
 
   const openQuickPanel = useCallback(
-    (parentPanel?: QuickPanelOpenOptions, queryAnchor?: number) => {
+    (
+      inputAdapter?: QuickPanelCallBackOptions['inputAdapter'],
+      parentPanel?: QuickPanelOpenOptions,
+      queryAnchor?: number,
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+    ) => {
       openQuickPanelContext({
         ...quickPanelOpenOptionsRef.current,
         parentPanel,
-        queryAnchor,
-        triggerInfo: { type: 'button' }
+        ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
       })
     },
     [openQuickPanelContext]
@@ -275,9 +282,9 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
           label: t('settings.prompts.title'),
           description: '',
           searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-          action: ({ parentPanel, queryAnchor }) => {
+          action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) => {
             setPromptsEnabled(true)
-            openQuickPanel(parentPanel, queryAnchor)
+            openQuickPanel(inputAdapter, parentPanel, queryAnchor, triggerInfo)
           }
         }
       ],
