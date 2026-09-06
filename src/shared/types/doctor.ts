@@ -38,7 +38,6 @@ export type DoctorDataClass = 'public' | 'local_only' | 'consent_required'
 export interface DoctorFixMeta {
   readonly id: string
   readonly targeted?: true
-  readonly risk: 'low'
   readonly reversible: boolean
   /** The fix only takes effect after `app.relaunch`. */
   readonly relaunch: boolean
@@ -115,14 +114,14 @@ export const DOCTOR_CHECK_CATALOG = {
   'permission-screen-capture': {
     domain: 'permission',
     tier: 'quick',
-    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
     details: ['denied', 'restricted'],
     requires: []
   },
   'permission-accessibility': {
     domain: 'permission',
     tier: 'quick',
-    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
     details: ['denied'],
     requires: []
   },
@@ -150,7 +149,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'config-boot-config-valid': {
     domain: 'config',
     tier: 'quick',
-    fixes: [{ id: 'repair', risk: 'low', reversible: true, relaunch: true }],
+    fixes: [{ id: 'repair', reversible: true, relaunch: true }],
     details: ['invalid_keys', 'parse_error', 'read_error'],
     requires: []
   },
@@ -235,7 +234,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'mcp-servers-connected': {
     domain: 'mcp',
     tier: 'quick',
-    fixes: [{ id: 'restart', risk: 'low', reversible: true, relaunch: false, targeted: true }],
+    fixes: [{ id: 'restart', reversible: true, relaunch: false, targeted: true }],
     details: ['server_errors'],
     requires: []
   },
