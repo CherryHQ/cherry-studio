@@ -109,7 +109,7 @@ const SelectionAssistantSettings: FC = () => {
           </div>
         </SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-selection-assistant-enable-selection-assistant" className="scroll-mt-6">
           <SettingLabel>
             <SettingRowTitle>{t('selection.settings.enable.title')}</SettingRowTitle>
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}

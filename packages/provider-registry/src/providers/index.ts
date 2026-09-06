@@ -64,7 +64,6 @@ import p_zhipu from './zhipu'
 /** Every provider, in registry order. Source of truth for data/providers.json + data/provider-models.json. */
 export const PROVIDERS: Provider[] = [
   p_cherryin,
-  p_radeon_cloud,
   p_silicon,
   p_aihubmix,
   p_ovms,
@@ -83,6 +82,7 @@ export const PROVIDERS: Provider[] = [
   p_qiniu,
   p_openrouter,
   p_ollama,
+  p_radeon_cloud,
   p_new_api,
   p_lmstudio,
   p_anthropic,

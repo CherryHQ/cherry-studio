@@ -33,6 +33,7 @@ vi.mock('electron', () => {
   const createWebContents = () => ({
     debugger: debuggerObj,
     setUserAgent: vi.fn(),
+    setAudioMuted: vi.fn(),
     getURL: vi.fn(() => 'https://example.com/'),
     getTitle: vi.fn(() => 'Example Title'),
     loadURL: vi.fn(async () => {}),
@@ -54,6 +55,9 @@ vi.mock('electron', () => {
 
   class MockBrowserWindow {
     private destroyed = false
+    private visible = false
+    private minimized = false
+    private handlers = new Map<string, Array<(...args: unknown[]) => void>>()
     public webContents = createWebContents()
     public isDestroyed = vi.fn(() => this.destroyed)
     public close = vi.fn(() => {
@@ -62,12 +66,34 @@ vi.mock('electron', () => {
     public destroy = vi.fn(() => {
       this.destroyed = true
     })
-    public on = vi.fn()
+    public on = vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      const listeners = this.handlers.get(event) ?? []
+      listeners.push(listener)
+      this.handlers.set(event, listeners)
+      return this
+    })
     public setBrowserView = vi.fn()
     public addBrowserView = vi.fn()
     public removeBrowserView = vi.fn()
     public getContentSize = vi.fn(() => [1200, 800])
-    public show = vi.fn()
+    public isVisible = vi.fn(() => this.visible)
+    public isMinimized = vi.fn(() => this.minimized)
+    public show = vi.fn(() => {
+      this.visible = true
+      this.handlers.get('show')?.forEach((listener) => listener())
+    })
+    public hide = vi.fn(() => {
+      this.visible = false
+      this.handlers.get('hide')?.forEach((listener) => listener())
+    })
+    public minimize = vi.fn(() => {
+      this.minimized = true
+      this.handlers.get('minimize')?.forEach((listener) => listener())
+    })
+    public restore = vi.fn(() => {
+      this.minimized = false
+      this.handlers.get('restore')?.forEach((listener) => listener())
+    })
 
     constructor() {
       windows.push(this)
@@ -118,9 +144,11 @@ vi.mock('electron', () => {
 
 import { application } from '@application'
 import { BrowserWindow, nativeTheme } from 'electron'
+import { JSDOM } from 'jsdom'
 import { beforeEach } from 'vitest'
 
 import { CdpBrowserController } from '../browser'
+import { TAB_BAR_HTML } from '../browser/tabbarHtml'
 
 // WindowManager stub: hands out instances of the mocked BrowserWindow class
 // above, mirroring open()/getWindow()/close() used by the controller.
@@ -152,6 +180,35 @@ describe('CdpBrowserController', () => {
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('forwards tab-bar actions from window messages to the console bridge', async () => {
+    const dom = new JSDOM(TAB_BAR_HTML, { runScripts: 'dangerously' })
+    const executeJavaScript = vi.fn((script: string) => {
+      dom.window.eval(script)
+      return Promise.resolve(null)
+    })
+    const controller = new CdpBrowserController()
+    ;(
+      controller as unknown as {
+        setupTabBarMessageHandler: (windowInfo: { tabBarView: unknown }) => void
+      }
+    ).setupTabBarMessageHandler({
+      tabBarView: { webContents: { on: vi.fn(), executeJavaScript } }
+    })
+
+    const consoleLog = vi.fn()
+    dom.window.console.log = consoleLog
+
+    dom.window.document.getElementById('minimize-btn')?.dispatchEvent(new dom.window.MouseEvent('click'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(consoleLog).toHaveBeenCalledWith(
+      JSON.stringify({ channel: 'tabbar-action', payload: { type: 'window-minimize' } })
+    )
+
+    dom.window.close()
+    await controller.dispose()
   })
 
   it('executes single-line code via Runtime.evaluate', async () => {
@@ -297,6 +354,59 @@ describe('CdpBrowserController', () => {
 
       await controller.switchTab(false, result1.tabId)
       await controller.switchTab(false, result2.tabId)
+    })
+
+    it('mutes hidden tabs and unmutes only the active tab while its window is visible', async () => {
+      const controller = new CdpBrowserController()
+      const { view } = await controller.createTab()
+      const window = Array.from(managedWindows.values())[0]
+
+      expect(view.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+      expect(vi.mocked(view.webContents.setAudioMuted).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(view.webContents.setUserAgent).mock.invocationCallOrder[0]
+      )
+
+      window.show()
+      expect(view.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
+
+      window.minimize()
+      expect(view.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+
+      window.restore()
+      expect(view.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
+
+      window.hide()
+      expect(view.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+    })
+
+    it('keeps inactive tabs muted when switching the active tab', async () => {
+      const controller = new CdpBrowserController()
+      const { tabId: firstTabId, view: firstView } = await controller.createTab(false, true)
+      const { tabId: secondTabId, view: secondView } = await controller.createTab(false, true)
+
+      expect(firstView.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
+      expect(secondView.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+
+      await controller.switchTab(false, secondTabId)
+
+      expect(firstView.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+      expect(secondView.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
+
+      await controller.switchTab(false, firstTabId)
+
+      expect(firstView.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
+      expect(secondView.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+    })
+
+    it('unmutes the replacement when the active tab closes in a visible window', async () => {
+      const controller = new CdpBrowserController()
+      const { tabId: firstTabId, view: firstView } = await controller.createTab(false, true)
+      const { view: secondView } = await controller.createTab(false, true)
+
+      await controller.closeTab(false, firstTabId)
+
+      expect(firstView.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
+      expect(secondView.webContents.setAudioMuted).toHaveBeenLastCalledWith(false)
     })
 
     it('throws error when switching to non-existent tab', async () => {
