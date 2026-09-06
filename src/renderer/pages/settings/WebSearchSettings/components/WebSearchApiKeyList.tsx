@@ -1,6 +1,7 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SecretInput } from '@renderer/components/SecretInput'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
@@ -92,9 +93,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
     <div className="flex min-h-10 items-center justify-between gap-2 border-border-subtle border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
-          <Input
+          <SecretInput
             ref={inputRef}
-            type="password"
             value={editValue}
             onChange={(event) => setEditValue(event.target.value)}
             onKeyDown={(event) => {
@@ -103,7 +103,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            className="h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-foreground/3 text-xs leading-tight placeholder:text-muted-foreground md:text-xs"
+            className="h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-foreground/3"
+            inputClassName="text-xs leading-tight placeholder:text-muted-foreground md:text-xs"
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">

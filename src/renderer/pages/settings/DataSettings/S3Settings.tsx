@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
+import { SecretInput } from '@renderer/components/SecretInput'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -162,13 +163,12 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
-        <Input
-          type="password"
+        <SecretInput
           placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
           value={s3SecretAccessKey}
           onChange={(e) => setS3SecretAccessKey(e.target.value)}
-          style={{ width: 250 }}
           onBlur={(e) => setS3SecretAccessKey(e.target.value)}
+          className="w-62.5"
         />
       </SettingRow>
       <SettingDivider />

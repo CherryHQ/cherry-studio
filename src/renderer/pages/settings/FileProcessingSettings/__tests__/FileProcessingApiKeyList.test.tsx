@@ -51,6 +51,12 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  SecretInput: ({ hideLabel, inputClassName, showLabel, ...props }: any) => {
+    void hideLabel
+    void inputClassName
+    void showLabel
+    return <input type="password" {...props} />
+  },
   Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
     <>{children}</>
   )

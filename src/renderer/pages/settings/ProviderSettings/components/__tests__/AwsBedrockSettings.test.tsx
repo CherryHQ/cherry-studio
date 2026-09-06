@@ -17,6 +17,12 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Input: (props: any) => <input {...props} />,
+  SecretInput: ({ hideLabel, inputClassName, showLabel, ...props }: any) => {
+    void hideLabel
+    void inputClassName
+    void showLabel
+    return <input type="password" {...props} />
+  },
   Label: ({ children, ...props }: any) => <label {...props}>{children}</label>,
   // RadioGroup props are captured via spy so tests can drive onValueChange
   // directly. Simulating real radio change events in jsdom + an inline mock
