@@ -194,13 +194,38 @@ export const AppShell = () => {
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      clearSplitWithLastMiniAppTab(id, tab?.url)
+      let clearingSplitId: string | undefined
+      if (splitOpen && splitMiniAppId && miniAppIdFromTabUrl(tab?.url)) {
+        const hasOtherMiniAppTab = tabs.some(
+          (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
+        )
+        if (!hasOtherMiniAppTab) {
+          clearingSplitId = splitMiniAppId
+          setSplitOpen(false)
+          setSplitMiniAppId('')
+        } else {
+          clearSplitWithLastMiniAppTab(id, tab?.url)
+        }
+      } else {
+        clearSplitWithLastMiniAppTab(id, tab?.url)
+      }
+      evictMiniAppsForClosedTabs([id], clearingSplitId)
       detachTab(id)
       if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
         setActiveTab(previousWorkspaceTabIdRef.current)
       }
     },
-    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+    [
+      clearSplitWithLastMiniAppTab,
+      detachTab,
+      evictMiniAppsForClosedTabs,
+      setActiveTab,
+      setSplitMiniAppId,
+      setSplitOpen,
+      splitMiniAppId,
+      splitOpen,
+      tabs
+    ]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
