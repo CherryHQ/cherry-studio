@@ -1,7 +1,9 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
-import { getRawShellEnv } from '@main/utils/shellEnv'
+import { getBundledGitDir } from '@main/utils/bundledGit'
+import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import {
@@ -56,8 +58,16 @@ export async function resolveStdioLaunch({
   // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv(signal)
-  const hasUserMiseEnv = Object.keys(rawShellEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
-  const baseShellEnv = mergePathSuffixes(rawShellEnv, getBinarySearchDirs())
+  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
+  const rawPath = getPathFromEnvironment(rawShellEnv) ?? ''
+  const hasUserMiseInPath = rawPath
+    .split(isWin ? ';' : ':')
+    .some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
+  const cherryToolDirs = getBinarySearchDirs()
+  const bundledGitDir = getBundledGitDir()
+  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
   const loginShellEnv = hasUserMiseEnv ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
   const launch = await resolveLaunchCommand({
     command,
