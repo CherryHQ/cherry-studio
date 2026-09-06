@@ -1411,6 +1411,7 @@
   "files.select_all": "Selectează fișierele vizibile",
   "files.select_all_short": "Selectează tot",
   "files.select_file": "Selectează {{name}}",
+  "files.select_file_with_path": "Selectează {{name}} ({{path}})",
   "files.show_in_folder": "Afișează în director",
   "files.size": "Dimensiune",
   "files.text": "Text",

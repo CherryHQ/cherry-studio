@@ -1411,6 +1411,7 @@
   "files.select_all": "Επιλογή ορατών αρχείων",
   "files.select_all_short": "Επιλογή Όλων",
   "files.select_file": "Επιλέξτε {{name}}",
+  "files.select_file_with_path": "Επιλέξτε {{name}} ({{path}})",
   "files.show_in_folder": "Εμφάνιση στο φάκελο",
   "files.size": "Μέγεθος",
   "files.text": "Κείμενο",

@@ -1411,6 +1411,7 @@
   "files.select_all": "Select visible files",
   "files.select_all_short": "Select All",
   "files.select_file": "Select {{name}}",
+  "files.select_file_with_path": "Select {{name}} ({{path}})",
   "files.show_in_folder": "Show in folder",
   "files.size": "Size",
   "files.text": "Text",
