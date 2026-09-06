@@ -491,6 +491,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-mini',
         'gpt-5-nano',
         'gpt-5-pro',
+        'gpt-6-astra',
         'o3',
         'o3-mini',
         'o3-pro',

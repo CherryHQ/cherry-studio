@@ -15,7 +15,14 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
-  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: webSearchModels }],
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: webSearchModels,
+      modelIds: ['gpt-6-astra']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://platform.openai.com/api-keys',

@@ -58,9 +58,11 @@ overrides:
   '@napi-rs/system-ocr-darwin-arm64': '1.0.2'
   '@napi-rs/system-ocr-darwin-x64': '1.0.2'
   # Keep exactly one @ai-sdk/provider + provider-utils so `instanceof APICallError` holds
-  # across every provider package; 3.0.15 / 4.0.48 is what the current provider set declares.
+  # across every provider package; 3.0.15 / 4.0.50 is what the current provider set declares.
   '@ai-sdk/provider': '3.0.15'
-  '@ai-sdk/provider-utils': '4.0.48'
+  '@ai-sdk/provider-utils': '4.0.50'
+  # Keep every OpenAI consumer on the single patched build, including Azure's transitive copy.
+  '@ai-sdk/openai': '3.0.108'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.103 includes
@@ -79,7 +81,7 @@ patchedDependencies:
   'file-stream-rotator@0.6.1': patches/file-stream-rotator-npm-0.6.1-eab45fb13d.patch
   'ollama-ai-provider-v2@3.3.1': patches/ollama-ai-provider-v2@3.3.1.patch
   '@opeoginni/github-copilot-openai-compatible@1.0.0': patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch
-  '@ai-sdk/openai@3.0.53': patches/@ai-sdk__openai@3.0.53.patch
+  '@ai-sdk/openai@3.0.108': patches/@ai-sdk__openai@3.0.108.patch
   '@ai-sdk/google@3.0.113': patches/@ai-sdk__google@3.0.113.patch
   '@ai-sdk/anthropic': patches/@ai-sdk__anthropic.patch
   '@tiptap/extension-drag-handle@3.26.1': patches/@tiptap__extension-drag-handle@3.26.1.patch
@@ -233,5 +235,6 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/huggingface@1.0.74'
   - '@ai-sdk/togetherai@2.0.78'
   - '@ai-sdk/xai@3.0.126'
-  - '@ai-sdk/provider-utils@4.0.48'
+  - '@ai-sdk/provider-utils@4.0.50'
   - '@cherrystudio/analytics-client@1.3.1'
+  - '@ai-sdk/openai@3.0.108'

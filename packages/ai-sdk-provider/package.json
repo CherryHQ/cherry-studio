@@ -30,7 +30,7 @@
   "peerDependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/openai": "^3.0.108",
     "@ai-sdk/openai-compatible": "^2.0.72"
   },
   "dependencies": {
