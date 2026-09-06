@@ -114,14 +114,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-const mockShikiMarkdownIt = vi.hoisted(() => vi.fn().mockResolvedValue(''))
-
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({
-    shikiMarkdownIt: mockShikiMarkdownIt
-  })
-}))
-
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
   detectLanguageOrUnknown: async (
@@ -191,21 +183,11 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
 }))
 
-const smoothStreamOptions = vi.hoisted(() => ({
-  current: null as {
-    onUpdate: (text: string) => void
-    streamDone?: boolean
-  } | null
-}))
-
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: (options: { onUpdate: (text: string) => void; streamDone?: boolean }) => {
-    smoothStreamOptions.current = options
-    return {
-      reset: (text = '') => options.onUpdate(text),
-      update: (text: string) => options.onUpdate(text)
-    }
-  }
+  useSmoothStream: (options: { onUpdate: (text: string) => void }) => ({
+    reset: (text = '') => options.onUpdate(text),
+    update: (text: string) => options.onUpdate(text)
+  })
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
@@ -397,18 +379,15 @@ vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
     translating,
     translatedContent,
-    enableMarkdown,
     onExportToNotes
   }: {
     translating: boolean
     translatedContent: string
-    enableMarkdown?: boolean
     onExportToNotes?: () => void | Promise<void>
   }) => (
     <div data-testid="translate-output-pane">
       {translating && <span>translate.processing</span>}
       <span data-testid="translate-output-content">{translatedContent}</span>
-      <span data-testid="output-enable-markdown">{String(enableMarkdown ?? false)}</span>
       <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
     </div>
   )
@@ -1798,69 +1777,5 @@ describe('TranslatePage', () => {
     fireEvent.click(historyButton)
     expect(historyButton).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByTestId('translate-history-open')).toBeNull()
-  })
-
-  describe('markdown rendering path', () => {
-    // each test mounts its own page; unmount between tests so a previous
-    // instance's effects can't fire alongside the current one
-    afterEach(() => {
-      cleanup()
-    })
-
-    const setOutput = (text: string) => {
-      act(() => {
-        MockUseCacheUtils.setCacheValue('translate.output', text)
-      })
-    }
-
-    it('renders through the markdown path while a stream is in flight', async () => {
-      // EurFelux's product call: streamed output keeps live Markdown instead of
-      // falling back to plain text, so the pane must get enableMarkdown mid-stream.
-      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
-      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
-      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', 'zh-cn')
-      translateCoreMock.translateText.mockImplementationOnce(() => new Promise<string>(() => {}))
-
-      const { rerender } = render(<TranslatePage />)
-      fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
-        target: { value: 'hello' }
-      })
-      rerender(<TranslatePage />)
-      fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-      await act(async () => {})
-
-      setOutput('partial **stream**')
-      rerender(<TranslatePage />)
-      await act(async () => {})
-
-      expect(screen.getByTestId('output-enable-markdown').textContent).toBe('true')
-      expect(screen.getByTestId('translate-output-content').textContent).toBe('partial **stream**')
-    })
-
-    it('renders restored output through the markdown path with no stream at all', async () => {
-      // History restores and input/output swaps never stream; the markdown path
-      // must not depend on any stream lifecycle.
-      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
-
-      const { rerender } = render(<TranslatePage />)
-      setOutput('restored history item')
-      rerender(<TranslatePage />)
-      await act(async () => {})
-
-      expect(screen.getByTestId('output-enable-markdown').textContent).toBe('true')
-      expect(screen.getByTestId('translate-output-content').textContent).toBe('restored history item')
-    })
-
-    it('stays on plain text when markdown is disabled', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', false)
-
-      const { rerender } = render(<TranslatePage />)
-      setOutput('plain **output**')
-      rerender(<TranslatePage />)
-      await act(async () => {})
-
-      expect(screen.getByTestId('output-enable-markdown').textContent).toBe('false')
-      expect(screen.getByTestId('translate-output-content').textContent).toBe('plain **output**')
-    })
   })
 })

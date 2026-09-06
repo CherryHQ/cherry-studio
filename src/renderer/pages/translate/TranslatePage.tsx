@@ -233,24 +233,15 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const smoothUpdateRef = useRef<(text: string, isComplete: boolean) => void>(() => {})
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: (text, isComplete) => smoothUpdateRef.current(text, isComplete)
+    onResponse: smoothUpdate
   })
-
-  const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
-    onUpdate: setTranslateOutput,
-    streamDone: !isTranslating,
-    initialText: translateOutput
-  })
-  smoothUpdateRef.current = smoothUpdate
-
-  const smoothReset = smoothResetBase
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
