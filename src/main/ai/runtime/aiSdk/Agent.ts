@@ -5,7 +5,14 @@
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { isAbortError } from '@main/utils/error'
-import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import {
+  InvalidResponseDataError,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type ToolSet,
+  type UIMessage,
+  type UIMessageChunk
+} from 'ai'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -17,6 +24,28 @@ import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
+
+const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
+
+class MissingFinishReasonError extends Error {
+  readonly i18nKey = 'missing_finish_reason'
+
+  constructor(
+    cause: Error,
+    readonly providerId: string,
+    readonly modelId: string
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MissingFinishReasonError'
+  }
+}
+
+function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
+  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+    return new MissingFinishReasonError(error, providerId, modelId)
+  }
+  return error
+}
 
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>
@@ -284,6 +313,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)
@@ -375,15 +405,20 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return
         }
 
-        const action = await invokeOnError(err)
+        const streamError = normalizeStreamError(
+          err,
+          params.errorContext?.providerId ?? params.providerId,
+          params.errorContext?.modelId ?? params.modelId
+        )
+        const action = await invokeOnError(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
-          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', streamError as Error)
         } else {
-          logger.error('agentLoop error', err)
+          logger.error('agentLoop error', streamError as Error)
         }
-        await settleWriter({ error: err })
+        await settleWriter({ error: streamError })
       })
 
     return readable

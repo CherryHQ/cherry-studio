@@ -216,6 +216,13 @@ describe('AgentJobsService', () => {
       spy.mockRestore()
     })
 
+    it('refuses the reserved heartbeat prompt — nothing is written', () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, prompt: '__heartbeat__' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
 
@@ -253,6 +260,15 @@ describe('AgentJobsService', () => {
       expect(updated?.prompt).toBe('new prompt')
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: 'new prompt' })
       expect(getIntervalEntry(task.id)).toBe(originalEntry)
+    })
+
+    it('refuses to repoint an existing task at the reserved heartbeat prompt', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(() => service.updateTask(AGENT_ID, task.id, { prompt: '__heartbeat__' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: form.prompt })
     })
 
     it('drops a semantically-equal trigger from the patch — the interval phase is not reset', () => {

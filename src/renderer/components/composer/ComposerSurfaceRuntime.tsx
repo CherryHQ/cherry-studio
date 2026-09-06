@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
@@ -44,7 +45,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
@@ -163,6 +164,8 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Opts this composer into the China-edition AI-generated content disclaimer. */
+  showAiDisclaimer?: boolean
   /** Extra padding on both sides matching the message column's anchor-rail gutter,
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
@@ -267,6 +270,17 @@ function addMissingToken(
 ) {
   if (existingTokens.some((existing) => existing.id === token.id)) return
   insertComposerTokenAtCursor(editor, token)
+}
+
+/** Sole write path for `emitUpdate: false` content: keeps the last-serialized-draft ref in step
+ *  with the document, so a torn-down `getDraft()` serves an atomic current pair, not a stale one. */
+function setComposerEditorContent(
+  editor: Editor,
+  lastSerializedDraftRef: { current: ComposerSerializedDraft | null },
+  content: JSONContent
+) {
+  lastSerializedDraftRef.current = serializeComposerDocument(content)
+  editor.commands.setContent(content, { emitUpdate: false })
 }
 
 function hasComposerTokenBeforeSelection(editor: Editor) {
@@ -525,7 +539,8 @@ export default function ComposerSurfaceRuntime({
   sendAccessory,
   deferQuickPanel = false,
   initialTextSelection,
-  deferredIntent
+  deferredIntent,
+  showAiDisclaimer = false
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -548,6 +563,8 @@ export default function ComposerSurfaceRuntime({
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
+  // The most recent full document serialization; served by getDraft() once the editor is gone.
+  const lastSerializedDraftRef = useRef<ComposerSerializedDraft | null>(null)
   const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
   const trackedTokenSignatureRef = useRef('')
@@ -655,7 +672,8 @@ export default function ComposerSurfaceRuntime({
       textRef.current = limitedText
       pendingLocalTextEchoRef.current = limitedText
       onTextChange(limitedText)
-      editor?.commands.setContent(createPromptVariableContent(limitedText), { emitUpdate: false })
+      const nextContent = createPromptVariableContent(limitedText)
+      if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
   )
@@ -881,7 +899,11 @@ export default function ComposerSurfaceRuntime({
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
     const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return { text: textRef.current, tokens: [] }
+    if (!editor || editor.isDestroyed) {
+      // Callers persist the returned pair verbatim; a fabricated { text, tokens: [] } would strand
+      // managed chips' prompt sentences as visible prose on the next restore.
+      return lastSerializedDraftRef.current ?? { text: textRef.current, tokens: [] }
+    }
 
     return serializeComposerDocument(editor)
   }, [])
@@ -892,7 +914,7 @@ export default function ComposerSurfaceRuntime({
 
     textRef.current = draft.text
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerDraftContent(draft), { emitUpdate: false })
+    setComposerEditorContent(editor, lastSerializedDraftRef, createComposerDraftContent(draft))
     trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
   }, [])
 
@@ -1755,6 +1777,7 @@ export default function ComposerSurfaceRuntime({
       if (tokenizePromptVariablesInEditor(updatedEditor)) return
 
       const draft = serializeComposerDocument(updatedEditor)
+      lastSerializedDraftRef.current = draft
       const nextText = draft.text
       textRef.current = nextText
       pendingLocalTextEchoRef.current = nextText
@@ -1774,7 +1797,8 @@ export default function ComposerSurfaceRuntime({
         trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
-    onCreate: () => {
+    onCreate: ({ editor: createdEditor }) => {
+      lastSerializedDraftRef.current = serializeComposerDocument(createdEditor)
       window.requestAnimationFrame(() => {
         startTransition(() => setEditorReady(true))
       })
@@ -1825,7 +1849,11 @@ export default function ComposerSurfaceRuntime({
       return
     }
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerDraftContent({ text, tokens: draftTokens ?? [] }), { emitUpdate: false })
+    setComposerEditorContent(
+      editor,
+      lastSerializedDraftRef,
+      createComposerDraftContent({ text, tokens: draftTokens ?? [] })
+    )
   }, [draftTokens, editor, text])
 
   useEffect(() => {
@@ -2269,17 +2297,22 @@ export default function ComposerSurfaceRuntime({
           ref={frameRef}
           data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn(
+            'group/composer-editor relative flex min-w-0 flex-1 overflow-hidden transition-[height] ease-out',
+            editingState && 'mt-2'
+          )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
           <EditorContent
             editor={editor}
+            className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
           />
+          <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
           <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
@@ -2332,6 +2365,7 @@ export default function ComposerSurfaceRuntime({
           : {})
       }}>
       <div className="w-full">
+        <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}
@@ -2350,6 +2384,11 @@ export default function ComposerSurfaceRuntime({
               {inputbarStack}
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

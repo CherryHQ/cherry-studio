@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai'
+import { generateImage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('OpenAI image response compatibility', () => {
@@ -49,6 +50,50 @@ describe('OpenAI image response compatibility', () => {
     })
 
     expect(result.images).toEqual(expected)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts a large base64 response for image edits', async () => {
+    const base64 = 'a'.repeat(2_950_000)
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      async () =>
+        new Response(JSON.stringify({ data: [{ b64_json: base64 }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    )
+    const openai = createOpenAI({
+      apiKey: 'test-key',
+      baseURL: 'https://api.example.com/v1',
+      fetch
+    })
+
+    const result = await generateImage({
+      model: openai.imageModel('gpt-image-2'),
+      prompt: { text: 'edit this image', images: [new Uint8Array([137, 80, 78, 71])] },
+      maxRetries: 0
+    })
+
+    expect(result.image.base64).toHaveLength(base64.length)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry a failed image request when retries are disabled', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response('gateway timeout', { status: 504 }))
+    const openai = createOpenAI({
+      apiKey: 'test-key',
+      baseURL: 'https://api.example.com/v1',
+      fetch
+    })
+
+    await expect(
+      generateImage({
+        model: openai.imageModel('gpt-image-2'),
+        prompt: { text: 'edit this image', images: [new Uint8Array([137, 80, 78, 71])] },
+        maxRetries: 0
+      })
+    ).rejects.toThrow()
+
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f44a11ec-f034-4713-aab3-cbf41003c57e",
+  "id": "a644ff4c-db21-420b-8b23-7fc6022f9e3b",
   "prevId": "dfd148a9-f46d-4296-a914-d3af8b69e23d",
   "tables": {
     "agent": {
@@ -699,55 +699,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "agent_task_session": {
-      "name": "agent_task_session",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_task_session_task_id_idx": {
-          "name": "agent_task_session_task_id_idx",
-          "columns": ["task_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_task_session_session_id_agent_session_id_fk": {
-          "name": "agent_task_session_session_id_agent_session_id_fk",
-          "tableFrom": "agent_task_session",
-          "tableTo": "agent_session",
-          "columnsFrom": ["session_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_task_session_task_id_job_schedule_id_fk": {
-          "name": "agent_task_session_task_id_job_schedule_id_fk",
-          "tableFrom": "agent_task_session",
-          "tableTo": "job_schedule",
-          "columnsFrom": ["task_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "agent_session_message": {
       "name": "agent_session_message",
       "columns": {
@@ -893,6 +844,11 @@
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
+          "isUnique": false
+        },
+        "agent_session_message_model_id_idx": {
+          "name": "agent_session_message_model_id_idx",
+          "columns": ["model_id"],
           "isUnique": false
         },
         "agent_session_message_delivery_status_idx": {
@@ -3827,6 +3783,11 @@
         "message_status_idx": {
           "name": "message_status_idx",
           "columns": ["status"],
+          "isUnique": false
+        },
+        "message_model_id_idx": {
+          "name": "message_model_id_idx",
+          "columns": ["model_id"],
           "isUnique": false
         },
         "message_topic_root_uniq": {

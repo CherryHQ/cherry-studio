@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: 🐈‍⬛ Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -53,7 +53,7 @@ jobs:
       - name: 🔍 Check for changes
         id: git_status
         run: |
-          git diff --exit-code --quiet -- packages/provider-registry/data || echo "::set-output name=has_changes::true"
+          git diff --exit-code --quiet -- packages/provider-registry/data || echo "has_changes=true" >> "$GITHUB_OUTPUT"
           git status --porcelain -- packages/provider-registry/data
 
       - name: 📅 Set current date for PR title

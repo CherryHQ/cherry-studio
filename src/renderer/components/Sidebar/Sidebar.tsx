@@ -1,5 +1,6 @@
 import './Sidebar.css'
 
+import { MenuItem } from '@cherrystudio/ui'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -23,6 +24,7 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -30,6 +32,7 @@ export interface SidebarProps {
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
+  onHeaderClick?: () => void
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -43,6 +46,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  isFullscreen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -50,6 +54,7 @@ export function Sidebar({
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
+  onHeaderClick,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
@@ -69,11 +74,45 @@ export function Sidebar({
     <div
       className={cn(
         'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-8 rounded-lg' : 'size-9 rounded-lg'
+        size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
       )}>
       {logoNode}
     </div>
   )
+
+  const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean) => {
+    const content = (
+      <>
+        {renderLogo(size)}
+        {showTitle && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
+      </>
+    )
+
+    if (!onHeaderClick) return content
+
+    if (showTitle) {
+      return (
+        <MenuItem
+          variant="ghost"
+          icon={<span className="flex size-4 items-center justify-center">{renderLogo(size)}</span>}
+          label={title}
+          aria-label={title || undefined}
+          onClick={onHeaderClick}
+          className="cursor-pointer rounded-xl text-sidebar-foreground [-webkit-app-region:no-drag]"
+        />
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        aria-label={title || undefined}
+        onClick={onHeaderClick}
+        className="flex min-w-0 cursor-pointer items-center [-webkit-app-region:no-drag]">
+        {content}
+      </button>
+    )
+  }
 
   const handleDismiss = useCallback(() => {
     onDismiss?.()
@@ -162,9 +201,13 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className={cn('flex h-14 shrink-0 items-center gap-2.5 px-4', windowDragClassName)}>
-            {renderLogo()}
-            <span className="truncate text-sidebar-foreground text-sm">{title}</span>
+          <div
+            className={cn(
+              'flex shrink-0 px-2',
+              isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+              windowDragClassName
+            )}>
+            {renderHeaderIdentity('default', true)}
           </div>
 
           {showSearch && (
@@ -236,12 +279,12 @@ export function Sidebar({
       {/* Header */}
       <div
         className={cn(
-          'flex shrink-0 items-center',
+          'flex shrink-0',
+          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
           windowDragClassName,
-          layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'
+          layout === 'full' ? 'px-2' : 'justify-center'
         )}>
-        {renderLogo(layout === 'icon' ? 'sm' : 'default')}
-        {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
+        {renderHeaderIdentity(layout === 'icon' ? 'sm' : 'default', layout === 'full')}
       </div>
 
       {/* Search */}

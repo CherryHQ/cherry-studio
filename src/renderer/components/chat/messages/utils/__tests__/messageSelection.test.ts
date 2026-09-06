@@ -43,6 +43,26 @@ describe('messageSelection', () => {
     expect(views[1].parts).toEqual(partsByMessageId.b)
   })
 
+  it('lets a selected message cite the tool results of an earlier, unselected message', () => {
+    const messages = [createMessage('a'), createMessage('b')]
+    const searchPart = {
+      type: 'tool-web_search',
+      toolCallId: 'search-1',
+      state: 'output-available',
+      input: { query: 'q' },
+      output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+    } as unknown as CherryMessagePart
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [searchPart, { type: 'text', text: 'first [cite:3f2a1b9c-1]' }],
+      b: [{ type: 'text', text: 'still [cite:3f2a1b9c-1]' }]
+    }
+
+    const views = createSelectedMessageExportViews(['b'], messages, partsByMessageId)
+
+    expect(views).toHaveLength(1)
+    expect(views[0].priorCitationParts).toEqual([searchPart])
+  })
+
   it('copies selected message text in visible message order', () => {
     const messages = [createMessage('a'), createMessage('b')]
     const partsByMessageId: Record<string, CherryMessagePart[]> = {

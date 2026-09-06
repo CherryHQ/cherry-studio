@@ -212,6 +212,17 @@ describe('assistantHandlers', () => {
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
     })
 
+    it('should reject unsafe max tokens before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER + 1 } }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
     it('should reject an invalid group id before calling the service', async () => {
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({

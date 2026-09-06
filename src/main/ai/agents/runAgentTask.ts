@@ -27,6 +27,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
   type TaskSessionReuse
@@ -43,9 +44,6 @@ import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
-
-const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
-const HEARTBEAT_TASK_NAME = 'heartbeat'
 
 export type AgentTaskInput = {
   agentId: string
@@ -165,7 +163,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const config = agent.configuration ?? {}
 
-  const isHeartbeat = taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL
+  // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
+  const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
 
   let effectivePrompt = prompt
 

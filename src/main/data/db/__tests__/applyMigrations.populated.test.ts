@@ -650,7 +650,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('recovers scheduled session provenance from surviving jobs', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_harsh_multiple_man'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_powerful_lily_hollister'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -727,6 +727,34 @@ describe('applyMigrations over a populated database', () => {
       { session_id: 'session-sticky', task_id: 'schedule-sticky' }
     ])
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO job
+        (id, type, status, priority, queue, scheduled_at, started_at, finished_at, attempt, max_attempts, input, cancel_requested, metadata, created_at, updated_at)
+       VALUES (?, 'agent.task', ?, 0, 'agent.task', ?, ?, ?, 0, 1, '{}', ?, '{}', ?, ?)`
+    )
+    // Leftover cancel-requested running row: the cancel tx was its last write,
+    // so updated_at approximates the request time the new column records.
+    insert.run('job-leftover', 'running', now - 9_000, now - 8_000, null, 1, now - 9_000, now - 5_000)
+    // Live-cancelled terminal row: settled at updated_at.
+    insert.run('job-cancelled', 'cancelled', now - 20_000, now - 19_000, now - 15_000, 1, now - 20_000, now - 15_000)
+    // Terminal row whose updated_at was bumped by a post-terminal no-op cancel:
+    // the backfill must cap at finished_at, not adopt the later bump.
+    insert.run('job-noop-bumped', 'cancelled', now - 50_000, now - 49_000, now - 40_000, 1, now - 50_000, now - 10_000)
+    insert.run('job-completed', 'completed', now - 30_000, now - 29_000, now - 25_000, 0, now - 30_000, now - 25_000)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT id, cancel_requested_at FROM job ORDER BY id`).all()).toEqual([
+      { id: 'job-cancelled', cancel_requested_at: now - 15_000 },
+      { id: 'job-completed', cancel_requested_at: null },
+      { id: 'job-leftover', cancel_requested_at: now - 5_000 },
+      { id: 'job-noop-bumped', cancel_requested_at: now - 40_000 }
+    ])
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {

@@ -4,6 +4,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   agentTaskService,
+  HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
   writeTaskSessionReuse
@@ -87,6 +88,7 @@ export class AgentJobsService extends BaseService {
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
     this.assertAgentExists(agentId)
+    this.assertPromptNotReserved(form.prompt)
     const channelIds = form.channelIds ?? []
     this.assertChannelsBelongToAgent(agentId, channelIds)
 
@@ -128,6 +130,7 @@ export class AgentJobsService extends BaseService {
     const existing = agentTaskService.getTask(agentId, taskId)
     if (!existing) return null
     const nameChanged = patch.name !== undefined && patch.name !== existing.name
+    this.assertPromptNotReserved(patch.prompt)
     if (patch.channelIds !== undefined) {
       this.assertChannelsBelongToAgent(agentId, patch.channelIds)
     }
@@ -314,6 +317,19 @@ export class AgentJobsService extends BaseService {
   private assertAgentExists(agentId: string): void {
     if (!agentService.getAgent(agentId)) {
       throw new Error(`Agent not found: ${agentId}`)
+    }
+  }
+
+  /**
+   * The heartbeat sentinel is what identifies a heartbeat run, so a user task
+   * must never carry it: `AgentTaskService` would hide the task and
+   * `runAgentTask` would run `heartbeat.md` under the heartbeat toggle instead
+   * of the task's own prompt. Guarded here rather than in `agentTaskFormSchema`
+   * because MCP's `cherryAutonomyTools` calls this service directly.
+   */
+  private assertPromptNotReserved(prompt: string | undefined): void {
+    if (prompt === HEARTBEAT_PROMPT_SENTINEL) {
+      throw new Error(`Prompt is reserved for the agent heartbeat: ${HEARTBEAT_PROMPT_SENTINEL}`)
     }
   }
 

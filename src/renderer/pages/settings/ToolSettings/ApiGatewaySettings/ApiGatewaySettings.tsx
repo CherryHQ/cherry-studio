@@ -1,11 +1,11 @@
 import {
   Button,
   IndicatorLight,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
+  InputNumber,
   Tooltip
 } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
@@ -32,6 +32,9 @@ const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
   PORT: 23333
 }
+
+const PORT_MIN = 1000
+const PORT_MAX = 65535
 
 const ApiGatewaySettings: FC = () => {
   const { theme } = useTheme()
@@ -79,11 +82,17 @@ const ApiGatewaySettings: FC = () => {
     toast.success(t('apiGateway.messages.apiKeyRegenerated'))
   }
 
-  const handlePortChange = (value: string) => {
-    const port = Number.parseInt(value, 10) || API_SERVER_DEFAULTS.PORT
-    if (port >= 1000 && port <= 65535) {
-      void setApiGatewayConfig({ port })
+  // A port is an identifier, not a magnitude, so the field is given no `min`/`max`
+  // to clamp against: 999 must be refused, not silently turned into 1000.
+  const handlePortChange = (value: number | null) => {
+    // Emptying the field is how you retype it, not how you unset the port — the
+    // gateway always needs one. The field snaps back to the saved value on blur.
+    if (value === null) return
+    if (value < PORT_MIN || value > PORT_MAX) {
+      toast.error(t('apiGateway.messages.portInvalid', { min: PORT_MIN, max: PORT_MAX }))
+      return
     }
+    void setApiGatewayConfig({ port: value })
   }
 
   const openApiDocs = () => {
@@ -185,14 +194,12 @@ const ApiGatewaySettings: FC = () => {
               </Field>
               <Field>
                 <SettingRowTitle>{t('apiGateway.fields.port.label')}</SettingRowTitle>
-                <Input
+                <InputNumber
                   className="mt-2 w-full font-mono text-xs tabular-nums"
                   aria-label={t('apiGateway.fields.port.label')}
-                  type="number"
-                  min={1000}
-                  max={65535}
+                  step={1}
                   value={serverPort}
-                  onChange={(event) => handlePortChange(event.target.value)}
+                  onBlur={handlePortChange}
                 />
               </Field>
             </ConnectionFields>
