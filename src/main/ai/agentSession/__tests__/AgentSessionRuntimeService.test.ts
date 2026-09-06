@@ -2491,7 +2491,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
       await vi.waitFor(() => expect(mocks.replaceMessageParts).not.toHaveBeenCalled())
-      expect((getEntry(service) as any).pendingBackgroundFlowChunks).toBeUndefined()
+      expect(getEntry(service).pendingBackgroundFlowChunks).toBeUndefined()
     })
 
     it('hands failed-flush parts to the cache overlay so teardown does not lose them', async () => {
