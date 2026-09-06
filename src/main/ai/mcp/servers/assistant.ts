@@ -17,12 +17,13 @@ import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/t
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
-import { type DoctorRunTier, projectDoctorReport } from '@shared/types/doctor'
+import type { DoctorRunTier } from '@shared/types/doctor'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
   diagnosticDescriptionByteLength,
   normalizeDiagnosticDescription
 } from '@shared/utils/diagnostics'
+import { projectDoctorReport } from '@shared/utils/doctor'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
 
