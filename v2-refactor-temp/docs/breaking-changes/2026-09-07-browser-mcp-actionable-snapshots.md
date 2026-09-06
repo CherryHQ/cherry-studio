@@ -2,7 +2,7 @@
 title: Browser MCP snapshots now provide actionable element references
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: "#20134"
 date: 2026-09-07
 ---
 
