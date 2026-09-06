@@ -3,8 +3,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FullPartsMapProvider, PartsProvider } from '../../blocks/MessagePartsContext'
+import { AgentLaunchIndexProvider, PartsProvider } from '../../blocks/MessagePartsContext'
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
+import { buildAgentLaunchIndex } from '../shared/agentToolTypes'
 
 const mockUseTranslation = vi.fn()
 
@@ -65,17 +66,17 @@ describe('resume presentation inside a completed tool group', () => {
   })
 
   // ToolGroupPartsBoundary nulls PartsContext once every item completes — the launch-resolution
-  // path must survive on the list-level FullPartsMapContext, or this label disappears.
+  // path must survive on the list-level agent-launch index, or this label disappears.
   it('renders the continue label for a resumed agent from the full-parts map', () => {
     const parts = launchParts()
     const receipt = resumeReceipt()
 
     render(
-      <FullPartsMapProvider value={parts}>
+      <AgentLaunchIndexProvider value={buildAgentLaunchIndex(parts)}>
         <PartsProvider value={parts}>
           <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
         </PartsProvider>
-      </FullPartsMapProvider>
+      </AgentLaunchIndexProvider>
     )
 
     expect(screen.getByText('Continue handling')).toBeInTheDocument()
@@ -88,11 +89,11 @@ describe('resume presentation inside a completed tool group', () => {
     const receipt = resumeReceipt()
 
     render(
-      <FullPartsMapProvider value={null}>
+      <AgentLaunchIndexProvider value={null}>
         <PartsProvider value={null}>
           <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
         </PartsProvider>
-      </FullPartsMapProvider>
+      </AgentLaunchIndexProvider>
     )
 
     expect(screen.getByText('Continue handling')).toBeInTheDocument()
@@ -113,11 +114,11 @@ describe('resume presentation inside a completed tool group', () => {
     }
 
     render(
-      <FullPartsMapProvider value={parts}>
+      <AgentLaunchIndexProvider value={buildAgentLaunchIndex(parts)}>
         <PartsProvider value={parts}>
           <ToolBlockGroup items={[{ id: 'resume-group', toolResponse: receipt }]} />
         </PartsProvider>
-      </FullPartsMapProvider>
+      </AgentLaunchIndexProvider>
     )
 
     expect(screen.getByText('Continue handling')).toBeInTheDocument()
