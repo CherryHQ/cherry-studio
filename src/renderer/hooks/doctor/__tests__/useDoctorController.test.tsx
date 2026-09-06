@@ -39,10 +39,6 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({ appUpdateState: mocks.appUpdateState })
 }))
 
-vi.mock('@renderer/hooks/useMcpServer', () => ({
-  useMcpServers: () => ({ mcpServers: [] })
-}))
-
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => mocks.request(...args) }
 }))

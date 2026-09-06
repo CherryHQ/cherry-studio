@@ -1,7 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
-import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -64,7 +63,6 @@ export function useDoctorController({
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
-  const { mcpServers } = useMcpServers()
   const [session, dispatch] = useReducer(
     doctorSessionReducer,
     { initialPanel, initialDescription },
@@ -303,11 +301,6 @@ export function useDoctorController({
     dispatch(active ? { type: 'start-interaction', interaction: { kind } } : { type: 'finish-interaction', kind })
   }, [])
 
-  const mcpServerName = useCallback(
-    (target: string | undefined) => (target ? mcpServers.find((server) => server.id === target)?.name : undefined),
-    [mcpServers]
-  )
-
   return {
     appUpdateState,
     cancel,
@@ -317,7 +310,6 @@ export function useDoctorController({
     executeAction,
     isInteracting,
     isCloseBlocked,
-    mcpServerName,
     openLogsPath,
     openPath,
     run,
