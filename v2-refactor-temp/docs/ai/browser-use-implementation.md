@@ -19,7 +19,8 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | PR C | PR B | Planned: inspection, ref recovery, WebMCP, retained-tab freezing, WebContentsView |
 | PR D | PR A | Planned independent branch: browser-data import (§10) |
 
-PR B is implemented on `browser-use-mcp`; its publication is separate from #20128.
+PR B is published as [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134) on
+`browser-use-mcp`, stacked on #20128.
 Sections below distinguish delivered PR A/B contracts from planned PR C/D work. `upload_file`
 is excluded from PR B until MCP calls carry trusted session/workdir context (§4); true per-turn
 retention has the same upstream identity dependency. P0/P1 are roadmap milestones, not PR numbers.
@@ -193,12 +194,12 @@ with, `acquire` throws — ownership is a property of the page, not of the calle
 **Turn boundary.** The MCP runtime caches one client per server configuration for the app lifetime
 (`McpRuntimeService.clients`) and `callToolById(toolId, params, callId)` carries no agent-session
 identity, so today the engine cannot tell which session or turn a tool call belongs to. Until that
-changes, PR B will use one `owner` value per MCP server instance (`mcp:<uuid>`) and call `endTurn` only when
-that server closes. Consequently `temporary` means "reclaimed by idle timeout or budget", not "closed
+changes, PR B uses one `owner` value per MCP server instance (`mcp:<uuid>`) and closes all of its
+managed tabs when that server closes. Consequently `temporary` means "reclaimed by idle timeout or budget", not "closed
 at turn end". Real turn scoping needs an upstream change first: the agent runtime passes the session id
 into MCP tool calls and emits a turn-ended event (the natural hook is
 `AgentSessionRuntimeService.handleAutonomousGenerationFinished`). That is a separate decision and PR;
-C4 does not pretend to deliver it. PR A exposes `endTurn` but has no MCP/runtime caller yet.
+C4 does not pretend to deliver it. The engine exposes `endTurn` for future runtime integration; disconnect uses controller disposal.
 
 **Upload boundary.** The same `callToolById` contract supplies no trusted agent working directory.
 `upload_file` therefore stays out of PR B, including its tool registration and CDP allow-list entry.
@@ -430,15 +431,16 @@ PR B implementation notes:
 
 PR B validation:
 
-- 152 focused tests passed across 13 files covering the browser engine/actions, MCP adapter/factory,
+- The latest shutdown changes passed 127 focused tests across 8 files covering the browser engine/actions, MCP adapter,
   MCP runtime lifecycle and webview annotation integration.
 - `pnpm lint` and `pnpm docs:check` passed. The full test suite was intentionally skipped under
   the workspace's local validation override.
-- A real Electron instance and MCP SDK transport passed 29 interaction steps using
+- A real Electron instance and MCP SDK transport passed 37 interaction steps using
   `tests/fixtures/browser-use/interaction.html`: snapshot/diff, form and email input, selection,
   mouse/keyboard/scroll, screenshot, download completion, covered-click fallback, fetch settling,
   dialog interruption/resolution, submit navigation, stale refs, history/wait, popup readiness and
-  background-tab snapshots. Synthetic protocol and download handlers existed only in the smoke harness.
+  background-tab snapshots, and disconnect during a pending command with native destruction awaited.
+  Synthetic protocol and download handlers existed only in the smoke harness.
 
 ### PR C — `feat(browser-mcp): P1 stability, inspection and WebMCP`
 

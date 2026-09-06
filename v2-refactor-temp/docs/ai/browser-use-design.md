@@ -17,7 +17,8 @@ shared CDP engine and annotation export migration on `browser-use-engine`; it is
 The engine provides document-bound refs, bounded AX/DOM snapshots and diffs, dialog interruption,
 and managed/borrowed ownership with resource budgets.
 
-PR2 (PR B) is implemented on `browser-use-mcp`, based on `browser-use-engine`: the MCP adapter now
+PR2 (PR B), [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134), is implemented on
+`browser-use-mcp`, based on `browser-use-engine`: the MCP adapter now
 lives in the browser feature, its tabs use the shared service, and snapshot/action tools are exposed.
 `upload_file` remains deferred until MCP calls carry a trusted session working directory. Turn-scoped
 retention likewise requires upstream session identity and a turn-ended signal. See the implementation
