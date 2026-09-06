@@ -108,14 +108,12 @@ type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   groupKey: string
   isLive: boolean
   narrowMode: boolean
-  railGutterPx: number
 }
 
 function MessageGroupLayer({
   groupKey,
   isLive,
   narrowMode,
-  railGutterPx,
   messages,
   partsByMessageId,
   ...messageGroupProps
@@ -129,8 +127,8 @@ function MessageGroupLayer({
         // The gutter is mirrored on the left so the column stays
         // centred and both margins match while the rail fades in.
         style={{
-          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          paddingLeft: `calc(${CHAT_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`,
+          paddingRight: `calc(${CHAT_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`
         }}>
         <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
       </NarrowLayout>
@@ -162,7 +160,6 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   return (
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
-    previous.railGutterPx === next.railGutterPx &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.captureMode === next.captureMode &&
@@ -185,11 +182,10 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
-  // The rail gutter lives in the chat layout context (single source of truth) so
-  // the composer yields the same right-hand space and stays aligned with the
-  // message column; this component both writes it (via the resize observer
-  // below) and renders from it.
-  const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
+  // Continuous rail measurements are inherited through CSS custom properties,
+  // keeping resize-observer updates out of the React render path. React only
+  // tracks the zero/non-zero boundary needed for focus and pointer semantics.
+  const { setForceWideLayout, setRailGutter, getRailGutterPx } = useChatLayoutMode()
   const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -197,6 +193,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
+  const railVisibleRef = useRef(getRailGutterPx() > 0)
+  const [railVisible, setRailVisible] = useState(railVisibleRef.current)
   const bottomOverlayInsets = useChatBottomOverlayInset()
 
   // The gutter follows only the width (and the anchor preference) — NOT the turn
@@ -675,7 +673,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
-      setRailGutterPx(0)
+      setRailGutter(0, 0)
+      if (railVisibleRef.current) {
+        railVisibleRef.current = false
+        setRailVisible(false)
+      }
       return
     }
     const scrollElement = messageListRef.current?.getScrollElement()
@@ -687,8 +689,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       // than toggling at a threshold) means the content shifts smoothly and never
       // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
       const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
-      const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
-      setRailGutterPx(gutter)
+      const opacity = Math.max(0, Math.min(1, ramp))
+      const gutter = Math.round(opacity * RAIL_GUTTER_MAX_PX)
+      setRailGutter(gutter, opacity)
+      const nextVisible = gutter > 0
+      if (nextVisible !== railVisibleRef.current) {
+        railVisibleRef.current = nextVisible
+        setRailVisible(nextVisible)
+      }
     }
     updateRailGutter()
     const resizeObserver = new ResizeObserver(updateRailGutter)
@@ -712,7 +720,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
     }
-  }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
+  }, [data.isInitialLoading, data.listKey, setRailGutter, shouldTrackAnchorPosition, topic.id])
 
   useEffect(() => {
     return bindRuntime?.({
@@ -754,8 +762,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
           withSidePadding
           className="shrink-0"
           style={{
-            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+            paddingLeft: `calc(${CHAT_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`,
+            paddingRight: `calc(${CHAT_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`
           }}>
           {beforeList}
         </NarrowLayout>
@@ -799,7 +807,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
-                railGutterPx,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
@@ -861,7 +868,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
             streamingLayers?.historyPartsByMessageId ?? partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID
           }
           liveMessageIds={liveMessageIds}
-          railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
+          railVisible={railVisible}
           scrollToMessageId={scrollToMessageById}
         />
       )}

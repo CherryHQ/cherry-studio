@@ -85,9 +85,8 @@ import {
   useComposerEditorFrameSizing
 } from './useComposerEditorFrameSizing'
 
-/** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
- * override is invisible until the rail gutter adds onto it; only applied when
- * the caller wires `railGutterPx`. */
+/** Matches NarrowLayout's `px-6` (and the message column's base). The inherited
+ * CSS gutter keeps the composer aligned without routing measurements through React. */
 const COMPOSER_SIDE_PADDING_PX = 24
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
@@ -512,7 +511,6 @@ export default function ComposerSurfaceRuntime({
   editable = true,
   fontSize,
   narrowMode,
-  railGutterPx,
   onFocus,
   onActionsChange,
   isInputHistoryActive = false,
@@ -2346,17 +2344,12 @@ export default function ComposerSurfaceRuntime({
       narrowMode={narrowMode}
       withSidePadding
       className="pointer-events-auto"
-      // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
-      // gutter mirrored on both sides keeps the composer centred and aligned with
-      // the message column. Other callers keep NarrowLayout's default padding.
+      // The inherited gutter is mirrored on both sides, keeping the composer
+      // centred and aligned with the message column without a React update.
       style={{
         width: '100%',
-        ...(railGutterPx != null
-          ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + railGutterPx
-            }
-          : {})
+        paddingLeft: `calc(${COMPOSER_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`,
+        paddingRight: `calc(${COMPOSER_SIDE_PADDING_PX}px + var(--chat-rail-gutter, 0px))`
       }}>
       <div className="w-full">
         <ComposerToolFooterActionsSync />
