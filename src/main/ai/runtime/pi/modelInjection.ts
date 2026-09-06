@@ -375,6 +375,29 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
+/** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */
+const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+
+/**
+ * Project the model's declared efforts onto pi's ladder, marking the rest `null`.
+ *
+ * pi clamps its own default level (`medium`) against this map. Without one it assumes every level
+ * below `xhigh` is available and sends `medium` verbatim — which strict endpoints reject for models
+ * like Kimi K3, whose vocabulary is low/high/max (#20029). A model declaring no concrete tier gets
+ * no map: its toggle is expressed by the wire, and an all-`null` ladder would disable thinking.
+ */
+function buildThinkingLevelMap(model: Model): ProviderModelConfig['thinkingLevelMap'] | undefined {
+  const declared = model.reasoning?.selectableEfforts ?? []
+  if (!declared.some((effort) => effort !== 'none' && effort !== 'auto')) return undefined
+
+  const map: NonNullable<ProviderModelConfig['thinkingLevelMap']> = {}
+  for (const level of PI_THINKING_LEVELS) {
+    const effort = level === 'off' ? 'none' : level
+    map[level] = declared.includes(effort) ? effort : null
+  }
+  return map
+}
+
 function buildPiModelConfig(
   provider: Provider,
   model: Model,
@@ -389,12 +412,14 @@ function buildPiModelConfig(
   if (supportsImage) {
     input.push('image')
   }
+  const thinkingLevelMap = buildThinkingLevelMap(model)
 
   return {
     id,
     name: model.name,
     api,
     reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
     input,
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
     // leave zeros — pi's tracking is unused here.

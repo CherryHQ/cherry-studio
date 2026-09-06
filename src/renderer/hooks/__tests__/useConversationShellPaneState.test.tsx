@@ -6,7 +6,6 @@ import { useConversationShellPaneState } from '../useConversationShellPaneState'
 import { WindowFrameContext } from '../useWindowFrame'
 
 interface HarnessProps {
-  isMessageOnlyView?: boolean
   persistedPaneOpen?: boolean
 }
 
@@ -22,9 +21,8 @@ function renderPaneState({
   windowFrame?: 'window'
 } = {}) {
   const rendered = renderHook(
-    ({ isMessageOnlyView = false, persistedPaneOpen = true }: HarnessProps) =>
+    ({ persistedPaneOpen = true }: HarnessProps) =>
       useConversationShellPaneState({
-        isMessageOnlyView,
         persistedPaneOpen,
         setPersistedPaneOpen,
         onManualPaneOpen
@@ -70,22 +68,6 @@ describe('useConversationShellPaneState', () => {
     act(() => result.current.setShellPaneOpen(true))
     expect(result.current.shellPaneOpen).toBe(true)
     expect(setPersistedPaneOpen).not.toHaveBeenCalled()
-  })
-
-  it('forces the pane closed and disables toggling in message-only view', () => {
-    const onManualPaneOpen = vi.fn()
-    const { result, setPersistedPaneOpen } = renderPaneState({
-      initialProps: { isMessageOnlyView: true, persistedPaneOpen: true },
-      onManualPaneOpen
-    })
-
-    expect(result.current.shellPaneOpen).toBe(false)
-
-    act(() => result.current.toggleShellPane())
-    expect(result.current.shellPaneOpen).toBe(false)
-    expect(result.current.paneManualToggle).toBeUndefined()
-    expect(setPersistedPaneOpen).not.toHaveBeenCalled()
-    expect(onManualPaneOpen).not.toHaveBeenCalled()
   })
 
   it('closes on auto-collapse without touching the preference and reopens on the next explicit open', () => {

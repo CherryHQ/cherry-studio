@@ -17577,12 +17577,14 @@
           },
           "wire": {
             "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
               "operations": [
                 {
                   "target": "reasoningEffort",
                   "value": {
-                    "source": "literal",
-                    "value": "medium"
+                    "source": "effort"
                   }
                 }
               ]
@@ -17674,12 +17676,14 @@
           },
           "wire": {
             "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
               "operations": [
                 {
                   "target": "reasoningEffort",
                   "value": {
-                    "source": "literal",
-                    "value": "medium"
+                    "source": "effort"
                   }
                 }
               ]
@@ -18268,6 +18272,58 @@
     },
     {
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "kimi-k3-fast",
       "parameterSupport": {
         "temperature": {
           "supported": false
@@ -39341,5 +39397,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0505b4ccfb7edbbd"
+  "version": "c5b84a9a1c2778ec"
 }
