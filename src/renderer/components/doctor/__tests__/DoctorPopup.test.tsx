@@ -257,12 +257,12 @@ describe('DoctorPopup', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
   })
 
-  it('keeps full checks cancelable while they are running', async () => {
+  it.each(['quick', 'live'] as const)('keeps an active %s run cancelable', async (tier) => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'running',
-      runId: 'running-live',
-      tier: 'live',
+      runId: `running-${tier}`,
+      tier,
       startedAt: new Date().toISOString(),
       results: []
     }
@@ -274,7 +274,7 @@ describe('DoctorPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.cancel_run' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'running-live' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
   })
 
   it('keeps the editable report draft while navigating panels', async () => {

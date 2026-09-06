@@ -458,7 +458,7 @@ describe('DiagnosticUploadPanel', () => {
     expect(await screen.findByText(reportId)).toBeInTheDocument()
   })
 
-  it('presents a busy upload result and lets the user retry the original submission', async () => {
+  it('reports a busy upload without replacing the editable submission form', async () => {
     let uploadAttempts = 0
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.inspect') return inspectResult
@@ -470,13 +470,26 @@ describe('DiagnosticUploadPanel', () => {
     await completeReview(user)
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Another diagnostic bundle operation is already in progress'
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith('Another diagnostic bundle operation is already in progress')
     )
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    expect(description).toHaveValue('  App freezes on launch.  ')
+    expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled()
+
+    await user.clear(description)
+    await user.type(description, 'The app freezes after reopening.')
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
     expect(await screen.findByText(reportId)).toBeInTheDocument()
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(2)
+    expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.bundle.upload', {
+      description: 'The app freezes after reopening.',
+      includeChatRecords: false,
+      includeLogs: true,
+      includeTraces: true,
+      range: '24h'
+    })
   })
 
   it('saves a retained upload on demand and then exposes its selected filename and location', async () => {

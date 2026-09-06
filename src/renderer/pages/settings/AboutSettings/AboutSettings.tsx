@@ -3,6 +3,7 @@ import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
   Briefcase,
+  Bug,
   Building2,
   Github,
   Globe,
@@ -125,6 +126,10 @@ const AboutSettings: FC = () => {
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
+  }
+
+  const debug = async () => {
+    await ipcApi.request('system.toggle_dev_tools')
   }
 
   const showEnterprise = async () => {
@@ -392,6 +397,14 @@ const AboutSettings: FC = () => {
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          id="setting-about-debug-tools"
+          icon={<Bug className="size-4.5" />}
+          title={t('settings.about.debug.title')}
+          actionLabel={t('settings.about.debug.open')}
+          onAction={debug}
         />
       </SettingGroup>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />

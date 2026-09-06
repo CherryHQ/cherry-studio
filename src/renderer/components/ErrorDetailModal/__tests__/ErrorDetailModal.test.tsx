@@ -429,10 +429,12 @@ describe('ErrorDetailContent diagnostics', () => {
       .find((alert) => within(alert).queryByText('This diagnostic result is out of date.'))
     expect(staleAlert).toBeDefined()
     const rerun = within(staleAlert as HTMLElement).getByRole('button', { name: 'Quick basic checks' })
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
 
     await user.click(rerun)
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
   })
 
   it('starts Doctor diagnostics immediately but waits for an explicit AI diagnosis request', async () => {
