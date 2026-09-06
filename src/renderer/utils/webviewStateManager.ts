@@ -1,13 +1,17 @@
 import { loggerService } from '@logger'
+import type { WebviewTag } from 'electron'
 
 const logger = loggerService.withContext('WebviewStateManager')
 
 // Global WebView loaded states - shared between popup and tab modes
 const globalWebviewStates = new Map<string, boolean>()
+const globalWebviewElements = new Map<string, WebviewTag>()
 
 // Per-app listeners (fine grained)
 type WebviewStateListener = (loaded: boolean) => void
 const appListeners = new Map<string, Set<WebviewStateListener>>()
+type WebviewElementListener = () => void
+const elementListeners = new Map<string, Set<WebviewElementListener>>()
 
 const emitState = (appId: string, loaded: boolean) => {
   const listeners = appListeners.get(appId)
@@ -20,6 +24,43 @@ const emitState = (appId: string, loaded: boolean) => {
         logger.debug(`Listener error for ${appId}: ${(e as Error).message}`)
       }
     })
+  }
+}
+
+const emitElementChange = (appId: string) => {
+  const listeners = elementListeners.get(appId)
+  if (listeners && listeners.size) {
+    listeners.forEach((cb) => {
+      try {
+        cb()
+      } catch (e) {
+        logger.debug(`Element listener error for ${appId}: ${(e as Error).message}`)
+      }
+    })
+  }
+}
+
+export const setWebviewElement = (appId: string, element: WebviewTag | null) => {
+  if (getWebviewElement(appId) === element) return
+  if (element) globalWebviewElements.set(appId, element)
+  else globalWebviewElements.delete(appId)
+  emitElementChange(appId)
+}
+
+export const getWebviewElement = (appId: string): WebviewTag | null => {
+  return globalWebviewElements.get(appId) ?? null
+}
+
+export const onWebviewElementChange = (appId: string, listener: WebviewElementListener): (() => void) => {
+  let listeners = elementListeners.get(appId)
+  if (!listeners) {
+    listeners = new Set<WebviewElementListener>()
+    elementListeners.set(appId, listeners)
+  }
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+    if (listeners.size === 0) elementListeners.delete(appId)
   }
 }
 
@@ -49,6 +90,7 @@ export const getWebviewLoaded = (appId: string): boolean => {
  */
 export const clearWebviewState = (appId: string) => {
   const wasLoaded = globalWebviewStates.delete(appId)
+  const hadElement = globalWebviewElements.delete(appId)
   if (wasLoaded) {
     logger.debug(`WebView state cleared for ${appId}`)
   }
@@ -56,6 +98,7 @@ export const clearWebviewState = (appId: string) => {
   // Subscribers own their cleanup; removing them here would leave their local
   // ready state stale and prevent them from observing a replacement WebView.
   emitState(appId, false)
+  if (hadElement) emitElementChange(appId)
 }
 
 /**
@@ -64,8 +107,10 @@ export const clearWebviewState = (appId: string) => {
 export const clearAllWebviewStates = () => {
   const count = globalWebviewStates.size
   globalWebviewStates.clear()
+  globalWebviewElements.clear()
   logger.debug(`Cleared all WebView states (${count} apps)`)
   appListeners.clear()
+  elementListeners.clear()
 }
 
 /**

@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn(),
   setWebviewLoaded: vi.fn(),
   webviewLoaded: true,
+  webviewElements: new Map<string, Electron.WebviewTag>(),
+  webviewElementListeners: new Map<string, Set<() => void>>(),
   webviewStateListeners: new Set<(loaded: boolean) => void>(),
   isActiveTab: true,
   currentTab: {
@@ -134,7 +136,14 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
+  getWebviewElement: (appId: string) => mocks.webviewElements.get(appId) ?? null,
   getWebviewLoaded: () => mocks.webviewLoaded,
+  onWebviewElementChange: (appId: string, listener: () => void) => {
+    const listeners = mocks.webviewElementListeners.get(appId) ?? new Set<() => void>()
+    listeners.add(listener)
+    mocks.webviewElementListeners.set(appId, listeners)
+    return () => listeners.delete(listener)
+  },
   onWebviewStateChange: (_appId: string, listener: (loaded: boolean) => void) => {
     mocks.webviewStateListeners.add(listener)
     return () => mocks.webviewStateListeners.delete(listener)
@@ -178,6 +187,8 @@ describe('MiniAppPage', () => {
     mocks.splitOpen = false
     mocks.splitMiniAppId = ''
     mocks.webviewLoaded = true
+    mocks.webviewElements.clear()
+    mocks.webviewElementListeners.clear()
     mocks.webviewStateListeners.clear()
     mocks.isActiveTab = true
     mocks.currentTab = {
@@ -343,7 +354,7 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -361,7 +372,7 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', webview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -387,15 +398,14 @@ describe('MiniAppPage', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }
-    let currentWebview: typeof staleWebview | typeof replacementWebview | null = staleWebview
-    vi.spyOn(document, 'querySelector').mockImplementation(() => currentWebview as unknown as Element)
+    mocks.webviewElements.set('chatgpt', staleWebview as unknown as Electron.WebviewTag)
 
     const { getByTestId } = render(<MiniAppPage />)
 
     act(() => {
       mocks.webviewLoaded = false
       staleWebview.isConnected = false
-      currentWebview = null
+      mocks.webviewElements.delete('chatgpt')
       mocks.webviewStateListeners.forEach((listener) => listener(false))
     })
     fireEvent.click(getByTestId('minimal-toolbar'))
@@ -403,7 +413,7 @@ describe('MiniAppPage', () => {
     expect(staleReload).not.toHaveBeenCalled()
     expect(replacementReload).not.toHaveBeenCalled()
 
-    currentWebview = replacementWebview
+    mocks.webviewElements.set('chatgpt', replacementWebview as unknown as Electron.WebviewTag)
     act(() => {
       mocks.webviewLoaded = true
       mocks.webviewStateListeners.forEach((listener) => listener(true))
