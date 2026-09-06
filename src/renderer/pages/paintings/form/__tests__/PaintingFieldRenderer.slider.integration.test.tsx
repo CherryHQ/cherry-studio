@@ -46,6 +46,82 @@ it('moves a step-declared range through the real Slider keyboard contract', asyn
   expect(screen.getByRole('spinbutton', { name: 'paintings.num_images' })).toHaveDisplayValue('2')
 })
 
+it('keeps the slider synchronized when the numeric companion steps with arrow keys', async () => {
+  const user = userEvent.setup()
+
+  function ControlledRange() {
+    const [numImages, setNumImages] = useState(1)
+    return (
+      <PaintingFieldRenderer
+        item={{
+          type: 'slider',
+          key: 'numImages',
+          title: 'paintings.num_images',
+          min: 1,
+          max: 4,
+          step: 1,
+          initialValue: 1
+        }}
+        painting={{ numImages }}
+        onChange={(updates) => setNumImages(updates.numImages as number)}
+      />
+    )
+  }
+
+  render(<ControlledRange />)
+
+  const input = screen.getByRole('spinbutton', { name: 'paintings.num_images' })
+  await user.click(input)
+  await user.keyboard('{ArrowUp}')
+
+  expect(input).toHaveDisplayValue('2')
+  expect(screen.getByRole('slider', { name: 'paintings.num_images' })).toHaveAttribute('aria-valuenow', '2')
+})
+
+it('discards a focused draft when a same-key model changes the range constraints', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  const { rerender } = render(
+    <PaintingFieldRenderer
+      item={{ type: 'slider', key: 'strength', min: 0, max: 20, step: 0.1, initialValue: 4.5 }}
+      painting={{ strength: 4.5 }}
+      onChange={onChange}
+    />
+  )
+
+  const input = screen.getByRole('spinbutton', { name: 'strength' })
+  await user.clear(input)
+  await user.type(input, '12')
+
+  rerender(
+    <PaintingFieldRenderer
+      item={{ type: 'slider', key: 'strength', min: 0, max: 10, step: 1, initialValue: 7 }}
+      painting={{ strength: 7 }}
+      onChange={onChange}
+    />
+  )
+
+  expect(input).toHaveDisplayValue('7')
+})
+
+it('does not expose a transient out-of-range draft as the current aria value', async () => {
+  const user = userEvent.setup()
+  render(
+    <PaintingFieldRenderer
+      item={{ type: 'slider', key: 'strength', min: 0, max: 20, step: 0.1, initialValue: 4.5 }}
+      painting={{ strength: 4.5 }}
+      onChange={vi.fn()}
+    />
+  )
+
+  const input = screen.getByRole('spinbutton', { name: 'strength' })
+  await user.clear(input)
+  await user.type(input, '99')
+
+  expect(input).toHaveDisplayValue('99')
+  expect(input).not.toHaveAttribute('aria-valuenow')
+})
+
 it('keeps a persisted out-of-range value inside the real controls aria range', () => {
   render(
     <PaintingFieldRenderer

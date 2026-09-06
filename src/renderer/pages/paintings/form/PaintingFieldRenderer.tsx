@@ -45,12 +45,15 @@ function PaintingRangeField({
   const snapStep = typeof step === 'number' && step > 0 ? step : undefined
   const rawValueRef = useRef<string | null>(null)
   const discardingRef = useRef(false)
+  const steppingRef = useRef(false)
+  const lastSteppedValueRef = useRef<number | null>(null)
   const boundedValue = Math.min(max, Math.max(min, numericValue))
   const sliderValue = snapStep === undefined ? boundedValue : alignRangeValue(boundedValue, min, max, snapStep)
 
   const commitRange = (raw: number) => {
     const next = snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
     onChange({ [fieldKey]: next })
+    return next
   }
 
   return (
@@ -75,18 +78,29 @@ function PaintingRangeField({
         max={max}
         step={snapStep}
         value={boundedValue}
+        onValueChange={(value) => {
+          if (steppingRef.current && value !== null) {
+            lastSteppedValueRef.current = commitRange(value)
+          }
+        }}
         onBlurCapture={(event) => {
           rawValueRef.current = event.currentTarget.value
         }}
         onKeyDownCapture={(event) => {
           discardingRef.current = event.key === 'Escape'
+          steppingRef.current = event.key === 'ArrowUp' || event.key === 'ArrowDown'
+        }}
+        onKeyDown={() => {
+          steppingRef.current = false
         }}
         onBlur={(settled) => {
           const parsedRaw = rawValueRef.current?.trim() ? Number(rawValueRef.current) : Number.NaN
           const value = discardingRef.current || !Number.isFinite(parsedRaw) ? settled : parsedRaw
           rawValueRef.current = null
           discardingRef.current = false
-          if (value !== null) commitRange(value)
+          const lastSteppedValue = lastSteppedValueRef.current
+          lastSteppedValueRef.current = null
+          if (value !== null && value !== lastSteppedValue) commitRange(value)
         }}
       />
     </div>
