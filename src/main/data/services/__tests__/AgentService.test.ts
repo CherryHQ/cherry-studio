@@ -415,6 +415,37 @@ describe('AgentService', () => {
   })
 
   describe('model updates', () => {
+    it('normalizes a stored medium effort when switching the agent to Kimi K3', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      const created = await insertAgent({ configuration: { reasoning_effort: 'medium' } })
+
+      const updated = agentService.updateAgent(created.id, { model: kimiK3ModelId })
+
+      expect(updated).toMatchObject({
+        model: kimiK3ModelId,
+        configuration: { reasoning_effort: 'high' }
+      })
+    })
+
     it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
       const created = await insertAgent({
         configuration: { avatar: '🤖', reasoning_effort: 'high' }

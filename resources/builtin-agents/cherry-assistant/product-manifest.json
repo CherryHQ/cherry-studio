@@ -229,6 +229,19 @@
       }
     },
     {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "chat.context.toggle_new",
       "titleKey": "settings.shortcuts.toggle_new_context",
       "categoryKey": "settings.shortcuts.chat",
@@ -449,7 +462,7 @@
     }
   ],
   "providers": {
-    "version": "ec8673d7b68fe472",
+    "version": "5dfdc0799d6d2042",
     "count": 61,
     "entries": [
       {

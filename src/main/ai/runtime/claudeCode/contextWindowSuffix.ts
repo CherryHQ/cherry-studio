@@ -21,6 +21,12 @@
  */
 
 const ONE_MILLION = 1_000_000
+const DEFAULT_CONTEXT_WINDOW = 200_000
+
+/** Claude Code's local context budget (see the header): 200K by default, 1M under the `[1m]` suffix. */
+export function effectiveContextWindowTokens(modelId: string | undefined): number {
+  return modelId && /\[1m\]$/i.test(modelId) ? ONE_MILLION : DEFAULT_CONTEXT_WINDOW
+}
 
 export function with1mSuffix(
   modelId: string | undefined,

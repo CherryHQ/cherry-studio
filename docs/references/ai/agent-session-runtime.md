@@ -488,6 +488,10 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
+- a top-level `message_start` -> a live `context-usage` projected from the
+  request's input usage (the occupancy at that provider call), so the usage
+  indicator advances mid-turn; the host's post-turn `getContextUsage()` pull
+  stays the authoritative reading;
 - a successful `result` -> flush pending per-request usage, then `resume-token`, a
   cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
 - a failed `result` -> preserve its final usage and resume token, then emit `error` and
