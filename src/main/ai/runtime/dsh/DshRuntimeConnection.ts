@@ -21,6 +21,7 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -354,6 +355,18 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onGuardCheck: async (toolName, args, cwd) => {
+          const decision = await evaluateUserDataSqliteGuard({
+            runtime: 'dsh',
+            toolName,
+            args,
+            cwd,
+            workspacePath: this.workspacePath
+          })
+          if (!decision) return { kind: 'allow' }
+          logger.info('Blocked a write to user data SQLite', { sessionId: this.input.sessionId, toolName })
+          return { kind: 'deny', ...decision }
+        },
         onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
       await this.bridge.listen()

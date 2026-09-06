@@ -152,6 +152,35 @@ describe('diffAssistantUpdate', () => {
     })
   })
 
+  it('repairs unsafe legacy max tokens without resending them during unrelated edits', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        maxTokens: Number.MAX_SAFE_INTEGER + 1,
+        enableMaxTokens: false,
+        temperature: 0.7
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+
+    expect(baseline.maxTokens).toBe(DEFAULT_ASSISTANT_SETTINGS.maxTokens)
+
+    const unrelatedUpdate = diffAssistantUpdate({ ...baseline, description: 'edited' }, baseline, assistant)
+    expect(unrelatedUpdate?.dto).toEqual({ description: 'edited' })
+    expect({ ...assistant.settings, ...unrelatedUpdate?.dto.settings }).toMatchObject({
+      temperature: 0.7
+    })
+
+    const repairUpdate = diffAssistantUpdate({ ...baseline, enableMaxTokens: true }, baseline, assistant)
+    expect(repairUpdate?.dto).toEqual({
+      settings: {
+        maxTokens: DEFAULT_ASSISTANT_SETTINGS.maxTokens,
+        enableMaxTokens: true
+      }
+    })
+    expect(UpdateAssistantSchema.safeParse(repairUpdate?.dto).success).toBe(true)
+  })
+
   it('emits only the changed settings key', () => {
     const assistant = createAssistant({
       settings: {

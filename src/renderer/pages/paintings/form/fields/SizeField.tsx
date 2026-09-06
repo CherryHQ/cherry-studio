@@ -1,4 +1,4 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { InputNumber, RowFlex } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import { optionalFiniteNumber } from '../../form/fieldValue'
@@ -20,33 +20,25 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
   return (
     <div className="flex flex-col gap-2">
       <RowFlex className="items-center gap-2">
-        <Input
+        <InputNumber
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
-          type="number"
-          value={widthValue ?? ''}
-          onChange={(event) => {
-            const value = event.target.value === '' ? '' : event.target.valueAsNumber
-            if (typeof value === 'number' && !Number.isFinite(value)) return
-            onChange({ [widthKey]: value })
-          }}
+          value={widthValue}
+          onBlur={(value) => onChange({ [widthKey]: value ?? undefined })}
           min={validation.minWidth}
           max={validation.maxWidth}
+          step={1}
           className="flex-1"
         />
         <span className="text-muted-foreground text-xs">x</span>
-        <Input
+        <InputNumber
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
-          type="number"
-          value={heightValue ?? ''}
-          onChange={(event) => {
-            const value = event.target.value === '' ? '' : event.target.valueAsNumber
-            if (typeof value === 'number' && !Number.isFinite(value)) return
-            onChange({ [heightKey]: value })
-          }}
+          value={heightValue}
+          onBlur={(value) => onChange({ [heightKey]: value ?? undefined })}
           min={validation.minHeight}
           max={validation.maxHeight}
+          step={1}
           className="flex-1"
         />
         <span className="text-muted-foreground text-xs">px</span>

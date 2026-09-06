@@ -578,6 +578,8 @@ export interface TreeNode {
   isContextBoundary?: boolean
   /** Whether this is an empty successful user leaf awaiting composer input. */
   isAwaitingInput?: boolean
+  /** Whether the message contains any persisted content parts. */
+  hasContent: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

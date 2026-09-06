@@ -1,6 +1,11 @@
 import i18n from '@renderer/i18n/resolver'
 import { formatFileSize } from '@renderer/utils/file'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
+import {
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE,
+  BACKUP_NEWER_VERSION_ERROR_CODE,
+  BACKUP_OPERATION_BUSY_ERROR_CODE
+} from '@shared/types/backup'
 
 type BackupErrorFallbackKey =
   | 'error.backup.file_format'
@@ -31,8 +36,26 @@ function isTlsCertificateFailure(error: unknown): boolean {
 type BackupMessageKey =
   | BackupErrorFallbackKey
   | 'backup.error.active_data_writers'
-  | 'backup.error.webdav_tls_certificate'
   | 'backup.error.disk_full'
+  | 'backup.error.newer_version'
+  | 'backup.error.operation_busy'
+  | 'backup.error.webdav_tls_certificate'
+
+function resolveBackupErrorKey(error: unknown): string | null {
+  if (!(error instanceof Error)) {
+    return null
+  }
+  if (error.message.includes(BACKUP_NEWER_VERSION_ERROR_CODE)) {
+    return 'backup.error.newer_version'
+  }
+  if (error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) || error.name === 'BackupOperationBusyError') {
+    return 'backup.error.operation_busy'
+  }
+  if (error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
+    return 'backup.error.active_data_writers'
+  }
+  return null
+}
 
 export function getLocalizedBackupErrorMessage(
   error: unknown,
@@ -53,14 +76,13 @@ export function getLocalizedBackupErrorMessage(
     })
   }
 
+  const resolvedKey = resolveBackupErrorKey(error)
+  if (resolvedKey) {
+    return i18n.t(resolvedKey)
+  }
+
   let messageKey: BackupMessageKey = fallbackKey
-  if (errorMessage.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
-    messageKey = 'backup.error.active_data_writers'
-  } else if (
-    errorCode === 'ENOSPC' ||
-    errorMessage.includes('ENOSPC') ||
-    /no space left on device/i.test(errorMessage)
-  ) {
+  if (errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)) {
     messageKey = 'backup.error.disk_full'
   } else if (options?.tlsCertificateHint === true && isTlsCertificateFailure(error)) {
     // Scoped to WebDAV callers: the guidance points at the WebDAV self-signed
@@ -69,4 +91,8 @@ export function getLocalizedBackupErrorMessage(
   }
 
   return i18n.t(messageKey)
+}
+
+export function getBackupErrorTitleKey(error: unknown): string {
+  return resolveBackupErrorKey(error) ?? 'error.backup.file_format'
 }

@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   exportMessageAsMarkdown,
   exportTopicAsMarkdown,
+  exportTopicBranchAsMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning
 } from '../ExportService'
@@ -1206,5 +1207,28 @@ describe('exportTopicAsMarkdown image pipeline', () => {
 
     expect(fileApi.save).not.toHaveBeenCalled()
     expect(fileApi.write).not.toHaveBeenCalled()
+  })
+})
+
+describe('exportTopicBranchAsMarkdown', () => {
+  const topic = { id: 't1', name: 'My Topic' } as Parameters<typeof exportTopicBranchAsMarkdown>[0]
+
+  it('exports only the requested root-to-node path while keeping the topic heading', async () => {
+    vi.mocked(getTopicMessages).mockResolvedValue([view([{ type: 'text', text: 'selected branch only' }], 'assistant')])
+    fileApi.save.mockResolvedValue('/tmp/x/branch.md')
+
+    await exportTopicBranchAsMarkdown(
+      topic,
+      { nodeId: 'branch-leaf', name: 'Try another model' },
+      false,
+      chooseImageMode
+    )
+
+    expect(getTopicMessages).toHaveBeenCalledWith('t1', {
+      nodeId: 'branch-leaf',
+      includeSiblings: false
+    })
+    expect(fileApi.save).toHaveBeenCalledWith('My Topic - Try another model.md', expect.stringContaining('# My Topic'))
+    expect(fileApi.save.mock.calls[0][1]).toContain('selected branch only')
   })
 })
