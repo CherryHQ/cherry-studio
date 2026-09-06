@@ -74,6 +74,25 @@ describe('Tooltip', () => {
       expect(screen.getByText('Trigger')).toBeInTheDocument()
     })
 
+    it('unmounts an open tooltip content immediately when isDisabled turns true', () => {
+      const { rerender } = render(
+        <Tooltip content="close-tip" isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+      expect(getTooltipContentElement('close-tip')).toBeInTheDocument()
+
+      rerender(
+        <Tooltip content="close-tip" isOpen isDisabled>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      // Anchors hidden via display:none leave Radix tooltips parked at the viewport
+      // origin during their exit animation; disabling must drop the content at once.
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+    })
+
     it('uses title as fallback when content is not provided', () => {
       const { container } = render(
         <Tooltip title="title-tip">
