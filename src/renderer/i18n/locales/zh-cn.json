@@ -3940,7 +3940,7 @@
   "settings.dependencies.viewErrorDetails": "查看详情",
   "settings.developer.client_id": "客户端 ID",
   "settings.developer.enable_developer_mode": "启用开发者模式",
-  "settings.developer.help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
+  "settings.developer.help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。",
   "settings.developer.title": "开发者模式",
   "settings.display.custom.css.label": "自定义 CSS",
   "settings.display.custom.css.migration_notice": "此样式表由 v1 迁移而来，目前处于禁用状态。请先将其适配到 v2，然后删除第一行以启用。",

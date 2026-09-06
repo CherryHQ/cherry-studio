@@ -3940,7 +3940,7 @@
   "settings.dependencies.viewErrorDetails": "檢視詳細資訊",
   "settings.developer.client_id": "用戶端 ID",
   "settings.developer.enable_developer_mode": "啟用開發者模式",
-  "settings.developer.help": "啟用開發者模式後，可使用呼叫鏈功能檢視模型呼叫過程的資料流。更改將在重啟應用程式後生效。",
+  "settings.developer.help": "啟用開發者模式後，可使用呼叫鏈功能檢視模型呼叫過程的資料流。",
   "settings.developer.title": "開發者模式",
   "settings.display.custom.css.label": "自訂 CSS",
   "settings.display.custom.css.migration_notice": "此樣式表由 v1 移轉而來，目前處於停用狀態。請先將其調整為適用於 v2，然後刪除第一行以啟用。",

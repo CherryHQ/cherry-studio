@@ -3940,7 +3940,7 @@
   "settings.dependencies.viewErrorDetails": "View details",
   "settings.developer.client_id": "Client ID",
   "settings.developer.enable_developer_mode": "Enable Developer Mode",
-  "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
+  "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation.",
   "settings.developer.title": "Developer Mode",
   "settings.display.custom.css.label": "Custom CSS",
   "settings.display.custom.css.migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
