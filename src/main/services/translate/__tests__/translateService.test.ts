@@ -1,4 +1,4 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
 const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
+const webContentsListenerMocks = vi.hoisted(() => ({
+  instances: [] as Array<{
+    id: string
+    onChunk: ReturnType<typeof vi.fn>
+    onDone: ReturnType<typeof vi.fn>
+    onPaused: ReturnType<typeof vi.fn>
+    onError: ReturnType<typeof vi.fn>
+    isAlive: ReturnType<typeof vi.fn>
+  }>
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -33,12 +43,18 @@ vi.mock('@main/data/services/TranslateLanguageService', () => ({
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
 // test doesn't need a real WebContents.
 vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
-  WebContentsListener: vi.fn().mockImplementation((sender: unknown, streamId: string) => ({
-    id: `wc:test:${streamId}`,
-    sender,
-    streamId,
-    onError: vi.fn()
-  }))
+  WebContentsListener: vi.fn().mockImplementation((_sender: unknown, streamId: string) => {
+    const listener = {
+      id: `wc:test:${streamId}`,
+      onChunk: vi.fn(),
+      onDone: vi.fn(),
+      onPaused: vi.fn(),
+      onError: vi.fn(),
+      isAlive: vi.fn(() => true)
+    }
+    webContentsListenerMocks.instances.push(listener)
+    return listener
+  })
 }))
 
 const { makeModel } = await import('../../../ai/__tests__/fixtures')
@@ -54,6 +70,16 @@ const TARGET: TranslateLanguage = {
 
 const fakeSender = { id: 1 } as unknown as Electron.WebContents
 
+function mockQwenMtModel(modelId: string, providerId = 'dashscope') {
+  MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', `${providerId}::${modelId}`)
+  getByKeyMock.mockReturnValue({
+    id: `${providerId}::${modelId}`,
+    providerId,
+    apiModelId: modelId,
+    name: modelId
+  })
+}
+
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   getByKeyMock.mockReset()
@@ -61,6 +87,7 @@ beforeEach(() => {
   getByLangCodeMock.mockReset()
   streamPromptMock.mockReset()
   streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
+  webContentsListenerMocks.instances.length = 0
 })
 
 describe('translateService.resolveTranslatePayload', () => {
@@ -193,6 +220,213 @@ describe('translateService.open', () => {
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+  })
+
+  it.each([
+    ['zh-cn', 'Chinese (Simplified)', 'Chinese'],
+    ['zh', 'Chinese', 'Chinese'],
+    ['zh-tw', 'Chinese (Traditional)', 'Traditional Chinese'],
+    ['zh-yue', 'Cantonese', 'Cantonese']
+  ] as const)('maps %s (%s) to the Qwen MT target language %s', (targetLangCode, value, expectedTargetLanguage) => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByLangCodeMock.mockReturnValue({
+      ...TARGET,
+      langCode: targetLangCode,
+      value
+    })
+
+    translateService.open(fakeSender, {
+      streamId: `translate:qwen-mt-${targetLangCode}`,
+      text: '原文',
+      targetLangCode
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: '原文',
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            dashscope: {
+              translation_options: {
+                source_lang: 'auto',
+                target_lang: expectedTargetLanguage
+              }
+            }
+          }
+        })
+      })
+    )
+  })
+
+  it.each(['qwen-mt-flash', 'qwen-mt-lite'])('enables incremental output for %s', (modelId) => {
+    mockQwenMtModel(modelId)
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: `translate:${modelId}`,
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            dashscope: expect.objectContaining({ incremental_output: true })
+          }
+        })
+      })
+    )
+  })
+
+  it('uses the DashScope runtime namespace for a preset-derived provider instance', () => {
+    mockQwenMtModel('qwen-mt-turbo', 'dashscope-copy')
+    getByProviderIdMock.mockReturnValue({ id: 'dashscope-copy', presetProviderId: 'dashscope' })
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-mt-preset-copy',
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            dashscope: expect.objectContaining({ translation_options: expect.any(Object) })
+          }
+        })
+      })
+    )
+  })
+
+  it('uses the OpenAI runtime namespace for a DashScope Responses endpoint', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByProviderIdMock.mockReturnValue({
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
+        }
+      }
+    })
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-mt-responses',
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            openai: expect.objectContaining({ translation_options: expect.any(Object) })
+          }
+        })
+      })
+    )
+  })
+
+  it('uses the Anthropic runtime namespace for a DashScope Anthropic endpoint', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByProviderIdMock.mockReturnValue({
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+        }
+      }
+    })
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-mt-anthropic',
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callOverrides: expect.objectContaining({
+          providerOptions: {
+            anthropic: expect.objectContaining({ translation_options: expect.any(Object) })
+          }
+        })
+      })
+    )
+  })
+
+  it.each(['qwen-mt-plus', 'qwen-mt-turbo', 'qwen-mt-plus(free)'])(
+    'normalizes cumulative %s chunks before renderer delivery',
+    (modelId) => {
+      mockQwenMtModel(modelId)
+      getByLangCodeMock.mockReturnValue(TARGET)
+
+      translateService.open(fakeSender, {
+        streamId: `translate:${modelId}`,
+        text: 'source',
+        targetLangCode: 'en-us'
+      })
+
+      const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [
+        { listener: { onChunk(chunk: unknown): void } }
+      ]
+      streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello' })
+      streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello world' })
+
+      const rendererListener = webContentsListenerMocks.instances[0]
+      expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
+        1,
+        { type: 'text-delta', id: 'text-1', delta: 'Hello' },
+        undefined,
+        undefined,
+        undefined
+      )
+      expect(rendererListener.onChunk).toHaveBeenNthCalledWith(
+        2,
+        { type: 'text-delta', id: 'text-1', delta: ' world' },
+        undefined,
+        undefined,
+        undefined
+      )
+    }
+  )
+
+  it('rejects a Qwen MT target language that the model does not support', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'eo', value: 'Esperanto' })
+
+    expect(() =>
+      translateService.open(fakeSender, {
+        streamId: 'translate:qwen-mt-unsupported',
+        text: 'source',
+        targetLangCode: 'eo' as any
+      })
+    ).toThrow('translate.error.not_supported')
+    expect(streamPromptMock).not.toHaveBeenCalled()
+  })
+
+  it("rejects a target outside qwen-mt-lite's 31-language contract", () => {
+    mockQwenMtModel('qwen-mt-lite')
+    getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'el', value: 'Greek' })
+
+    expect(() =>
+      translateService.open(fakeSender, {
+        streamId: 'translate:qwen-mt-lite-unsupported',
+        text: 'source',
+        targetLangCode: 'el'
+      })
+    ).toThrow('translate.error.not_supported')
+    expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

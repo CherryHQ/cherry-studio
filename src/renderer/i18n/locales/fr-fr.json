@@ -5145,6 +5145,7 @@
   "translate.error.failed": "échec de la traduction",
   "translate.error.languages_load_failed": "Échec du chargement des langues de traduction. Certaines fonctionnalités peuvent être indisponibles.",
   "translate.error.not_configured": "le modèle de traduction n'est pas configuré",
+  "translate.error.not_supported": "Qwen MT ne prend pas en charge la langue cible sélectionnée",
   "translate.exchange.label": "Échanger la langue source et la langue cible",
   "translate.files.drag_text": "Glisser-déposer ici",
   "translate.files.error.check_type": "Une erreur s'est produite lors de la vérification du type de fichier",

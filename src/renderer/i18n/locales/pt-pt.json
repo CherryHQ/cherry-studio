@@ -5145,6 +5145,7 @@
   "translate.error.failed": "Tradução falhou",
   "translate.error.languages_load_failed": "Falha ao carregar idiomas de tradução. Alguns recursos podem estar indisponíveis.",
   "translate.error.not_configured": "Modelo de tradução não configurado",
+  "translate.error.not_supported": "O Qwen MT não suporta o idioma de destino selecionado",
   "translate.exchange.label": "Trocar idioma de origem e idioma de destino",
   "translate.files.drag_text": "Arraste e solte aqui",
   "translate.files.error.check_type": "Ocorreu um erro ao verificar o tipo de ficheiro",

@@ -3,6 +3,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('i18next', () => ({
+  exists: (key: string) => key === 'translate.error.not_supported',
   t: (key: string) => `t(${key})`
 }))
 
@@ -273,6 +274,12 @@ describe('translateText (main-driven streaming)', () => {
       mockTranslateOpen.mockRejectedValueOnce(new Error('t(translate.error.not_configured)'))
       await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_configured)')
       expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+    })
+
+    it('localizes an app-owned error key returned by translate.open', async () => {
+      mockTranslateOpen.mockRejectedValueOnce(new Error('translate.error.not_supported'))
+
+      await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_supported)')
     })
   })
 
