@@ -64,11 +64,34 @@ export function mapEndpointToDshApi(
   }
 }
 
-/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
+/**
+ * Chat endpoints to consider for a model, in preference order: the model's
+ * declared endpoints first, then the gateway route, then the provider default.
+ */
+function dshCandidateEndpointTypes(provider: Provider, model: Model): EndpointType[] {
+  const candidates: EndpointType[] = [...(model.endpointTypes ?? [])]
+  const gateway = resolveGatewayChatRoute(provider, model)?.endpointType
+  if (gateway) candidates.push(gateway)
+  if (provider.defaultChatEndpoint) candidates.push(provider.defaultChatEndpoint)
+  return [...new Set(candidates)]
+}
+
+/**
+ * The effective chat endpoint the dsh runtime uses. Preference order is kept,
+ * but a declared endpoint with no dsh protocol no longer hides a later declared
+ * endpoint that has one (#19184): the model's first endpoint is used when it
+ * maps, else the first declared endpoint that does, else the first candidate
+ * (whose mapping is undefined — the gateway fallback then decides).
+ */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  const candidates = dshCandidateEndpointTypes(provider, model)
+  if (candidates.length === 0) return undefined
+  for (const candidate of candidates) {
+    if (mapEndpointToDshApi(candidate, provider.endpointConfigs?.[candidate]?.adapterFamily) !== undefined) {
+      return candidate
+    }
+  }
+  return candidates[0]
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */
