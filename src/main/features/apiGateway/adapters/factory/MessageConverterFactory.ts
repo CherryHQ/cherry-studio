@@ -32,6 +32,7 @@ export type InputParamsMap = {
 export interface ConverterOptions {
   googleReasoningCache?: ReasoningCache
   openRouterReasoningCache?: ReasoningCache
+  enableDeferredToolLoading?: boolean
 }
 
 /**
@@ -73,7 +74,8 @@ export class MessageConverterFactory {
     }
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,
-      openRouterReasoningCache: options.openRouterReasoningCache
+      openRouterReasoningCache: options.openRouterReasoningCache,
+      enableDeferredToolLoading: options.enableDeferredToolLoading
     }) as IMessageConverter<InputParamsMap[T]>
   }
 }
