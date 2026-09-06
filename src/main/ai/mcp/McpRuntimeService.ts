@@ -373,14 +373,8 @@ export class McpRuntimeService extends BaseService {
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
-      // A warmer's connect ran on a cached PATH, so adopting it would report its
-      // stale-PATH failure as this caller's. Let it settle and resolve again: a
-      // client it managed to connect is reused, a failed one is retried fresh.
-      // The re-entry redoes the check-then-set synchronously, as required above.
-      if (this.passivePendingClients.has(serverKey) && !options?.passiveEnv) {
-        getServerLogger(server).debug(`Not adopting a background warmer's pending connection`)
-        await pendingClient.catch(() => undefined)
-        return this.getOrCreateClient(server, options)
+      if (this.mustNotAdopt(serverKey, options)) {
+        return this.awaitThenReconnect(server, serverKey, pendingClient, options)
       }
       getServerLogger(server).silly(`Waiting for pending client initialization`)
       return pendingClient
@@ -400,6 +394,9 @@ export class McpRuntimeService extends BaseService {
       }
       const pendingAfterPing = this.pendingClients.get(serverKey)
       if (pendingAfterPing) {
+        if (this.mustNotAdopt(serverKey, options)) {
+          return this.awaitThenReconnect(server, serverKey, pendingAfterPing, options)
+        }
         return pendingAfterPing
       }
     }
@@ -414,6 +411,31 @@ export class McpRuntimeService extends BaseService {
     }
 
     return initPromise
+  }
+
+  /**
+   * Whether a pending connect must not be handed to this caller: a background
+   * warmer started it on a cached PATH, so adopting it would report the warmer's
+   * stale-PATH failure as the caller's own.
+   */
+  private mustNotAdopt(serverKey: string, options?: ConnectOptions): boolean {
+    return this.passivePendingClients.has(serverKey) && !options?.passiveEnv
+  }
+
+  /**
+   * Let a warmer's connect settle, then resolve from scratch: a client it managed
+   * to connect is reused, a failed one is retried on a fresh capture. The re-entry
+   * redoes the check-then-set synchronously, as getOrCreateClient requires.
+   */
+  private async awaitThenReconnect(
+    server: McpServer,
+    serverKey: string,
+    pending: Promise<Client>,
+    options?: ConnectOptions
+  ): Promise<Client> {
+    getServerLogger(server).debug(`Not adopting a background warmer's pending connection`, { serverKey })
+    await pending.catch(() => undefined)
+    return this.getOrCreateClient(server, options)
   }
 
   /**
