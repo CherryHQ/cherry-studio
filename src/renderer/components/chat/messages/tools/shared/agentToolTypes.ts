@@ -312,9 +312,19 @@ function isLaunchReceiptFor(output: unknown, resumedAgentId: string): boolean {
   // Only output that carries the launch receipt's `agentId:` trailer (or an equivalent structured
   // field) may resolve as the launch: a serialized mention inside another part's reply would
   // otherwise redirect the entry to an unrelated flow.
-  if (typeof output === 'string') return /\bagent_?[Ii]d\s*:\s*/.test(output) && output.includes(resumedAgentId)
+  if (typeof output === 'string') {
+    // The trailer marker alone is spoofable by prose; require the launch receipt's structural
+    // markers too — the SDK's launch prefix, the internal-metadata annotation, or the
+    // send-back instruction that follows the id on every real receipt.
+    return (
+      /Async agent launched successfully|\(internal|Use SendMessage with to/.test(output) &&
+      /\bagent_?[Ii]d\s*:\s*/.test(output) &&
+      output.includes(resumedAgentId)
+    )
+  }
   if (isRecord(output)) {
-    const agentId = output.agentId ?? output.agent_id
+    // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools).
+    const agentId = output.agentId ?? output.agent_id ?? output.taskId
     return typeof agentId === 'string' && agentId === resumedAgentId
   }
   return false
