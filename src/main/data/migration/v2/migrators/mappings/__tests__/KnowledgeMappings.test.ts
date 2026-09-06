@@ -999,13 +999,10 @@ describe('expandLegacyDirectoryItem', () => {
     expect(() => assertSafeKnowledgeRelativePath(result!.children[0].data.relativePath!)).not.toThrow()
   })
 
-  it('sanitizes a folder name the native expansion would keep verbatim', () => {
-    // Deliberate divergence, not an oversight: migration reads v1 strings that may come from
-    // another OS and has no local file to validate them against, so it sanitizes every segment
-    // and is the sole guarantor the path is readable. `chooseDirectoryPathPrefix` reads a folder
-    // that exists here, so it keeps `a<b` as-is (pinned in
-    // `features/knowledge/pipeline/sources/__tests__/directory.test.ts`). The visible consequence
-    // is that reindexing this container on POSIX moves it from `a_b` back to `a<b`.
+  it('sanitizes every segment of a migrated folder path', () => {
+    // Native expansion sanitizes the same way (pinned in
+    // `features/knowledge/pipeline/sources/__tests__/directory.test.ts`), so reindexing this
+    // container on POSIX leaves it at `a_b` instead of moving it back to `a<b`.
     const result = expandLegacyDirectoryItem(
       'kb-1',
       { id: 'dir-1', type: 'directory', content: '/tmp/a<b', uniqueIds: ['L1'] },

@@ -208,24 +208,49 @@ export function validateFileName(
  * 1. Replace `< > : " / \ | ? *` and ASCII control chars (0x00-0x1f) with `replacement`.
  * 2. Replace Windows-reserved prefixes (CON / PRN / AUX / NUL / COM1-9 /
  *    LPT1-9) — preserves the trailing `.<ext>` or end-of-string.
- * 3. Trim trailing whitespace and dots (Windows convention).
- * 4. Truncate to 255 characters (filesystem limit).
+ * 3. Truncate to 255 characters (filesystem limit), shortening the stem so the
+ *    extension survives.
+ * 4. Trim trailing whitespace and dots (Windows convention).
+ *
+ * Truncating before the trim, and off the stem rather than the whole string, is
+ * what makes the result both usable and idempotent. Cutting the tail last used to
+ * drop `.pdf` off a 300-character name — leaving something every extension-driven
+ * decision downstream reads as a plain text file — and could land the cut on a `.`
+ * or space, re-creating the trailing character step 4 exists to remove.
  */
 export function sanitizeFilename(fileName: string, replacement = '_'): string {
   if (!fileName) return ''
 
-  let sanitized = fileName
+  const cleaned = fileName
     // Not `WINDOWS_INVALID_CHARS`: this one also strips ASCII control characters
     // and is global.
     // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement)
     .replace(WINDOWS_RESERVED_NAMES, `${replacement}$2`)
-    .replace(/[\s.]+$/, '')
-    .substring(0, FILE_NAME_MAX_LENGTH)
+
+  let sanitized = truncateToNameLimit(cleaned).replace(/[\s.]+$/, '')
 
   if (!sanitized) {
     sanitized = 'untitled'
   }
 
   return sanitized
+}
+
+/**
+ * Shorten `name` to the length limit by cutting its stem, so `<300 chars>.pdf` keeps
+ * being a PDF. A leading-dot name (`.gitignore`) is all stem — there is no extension
+ * to protect — and an extension longer than the limit is not one worth keeping.
+ */
+function truncateToNameLimit(name: string): string {
+  if (name.length <= FILE_NAME_MAX_LENGTH) {
+    return name
+  }
+
+  const dot = name.lastIndexOf('.')
+  const ext = dot > 0 ? name.slice(dot) : ''
+  if (ext.length === 0 || ext.length >= FILE_NAME_MAX_LENGTH) {
+    return name.slice(0, FILE_NAME_MAX_LENGTH)
+  }
+  return name.slice(0, FILE_NAME_MAX_LENGTH - ext.length) + ext
 }
