@@ -96,7 +96,9 @@ export class AgentWorkspaceService {
       .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
-    return rows.map(rowToAgentWorkspace)
+    return rows
+      .filter((row) => row.type !== AGENT_WORKSPACE_TYPE.USER || !isFilesystemRoot(row.path))
+      .map(rowToAgentWorkspace)
   }
 
   getById(id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
@@ -115,7 +117,9 @@ export class AgentWorkspaceService {
       ? eq(agentWorkspaceTable.id, id)
       : and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
     const [row] = tx.select().from(agentWorkspaceTable).where(predicate).limit(1).all()
-    if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    if (!row || (row.type === AGENT_WORKSPACE_TYPE.USER && isFilesystemRoot(row.path))) {
+      throw DataApiErrorFactory.notFound('Workspace', id)
+    }
     return row
   }
 

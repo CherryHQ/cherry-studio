@@ -149,6 +149,28 @@ describe('AgentWorkspaceService', () => {
     }
   )
 
+  it('hides persisted user filesystem roots from workspace lookup boundaries', async () => {
+    const rootWorkspaceId = 'workspace-persisted-root'
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: rootWorkspaceId,
+      name: 'Persisted Root',
+      path: '/',
+      type: 'user',
+      orderKey: 'a0'
+    })
+
+    expect(agentWorkspaceService.list()).toEqual([])
+    expect(agentWorkspaceService.list({ includeSystem: true })).toEqual([])
+    expect(captureError(() => agentWorkspaceService.getById(rootWorkspaceId))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(
+      captureError(() =>
+        dbh.db.transaction((tx) => agentWorkspaceService.getByIdTx(tx, rootWorkspaceId, { includeSystem: true }))
+      )
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+  })
+
   it('localizes the filesystem-root validation error for the current app language', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
 
