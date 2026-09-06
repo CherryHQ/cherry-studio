@@ -394,6 +394,18 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
+    // Windows: opacity is zeroed by minimize-to-tray; restore on show/restore for taskbar/Alt-Tab paths bypassing showMainWindow.
+    if (isWin) {
+      const restoreOpacity = () => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.setOpacity(1)
+          mainWindow.setSkipTaskbar(false)
+        }
+      }
+      mainWindow.on('restore', restoreOpacity)
+      mainWindow.on('show', restoreOpacity)
+    }
+
     // `will-resize` only fires on Win & Mac; Linux uses `resize` instead (which
     // can cause UI flicker but is the only available signal).
     if (isLinux) {
@@ -515,6 +527,12 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
+      // Windows: minimize() refocuses previous window unlike hide(); opacity 0 suppresses animation.
+      if (isWin) {
+        this.minimizeToTrayOnWindows(mainWindow)
+        return
+      }
+
       mainWindow.hide()
     })
     // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
@@ -529,6 +547,11 @@ export class MainWindowService extends BaseService {
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
+        // Windows: restore opacity before restore() to avoid flash; listeners cover out-of-band restores.
+        if (isWin) {
+          mainWindow.setOpacity(1)
+          mainWindow.setSkipTaskbar(false)
+        }
         mainWindow.restore()
         this.pushMainWindowInitData(initData)
         return
@@ -609,14 +632,21 @@ export class MainWindowService extends BaseService {
       return
     }
 
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    // isVisible() true for minimized; focus() can't restore it (opacity 0 on Windows) — treat as hidden.
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
       if (mainWindow.isFocused()) {
         // Same pattern as the close handler when the user opted into tray-close:
         // tell WM to stop counting Main toward Dock visibility BEFORE hiding.
         if (isMac && application.get('PreferenceService').get('app.tray.on_close')) {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
-        mainWindow.hide()
+
+        // Windows: minimize() refocuses previous window; opacity 0 suppresses animation.
+        if (isWin) {
+          this.minimizeToTrayOnWindows(mainWindow)
+        } else {
+          mainWindow.hide()
+        }
       } else {
         mainWindow.focus()
       }
@@ -624,6 +654,12 @@ export class MainWindowService extends BaseService {
     }
 
     this.showMainWindow()
+  }
+
+  private minimizeToTrayOnWindows(win: BrowserWindow) {
+    win.setOpacity(0)
+    win.setSkipTaskbar(true)
+    win.minimize()
   }
 
   /**
