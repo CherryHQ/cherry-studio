@@ -3,6 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AboutSettings } from '@renderer/pages/settings/AboutSettings'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 
+type AboutSettingsSearch = Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
+
 const DOCTOR_PANEL_VALUES = {
   checks: true,
   export: true,
@@ -15,7 +17,7 @@ function isDoctorPanel(value: unknown): value is DoctorPanel {
 
 export const Route = createFileRoute('/settings/about')({
   component: AboutSettings,
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): AboutSettingsSearch => {
     const validated = { ...search }
     if (!isDoctorPanel(validated[DOCTOR_OPEN_QUERY_PARAM])) {
       delete validated[DOCTOR_OPEN_QUERY_PARAM]
