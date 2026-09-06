@@ -6,9 +6,8 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 /**
  * MCP request handlers. Delegation spans three services: McpRuntimeService (server
  * lifecycle + queries), McpCatalogService (server.refresh_tools), and McpPackageService
- * (package upload). The former NonEmptyString guards now live in the route schemas. Upload
- * receives the file as an ArrayBuffer (the renderer does `file.arrayBuffer()`);
- * McpPackageService stages it to a temp file and installs it. The server.added /
+ * (package upload uses a dedicated preload capability instead). The former NonEmptyString
+ * guards now live in the route schemas. The server.added /
  * tool.call_progress / server.log events are emitted by the services, not here.
  */
 export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
@@ -45,10 +44,5 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     if (senderId) application.get('ProtocolService').cancelPendingMcpInstallRequest(senderId, requestId)
   },
   // In-flight tool-call control.
-  'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
-  // Package upload.
-  'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
-    application.get('McpPackageService').uploadDxt(buffer, fileName),
-  'mcp.package.upload_mcpb': async ({ buffer, fileName }) =>
-    application.get('McpPackageService').uploadMcpb(buffer, fileName)
+  'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope)
 }

@@ -4020,6 +4020,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "伺服器已存在：{{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "請選擇一個 DXT 檔案",
   "settings.mcp.addServer.importFrom.noMcpbFile": "請選擇一個 MCPB 檔案",
+  "settings.mcp.addServer.importFrom.packageEmpty": "所選 MCP 套件為空",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "所選 MCP 套件超過 50 MiB 大小限制",
   "settings.mcp.addServer.importFrom.placeholder": "貼上 MCP 伺服器 JSON 設定",
   "settings.mcp.addServer.importFrom.selectDxtFile": "選擇 DXT 檔案",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "選擇 MCPB 檔案",

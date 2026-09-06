@@ -4020,6 +4020,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "DXTファイルを選択してください",
   "settings.mcp.addServer.importFrom.noMcpbFile": "MCPBファイルを選択してください",
+  "settings.mcp.addServer.importFrom.packageEmpty": "選択した MCP パッケージは空です",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "選択した MCP パッケージは 50 MiB のサイズ制限を超えています",
   "settings.mcp.addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
   "settings.mcp.addServer.importFrom.selectDxtFile": "DXT ファイルを選択してください",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "MCPBファイルを選択",

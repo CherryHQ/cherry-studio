@@ -150,6 +150,10 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },
+  mcp: {
+    uploadDxt: (file: File) => ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, webUtils.getPathForFile(file)),
+    uploadMcpb: (file: File) => ipcRenderer.invoke(IpcChannel.Mcp_UploadMcpb, webUtils.getPathForFile(file))
+  },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)

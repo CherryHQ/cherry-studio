@@ -4020,6 +4020,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "Server already exists: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "Please select a DXT file",
   "settings.mcp.addServer.importFrom.noMcpbFile": "Please select an MCPB file",
+  "settings.mcp.addServer.importFrom.packageEmpty": "The selected MCP package is empty",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "The selected MCP package exceeds the 50 MiB size limit",
   "settings.mcp.addServer.importFrom.placeholder": "Paste MCP server JSON config",
   "settings.mcp.addServer.importFrom.selectDxtFile": "Select DXT File",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "Select MCPB File",
