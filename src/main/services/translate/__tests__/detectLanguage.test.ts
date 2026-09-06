@@ -2,7 +2,12 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const generateTextMock = vi.fn<(request: { system?: string; reasoningEffort?: string }) => Promise<{ text: string }>>()
+const generateTextMock =
+  vi.fn<
+    (request: { system?: string; reasoningEffort?: string; requestOptions?: { signal?: AbortSignal } }) => Promise<{
+      text: string
+    }>
+  >()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -55,6 +60,16 @@ describe('detectLanguage', () => {
       generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
       await expect(detectLanguage('Hello')).resolves.toBe('en-us')
+    })
+
+    it("hands the caller's abort signal to the model request", async () => {
+      // The signal is what lets a cancelled translation stop the detection it is waiting on;
+      // dropping it here leaves the request running with nobody left to read its answer.
+      const controller = new AbortController()
+
+      await detectLanguage('Hello', controller.signal)
+
+      expect(generateTextMock.mock.calls[0][0].requestOptions?.signal).toBe(controller.signal)
     })
 
     it('offers the model the languages the database holds, not a built-in list', async () => {

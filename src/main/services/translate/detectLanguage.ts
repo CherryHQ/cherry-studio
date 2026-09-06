@@ -43,7 +43,8 @@ const AUTO_MODE_LLM_THRESHOLD = 100
 async function detectLanguageByLLM(
   inputText: string,
   langCodes: TranslateLangCode[],
-  model: Model | undefined
+  model: Model | undefined,
+  signal: AbortSignal | undefined
 ): Promise<TranslateLangCode> {
   logger.info('Detect language by LLM')
   const text = sliceByTokens(inputText, 0, LLM_INPUT_MAX_TOKENS)
@@ -65,7 +66,8 @@ async function detectLanguageByLLM(
     uniqueModelId: model.id,
     reasoningEffort: 'none',
     system: systemPrompt,
-    prompt: 'follow system prompt'
+    prompt: 'follow system prompt',
+    requestOptions: signal ? { signal } : undefined
   })
 
   const trimmed = result.trim()
@@ -121,26 +123,27 @@ async function detectWithMethod(
   text: string,
   method: AutoDetectionMethod,
   langCodes: TranslateLangCode[],
-  model: Model | undefined
+  model: Model | undefined,
+  signal: AbortSignal | undefined
 ): Promise<TranslateLangCode> {
   switch (method) {
     case 'auto':
       if (estimateTokenCount(text) < AUTO_MODE_LLM_THRESHOLD) {
-        return detectLanguageByLLM(text, langCodes, model)
+        return detectLanguageByLLM(text, langCodes, model, signal)
       } else {
         const francResult = detectLanguageByFranc(text)
         if (francResult === UNKNOWN_LANG_CODE) {
           // Auto mode's contract is "pick what works"; we fall back silently from
           // the user's perspective but log so `auto` → LLM quota bursts are traceable.
           logger.info('franc returned UNKNOWN, falling back to LLM detection')
-          return detectLanguageByLLM(text, langCodes, model)
+          return detectLanguageByLLM(text, langCodes, model, signal)
         }
         return francResult
       }
     case 'franc':
       return detectLanguageByFranc(text)
     case 'llm':
-      return detectLanguageByLLM(text, langCodes, model)
+      return detectLanguageByLLM(text, langCodes, model, signal)
     default:
       throw new Error('Invalid detection method.')
   }
@@ -164,11 +167,13 @@ function resolveDetectionModel(): Model | undefined {
 /**
  * Detect `inputText`'s language, with the method from `feature.translate.auto_detection_method`.
  *
+ * @param signal aborts the LLM request the detection may make. Not reachable over IPC: the
+ *   orchestration that can cancel a detection is the one that started it, and that lives in main.
  * @throws with a bare `translate.error.*` key when the chosen method cannot answer — an
  *   unreachable model, an unusable reply, or a language list that arrived empty. Callers that
  *   would rather degrade than fail want {@link detectLanguageOrUnknown}.
  */
-export async function detectLanguage(inputText: string): Promise<TranslateLangCode> {
+export async function detectLanguage(inputText: string, signal?: AbortSignal): Promise<TranslateLangCode> {
   const text = inputText.trim()
   if (!text) return UNKNOWN_LANG_CODE
 
@@ -186,18 +191,20 @@ export async function detectLanguage(inputText: string): Promise<TranslateLangCo
     text,
     method,
     languages.map((language) => language.langCode),
-    resolveDetectionModel()
+    resolveDetectionModel(),
+    signal
   )
   logger.info(`Detected language: ${result}`)
   return result
 }
 
 /** {@link detectLanguage}, degrading to UNKNOWN rather than throwing. */
-export async function detectLanguageOrUnknown(text: string): Promise<TranslateLangCode> {
+export async function detectLanguageOrUnknown(text: string, signal?: AbortSignal): Promise<TranslateLangCode> {
   try {
-    return await detectLanguage(text)
+    return await detectLanguage(text, signal)
   } catch (error) {
-    logger.warn('Language detection failed, falling back to unknown', { error })
+    // An abort is the caller's own doing, not a detection that failed.
+    if (!signal?.aborted) logger.warn('Language detection failed, falling back to unknown', { error })
     return UNKNOWN_LANG_CODE
   }
 }

@@ -67,6 +67,8 @@ export class TranslateTask implements StreamListener {
   private settled = false
   private cancelled = false
   private streamOpened = false
+  /** Ends the detection step; the stream has its own abort path through `AiStreamManager`. */
+  private readonly detection = new AbortController()
   private unwatchWindow: (() => void) | undefined
 
   constructor(
@@ -148,6 +150,7 @@ export class TranslateTask implements StreamListener {
   cancel(): void {
     if (this.settled) return
     this.cancelled = true
+    this.detection.abort()
     if (this.streamOpened) {
       application.get('AiStreamManager').abort(this.streamId, 'translate task cancelled')
     }
@@ -201,7 +204,7 @@ export class TranslateTask implements StreamListener {
 
     // Detection failing is not the task failing: the flow continues with UNKNOWN, which the
     // target resolution treats as "no bidirectional override".
-    const detected = await detectLanguageOrUnknown(this.request.text)
+    const detected = await detectLanguageOrUnknown(this.request.text, this.detection.signal)
     this.detectedSourceLanguage = detected
     this.emitState()
     return detected

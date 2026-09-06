@@ -16,8 +16,10 @@ vi.mock('@application', async () => {
   } as never)
 })
 
-const detectMock = vi.fn<() => Promise<TranslateLangCode>>()
-vi.mock('../detectLanguage', () => ({ detectLanguageOrUnknown: () => detectMock() }))
+const detectMock = vi.fn<(text: string, signal?: AbortSignal) => Promise<TranslateLangCode>>()
+vi.mock('../detectLanguage', () => ({
+  detectLanguageOrUnknown: (text: string, signal?: AbortSignal) => detectMock(text, signal)
+}))
 
 vi.mock('@main/data/services/TranslateLanguageService', () => ({
   translateLanguageService: { getByLangCode: (code: string) => ({ langCode: code, value: code }) }
@@ -109,6 +111,28 @@ describe('TranslateTask', () => {
 
     expect(streamPromptMock).not.toHaveBeenCalled()
     expect(eventsOf('translate.task.aborted')).toHaveLength(1)
+  })
+
+  it('aborts the detection request when cancelled mid-detection', async () => {
+    // Without a signal the LLM detection call runs to completion after the user has stopped the
+    // translation — the task settles, the request keeps burning quota.
+    const { task } = makeTask()
+    let releaseDetection = (): void => undefined
+    detectMock.mockReturnValueOnce(
+      new Promise<TranslateLangCode>((resolve) => {
+        releaseDetection = () => resolve('en-us' as TranslateLangCode)
+      })
+    )
+
+    const run = task.run()
+    const signal = detectMock.mock.calls[0][1]
+    expect(signal?.aborted).toBe(false)
+
+    task.cancel()
+    expect(signal?.aborted).toBe(true)
+
+    releaseDetection()
+    await run
   })
 
   it('cancels itself when the window that started it is destroyed', async () => {
