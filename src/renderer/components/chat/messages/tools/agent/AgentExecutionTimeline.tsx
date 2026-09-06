@@ -1,15 +1,14 @@
-import { useFullPartsMap, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useAgentLaunchIndex, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { parse as parsePartialJson } from 'partial-json'
 import { type ReactElement, useDeferredValue, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type AgentLaunchIndex,
   AgentToolsType,
   getResumedAgentId,
-  isAskUserQuestionToolName,
-  resolveResumedAgent
+  isAskUserQuestionToolName
 } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext, ToolHeader } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
@@ -33,7 +32,7 @@ function getStringArg(args: unknown, key: string): string | undefined {
  */
 export function buildResumeToolHeader(
   toolResponse: ToolResponseLike,
-  fullPartsMap: Record<string, CherryMessagePart[]> | null,
+  launchIndex: AgentLaunchIndex | null,
   t: ReturnType<typeof useTranslation>['t'],
   resumedLaunch?: { toolCallId: string; description?: string }
 ): { resumedLaunch?: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
@@ -41,8 +40,9 @@ export function buildResumeToolHeader(
   // enhancement that must never gate the label. Gated to SendMessage — only its receipts carry
   // agent ids, and this header drives labels for every tool row.
   if (toolResponse.tool.name !== AgentToolsType.SendMessage) return undefined
-  if (!getResumedAgentId(toolResponse.response)) return undefined
-  const resolved = resumedLaunch ?? resolveResumedAgent(toolResponse.response, fullPartsMap)
+  const resumedAgentId = getResumedAgentId(toolResponse.response)
+  if (!resumedAgentId) return undefined
+  const resolved = resumedLaunch ?? launchIndex?.launchesByAgentId.get(resumedAgentId)
   const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')
   return {
     resumedLaunch: resolved,
@@ -64,7 +64,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const { t } = useTranslation()
 
   const partsMap = usePartsMap()
-  const fullPartsMap = useFullPartsMap()
+  const launchIndex = useAgentLaunchIndex()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
@@ -80,15 +80,20 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   // Hooks stay above every early return below: a tool flipping out of its approval wait must not
   // change this component's hook count (React #310).
   const resumedAgentId = tool?.name === AgentToolsType.SendMessage ? getResumedAgentId(response) : undefined
-  // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message scan.
+  // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message index.
   const stampedLaunchId = tool?.name === AgentToolsType.SendMessage ? getPartLaunchToolCallId(toolResponse) : undefined
   const resumedLaunch = useMemo(() => {
-    // The stamped id navigates without scanning; the description (label/flow title) is
-    // best-effort from the scan and falls back to the receipt's own summary when unresolved.
-    const resolved = resumedAgentId ? resolveResumedAgent(response, fullPartsMap) : undefined
-    if (stampedLaunchId) return { toolCallId: stampedLaunchId, description: resolved?.description }
+    const resolved = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
+    if (stampedLaunchId) {
+      // The stamped id navigates without scanning, but it must still point inside the loaded
+      // parts window — a paged-out launch root would open an empty flow pane on click.
+      if (launchIndex?.toolCallIds.has(stampedLaunchId)) {
+        return { toolCallId: stampedLaunchId, description: resolved?.description }
+      }
+      return resolved
+    }
     return resolved
-  }, [response, fullPartsMap, resumedAgentId, stampedLaunchId])
+  }, [resumedAgentId, launchIndex, stampedLaunchId])
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
@@ -116,7 +121,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
   // Reuse the memoized launch resolution instead of re-scanning — buildResumeToolHeader keeps
   // its own scan for the group header, which has no memo here.
-  const resumeHeader = buildResumeToolHeader(toolResponse, fullPartsMap, t, resumedLaunch)
+  const resumeHeader = buildResumeToolHeader(toolResponse, launchIndex, t, resumedLaunch)
   return (
     <>
       <AgentToolCallCard

@@ -1,5 +1,6 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
@@ -34,11 +35,15 @@ const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const [actual, agentToolTypes] = await Promise.all([
+    importOriginal(),
+    import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
+  ])
   return {
-    ...actual,
+    ...(actual as Record<string, unknown>),
     usePartsMap: () => mockPartsMap(),
-    useFullPartsMap: () => mockPartsMap()
+    useAgentLaunchIndex: () =>
+      agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   }
 })
 
@@ -1318,6 +1323,28 @@ describe('AgentToolRenderer', () => {
         toolName: 'SendMessage',
         title: 'Inspect renderer'
       })
+    })
+
+    // The stamped launch root may be paged out of the loaded window — it must not become a
+    // clickable navigation target that opens an empty flow pane.
+    it('does not open a flow when the stamped launch root is outside the loaded window', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue(null)
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' },
+        resultProviderMetadata: { cherry: { launchToolCallId: 'call-launch-paged' } }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      // The resume label still shows, but nothing navigates to a paged-out launch.
+      expect(screen.getByText('Continue handling')).toBeInTheDocument()
+      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
     // One agent id that prefixes another must not win the other's lookup.

@@ -33,7 +33,7 @@ import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTool
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
-import { PartsContext, PartsProvider, useFullPartsMap, usePartsMap } from './MessagePartsContext'
+import { PartsContext, PartsProvider, useAgentLaunchIndex, usePartsMap } from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -353,7 +353,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
     const partsMap = usePartsMap()
-    const fullPartsMap = useFullPartsMap()
+    const launchIndex = useAgentLaunchIndex()
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
@@ -483,7 +483,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     // A send-then-resume receipt heads its group exactly like the launch card: continue-handling
     // verb + launch identity, in place of the generic SendMessage or semantic title.
-    const resumeHeader = buildResumeToolHeader(displayCandidate.item.toolResponse, fullPartsMap, t)
+    const resumeHeader = buildResumeToolHeader(displayCandidate.item.toolResponse, launchIndex, t)
 
     if (resumeHeader) {
       return renderWithElapsed(

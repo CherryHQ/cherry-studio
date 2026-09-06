@@ -5,6 +5,7 @@
  * Components read parts directly via useMessageParts / usePartsMap.
  */
 
+import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
@@ -79,24 +80,24 @@ export function usePartsMap() {
 }
 
 // ============================================================================
-// Full Parts Map Context — survives tool-group boundaries
+// Agent Launch Index Context — list-level, survives tool-group boundaries
 // ============================================================================
 
-const FullPartsMapContext = createContext<Record<string, CherryMessagePart[]> | null>(null)
+const AgentLaunchIndexContext = createContext<AgentLaunchIndex | null>(null)
 
 /**
- * Provide the list-level parts map for cross-message lookups. Unlike
- * PartsContext, nested boundaries never null this out — completed tool groups
- * reset PartsContext to skip approval checks, which would also hide any
- * consumer that must see other messages' parts.
+ * Provide the list-level launch-identity index so resume resolution is O(1) instead of
+ * re-scanning the transcript per consumer during streaming. Unlike PartsContext, nested
+ * boundaries never null this out — completed tool groups reset PartsContext to skip approval
+ * checks, which would also hide any consumer that must see other messages' launch parts.
  */
-export function FullPartsMapProvider({ value, children }: { value: PartsMap; children: ReactNode }) {
-  return <FullPartsMapContext value={value}>{children}</FullPartsMapContext>
+export function AgentLaunchIndexProvider({ value, children }: { value: AgentLaunchIndex | null; children: ReactNode }) {
+  return <AgentLaunchIndexContext value={value}>{children}</AgentLaunchIndexContext>
 }
 
-/** Read the list-level parts map (null when no provider is mounted). */
-export function useFullPartsMap() {
-  return use(FullPartsMapContext)
+/** Read the list-level launch index (null when no provider is mounted). */
+export function useAgentLaunchIndex() {
+  return use(AgentLaunchIndexContext)
 }
 
 /** Check if parts data is provided. */

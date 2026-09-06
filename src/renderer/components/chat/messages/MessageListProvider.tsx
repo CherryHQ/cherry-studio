@@ -1,3 +1,4 @@
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import {
   buildCitationPartsRegistry,
@@ -9,7 +10,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Context, ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
-import { FullPartsMapProvider, PartsProvider } from './blocks/MessagePartsContext'
+import { AgentLaunchIndexProvider, PartsProvider } from './blocks/MessagePartsContext'
 import type {
   MessageListActions,
   MessageListItem,
@@ -190,10 +191,14 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     [state.getMessageActivityState, state.messageActivityStore]
   )
 
+  // The launch index is derived once per parts-map version so streaming chunks rebuild it a
+  // single time instead of once per mounted resume-receipt consumer.
+  const launchIndex = useMemo(() => buildAgentLaunchIndex(state.partsByMessageId), [state.partsByMessageId])
+
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
-        <FullPartsMapProvider value={state.partsByMessageId}>
+        <AgentLaunchIndexProvider value={launchIndex}>
           <PartsProvider value={state.partsByMessageId}>
             <MessageListCitationRegistryContext value={citationRegistry}>
               <MessageListActionsContext value={actions}>
@@ -215,7 +220,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
               </MessageListActionsContext>
             </MessageListCitationRegistryContext>
           </PartsProvider>
-        </FullPartsMapProvider>
+        </AgentLaunchIndexProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
   )
