@@ -5,26 +5,32 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
+  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
+  agentExistsMock,
   listAllTasksMock,
   getTaskByIdMock,
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock
+  getSkillByIdMock,
+  listSessionsForAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
+  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  agentExistsMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn()
+  getSkillByIdMock: vi.fn(),
+  listSessionsForAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -32,9 +38,15 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
+    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    agentExists: agentExistsMock
   }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { listByCursor: listSessionsForAgentMock }
 }))
 
 vi.mock('@data/services/AgentTaskService', () => ({
@@ -55,6 +67,39 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
+const { pauseRuntimeTurnMock, closeSessionMock, warnMock } = vi.hoisted(() => ({
+  pauseRuntimeTurnMock: vi.fn(),
+  closeSessionMock: vi.fn(),
+  warnMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'AiStreamManager') return { pauseRuntimeTurn: pauseRuntimeTurnMock }
+      if (name === 'AgentSessionRuntimeService') return { closeSession: closeSessionMock }
+      return undefined
+    })
+  }
+}))
+
+vi.mock('@main/ai/agentSession/topic', () => ({
+  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
+  extractAgentSessionId: (topicId: string) => topicId.replace(/^agent-session:/, ''),
+  isAgentSessionTopic: (topicId: string) => topicId.startsWith('agent-session:')
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: warnMock,
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    })
+  }
+}))
+
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
 
@@ -69,6 +114,10 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: agent exists and has no active sessions, so DELETE is a no-op
+    // cleanup. Tests that need different values override per-call.
+    agentExistsMock.mockReturnValue(true)
+    listSessionsForAgentMock.mockReturnValue({ items: [] })
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
@@ -183,6 +232,63 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('delegates DELETE and returns undefined on success', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(listSessionsForAgentMock).toHaveBeenCalledWith({ agentId: AGENT_ID, limit: 1000 })
+      expect(result).toBeUndefined()
+    })
+
+    it('pauses live session turns and closes runtimes for affected sessions', async () => {
+      // When sessions are bound to the agent, DELETE pauses each one and asks
+      // the runtime service to close them. The delete still resolves with undefined
+      // so the resource-list UI can refresh.
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+      listSessionsForAgentMock.mockReturnValueOnce({
+        items: [{ id: 'session-1' }, { id: 'session-2' }]
+      })
+      closeSessionMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+
+      expect(pauseRuntimeTurnMock).toHaveBeenCalledTimes(2)
+      expect(pauseRuntimeTurnMock).toHaveBeenCalledWith('agent-session:session-1', 'target-agent-deleted')
+      expect(pauseRuntimeTurnMock).toHaveBeenCalledWith('agent-session:session-2', 'target-agent-deleted')
+      expect(closeSessionMock).toHaveBeenCalledTimes(2)
+      expect(result).toBeUndefined()
+    })
+
+    it('returns undefined and logs a warning when runtime cleanup throws after row deletion', async () => {
+      // agentService.deleteAgent removes the row synchronously before the async
+      // pause/close runs. If cleanup throws, the deletion itself has committed —
+      // surface the error as a warning, not a 5xx.
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+      listSessionsForAgentMock.mockReturnValueOnce({ items: [{ id: 'session-1' }] })
+      pauseRuntimeTurnMock.mockImplementationOnce(() => {
+        throw new Error('runtime unavailable')
+      })
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+
+      expect(result).toBeUndefined()
+      expect(warnMock).toHaveBeenCalledWith('Agent runtime cleanup failed after row deletion', {
+        agentId: AGENT_ID,
+        error: 'runtime unavailable'
+      })
+    })
+
+    it('throws notFound when agent does not exist on DELETE', async () => {
+      agentExistsMock.mockReturnValueOnce(false)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(deleteAgentMock).not.toHaveBeenCalled()
     })
   })
 
