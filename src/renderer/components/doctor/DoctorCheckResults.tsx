@@ -6,7 +6,11 @@ import {
   Alert,
   Badge,
   Button,
+  Dialog,
+  DialogContent,
   DialogFooter,
+  DialogTitle,
+  DialogTrigger,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,18 +32,10 @@ import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Circl
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export function DoctorCheckResults({
-  controller,
-  initialExpandedCheckId
-}: {
-  readonly controller: DoctorController
-  readonly initialExpandedCheckId?: DoctorCheckId
-}) {
+export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
   const { viewModel } = controller
-  const restoredRow = viewModel.rows.find((row) => row.id === initialExpandedCheckId)
-  const defaultExpandedDomains = new Set(defaultExpandedDoctorDomains(viewModel.groups))
-  if (restoredRow) defaultExpandedDomains.add(restoredRow.domain)
+  const defaultExpandedDomains = defaultExpandedDoctorDomains(viewModel.groups)
 
   return (
     <Accordion
@@ -48,8 +44,7 @@ export function DoctorCheckResults({
       defaultValue={[...defaultExpandedDomains]}
       className="rounded-xl border border-border px-4 [&>[data-slot=accordion-item]:first-child]:border-t-0">
       {viewModel.groups.map((group) => {
-        const defaultRow =
-          group.rows.find((row) => row.id === initialExpandedCheckId) ?? group.rows.find(isDoctorRowExpandedByDefault)
+        const defaultRow = group.rows.find(isDoctorRowExpandedByDefault)
 
         return (
           <AccordionItem key={group.domain} value={group.domain}>
@@ -103,35 +98,6 @@ export function DoctorCheckList({
   )
 }
 
-export function DoctorConfirmationView({
-  controller,
-  onResolve
-}: {
-  readonly controller: DoctorController
-  readonly onResolve: (checkId: DoctorCheckId) => void
-}) {
-  const { t } = useTranslation()
-  const { interaction } = controller.session
-
-  if (interaction.kind === 'confirm-evidence') {
-    const { checkId } = interaction
-    return (
-      <ConfirmationPanel
-        title={t('settings.doctor.confirm_evidence.title')}
-        description={t('settings.doctor.confirm_evidence.description')}
-        confirmLabel={t('settings.doctor.actions.show_details')}
-        onCancel={() => {
-          onResolve(checkId)
-          controller.cancelConfirmation()
-        }}
-        onConfirm={controller.confirmEvidence}
-      />
-    )
-  }
-
-  return null
-}
-
 function DoctorCheckListItem({
   controller,
   row
@@ -178,6 +144,8 @@ function DoctorCheckEvidence({
   const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
   const evidenceItemValue = `doctor-evidence-${row.id}`
   const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed)
+  const isConfirming =
+    controller.session.interaction.kind === 'confirm-evidence' && controller.session.interaction.checkId === row.id
 
   useEffect(() => {
     if (isEvidenceRevealed) sensitiveEvidenceRef.current?.focus()
@@ -224,13 +192,34 @@ function DoctorCheckEvidence({
                 ))}
               </dl>
               {sensitiveEvidence.length > 0 && !isEvidenceRevealed ? (
-                <Button
-                  variant="link"
-                  className="mt-2 h-auto px-0 py-0 text-xs"
-                  data-doctor-evidence-trigger={row.id}
-                  onClick={() => controller.requestEvidence(row.id)}>
-                  {t('settings.doctor.actions.show_details')}
-                </Button>
+                <Dialog
+                  open={isConfirming}
+                  onOpenChange={(open) => {
+                    if (!open && isConfirming) controller.cancelConfirmation()
+                  }}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="link"
+                      className="mt-2 h-auto px-0 py-0 text-xs"
+                      onClick={() => controller.requestEvidence(row.id)}>
+                      {t('settings.doctor.actions.show_details')}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    aria-describedby={undefined}
+                    closeOnOverlayClick={false}
+                    showCloseButton={false}
+                    className="max-h-[calc(100vh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-xl">
+                    <DialogTitle className="sr-only">{t('settings.doctor.confirm_evidence.title')}</DialogTitle>
+                    <ConfirmationPanel
+                      title={t('settings.doctor.confirm_evidence.title')}
+                      description={t('settings.doctor.confirm_evidence.description')}
+                      confirmLabel={t('settings.doctor.actions.show_details')}
+                      onCancel={controller.cancelConfirmation}
+                      onConfirm={controller.confirmEvidence}
+                    />
+                  </DialogContent>
+                </Dialog>
               ) : null}
             </AccordionContent>
           </AccordionItem>
@@ -306,7 +295,6 @@ function DoctorActionButton({
       size="sm"
       loading={loading}
       disabled={disabled}
-      data-doctor-action-check={row.id}
       onClick={() => void controller.executeAction(row.id, action, runId)}>
       {actionLabel(t, controller, row.id, action)}
     </Button>

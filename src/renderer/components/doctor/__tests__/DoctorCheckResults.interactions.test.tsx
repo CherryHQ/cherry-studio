@@ -2,10 +2,10 @@ import '@testing-library/jest-dom/vitest'
 
 import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import type { DoctorController, DoctorInteraction } from '@renderer/hooks/doctor'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -16,18 +16,54 @@ vi.mock('react-i18next', () => ({
 import { DoctorCheckList, DoctorCheckResults } from '../DoctorCheckResults'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
-function createController(): DoctorController {
-  return {
-    appUpdateState: { downloaded: false },
-    executeAction: vi.fn(),
+type ControllerOverrides = {
+  readonly cancelConfirmation?: DoctorController['cancelConfirmation']
+  readonly confirmEvidence?: DoctorController['confirmEvidence']
+  readonly requestEvidence?: DoctorController['requestEvidence']
+  readonly session?: Partial<DoctorController['session']>
+  readonly viewModel?: Partial<DoctorController['viewModel']>
+}
+
+function createController(overrides: ControllerOverrides = {}) {
+  const baseController = {
+    appUpdateState: {
+      info: null,
+      checking: false,
+      downloading: false,
+      downloaded: false,
+      downloadProgress: 0,
+      available: false,
+      ignore: false,
+      manualCheck: false
+    },
+    cancel: vi.fn<DoctorController['cancel']>(),
+    canChangePanel: true,
+    cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
+    confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
+    executeAction: vi.fn<DoctorController['executeAction']>(),
     isInteracting: false,
-    mcpServerName: vi.fn(),
-    requestEvidence: vi.fn(),
+    isCloseBlocked: false,
+    mcpServerName: vi.fn<DoctorController['mcpServerName']>(),
+    openLogsPath: vi.fn<DoctorController['openLogsPath']>(),
+    openPath: vi.fn<DoctorController['openPath']>(),
+    requestEvidence: vi.fn<DoctorController['requestEvidence']>(),
+    run: vi.fn<DoctorController['run']>(),
     session: {
+      activePanel: 'checks',
+      descriptionDraft: '',
       interaction: { kind: 'idle' },
+      relaunchRequired: false,
       revealedEvidence: []
     },
+    setDescription: vi.fn<DoctorController['setDescription']>(),
+    setPanel: vi.fn<DoctorController['setPanel']>(),
+    setPanelInteraction: vi.fn<DoctorController['setPanelInteraction']>(),
+    toggleDevTools: vi.fn<DoctorController['toggleDevTools']>(),
     viewModel: {
+      canCancel: false,
+      groups: [],
+      isStale: false,
+      problemCount: 1,
       rows: [
         {
           domain: 'runtime',
@@ -38,7 +74,7 @@ function createController(): DoctorController {
             status: 'warn',
             durationMs: 1,
             attribution: 'user-fixable',
-            detail: { variant: 'signed_out' },
+            detail: { variant: 'not_logged_in' },
             evidence: [{ key: 'request-body', value: 'private Doctor evidence', dataClass: 'consent_required' }],
             actions: [
               { kind: 'navigate', target: '/settings/provider?id=claude-code' },
@@ -53,44 +89,37 @@ function createController(): DoctorController {
           ],
           actionsDisabled: false
         }
-      ]
+      ],
+      status: 'completed',
+      summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 1 }
     }
-  } as unknown as DoctorController
+  } satisfies DoctorController
+
+  return {
+    ...baseController,
+    ...overrides,
+    session: { ...baseController.session, ...overrides.session },
+    viewModel: { ...baseController.viewModel, ...overrides.viewModel }
+  } satisfies DoctorController
 }
 
-function createPanelController(): DoctorController {
-  return {
-    ...createController(),
-    cancel: vi.fn(),
-    canChangePanel: true,
-    openLogsPath: vi.fn(),
-    openPath: vi.fn(),
-    run: vi.fn(),
-    session: {
-      interaction: { kind: 'idle' },
-      relaunchRequired: false,
-      revealedEvidence: []
-    },
-    setPanel: vi.fn(),
-    toggleDevTools: vi.fn(),
+function createPanelController() {
+  return createController({
     viewModel: {
-      canCancel: false,
-      isStale: false,
-      problemCount: 0,
       groups: [],
+      problemCount: 0,
       rows: [],
       status: 'canceled',
       summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 0 }
     }
-  } as unknown as DoctorController
+  })
 }
 
-function createCompletedPanelController(): DoctorController {
+function createCompletedPanelController() {
   const controller = createPanelController()
   const row = createController().viewModel.rows[0]
 
-  return {
-    ...controller,
+  return createController({
     viewModel: {
       ...controller.viewModel,
       problemCount: 1,
@@ -120,42 +149,44 @@ function createCompletedPanelController(): DoctorController {
       status: 'completed',
       summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 1 }
     }
-  } as DoctorController
+  })
 }
 
-function createSecondaryEvidencePanelController(): DoctorController {
+function createSecondaryEvidencePanelController() {
   const controller = createCompletedPanelController()
   const evidenceRow = controller.viewModel.rows[0]
   const firstRow = {
-    ...evidenceRow,
+    domain: 'runtime',
+    status: 'warn',
     id: 'runtime-managed-tools',
     result: {
-      ...evidenceRow.result!,
       id: 'runtime-managed-tools',
+      status: 'warn',
+      durationMs: 1,
+      attribution: 'user-fixable',
       detail: { variant: 'failed' },
       evidence: [],
       actions: []
     },
-    actions: []
-  } as DoctorController['viewModel']['rows'][number]
+    actions: [],
+    actionsDisabled: false
+  } satisfies DoctorController['viewModel']['rows'][number]
   const rows = [firstRow, evidenceRow]
 
-  return {
-    ...controller,
+  return createController({
     viewModel: {
       ...controller.viewModel,
       rows,
       groups: [{ domain: 'runtime', status: 'warn', rows }]
     }
-  } as DoctorController
+  })
 }
 
 function EvidenceFocusHarness() {
   const [interaction, setInteraction] = useState<DoctorInteraction>({ kind: 'idle' })
   const [revealedEvidence, setRevealedEvidence] = useState<DoctorController['session']['revealedEvidence']>([])
   const baseController = createSecondaryEvidencePanelController()
-  const controller = {
-    ...baseController,
+  const controller = createController({
     cancelConfirmation: () => setInteraction({ kind: 'idle' }),
     confirmEvidence: () => {
       if (interaction.kind !== 'confirm-evidence') return
@@ -164,9 +195,7 @@ function EvidenceFocusHarness() {
     },
     requestEvidence: (checkId) => setInteraction({ kind: 'confirm-evidence', checkId }),
     session: {
-      ...baseController.session,
       interaction,
-      relaunchRequired: false,
       revealedEvidence
     },
     viewModel: {
@@ -174,12 +203,16 @@ function EvidenceFocusHarness() {
       status: 'completed',
       summary: { appBug: 0, error: 0, skip: 0, transient: 0, userFixable: 1 }
     }
-  } as DoctorController
+  })
 
   return <DoctorChecksPanel controller={controller} />
 }
 
 describe('DoctorCheckList interactions', () => {
+  it('keeps the test controller surface in sync with production', () => {
+    expectTypeOf<keyof ReturnType<typeof createController>>().toEqualTypeOf<keyof DoctorController>()
+  })
+
   it('keeps standalone results grouped while each check remains a disclosure', async () => {
     const user = userEvent.setup()
     const controller = createCompletedPanelController()
@@ -273,7 +306,7 @@ describe('DoctorCheckList interactions', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('restores a non-default check and moves focus to newly revealed evidence after consent', async () => {
+  it('keeps disclosure state and restores the evidence trigger after canceling consent', async () => {
     const user = userEvent.setup()
     render(
       <Dialog defaultOpen>
@@ -289,10 +322,41 @@ describe('DoctorCheckList interactions', () => {
       name: /settings\.doctor\.checks\.runtime-claude-login\.title/
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' }))
+    const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
+    await user.click(localDetails)
     expect(screen.getByText('••••••')).toBeInTheDocument()
+    const showDetails = screen.getByRole('button', { name: 'settings.doctor.actions.show_details' })
+    await user.click(showDetails)
+
+    const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })
+    await user.keyboard('{Escape}')
+
+    expect(confirmation).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'System diagnostics' })).toBeVisible()
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
+    expect(showDetails).toHaveFocus()
+  })
+
+  it('moves focus to newly revealed evidence after consent', async () => {
+    const user = userEvent.setup()
+    render(
+      <Dialog defaultOpen>
+        <DialogContent>
+          <DialogTitle>System diagnostics</DialogTitle>
+          <EvidenceFocusHarness />
+        </DialogContent>
+      </Dialog>
+    )
+
+    const checkTrigger = screen.getByRole('button', {
+      name: /settings\.doctor\.checks\.runtime-claude-login\.title/
+    })
+    if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' }))
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
+
+    const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })
+    await user.click(within(confirmation).getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
     const evidence = screen.getByText('private Doctor evidence').closest('dl')
     expect(evidence).toHaveFocus()

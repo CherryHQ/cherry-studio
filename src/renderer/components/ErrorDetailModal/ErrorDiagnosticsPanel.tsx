@@ -1,11 +1,11 @@
-import { Accordion, Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import { Accordion, Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
-import { DoctorCheckList, DoctorCheckNotices, DoctorConfirmationView } from '@renderer/components/doctor'
+import { DoctorCheckList, DoctorCheckNotices } from '@renderer/components/doctor'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import type { DoctorCheckId, DoctorNavigateTarget } from '@shared/types/doctor'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
@@ -37,19 +37,15 @@ export function ErrorDiagnosticsPanel({
 }: ErrorDiagnosticsPanelProps) {
   const { t } = useTranslation()
   const [diagnosisStatus, setDiagnosisStatus] = useState<DiagnosisStatus>(cachedDiagnosis ? 'done' : 'idle')
-  const restoreActionCheckRef = useRef<DoctorCheckId | null>(null)
   const controller = useDoctorController({
     initialPanel: 'checks',
     onNavigate,
     onReportProblem
   })
   const { interaction } = controller.session
-  const isConfirming = interaction.kind === 'confirm-evidence'
   const isLiveRun =
     (controller.viewModel.status === 'running' && controller.viewModel.tier === 'live') ||
     (interaction.kind === 'run' && interaction.tier === 'live')
-  const confirmationTitle =
-    interaction.kind === 'confirm-evidence' ? t('settings.doctor.confirm_evidence.title') : t('settings.doctor.title')
   const hasAiDiagnosis = Boolean(error || cachedDiagnosis)
   const completedChecks = controller.viewModel.rows.filter((row) => row.status !== 'pending').length
   const summary =
@@ -64,17 +60,6 @@ export function ErrorDiagnosticsPanel({
     onCloseBlockedChange?.(controller.isCloseBlocked)
   }, [controller.isCloseBlocked, onCloseBlockedChange])
 
-  useEffect(() => {
-    if (interaction.kind !== 'idle' || !restoreActionCheckRef.current) return
-    const checkId = restoreActionCheckRef.current
-    restoreActionCheckRef.current = null
-    document
-      .querySelector<HTMLButtonElement>(
-        `[data-doctor-action-check="${checkId}"], [data-doctor-evidence-trigger="${checkId}"]`
-      )
-      ?.focus()
-  }, [interaction.kind])
-
   const handleDiagnosisComplete = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
       await onDiagnosisComplete?.(partId, diagnosis)
@@ -82,71 +67,46 @@ export function ErrorDiagnosticsPanel({
     [onDiagnosisComplete]
   )
 
-  const cancelConfirmation = useCallback(() => {
-    const currentInteraction = controller.session.interaction
-    if (currentInteraction.kind !== 'confirm-evidence') return
-    restoreActionCheckRef.current = currentInteraction.checkId
-    controller.cancelConfirmation()
-  }, [controller])
-
   return (
-    <>
-      <DiagnosticsPanel
-        title={t('settings.doctor.title')}
-        description={summary}
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            loading={isLiveRun}
-            disabled={
-              controller.viewModel.status === 'running' || controller.isInteracting || !controller.viewModel.report
-            }
-            onClick={() => void controller.run('live')}>
-            {t('settings.doctor.actions.run_network')}
-          </Button>
-        }
-        bodyClassName="space-y-3 pb-3">
-        {hasAiDiagnosis || controller.viewModel.rows.length > 0 ? (
-          <Accordion
-            type="single"
-            collapsible
-            defaultValue={hasAiDiagnosis ? 'ai-diagnosis' : undefined}
-            className="border-border border-t bg-background px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-            {hasAiDiagnosis ? (
-              <AiDiagnosisSectionWithStatus
-                key={blockId ?? error?.message ?? 'error-diagnosis'}
-                error={error}
-                status={diagnosisStatus}
-                onStatusChange={setDiagnosisStatus}
-                diagnosisContext={diagnosisContext}
-                blockId={blockId}
-                onDiagnosisComplete={handleDiagnosisComplete}
-                cachedDiagnosis={cachedDiagnosis}
-              />
-            ) : null}
-            {controller.viewModel.rows.length > 0 ? <DoctorCheckList controller={controller} /> : null}
-          </Accordion>
-        ) : null}
+    <DiagnosticsPanel
+      title={t('settings.doctor.title')}
+      description={summary}
+      actions={
+        <Button
+          variant="outline"
+          size="sm"
+          loading={isLiveRun}
+          disabled={
+            controller.viewModel.status === 'running' || controller.isInteracting || !controller.viewModel.report
+          }
+          onClick={() => void controller.run('live')}>
+          {t('settings.doctor.actions.run_network')}
+        </Button>
+      }
+      bodyClassName="space-y-3 pb-3">
+      {hasAiDiagnosis || controller.viewModel.rows.length > 0 ? (
+        <Accordion
+          type="single"
+          collapsible
+          defaultValue={hasAiDiagnosis ? 'ai-diagnosis' : undefined}
+          className="border-border border-t bg-background px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
+          {hasAiDiagnosis ? (
+            <AiDiagnosisSectionWithStatus
+              key={blockId ?? error?.message ?? 'error-diagnosis'}
+              error={error}
+              status={diagnosisStatus}
+              onStatusChange={setDiagnosisStatus}
+              diagnosisContext={diagnosisContext}
+              blockId={blockId}
+              onDiagnosisComplete={handleDiagnosisComplete}
+              cachedDiagnosis={cachedDiagnosis}
+            />
+          ) : null}
+          {controller.viewModel.rows.length > 0 ? <DoctorCheckList controller={controller} /> : null}
+        </Accordion>
+      ) : null}
 
-        <DoctorCheckNotices controller={controller} />
-      </DiagnosticsPanel>
-
-      <Dialog open={isConfirming} onOpenChange={(open) => !open && cancelConfirmation()}>
-        <DialogContent
-          aria-describedby={undefined}
-          closeOnOverlayClick={false}
-          showCloseButton={false}
-          className="max-h-[calc(100vh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-xl">
-          <DialogTitle className="sr-only">{confirmationTitle}</DialogTitle>
-          <DoctorConfirmationView
-            controller={controller}
-            onResolve={(checkId) => {
-              restoreActionCheckRef.current = checkId
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+      <DoctorCheckNotices controller={controller} />
+    </DiagnosticsPanel>
   )
 }
