@@ -55,7 +55,7 @@ const BUILTIN_LANG_CODES = new Set<string>(BUILTIN_TRANSLATE_LANGUAGES.map((lang
 const EMOJI_OPTIONS = ['🌐', '🇺🇸', '🇬🇧', '🇨🇳', '🇯🇵', '🇰🇷', '🇫🇷', '🇩🇪', '🇪🇸', '🇵🇹', '🇮🇳', '🇧🇷']
 const logger = loggerService.withContext('TranslateSettings')
 
-const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
+const TranslateSettingsContent: FC = () => {
   const { t } = useTranslation()
   const [bidirectionalPair, setBidirectionalPair] = usePreference('feature.translate.page.bidirectional_pair')
   const [enableMarkdown, setEnableMarkdown] = usePreference('feature.translate.page.enable_markdown')
@@ -127,96 +127,104 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
   ]
 
   return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-5">
+        {toggleItems.map((item) => (
+          <PageSidePanelItem
+            key={item.key}
+            title={item.label}
+            action={<Switch size="sm" checked={item.value} onCheckedChange={item.onChange} />}
+          />
+        ))}
+
+        <PageSidePanelItem
+          title={
+            <span className="flex items-center gap-1">
+              <span>{t('translate.detect.method.label')}</span>
+              <HelpTooltip
+                content={t('translate.detect.method.tip')}
+                iconProps={{ className: 'text-foreground-tertiary' }}
+              />
+            </span>
+          }
+          action={
+            <SegmentedControl<AutoDetectionMethod>
+              size="sm"
+              aria-label={t('translate.detect.method.label')}
+              value={autoDetectionMethod}
+              onValueChange={(value) =>
+                void safePersist(setAutoDetectionMethod(value), 'translate auto detection method')
+              }
+              options={detectionOptions.map((opt) => ({
+                value: opt.value,
+                label: (
+                  <Tooltip content={opt.tip} placement="top">
+                    <span>{opt.label}</span>
+                  </Tooltip>
+                )
+              }))}
+            />
+          }
+        />
+
+        <PageSidePanelItem
+          title={
+            <span className="flex items-center gap-1">
+              <span>{t('translate.settings.bidirectional')}</span>
+              <HelpTooltip
+                content={t('translate.settings.bidirectional_tip')}
+                iconProps={{ className: 'text-foreground-tertiary' }}
+              />
+            </span>
+          }
+          action={
+            <Switch
+              size="sm"
+              checked={isBidirectional}
+              onCheckedChange={(next) =>
+                void safePersist(setIsBidirectional(next), 'translate bidirectional enabled preference')
+              }
+            />
+          }>
+          {isBidirectional && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <LanguagePicker
+                  value={bidirectionalPair[0]}
+                  onChange={(value) => updateBidirectionalPair([value, bidirectionalPair[1]])}
+                />
+              </div>
+              <ArrowLeftRight size={12} className="shrink-0 text-foreground-tertiary" />
+              <div className="flex-1">
+                <LanguagePicker
+                  value={bidirectionalPair[1]}
+                  onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], value])}
+                />
+              </div>
+            </div>
+          )}
+        </PageSidePanelItem>
+      </div>
+
+      <TranslateModelParameters />
+
+      <TranslatePromptField />
+
+      <CustomLanguageList />
+    </div>
+  )
+}
+
+const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
+  const { t } = useTranslation()
+
+  return (
     <PageSidePanel
       open={visible}
       onClose={onClose}
       title={t('translate.settings.title')}
       closeLabel={t('translate.close')}>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-5">
-          {toggleItems.map((item) => (
-            <PageSidePanelItem
-              key={item.key}
-              title={item.label}
-              action={<Switch size="sm" checked={item.value} onCheckedChange={item.onChange} />}
-            />
-          ))}
-
-          <PageSidePanelItem
-            title={
-              <span className="flex items-center gap-1">
-                <span>{t('translate.detect.method.label')}</span>
-                <HelpTooltip
-                  content={t('translate.detect.method.tip')}
-                  iconProps={{ className: 'text-foreground-tertiary' }}
-                />
-              </span>
-            }
-            action={
-              <SegmentedControl<AutoDetectionMethod>
-                size="sm"
-                aria-label={t('translate.detect.method.label')}
-                value={autoDetectionMethod}
-                onValueChange={(value) =>
-                  void safePersist(setAutoDetectionMethod(value), 'translate auto detection method')
-                }
-                options={detectionOptions.map((opt) => ({
-                  value: opt.value,
-                  label: (
-                    <Tooltip content={opt.tip} placement="top">
-                      <span>{opt.label}</span>
-                    </Tooltip>
-                  )
-                }))}
-              />
-            }
-          />
-
-          <PageSidePanelItem
-            title={
-              <span className="flex items-center gap-1">
-                <span>{t('translate.settings.bidirectional')}</span>
-                <HelpTooltip
-                  content={t('translate.settings.bidirectional_tip')}
-                  iconProps={{ className: 'text-foreground-tertiary' }}
-                />
-              </span>
-            }
-            action={
-              <Switch
-                size="sm"
-                checked={isBidirectional}
-                onCheckedChange={(next) =>
-                  void safePersist(setIsBidirectional(next), 'translate bidirectional enabled preference')
-                }
-              />
-            }>
-            {isBidirectional && (
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <LanguagePicker
-                    value={bidirectionalPair[0]}
-                    onChange={(value) => updateBidirectionalPair([value, bidirectionalPair[1]])}
-                  />
-                </div>
-                <ArrowLeftRight size={12} className="shrink-0 text-foreground-tertiary" />
-                <div className="flex-1">
-                  <LanguagePicker
-                    value={bidirectionalPair[1]}
-                    onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], value])}
-                  />
-                </div>
-              </div>
-            )}
-          </PageSidePanelItem>
-        </div>
-
-        <TranslateModelParameters />
-
-        <TranslatePromptField />
-
-        <CustomLanguageList />
-      </div>
+      {visible && <TranslateSettingsContent />}
     </PageSidePanel>
   )
 }
