@@ -4551,6 +4551,7 @@
   "settings.provider.cherry_cloud.logout_failed": "無法登出，請重試。",
   "settings.provider.cherry_cloud.sign_in_failed": "登入失敗，請重試。",
   "settings.provider.cherry_cloud.signing_in": "等待瀏覽器授權…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "加速網域",
   "settings.provider.cherryin.api_host.international": "國際網域",
   "settings.provider.claude_code.agent_only_note": "Claude Code 供應商僅供 Agent 使用 — 無法在聊天或助理中使用。",

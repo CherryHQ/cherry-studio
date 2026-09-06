@@ -75,11 +75,8 @@ vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => null
 }))
 
-vi.mock('../../UserPopup', () => ({
-  UserAccountPanel: () => null,
-  default: {
-    show: vi.fn()
-  }
+vi.mock('../../UserAccountPanel', () => ({
+  UserAccountPanel: () => null
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({

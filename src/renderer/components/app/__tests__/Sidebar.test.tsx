@@ -167,15 +167,12 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
 }))
 
-vi.mock('../../UserPopup', () => ({
+vi.mock('../../UserAccountPanel', () => ({
   UserAccountPanel: () => (
     <div role="dialog" aria-label="account menu">
       account-menu
     </div>
-  ),
-  default: {
-    show: mocks.showUserPopup
-  }
+  )
 }))
 
 vi.mock('../../icons/SvgIcon', () => ({

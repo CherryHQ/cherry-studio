@@ -4551,6 +4551,7 @@
   "settings.provider.cherry_cloud.logout_failed": "Abmeldung fehlgeschlagen. Bitte erneut versuchen.",
   "settings.provider.cherry_cloud.sign_in_failed": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
   "settings.provider.cherry_cloud.signing_in": "Warten auf Browser-Autorisierung…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "Beschleunigungsdomäne",
   "settings.provider.cherryin.api_host.international": "Internationale Domäne",
   "settings.provider.claude_code.agent_only_note": "Der Claude Code-Provider ist nur für Agents verfügbar – er kann nicht in Chat oder Assistenten verwendet werden.",

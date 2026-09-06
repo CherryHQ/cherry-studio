@@ -4551,6 +4551,7 @@
   "settings.provider.cherry_cloud.logout_failed": "退出登录失败，请重试。",
   "settings.provider.cherry_cloud.sign_in_failed": "登录失败，请重试。",
   "settings.provider.cherry_cloud.signing_in": "等待浏览器授权…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "加速域名",
   "settings.provider.cherryin.api_host.international": "国际域名",
   "settings.provider.claude_code.agent_only_note": "Claude Code 提供商仅供 Agent 使用，无法在聊天或助手中使用。",

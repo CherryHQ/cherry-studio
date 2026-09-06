@@ -34,7 +34,7 @@ import {
   type SidebarVisibleLayout,
   UserAvatar
 } from '../Sidebar'
-import { UserAccountPanel } from '../UserPopup'
+import { UserAccountPanel } from '../UserAccountPanel'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))

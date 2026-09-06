@@ -319,6 +319,13 @@ describe('UserPopup', () => {
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
   })
 
+  it('renders the localized Cherry Cloud product label', async () => {
+    showUserPopup()
+
+    expect(await screen.findByText('settings.provider.cherry_cloud.title')).toBeVisible()
+    expect(screen.queryByText('Cherry Cloud')).not.toBeInTheDocument()
+  })
+
   it('shows the signed-in account when browser authorization completes', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockImplementation(async (route: string) => {

@@ -4551,6 +4551,7 @@
   "settings.provider.cherry_cloud.logout_failed": "No se pudo cerrar sesión. Inténtalo de nuevo.",
   "settings.provider.cherry_cloud.sign_in_failed": "Error al iniciar sesión. Inténtalo de nuevo.",
   "settings.provider.cherry_cloud.signing_in": "Esperando la autorización del navegador…",
+  "settings.provider.cherry_cloud.title": "Cherry Cloud",
   "settings.provider.cherryin.api_host.acceleration": "Dominio de aceleración",
   "settings.provider.cherryin.api_host.international": "Dominio internacional",
   "settings.provider.claude_code.agent_only_note": "El proveedor de Claude Code está disponible solo para Agentes: no se puede usar en chat o asistentes.",
