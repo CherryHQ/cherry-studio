@@ -321,6 +321,23 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('keeps an unrelated inline preview mounted when another artifact opens', async () => {
+    render(
+      <HtmlArtifactPopupHost>
+        <HtmlArtifactView artifactId="first" html="<main>First</main>" title="First preview" />
+        <HtmlArtifactView artifactId="second" html="<main>Second</main>" title="Second preview" />
+      </HtmlArtifactPopupHost>
+    )
+
+    const secondPreview = screen.getByTitle('Second preview')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.maximize' })[0])
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+
+    expect(screen.getByTitle('Second preview')).toBe(secondPreview)
+    expect(secondPreview).toBeInTheDocument()
+  })
+
   it('keeps the popup open and previews saved interactive HTML without another consent surface', async () => {
     const html = '<script>original()</script>'
     const updatedHtml = '<script>updated()</script>'
