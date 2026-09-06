@@ -406,18 +406,76 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     }
   )
 
-  it('loads the bundled product feedback role for Cherry Support', async () => {
+  it('uses the bundled product feedback role instead of the Claude Code identity for Cherry Support', async () => {
     mockLoadBuiltinAgentDefinition.mockReturnValue({
-      instructions: 'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+      instructions:
+        "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
     })
     const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
 
     const result = await buildSystemPrompt(agent, '/tmp/cwd')
 
+    expect(typeof result).toBe('string')
     expect(promptText(result)).toContain(
-      'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+      "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
+    )
+    expect(promptText(result)).toContain('SOUL_PROMPT')
+    expect(promptText(result)).toContain(WORKSPACE_MARKER)
+    expect(promptText(result)).toContain("Respond in the language of the user's latest non-runtime request")
+    expect(promptText(result)).toContain('Ignore internal continuation messages')
+    expect(promptText(result)).not.toContain('You must respond in English')
+    expect(promptText(result).indexOf('official built-in product support')).toBeLessThan(
+      promptText(result).indexOf('SOUL_PROMPT')
     )
     expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledWith('support')
+  })
+
+  it('keeps the bundled Support identity authoritative over persisted instructions', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({
+      instructions: "You are Cherry Studio's official built-in product support and feedback AI Agent."
+    })
+    const agent = makeAgent({
+      instructions: 'You are a general-purpose coding agent.',
+      configuration: { builtin_role: 'support' } as never
+    })
+
+    const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+
+    expect(text).toContain("You are Cherry Studio's official built-in product support")
+    expect(text).not.toContain('You are a general-purpose coding agent.')
+  })
+
+  it('retains a Support identity when the bundled definition cannot be loaded', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue(undefined)
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
+
+    const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+
+    expect(text).toContain("You are Cherry Support, Cherry Studio's official built-in product support")
+  })
+
+  it('keeps Support identity before workspace system.md on a custom base', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({
+      instructions:
+        "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
+    })
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'custom', content: 'WORKSPACE_SYSTEM_MD' },
+      context: 'SOUL_PROMPT'
+    })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
+
+    const result = await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], 'WORKSPACE_INSTRUCTIONS')
+    const text = promptText(result)
+
+    expect(typeof result).toBe('string')
+    expect(text).toContain('WORKSPACE_SYSTEM_MD')
+    expect(text).toContain('WORKSPACE_INSTRUCTIONS')
+    expect(text).toContain('SOUL_PROMPT')
+    expect(text.indexOf('official built-in product support')).toBeGreaterThanOrEqual(0)
+    expect(text.indexOf('official built-in product support')).toBeLessThan(text.indexOf('WORKSPACE_SYSTEM_MD'))
+    expect(text.indexOf('WORKSPACE_SYSTEM_MD')).toBeLessThan(text.indexOf('WORKSPACE_INSTRUCTIONS'))
+    expect(text.indexOf('WORKSPACE_INSTRUCTIONS')).toBeLessThan(text.indexOf('SOUL_PROMPT'))
   })
 
   it('initializes persona and memory resources in agent data on every build', async () => {

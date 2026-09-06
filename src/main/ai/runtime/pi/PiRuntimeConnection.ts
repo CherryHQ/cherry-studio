@@ -293,7 +293,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        citationsGuidance
+        citationsGuidance,
+        customBaseContext: [
+          '## Current Workspace',
+          `Current working directory: ${JSON.stringify(workspacePath)}`,
+          'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+        ].join('\n')
       })
       const approvalContext = {
         sessionId: this.input.sessionId,

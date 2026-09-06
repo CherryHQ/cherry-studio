@@ -1763,6 +1763,31 @@ describe('PiRuntimeConnection', () => {
       )
     })
 
+    it('replaces the native Pi identity with the bundled Cherry Support contract', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        instructions: '',
+        configuration: { builtin_role: 'support' }
+      })
+      mocks.getById.mockReturnValue(agentSession)
+      mocks.loadBuiltinAgentDefinition.mockReturnValue({
+        instructions: "You are Cherry Studio's official built-in product support and feedback AI Agent."
+      })
+
+      await new PiRuntimeConnection(input).start()
+
+      const system = (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
+      expect(system).toContain("Cherry Studio's official built-in product support")
+      expect(system).toContain('AGENT PROMPT')
+      expect(system).toContain(`Current working directory: ${JSON.stringify(WORKSPACE)}`)
+      expect(system).toContain("Respond in the language of the user's latest non-runtime request")
+      expect(system).toContain('Ignore internal continuation messages')
+      expect(system).not.toContain('You must respond in English')
+      expect(system!.indexOf('official built-in product support')).toBeLessThan(system!.indexOf('AGENT PROMPT'))
+      expect(appendedSystemPrompt()).toBe('')
+    })
+
     it('scopes cron/notify default delivery to the channel linked to this session', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)

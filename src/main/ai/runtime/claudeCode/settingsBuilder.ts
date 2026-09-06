@@ -615,7 +615,7 @@ export async function buildSystemPrompt(
   if (prompt.base.kind === 'native') {
     return { type: 'preset', preset: 'claude_code', append: prompt.append }
   }
-  return prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append
+  return [prompt.base.content, prompt.append].filter(Boolean).join('\n\n')
 }
 
 /**

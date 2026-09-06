@@ -1,10 +1,14 @@
 import { timingSafeEqual } from 'node:crypto'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 import { v4 as uuidv4 } from 'uuid'
@@ -312,6 +316,20 @@ export class ApiGatewayService extends BaseService implements Activatable {
   getAgentSessionId(headers: Headers): string | undefined {
     if (!this.isInternalAgentRequest(headers)) return undefined
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+  }
+
+  /** Resolve Support identity only from the authenticated session and Main-owned builtin role. */
+  isInternalSupportRequest(headers: Headers): boolean {
+    const sessionId = this.getAgentSessionId(headers)
+    if (!sessionId) return false
+    try {
+      const session = agentSessionService.getById(sessionId)
+      if (!session.agentId) return false
+      return agentService.getAgent(session.agentId)?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) return false
+      throw error
+    }
   }
 
   /** Validate the process-local proof, then capture the reserved continuation or active turn. */

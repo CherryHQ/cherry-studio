@@ -252,7 +252,6 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
 export interface AiGenerateRequest extends AiBaseRequest {
   /** Stable conversation identity used for provider routing and request tracing. */
   chatId?: string
-  system?: string
   prompt?: string
   messages?: ModelMessage[]
 }
