@@ -1,26 +1,10 @@
-import {
-  Alert,
-  Button,
-  Checkbox,
-  DescriptionSwitch,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-  Scrollbar,
-  SegmentedControl
-} from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogTitle, Scrollbar } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import {
-  describeDiagnosticChatSource,
-  describeDiagnosticFileSource,
-  formatDiagnosticBytes
-} from '@renderer/utils/diagnosticSourceSummary'
+import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import { createFilePathHandle } from '@shared/utils/file'
 import { CircleCheck } from 'lucide-react'
@@ -28,18 +12,14 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  diagnosticRangeLabelKey,
+  DiagnosticSourceSelector,
+  useDiagnosticSourceSelection
+} from './DiagnosticSourceSelector'
+
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
 const logger = loggerService.withContext('DiagnosticBundlePanel')
-const RANGE_OPTIONS = [
-  { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
-  { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
-  { translationKey: 'settings.about.diagnostics.ranges.7d', value: '7d' }
-] as const
-const RANGE_TRANSLATION_KEYS = Object.fromEntries(
-  RANGE_OPTIONS.map(({ translationKey, value }) => [value, translationKey])
-) as Record<DiagnosticRange, (typeof RANGE_OPTIONS)[number]['translationKey']>
-
-type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 type SavedResult = Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'saved' }>
 type ExportState =
   | { readonly status: 'idle' }
@@ -62,15 +42,9 @@ function isDestinationConflictError(error: unknown): boolean {
 
 const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onBusyChange, onClose }) => {
   const { t } = useTranslation()
-  const [range, setRange] = useState<DiagnosticRange>('24h')
-  const [includeLogs, setIncludeLogs] = useState(true)
-  const [includeTraces, setIncludeTraces] = useState(true)
-  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [consent, setConsent] = useState(false)
+  const sourceSelection = useDiagnosticSourceSelection(() => setConsent(false))
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
-  const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
-  const [inspectError, setInspectError] = useState(false)
-  const [isInspecting, setIsInspecting] = useState(false)
   const [copyEmailFallback, setCopyEmailFallback] = useState(false)
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const revealButtonRef = useRef<HTMLButtonElement>(null)
@@ -79,29 +53,6 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
   const confirmationWasOpenRef = useRef(false)
   const status = exportState.status
   const savedResult = exportState.status === 'saved' ? exportState.result : null
-
-  useEffect(() => {
-    let active = true
-    setIsInspecting(true)
-    setInspectError(false)
-    void ipcApi
-      .request('diagnostics.bundle.inspect', { range })
-      .then((result) => {
-        if (active) setInspectResult(result)
-      })
-      .catch((error) => {
-        if (!active) return
-        logger.error('Failed to inspect diagnostic bundle sources', error as Error)
-        setInspectResult(null)
-        setInspectError(true)
-      })
-      .finally(() => {
-        if (active) setIsInspecting(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [range])
 
   useEffect(() => {
     if (status === 'saved') revealButtonRef.current?.focus()
@@ -122,40 +73,12 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
     }
   }, [isConfirmationOpen, status])
 
-  const logsAvailable = inspectResult?.sources.logs.available ?? false
-  const tracesAvailable = inspectResult?.sources.traces.available ?? false
-  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
-  const effectiveIncludeLogs = includeLogs && logsAvailable
-  const effectiveIncludeTraces = includeTraces && tracesAvailable
-  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
-  const includesSensitiveData = effectiveIncludeLogs || effectiveIncludeTraces || effectiveIncludeChatRecords
-  const isInspectionPending = !inspectError && (isInspecting || inspectResult === null)
-  const canExport = inspectResult !== null && !isInspectionPending && !inspectError && status !== 'saving'
-  const hasInspectWarnings = inspectResult?.hasWarnings ?? false
+  const { effectiveIncludeChatRecords, effectiveIncludeLogs, effectiveIncludeTraces, includesSensitiveData, range } =
+    sourceSelection
+  const canExport = sourceSelection.isReady && status !== 'saving'
   const hasSavedWarnings = savedResult?.hasWarnings ?? false
 
   useEffect(() => onBusyChange?.(status === 'saving'), [onBusyChange, status])
-
-  const changeRange = (nextRange: DiagnosticRange) => {
-    setRange(nextRange)
-    setInspectResult(null)
-    setConsent(false)
-  }
-
-  const changeLogs = (checked: boolean) => {
-    setIncludeLogs(checked)
-    setConsent(false)
-  }
-
-  const changeTraces = (checked: boolean) => {
-    setIncludeTraces(checked)
-    setConsent(false)
-  }
-
-  const changeChatRecords = (checked: boolean) => {
-    setIncludeChatRecords(checked)
-    setConsent(false)
-  }
 
   const handleClose = () => {
     if (status === 'saving') return
@@ -246,7 +169,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         bundleId: savedResult.bundleId,
         fileName: savedResult.fileName,
         platform: window.electron.process.platform,
-        range: t(RANGE_TRANSLATION_KEYS[range]),
+        range: t(diagnosticRangeLabelKey(range)),
         version: appVersion || t('settings.about.diagnostics.unknown')
       })
     })
@@ -260,17 +183,9 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
     }
   }
 
-  const rangeOptions = RANGE_OPTIONS.map(({ translationKey, value }) => ({
-    label: t(translationKey),
-    value
-  }))
-
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
-        <span className="sr-only" role="status">
-          {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
-        </span>
         {status === 'saved' && savedResult ? (
           <div className="space-y-4">
             <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
@@ -296,65 +211,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
           </div>
         ) : (
           <div className="space-y-4">
-            <section className="space-y-2">
-              <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-              <SegmentedControl<DiagnosticRange>
-                value={range}
-                onValueChange={changeRange}
-                options={rangeOptions}
-                className="w-full"
-                disabled={status === 'saving'}
-              />
-            </section>
-
-            <section className="divide-y divide-border rounded-xl border border-border">
-              <div className="p-1">
-                <DescriptionSwitch
-                  label={t('settings.about.diagnostics.sources.system.title')}
-                  description={t('settings.about.diagnostics.sources.system.description', {
-                    crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                  })}
-                  checked
-                  disabled
-                />
-              </div>
-              <div className="p-1">
-                <DescriptionSwitch
-                  label={t('settings.about.diagnostics.sources.logs.title')}
-                  description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                  checked={effectiveIncludeLogs}
-                  disabled={status === 'saving' || isInspectionPending || !logsAvailable}
-                  onCheckedChange={changeLogs}
-                />
-              </div>
-              <div className="p-1">
-                <DescriptionSwitch
-                  label={t('settings.about.diagnostics.sources.traces.title')}
-                  description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                  checked={effectiveIncludeTraces}
-                  disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
-                  onCheckedChange={changeTraces}
-                />
-              </div>
-              <div className="p-1">
-                <DescriptionSwitch
-                  label={t('settings.about.diagnostics.sources.chat_records.title')}
-                  description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
-                  checked={effectiveIncludeChatRecords}
-                  disabled={status === 'saving' || isInspectionPending || !chatRecordsAvailable}
-                  onCheckedChange={changeChatRecords}
-                />
-              </div>
-            </section>
-
-            {inspectError && (
-              <p className="text-error text-sm" role="alert">
-                {t('settings.about.diagnostics.errors.inspect_failed')}
-              </p>
-            )}
-            {!isInspecting && hasInspectWarnings && (
-              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-            )}
+            <DiagnosticSourceSelector disabled={status === 'saving'} selection={sourceSelection} />
           </div>
         )}
       </Scrollbar>
@@ -412,7 +269,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
             </div>
             <p className="text-muted-foreground text-sm leading-6">
               {t('settings.about.diagnostics.limit', {
-                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+                size: formatDiagnosticBytes(sourceSelection.inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
               })}
             </p>
             <label className="flex cursor-pointer items-center gap-3 text-sm">

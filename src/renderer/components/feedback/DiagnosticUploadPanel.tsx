@@ -1,10 +1,9 @@
-import { Alert, Button, Checkbox, DialogFooter, Scrollbar, SegmentedControl, Switch, Textarea } from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DialogFooter, Scrollbar, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { describeDiagnosticChatSource, describeDiagnosticFileSource } from '@renderer/utils/diagnosticSourceSummary'
-import type { DiagnosticRange, DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
+import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
@@ -16,14 +15,9 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('DiagnosticUploadPanel')
-const RANGE_OPTIONS = [
-  { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
-  { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
-  { translationKey: 'settings.about.diagnostics.ranges.7d', value: '7d' }
-] as const
+import { DiagnosticSourceSelector, useDiagnosticSourceSelection } from './DiagnosticSourceSelector'
 
-type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
+const logger = loggerService.withContext('DiagnosticUploadPanel')
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
 type OperationStatus = 'discarding' | 'idle' | 'saving' | 'submitting'
@@ -52,15 +46,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 }: DiagnosticUploadPanelProps & { ref?: React.RefObject<DiagnosticUploadPanelHandle | null> }) {
   const { t } = useTranslation()
   const uploadFormId = useId()
-  const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
-  const [includeLogs, setIncludeLogs] = useState(true)
-  const [includeTraces, setIncludeTraces] = useState(true)
-  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
-  const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
-  const [inspectError, setInspectError] = useState(false)
-  const [isInspecting, setIsInspecting] = useState(false)
+  const sourceSelection = useDiagnosticSourceSelection(() => setAcknowledged(false))
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
@@ -83,47 +71,17 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   }, [])
 
   useEffect(() => {
-    let active = true
-    setIsInspecting(true)
-    setInspectError(false)
-    void ipcApi
-      .request('diagnostics.bundle.inspect', { range: selectedRange })
-      .then((inspection) => {
-        if (active) setInspectResult(inspection)
-      })
-      .catch((error) => {
-        if (!active) return
-        logger.error('Failed to inspect diagnostic upload sources', error as Error)
-        setInspectResult(null)
-        setInspectError(true)
-      })
-      .finally(() => {
-        if (active) setIsInspecting(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [selectedRange])
-
-  useEffect(() => {
     if (result) primaryActionRef.current?.focus()
   }, [result])
 
-  const logsAvailable = inspectResult?.sources.logs.available ?? false
-  const tracesAvailable = inspectResult?.sources.traces.available ?? false
-  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
-  const effectiveIncludeLogs = includeLogs && logsAvailable
-  const effectiveIncludeTraces = includeTraces && tracesAvailable
-  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
-  const isInspectionPending = !inspectError && (isInspecting || inspectResult === null)
+  const { effectiveIncludeChatRecords, effectiveIncludeLogs, effectiveIncludeTraces, range } = sourceSelection
   const normalizedDescription = description.trim()
   const descriptionValid =
     normalizedDescription.length > 0 &&
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
-  const canAttemptUpload =
-    inspectResult !== null && !isInspectionPending && !inspectError && operationStatus === 'idle' && acknowledged
+  const canAttemptUpload = sourceSelection.isReady && operationStatus === 'idle' && acknowledged
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
 
@@ -210,7 +168,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range: selectedRange
+        range
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
@@ -264,17 +222,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     }
   }
 
-  const rangeOptions = RANGE_OPTIONS.map(({ translationKey, value }) => ({
-    label: t(translationKey),
-    value
-  }))
-
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
-        <span className="sr-only" role="status" aria-live="polite">
-          {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
-        </span>
         {result ? (
           <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
         ) : (
@@ -304,69 +254,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
               ) : null}
             </section>
 
-            <section className="space-y-2">
-              <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-              <SegmentedControl<DiagnosticRange>
-                value={selectedRange}
-                onValueChange={(nextRange) => {
-                  setSelectedRange(nextRange)
-                  setInspectResult(null)
-                  setAcknowledged(false)
-                }}
-                options={rangeOptions}
-                disabled={isBusy}
-              />
-            </section>
-
-            <section className="divide-y divide-border rounded-xl border border-border">
-              <SourceRow
-                title={t('settings.about.diagnostics.sources.system.title')}
-                description={t('settings.about.diagnostics.sources.system.description', {
-                  crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                })}
-                checked
-                disabled
-              />
-              <SourceRow
-                title={t('settings.about.diagnostics.sources.logs.title')}
-                description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                checked={effectiveIncludeLogs}
-                disabled={isBusy || isInspectionPending || !logsAvailable}
-                onCheckedChange={(checked) => {
-                  setIncludeLogs(checked)
-                  setAcknowledged(false)
-                }}
-              />
-              <SourceRow
-                title={t('settings.about.diagnostics.sources.traces.title')}
-                description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                checked={effectiveIncludeTraces}
-                disabled={isBusy || isInspectionPending || !tracesAvailable}
-                onCheckedChange={(checked) => {
-                  setIncludeTraces(checked)
-                  setAcknowledged(false)
-                }}
-              />
-              <SourceRow
-                title={t('settings.about.diagnostics.sources.chat_records.title')}
-                description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
-                checked={effectiveIncludeChatRecords}
-                disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
-                onCheckedChange={(checked) => {
-                  setIncludeChatRecords(checked)
-                  setAcknowledged(false)
-                }}
-              />
-            </section>
-
-            {inspectError ? (
-              <p className="text-error text-sm" role="alert">
-                {t('settings.about.diagnostics.errors.inspect_failed')}
-              </p>
-            ) : null}
-            {inspectResult?.hasWarnings ? (
-              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-            ) : null}
+            <DiagnosticSourceSelector disabled={isBusy} selection={sourceSelection} />
             <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
               <Checkbox
                 id="diagnostic-acknowledgement"
@@ -497,28 +385,4 @@ function failureReasonText(t: ReturnType<typeof useTranslation>['t'], reason: Di
     submission_rejected: 'settings.about.diagnostics.report.failure_reasons.submission_rejected'
   }
   return t(keys[reason])
-}
-
-function SourceRow({
-  checked,
-  description,
-  disabled,
-  onCheckedChange,
-  title
-}: {
-  readonly checked: boolean
-  readonly description: string
-  readonly disabled: boolean
-  readonly onCheckedChange?: (checked: boolean) => void
-  readonly title: string
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 p-3">
-      <div className="min-w-0 space-y-0.5">
-        <p className="font-medium text-sm">{title}</p>
-        <p className="text-muted-foreground text-xs">{description}</p>
-      </div>
-      <Switch aria-label={title} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-    </div>
-  )
 }

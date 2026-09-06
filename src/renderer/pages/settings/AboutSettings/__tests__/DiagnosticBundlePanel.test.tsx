@@ -72,9 +72,9 @@ const savedResult: Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'sa
   status: 'saved'
 }
 
-const chatRecordsSwitchName = /^settings\.about\.diagnostics\.sources\.chat_records\.title /
-const logsSwitchName = /^settings\.about\.diagnostics\.sources\.logs\.title /
-const tracesSwitchName = /^settings\.about\.diagnostics\.sources\.traces\.title /
+const chatRecordsSwitchName = 'settings.about.diagnostics.sources.chat_records.title'
+const logsSwitchName = 'settings.about.diagnostics.sources.logs.title'
+const tracesSwitchName = 'settings.about.diagnostics.sources.traces.title'
 
 function renderPanel() {
   render(<DiagnosticBundlePanel appVersion="2.0.0" onClose={vi.fn()} />)
