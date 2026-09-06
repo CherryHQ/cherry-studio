@@ -820,42 +820,6 @@ describe('TabsProvider session restore', () => {
     expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toHaveLength(1)
   })
 
-  it('drops a restored tab session id, leaving agent conversation ids intact', async () => {
-    // A tab session lives in renderer memory the restart discarded; keeping the id would restore a
-    // page pointing at state that cannot exist. An agent's `sessionId` names a database row and
-    // must survive.
-    const translateTab: Tab = {
-      id: 'translate',
-      type: 'route',
-      url: '/app/translate?tabSession=gone',
-      title: '',
-      lastAccessTime: 1,
-      isDormant: false
-    }
-    const agentTab: Tab = {
-      id: 'agent',
-      type: 'route',
-      url: '/app/agents?sessionId=kept',
-      title: '',
-      lastAccessTime: 2,
-      isDormant: false
-    }
-    normalTabsValue = [translateTab, agentTab]
-    activeTabIdValue = 'translate'
-
-    render(
-      <TabsProvider initialDefaultTab={null}>
-        <SessionInspector />
-      </TabsProvider>
-    )
-
-    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('translate'))
-    const urls = screen.getByTestId('session-urls').textContent ?? ''
-    expect(urls).toContain('translate=/app/translate')
-    expect(urls).not.toContain('tabSession')
-    expect(urls).toContain('agent=/app/agents?sessionId=kept')
-  })
-
   it('keeps the resolved active tab awake when the persisted active id is stale', async () => {
     // Active id points at a tab that no longer exists in either the pinned or normal set. The
     // resolved active tab (first normal tab) must still be awake, or AppShell renders no TabRouter.

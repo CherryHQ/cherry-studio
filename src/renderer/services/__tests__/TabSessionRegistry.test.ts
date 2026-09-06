@@ -4,12 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const abortRequest = vi.fn().mockResolvedValue(undefined)
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => abortRequest(...args) } }))
 
-import {
-  collectLiveSessionIds,
-  tabSessionIdFromUrl,
-  tabSessionRegistry,
-  withoutTabSession
-} from '../TabSessionRegistry'
+import { collectLiveSessionIds, tabSessionIdFromUrl, tabSessionRegistry } from '../TabSessionRegistry'
 
 const routeTab = (url: string, id = url): Tab => ({ id, type: 'route', url, title: '' })
 
@@ -35,16 +30,13 @@ describe('collectLiveSessionIds', () => {
   })
 })
 
-describe('withoutTabSession', () => {
-  it('strips only the session id, keeping the route and other params', () => {
-    expect(withoutTabSession('/app/translate?tabSession=a')).toBe('/app/translate')
-    expect(withoutTabSession('/app/translate?tabSession=a&view=split')).toBe('/app/translate?view=split')
+describe('tabSessionIdFromUrl', () => {
+  it('reads the session id a tab url carries', () => {
+    expect(tabSessionIdFromUrl('/app/translate?tabSession=a')).toBe('a')
+    expect(tabSessionIdFromUrl('/app/translate')).toBeUndefined()
   })
 
-  it('leaves a url without a session id untouched', () => {
-    // Agent conversations carry their own `sessionId`, which points at a database row and must
-    // survive a restart — only `tabSession` is renderer memory.
-    expect(withoutTabSession('/app/agents?sessionId=agent-1')).toBe('/app/agents?sessionId=agent-1')
+  it('ignores an agent conversation id, which names a database row rather than tab memory', () => {
     expect(tabSessionIdFromUrl('/app/agents?sessionId=agent-1')).toBeUndefined()
   })
 })

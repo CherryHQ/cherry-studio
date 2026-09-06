@@ -6,12 +6,10 @@ const logger = loggerService.withContext('TabSessionRegistry')
 
 /**
  * Search param carrying a tab session's id. Deliberately not `sessionId`: the agent route already
- * uses that name for a database entity, and these ids are renderer-memory-only — a restored tab
- * must drop its own while an agent tab keeps its.
+ * uses that name for a conversation the database owns, while this one names state owned by the
+ * tab itself.
  */
 export const TAB_SESSION_PARAM = 'tabSession'
-
-const TAB_URL_BASE = 'https://www.cherry-ai.com'
 
 export interface TabSessionHandle {
   readonly id: string
@@ -51,6 +49,11 @@ interface SessionEntry {
  * travels with the tab across windows. Reachability from that URL is therefore the whole
  * lifetime rule, so release is a sweep rather than a set of lifecycle callbacks: no removal path
  * needs to remember to notify, and a sweep that cannot finish simply runs again.
+ *
+ * A restart is one more of those unmounts. The tab is persisted and restored with its url, so the
+ * id stays reachable and the session continues; what a restart destroys is the session's runtime,
+ * which comes back empty. A session ends when its tab closes or navigates away from the route
+ * that owns the id — nothing else.
  *
  * Only non-serializable runtime belongs here. Session *state* lives in tab-scoped cache keys so
  * it can later travel with a detached tab; see `docs` in issue #18925.
@@ -160,24 +163,9 @@ export const tabSessionRegistry = new TabSessionRegistry()
 /** The session a tab url refers to, if any. */
 export function tabSessionIdFromUrl(url: string): string | undefined {
   try {
-    return new URL(url, TAB_URL_BASE).searchParams.get(TAB_SESSION_PARAM) ?? undefined
+    return new URL(url, 'https://www.cherry-ai.com').searchParams.get(TAB_SESSION_PARAM) ?? undefined
   } catch {
     return undefined
-  }
-}
-
-/**
- * The same url with its session id removed. Used when a restored tab's session cannot exist any
- * more, and when comparing a tab against a plain route path.
- */
-export function withoutTabSession(url: string): string {
-  try {
-    const parsed = new URL(url, TAB_URL_BASE)
-    if (!parsed.searchParams.has(TAB_SESSION_PARAM)) return url
-    parsed.searchParams.delete(TAB_SESSION_PARAM)
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
-  } catch {
-    return url
   }
 }
 

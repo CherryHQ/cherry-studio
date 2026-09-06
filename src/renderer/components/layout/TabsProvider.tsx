@@ -12,7 +12,6 @@ import {
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
-import { withoutTabSession } from '@renderer/services/TabSessionRegistry'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
@@ -131,17 +130,8 @@ function isSettingsRouteTab(tab: Tab): boolean {
 
 type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
 
-/**
- * A tab session lives in renderer memory, which the restart just discarded, so a restored url
- * would name a session that no longer exists. Drop the id and let the route mint a fresh one —
- * the tab comes back as a clean page instead of one claiming state it cannot produce.
- */
 function restoreTabs(tabs: Tab[], activeTabId: string): Tab[] {
-  return tabs.map((tab) => ({
-    ...tab,
-    url: tab.type === 'route' ? withoutTabSession(tab.url) : tab.url,
-    isDormant: tab.id !== activeTabId
-  }))
+  return tabs.map((tab) => ({ ...tab, isDormant: tab.id !== activeTabId }))
 }
 
 /**
