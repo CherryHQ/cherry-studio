@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
+import {
+  NormalTooltip,
+  Tooltip,
+  TOOLTIP_EXIT_ANIMATION_MS,
+  TooltipContent,
+  TooltipRoot,
+  TooltipTrigger
+} from '../tooltip'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -274,6 +281,68 @@ describe('Tooltip', () => {
       fireEvent.focus(trigger)
 
       expect(handleFocus).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // 卸载不依赖 Radix Presence 的 animationend（布局重排会吞掉该事件导致 content 永久残留），
+  // 而是 150ms 退出窗口后的确定性 timer——这两条把该契约钉死。
+  describe('close-after mount window', () => {
+    it('keeps content mounted through the exit animation, then unmounts', () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <Tooltip content="exit-tip" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+        view.rerender(
+          <Tooltip content="exit-tip" isOpen={false}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        // 退出动画窗口内仍在（淡出可见），而不是瞬时消失
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+        act(() => {
+          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+        })
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not unmount when reopened inside the exit window', () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <Tooltip content="rapid-tip" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        view.rerender(
+          <Tooltip content="rapid-tip" isOpen={false}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+
+        view.rerender(
+          <Tooltip content="rapid-tip" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        act(() => {
+          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+        })
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })
