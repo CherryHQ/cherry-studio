@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "對話與話題",
   "settings.shortcuts.conflict_with": "已被「{{name}}」使用",
   "settings.shortcuts.copy_last_message": "複製上一則訊息",
+  "settings.shortcuts.cycle_reasoning_effort": "循環切換推理強度",
   "settings.shortcuts.edit_last_user_message": "編輯最後一則使用者訊息",
   "settings.shortcuts.empty": "目前群組下沒有可顯示的快捷鍵",
   "settings.shortcuts.exit_fullscreen": "離開全螢幕",

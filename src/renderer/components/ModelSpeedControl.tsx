@@ -55,6 +55,11 @@ const SERVICE_TIER_LABEL_KEYS: Record<ServiceTierSelection, string> = {
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
+function getComposerReasoningOptions(model: Model): ThinkingOption[] {
+  const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
+  return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
+}
+
 interface ModelSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
@@ -155,6 +160,23 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
+/** Return the next selectable reasoning effort for the composer shortcut. */
+export function getNextComposerReasoningEffort(
+  model: Model,
+  effort: ThinkingOption,
+  isSelectable: (effort: ThinkingOption) => boolean = () => true
+): ThinkingOption | undefined {
+  const reasoningOptions = getComposerReasoningOptions(model)
+  if (reasoningOptions.length <= 1) return undefined
+
+  const currentIndex = reasoningOptions.indexOf(resolveSupportedReasoningEffort(model, effort))
+  for (let offset = 1; offset <= reasoningOptions.length; offset += 1) {
+    const nextEffort = reasoningOptions[(currentIndex + offset) % reasoningOptions.length]
+    if (isSelectable(nextEffort)) return nextEffort
+  }
+  return undefined
+}
+
 /** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
 export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
   const control = model.requestControls?.serviceTier
@@ -175,10 +197,7 @@ export function ModelSpeedControl({
   onFastModeChange
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
-  const reasoningOptions = useMemo(() => {
-    const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
-    return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
-  }, [model])
+  const reasoningOptions = useMemo(() => getComposerReasoningOptions(model), [model])
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
   const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []

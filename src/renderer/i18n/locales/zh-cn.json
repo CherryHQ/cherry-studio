@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "会话与对话",
   "settings.shortcuts.conflict_with": "已被「{{name}}」使用",
   "settings.shortcuts.copy_last_message": "复制上一条消息",
+  "settings.shortcuts.cycle_reasoning_effort": "循环切换推理强度",
   "settings.shortcuts.edit_last_user_message": "编辑最后一条用户消息",
   "settings.shortcuts.empty": "当前分组下没有可显示的快捷键",
   "settings.shortcuts.exit_fullscreen": "退出全屏",

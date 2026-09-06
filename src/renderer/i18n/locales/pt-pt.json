@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "Conversa e Tópicos",
   "settings.shortcuts.conflict_with": "Já usado por \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copiar a última mensagem",
+  "settings.shortcuts.cycle_reasoning_effort": "Alternar esforço de raciocínio",
   "settings.shortcuts.edit_last_user_message": "Editar última mensagem do utilizador",
   "settings.shortcuts.empty": "Nenhum atalho está disponível neste grupo",
   "settings.shortcuts.exit_fullscreen": "Sair do ecrã cheia",

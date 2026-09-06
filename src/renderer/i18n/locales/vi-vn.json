@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "Cuộc trò chuyện và Chủ đề",
   "settings.shortcuts.conflict_with": "Đã được \"{{name}}\" sử dụng",
   "settings.shortcuts.copy_last_message": "Sao tin nhắn cuối cùng",
+  "settings.shortcuts.cycle_reasoning_effort": "Chuyển mức độ suy luận",
   "settings.shortcuts.edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
   "settings.shortcuts.empty": "Không có phím tắt nào khả dụng trong nhóm này",
   "settings.shortcuts.exit_fullscreen": "Thoát toàn màn hình",

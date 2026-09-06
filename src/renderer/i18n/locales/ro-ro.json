@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "Conversație și Subiecte",
   "settings.shortcuts.conflict_with": "Deja folosit de \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copiază ultimul mesaj",
+  "settings.shortcuts.cycle_reasoning_effort": "Schimbă nivelul de raționament",
   "settings.shortcuts.edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
   "settings.shortcuts.empty": "Nu există comenzi rapide disponibile în acest grup",
   "settings.shortcuts.exit_fullscreen": "Ieși din ecran complet",

@@ -591,6 +591,20 @@
       "description": "Command shortcut: chat.model.select (unified command system)"
     },
     {
+      "targetKey": "shortcut.chat.reasoning.cycle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "."
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.reasoning.cycle (unified command system)"
+    },
+    {
       "targetKey": "shortcut.topic.clear_messages",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

@@ -4838,6 +4838,7 @@
   "settings.shortcuts.categories.topic": "Conversations",
   "settings.shortcuts.conflict_with": "Already used by \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copy Last Message",
+  "settings.shortcuts.cycle_reasoning_effort": "Cycle Reasoning Effort",
   "settings.shortcuts.edit_last_user_message": "Edit Last User Message",
   "settings.shortcuts.empty": "No shortcuts are available in this group",
   "settings.shortcuts.exit_fullscreen": "Exit Fullscreen",
