@@ -6,9 +6,12 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
+import { isWin } from '@main/core/platform'
+import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getBundledGitDir } from '@main/utils/bundledGit'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
@@ -159,8 +162,21 @@ async function createStdio(
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
 
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
+  // Preserve the user's MISE contract when they have one so system mise shims
+  // (e.g. pnpx) aren't redirected to Cherry's isolated data dir (#19738).
+  // When no MISE_* is present, inject Cherry's execution env so shims from
+  // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
+  // instead of the default user location, matching DSH/Pi branching.
+  const rawShellEnv = await getRawShellEnv()
+  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
+  const rawPath = getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>) ?? ''
+  const hasUserMiseInPath = rawPath.split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
+  const cherryToolDirs = getBinarySearchDirs()
+  const bundledGitDir = getBundledGitDir()
+  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
+  const loginShellEnv = hasUserMiseEnv ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
 
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {

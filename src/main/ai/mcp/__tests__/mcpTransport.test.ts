@@ -18,7 +18,12 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({} as Record<string, unknown>)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: async () => ({ PATH: '/shell/bin' }),
+  getRawShellEnv: async () => ({ PATH: '/shell/bin' }),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
@@ -147,7 +152,11 @@ describe('createTransport', () => {
 
     expect(transport.params.command).toBe('/usr/local/bin/npx')
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
-    expect(transport.params.env.PATH).toBe('/shell/bin')
+    const pathValue = transport.params.env.PATH as string
+    // User PATH entries must stay before Cherry fallbacks (load-bearing order).
+    expect(pathValue.split(/[:;]/)[0]).toBe('/shell/bin')
+    expect(pathValue).toContain('/mock/feature.binary.data/shims')
+    expect(pathValue.indexOf('/shell/bin')).toBeLessThan(pathValue.indexOf('/mock/feature.binary.data'))
     expect(transport.params.stderr).toBe('pipe')
   })
 

@@ -92,6 +92,7 @@ const mocks = vi.hoisted(() => ({
   settingsArgs: undefined as unknown[] | undefined,
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
+  getRawShellEnv: vi.fn().mockResolvedValue({}),
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
@@ -172,6 +173,7 @@ vi.mock('./piSdk', () => ({
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
+  getRawShellEnv: mocks.getRawShellEnv,
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
