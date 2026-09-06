@@ -251,8 +251,18 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
   { [P in keyof T]: UnifiedPreferenceType[T[P]] },
   (updates: Partial<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }>) => Promise<void>
 ] {
-  // Create stable key dependencies
-  const keyList = useMemo(() => Object.values(keys), [keys])
+  const keysDep = JSON.stringify(
+    Object.keys(keys)
+      .sort()
+      .map((localKey) => [localKey, keys[localKey]])
+  )
+  const stableKeys = useMemo<T>(
+    () => ({ ...keys }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the semantic identity of `keys`
+    [keysDep]
+  )
+  const keyEntries = useMemo(() => Object.entries(stableKeys), [stableKeys])
+  const keyList = useMemo(() => keyEntries.map(([, key]) => key), [keyEntries])
 
   // Cache the last snapshot to avoid infinite loops
   const lastSnapshotRef = useRef<Record<string, any>>({})
@@ -272,14 +282,17 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
 
     useCallback(() => {
       // Check if any values have actually changed
-      let hasChanged = Object.keys(lastSnapshotRef.current).length === 0 // First time
+      let hasChanged = Object.keys(lastSnapshotRef.current).length !== keyEntries.length
       const newSnapshot: Record<string, any> = {}
 
-      for (const [localKey, prefKey] of Object.entries(keys)) {
+      for (const [localKey, prefKey] of keyEntries) {
         const currentValue = preferenceService.getCachedValue(prefKey)
         newSnapshot[localKey] = currentValue
 
-        if (!hasChanged && lastSnapshotRef.current[localKey] !== currentValue) {
+        if (
+          !hasChanged &&
+          (!Object.hasOwn(lastSnapshotRef.current, localKey) || lastSnapshotRef.current[localKey] !== currentValue)
+        ) {
           hasChanged = true
         }
       }
@@ -290,38 +303,33 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
       }
 
       return lastSnapshotRef.current
-    }, [keys]),
+    }, [keyEntries]),
 
     () => ({}) // No SSR snapshot
   )
 
   // Load initial values asynchronously if not cached
   useEffect(() => {
-    // Find keys that need loading (either not cached or rawValue is undefined)
-    const uncachedKeys = keyList.filter((key) => {
-      // Find the local key for this preference key
-      const localKey = Object.keys(keys).find((k) => keys[k] === key)
-      const rawValue = localKey ? rawValues[localKey] : undefined
-
-      return rawValue === undefined && !preferenceService.isCached(key)
-    })
+    const uncachedKeys = keyEntries
+      .filter(([localKey, key]) => rawValues[localKey] === undefined && !preferenceService.isCached(key))
+      .map(([, key]) => key)
 
     if (uncachedKeys.length > 0) {
       preferenceService.getMultipleRaw(uncachedKeys).catch((error) => {
         logger.error('Failed to load initial preferences:', error as Error)
       })
     }
-  }, [keyList, rawValues, keys])
+  }, [keyEntries, rawValues])
 
   // Convert raw values (including undefined) to exposed values (with defaults)
   const exposedValues = useMemo(() => {
     const result: Record<string, any> = {}
-    for (const [localKey, prefKey] of Object.entries(keys)) {
+    for (const [localKey, prefKey] of keyEntries) {
       const rawValue = rawValues[localKey]
       result[localKey] = rawValue !== undefined ? rawValue : getDefaultValue(prefKey)
     }
     return result
-  }, [keys, rawValues])
+  }, [keyEntries, rawValues])
 
   // Memoized batch update function
   const updateValues = useCallback(
@@ -330,7 +338,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         // Convert local keys back to preference keys
         const prefUpdates: Record<string, any> = {}
         for (const [localKey, value] of Object.entries(updates)) {
-          const prefKey = keys[localKey as keyof T]
+          const prefKey = stableKeys[localKey as keyof T]
           if (prefKey) {
             prefUpdates[prefKey] = value
           }
@@ -342,7 +350,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         throw error
       }
     },
-    [keys, options]
+    [stableKeys, options]
   )
 
   // Type-cast the values to the expected shape
