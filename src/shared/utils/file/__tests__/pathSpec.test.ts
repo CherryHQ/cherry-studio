@@ -30,7 +30,8 @@ describe('parseWindowsPath', () => {
     ['C:/a', { isAbsolute: true, root: 'C:/', segments: ['a'] }],
     ['\\a', { isAbsolute: true, root: '\\', segments: ['a'] }],
     ['/a', { isAbsolute: true, root: '/', segments: ['a'] }],
-    ['\\\\server\\share\\a', { isAbsolute: true, root: '\\\\server\\share', segments: ['a'] }]
+    ['\\\\server\\share\\a', { isAbsolute: true, root: '\\\\server\\share', segments: ['a'] }],
+    ['\\\\server\\\\share/a', { isAbsolute: true, root: '\\\\server\\\\share', segments: ['a'] }]
   ])('parses %s', (value, expected) => {
     expect(parseWindowsPath(value)).toEqual(expected)
   })

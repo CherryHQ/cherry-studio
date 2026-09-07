@@ -17,7 +17,13 @@ describe('isFilesystemRoot on Windows', () => {
     '\\\\?\\unc\\server\\share',
     '//?/UNC/server/share',
     '//?/UNC/server/share/',
-    '//?/unc/server/share'
+    '//?/unc/server/share',
+    '//server//share',
+    '//server/\\share',
+    '\\\\server\\\\share',
+    '\\\\server\\/share',
+    '//?/UNC/server//share',
+    '\\\\?\\UNC\\server\\\\share'
   ])('identifies a UNC root: %s', (value) => {
     expect(isFilesystemRoot(p(value))).toBe(true)
   })
@@ -29,5 +35,6 @@ describe('isFilesystemRoot on Windows', () => {
   it('allows a nested extended-length UNC directory', () => {
     expect(isFilesystemRoot(p('\\\\?\\UNC\\server\\share\\project'))).toBe(false)
     expect(isFilesystemRoot(p('//?/UNC/server/share/project'))).toBe(false)
+    expect(isFilesystemRoot(p('//?/UNC/server//share/project'))).toBe(false)
   })
 })
