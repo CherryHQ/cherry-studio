@@ -1,7 +1,11 @@
 export { AiStreamAdmissionError } from './admission'
 export { AiStreamManager, type SendResult } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
-export { agentChatContextProvider } from './context/AgentChatContextProvider'
+export {
+  agentChatContextProvider,
+  type PersistedAgentDispatch,
+  type ValidatedAgentDispatch
+} from './context/AgentChatContextProvider'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'

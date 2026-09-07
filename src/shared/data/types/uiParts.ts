@@ -21,6 +21,7 @@
  * - data-clear (context boundary marker)
  * - data-code (code blocks)
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
+ * - data-handoff (display-only source/target linkage for an explicit Agent handoff)
  */
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
@@ -148,6 +149,7 @@ export type CherryDataPartTypes = {
   clear: ClearPartData
   code: CodePartData
   retry: RetryPartData
+  handoff: HandoffPartData
 }
 
 // ============================================================================
@@ -184,6 +186,19 @@ export interface CherryToolMeta {
     serverName?: string
     type?: 'mcp' | 'builtin' | 'provider'
   }
+}
+
+/** Display-only linkage for an explicit Chat → Agent handoff. */
+export interface HandoffPartData {
+  handoffId: string
+  payloadHash: string
+  source: { kind: 'topic' | 'temporary'; id: string; name?: string }
+  targetAgentId: string
+  targetAgentName?: string
+  targetSessionId?: string
+  goal?: string
+  initialAssistantMessageId: string
+  state: 'pending' | 'started' | 'error'
 }
 
 /** A single actionable step in an AI error diagnosis. */

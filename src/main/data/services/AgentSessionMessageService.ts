@@ -796,6 +796,71 @@ export class AgentSessionMessageService {
     return rows[0] ?? null
   }
 
+  /** Find the stable user/assistant pair belonging to an explicit handoff. */
+  findHandoffMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    handoffId: string
+  ): { user: AgentSessionMessageEntity; assistant: AgentSessionMessageEntity } | null {
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .all()
+      .map((row) => this.rowToEntity(row))
+    const tagged = rows.filter((row) =>
+      (row.data.parts ?? []).some(
+        (part) =>
+          part.type === 'data-handoff' &&
+          typeof part.data === 'object' &&
+          part.data !== null &&
+          (part.data as { handoffId?: unknown }).handoffId === handoffId
+      )
+    )
+    const user = tagged.find((row) => row.role === 'user')
+    const marker = user?.data.parts?.find((part) => part.type === 'data-handoff')
+    const assistant = rows.find((row) => row.role === 'assistant' && row.id === marker?.data.initialAssistantMessageId)
+    return user && assistant ? { user, assistant } : null
+  }
+
+  /** Atomically claim a pending handoff assistant placeholder for its first runtime turn. */
+  claimHandoffAssistantTx(tx: DbOrTx, sessionId: string, assistantMessageId: string): AgentSessionMessageEntity | null {
+    const existing = this.findExistingMessageRow(tx, sessionId, assistantMessageId)
+    if (!existing || existing.role !== 'assistant' || !['pending', 'error'].includes(existing.status)) return null
+    const parts = existing.data.parts ?? []
+    const handoff = parts.find(
+      (part) =>
+        part.type === 'data-handoff' &&
+        typeof part.data === 'object' &&
+        part.data !== null &&
+        (part.data as { state?: unknown }).state === 'pending'
+    )
+    if (!handoff) return null
+    const data = {
+      ...existing.data,
+      parts: parts.map((part) =>
+        part === handoff && part.type === 'data-handoff'
+          ? { ...part, data: { ...part.data, state: 'started' as const } }
+          : part
+      )
+    }
+    const updatedAt = Date.now()
+    const [updated] = tx
+      .update(sessionMessagesTable)
+      .set({ data, status: 'pending', updatedAt })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, assistantMessageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.status, existing.status)
+        )
+      )
+      .returning()
+      .all()
+    if (updated) agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+    return updated ? this.rowToEntity(updated) : null
+  }
+
   private upsertMessage(
     db: DbOrTx,
     params: SaveAgentSessionMessageParams,

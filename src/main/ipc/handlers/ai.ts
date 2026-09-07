@@ -5,7 +5,12 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { HandoffDraftError, streamHandoffDraft } from '@main/ai/agentSession/handoff'
+import {
+  HandoffDraftError,
+  HandoffStartConflictError,
+  startHandoff,
+  streamHandoffDraft
+} from '@main/ai/agentSession/handoff'
 import { findPersistedToolOutput } from '@main/ai/messages/readConversation'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -99,6 +104,17 @@ async function exposeHandoffDraftError<T>(op: () => T | Promise<T>): Promise<T> 
   }
 }
 
+async function exposeHandoffStartError<T>(op: () => T | Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof HandoffStartConflictError) {
+      throw new IpcError(aiErrorCodes.AI_HANDOFF_START_FAILED, error.message, { code: 'CONFLICT' })
+    }
+    throw error
+  }
+}
+
 function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
 }
@@ -170,6 +186,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       },
       attachments: [...prepared.material.attachments]
     }
+  },
+  'ai.agent.handoff.start': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.agent.handoff.start requires a managed window')
+    return exposeHandoffStartError(() =>
+      startHandoff(request, new WebContentsListener(wc, `agent-session:${request.handoffId}`))
+    )
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

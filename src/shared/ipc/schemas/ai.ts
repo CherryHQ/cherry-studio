@@ -142,6 +142,31 @@ export const HandoffDraftOpenResponseSchema = z.strictObject({
 })
 export type HandoffDraftOpenResponse = z.infer<typeof HandoffDraftOpenResponseSchema>
 
+const handoffSourceSchema = z.strictObject({
+  kind: z.enum(['topic', 'temporary']),
+  id: z.string().min(1),
+  name: z.string().optional()
+})
+
+export const HandoffStartSchema = z.strictObject({
+  /** Stable session identity allocated by the renderer for this confirmation. */
+  handoffId: z.uuid(),
+  source: handoffSourceSchema,
+  targetAgentId: z.string().min(1),
+  workspace: AgentSessionWorkspaceSourceSchema,
+  goal: z.string().trim().min(1),
+  summary: z.string(),
+  attachmentParts: z.array(handoffAttachmentSchema)
+})
+export type HandoffStart = z.infer<typeof HandoffStartSchema>
+
+export const HandoffStartResponseSchema = z.strictObject({
+  sessionId: z.uuid(),
+  state: z.enum(['started', 'existing', 'created']),
+  error: z.custom<unknown>().optional()
+})
+export type HandoffStartResponse = z.infer<typeof HandoffStartResponseSchema>
+
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
   agentId: z.string().min(1),
@@ -314,6 +339,10 @@ export const aiRequestSchemas = {
   'ai.agent.handoff.draft.open': defineRoute({
     input: HandoffDraftOpenSchema,
     output: HandoffDraftOpenResponseSchema
+  }),
+  'ai.agent.handoff.start': defineRoute({
+    input: HandoffStartSchema,
+    output: HandoffStartResponseSchema
   }),
 
   // ── Tool calls: deferred results + approval decisions. Spans two owners

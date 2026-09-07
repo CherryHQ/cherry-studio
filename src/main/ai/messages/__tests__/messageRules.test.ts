@@ -33,6 +33,40 @@ describe('toModelMessages', () => {
     ])
   })
 
+  it('drops a display-only handoff assistant marker from ordinary model history', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'before' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'data-handoff',
+            data: {
+              handoffId: 'h1',
+              payloadHash: 'p1',
+              source: { kind: 'topic', id: 't1' },
+              targetAgentId: 'a1',
+              initialAssistantMessageId: 'm1',
+              state: 'started'
+            }
+          }
+        ] as UIMessage['parts'],
+        'a-handoff'
+      ),
+      ui('user', [{ type: 'text', text: 'after' }], 'u2')
+    ])
+
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'before' },
+          { type: 'text', text: 'after' }
+        ]
+      }
+    ])
+  })
+
   it('drops an empty-parts assistant turn and coalesces the surrounding user turns', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
