@@ -4,6 +4,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -65,6 +66,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
+  private readonly retentionPurgeLocks = new KeyedMutex()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -154,23 +156,38 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
+  restoreSession(id: string): Promise<AgentSessionEntity> {
+    const work = this.retentionPurgeLocks.runExclusive(id, () => agentSessionService.restore(id))
+    this.track(
+      `restore:${id}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
   async purgeExpiredSessions(cutoffMs: number, limit: number): Promise<string[]> {
     const hold = this.pause('trash-purge')
     try {
       const sessionIds = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
       if (sessionIds.length === 0) return []
 
-      const manager = application.get('AiStreamManager')
-      await Promise.all(
+      const purged = await Promise.all(
         sessionIds.map((sessionId) =>
-          manager.abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
+          this.retentionPurgeLocks.runExclusive(sessionId, async () => {
+            if (!agentSessionService.isExpiredTrash(sessionId, cutoffMs)) return []
+
+            await application
+              .get('AiStreamManager')
+              .abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
+            await this.drainSessionQueues([sessionId])
+
+            return application
+              .get('DbService')
+              .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [sessionId], cutoffMs))
+          })
         )
       )
-      await this.drainSessionQueues(sessionIds)
-
-      return application
-        .get('DbService')
-        .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, sessionIds, cutoffMs))
+      return purged.flat()
     } finally {
       hold.dispose()
     }

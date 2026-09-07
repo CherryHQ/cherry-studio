@@ -1,5 +1,5 @@
 /**
- * DataApi-backed session queries and mutations.
+ * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
  * Sessions are pure agent instances — only `id / agentId / name / description /
  * orderKey / timestamps` live here. For config (model / instructions /
@@ -297,9 +297,6 @@ export const useSessions = (
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
     refresh: ['/agent-sessions', '/agent-workspaces']
   })
-  const { trigger: restoreTrigger } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agents/*']
-  })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) {
@@ -361,11 +358,16 @@ export const useSessions = (
 
   const restoreSession = useCallback(
     async (id: string): Promise<AgentSessionEntity> => {
-      const session = await restoreTrigger({ params: { sessionId: id } })
+      const session = await ipcApi.request('ai.agent.session.restore', { sessionId: id })
+      try {
+        await invalidate(['/agent-sessions', `/agent-sessions/${id}`, '/agents/*'])
+      } catch (error) {
+        logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
+      }
       logger.info('Restored Agent Session', { sessionId: id })
       return session
     },
-    [restoreTrigger]
+    [invalidate]
   )
 
   const deleteSessions = useCallback(

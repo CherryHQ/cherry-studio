@@ -720,28 +720,17 @@ describe('useSessions', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('restores a session through DataApi', async () => {
+  it('restores a session through the lifecycle IPC command and refreshes its read models', async () => {
     const restoredSession = createSession({ id: 'session-a' })
-    const restoreTrigger = vi.fn().mockResolvedValue(restoredSession)
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions/:sessionId/restore', restoreTrigger)
+    mockIpcRequest.mockResolvedValue(restoredSession)
 
     const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
     const restored = await act(async () => result.current.restoreSession('session-a'))
 
-    expect(restoreTrigger).toHaveBeenCalledWith({ params: { sessionId: 'session-a' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.agent.session.restore', { sessionId: 'session-a' })
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-a', '/agents/*'])
     expect(restored).toBe(restoredSession)
-    const restoreMutationCall = mockUseMutation.mock.calls.find(
-      ([method, path]) => method === 'POST' && path === '/agent-sessions/:sessionId/restore'
-    )
-    const refresh = restoreMutationCall?.[2]?.refresh as (context: {
-      args: { params: { sessionId: string } }
-      result: AgentSessionEntity
-    }) => string[]
-    expect(refresh({ args: { params: { sessionId: 'session-a' } }, result: restoredSession })).toEqual([
-      '/agent-sessions',
-      '/agent-sessions/session-a',
-      '/agents/*'
-    ])
   })
 
   it('keeps a committed session deletion successful when cache refresh fails', async () => {

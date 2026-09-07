@@ -158,14 +158,6 @@ export type AgentSessionSchemas = {
     }
   }
 
-  /** Restore one trashed session. Pins purged at Delete time are not restored. */
-  '/agent-sessions/:sessionId/restore': {
-    POST: {
-      params: { sessionId: string }
-      response: AgentSessionEntity
-    }
-  }
-
   '/agent-sessions/:sessionId/workspace': {
     /**
      * Replace the session's workspace. Only permitted while the session has no

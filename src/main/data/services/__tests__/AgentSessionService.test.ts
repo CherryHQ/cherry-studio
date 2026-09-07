@@ -1429,8 +1429,10 @@ describe('AgentSessionService', () => {
     await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, session.id))
 
     expect(agentSessionService.listExpiredTrashIds(200, 10)).toEqual([session.id])
+    expect(agentSessionService.isExpiredTrash(session.id, 200)).toBe(true)
     agentSessionService.restore(session.id)
 
+    expect(agentSessionService.isExpiredTrash(session.id, 200)).toBe(false)
     expect(dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [session.id], 200))).toEqual([])
     expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id, deletedAt: undefined })
   })

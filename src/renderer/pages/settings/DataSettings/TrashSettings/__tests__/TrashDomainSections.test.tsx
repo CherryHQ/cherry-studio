@@ -180,6 +180,30 @@ describe('Trash domain batch adapters', () => {
     expect(refresh?.({ args: { params: { agentId: 'agent-1' } } })).toEqual(['/agents', '/agents/agent-1'])
   })
 
+  it('restores a Session through its lifecycle IPC command', async () => {
+    const user = userEvent.setup()
+    mocks.pagesByPath.set('/agent-sessions', [
+      { items: [{ id: 'session-1', name: 'Session one', deletedAt: '2026-08-01T00:00:00.000Z' }] }
+    ])
+    mocks.ipcRequest.mockResolvedValue({ id: 'session-1' })
+
+    render(
+      <SessionTrashSection
+        retentionDays={30}
+        isBatchMode={false}
+        isPermanentDeleting={false}
+        onRequestDelete={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.session.restore', { sessionId: 'session-1' })
+    )
+    expect(mocks.invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1', '/agents/*'])
+    expect(toast.success).toHaveBeenCalledWith('Restored')
+  })
+
   it.each(dataDomainCases)(
     '$label batch permanent delete uses its direct route, refreshes once, and keeps a stale failure selected',
     async (testCase) => {

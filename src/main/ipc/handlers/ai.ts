@@ -16,6 +16,7 @@ import type {
   PersistedToolOutputBlobRef
 } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -152,6 +153,17 @@ function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
 }
 
+async function restoreAgentSession(sessionId: string) {
+  try {
+    return await application.get('AgentSessionDeliveryService').restoreSession(sessionId)
+  } catch (e) {
+    if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
+    }
+    throw e
+  }
+}
+
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
   'ai.text.generate': (request) =>
@@ -226,6 +238,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
+  'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

@@ -6,6 +6,8 @@ import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -427,12 +429,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => agentDataMocks.invalidate,
   useMutation: (method: string, path: string) => ({
-    trigger:
-      method === 'POST' && path === '/agents/:agentId/restore'
-        ? agentDataMocks.restoreAgent
-        : method === 'POST' && path === '/agent-sessions/:sessionId/restore'
-          ? agentDataMocks.restoreSession
-          : vi.fn()
+    trigger: method === 'POST' && path === '/agents/:agentId/restore' ? agentDataMocks.restoreAgent : vi.fn()
   })
 }))
 
@@ -442,7 +439,13 @@ vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.agent.session.restore'
+        ? agentDataMocks.restoreSession(input)
+        : agentDataMocks.ipcRequest(route, input),
+    on: vi.fn(() => () => undefined)
+  }
 }))
 
 vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
@@ -1351,8 +1354,8 @@ describe('classic layout entity resource list actions', () => {
     await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
     expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
-    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
-    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-not-loaded' } })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-not-loaded' })
   })
 
   it('does not fail Agent Undo when restore succeeds but follow-up refreshes reject', async () => {
@@ -1455,8 +1458,8 @@ describe('classic layout entity resource list actions', () => {
       restored: ['session-1', 'session-not-loaded'],
       failed: []
     })
-    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
-    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-not-loaded' } })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-not-loaded' })
   })
 
   it('counts active protected Sessions as restored after restore NOT_FOUND and missing Sessions as failed', async () => {
@@ -1471,8 +1474,8 @@ describe('classic layout entity resource list actions', () => {
       }
     ]
     agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
-    const activeError = DataApiErrorFactory.notFound('Session', 'session-active')
-    const purgedError = DataApiErrorFactory.notFound('Session', 'session-purged')
+    const activeError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    const purgedError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session purged')
     agentDataMocks.restoreSession.mockRejectedValueOnce(activeError).mockRejectedValueOnce(purgedError)
     agentDataMocks.getActiveResource.mockImplementation((path: string) =>
       path === '/agent-sessions/session-active'

@@ -13,6 +13,7 @@ import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation
 import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,13 +39,14 @@ const NO_LONGER_IN_RECYCLE_BIN = Symbol('no-longer-in-recycle-bin')
 async function reconcileNotFound(
   run: () => Promise<unknown>,
   refresh: () => Promise<unknown>,
-  activePath: ConcreteApiPaths
+  activePath: ConcreteApiPaths,
+  isNotFound: (error: unknown) => boolean = isDataApiNotFoundError
 ) {
   try {
     await run()
     return undefined
   } catch (error) {
-    if (!isDataApiNotFoundError(error)) throw error
+    if (!isNotFound(error)) throw error
     await refresh()
     try {
       await dataApiService.get(activePath)
@@ -346,15 +348,20 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
     [sessions]
   )
 
-  const restoreMutation = useMutation('POST', '/agent-sessions/:sessionId/restore', {
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agents/*']
-  })
-
   const restoreItem = (item: TrashItem) =>
     reconcileNotFound(
-      () => restoreMutation.trigger({ params: { sessionId: item.id } }),
+      async () => {
+        const restored = await ipcApi.request('ai.agent.session.restore', { sessionId: item.id })
+        try {
+          await invalidate(['/agent-sessions', `/agent-sessions/${item.id}`, '/agents/*'])
+        } catch (error) {
+          logger.warn('failed to refresh sessions after restore', error as Error)
+        }
+        return restored
+      },
       refresh,
-      `/agent-sessions/${item.id}`
+      `/agent-sessions/${item.id}`,
+      isAgentSessionNotFoundError
     )
 
   const handleRestore = async (item: TrashItem) => {

@@ -1050,6 +1050,20 @@ export class AgentSessionService {
       .map((row) => row.id)
   }
 
+  isExpiredTrash(id: string, cutoffMs: number): boolean {
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt), lt(sessionsTable.deletedAt, cutoffMs)))
+        .limit(1)
+        .all().length > 0
+    )
+  }
+
   purgeExpiredByIdsTx(tx: DbOrTx, ids: readonly string[], cutoffMs: number): string[] {
     const uniqueIds = [...new Set(ids)]
     if (uniqueIds.length === 0) return []

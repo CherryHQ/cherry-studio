@@ -993,6 +993,44 @@ describe('AgentSessionMessageService', () => {
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
+  it('makes messages unaddressable while their Session is archived', async () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'archived session secret' }] }
+      }
+    })
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, SESSION_ID))
+
+    expect(() => agentSessionMessageService.listSessionMessages(SESSION_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        data: { parts: [{ type: 'text', text: 'changed while archived' }] }
+      })
+    ).toThrow(`Session with id '${SESSION_ID}' not found`)
+    expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toEqual([])
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toEqual([])
+
+    agentSessionService.restore(SESSION_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'archived session secret' }
+    ])
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toHaveLength(1)
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toHaveLength(1)
+  })
+
   it('preserves turnOptions when a data patch sends only parts', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,

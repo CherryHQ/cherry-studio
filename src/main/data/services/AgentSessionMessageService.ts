@@ -310,6 +310,7 @@ export class AgentSessionMessageService {
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE sm.searchable_text != ''
+            AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
             AND ${sql.join(ftsConditions, sql` AND `)}
@@ -366,6 +367,7 @@ export class AgentSessionMessageService {
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
         WHERE agent_session_message_fts MATCH ${matchQuery}
+          AND s.deleted_at IS NULL
           AND ${agentCondition}
           AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
@@ -416,7 +418,8 @@ export class AgentSessionMessageService {
           FROM agent_session_message sm
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE ${agentCondition}
+          WHERE s.deleted_at IS NULL
+            AND ${agentCondition}
             AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
@@ -522,13 +525,7 @@ export class AgentSessionMessageService {
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
@@ -588,13 +585,7 @@ export class AgentSessionMessageService {
     }
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
     if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
@@ -612,6 +603,7 @@ export class AgentSessionMessageService {
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
     const row = this.findExistingMessageRow(database, sessionId, messageId)
     if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
     return this.rowToEntity(row)
@@ -623,6 +615,7 @@ export class AgentSessionMessageService {
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
     return application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
 
@@ -801,6 +794,16 @@ export class AgentSessionMessageService {
   }
 
   // ── Persistence methods ──────────────────────────────────────────
+
+  private assertActiveSession(db: DbOrTx, sessionId: string): void {
+    const [session] = db
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+  }
 
   private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
     const rows = db

@@ -2,6 +2,8 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,11 +67,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     trigger:
       method === 'POST' && path === '/agents/:agentId/restore'
         ? mocks.restoreAgent
-        : method === 'POST' && path === '/agent-sessions/:sessionId/restore'
-          ? mocks.restoreSession
-          : method === 'POST' && path === '/topics/:id/restore'
-            ? mocks.restoreTopic
-            : mocks.restoreAssistant
+        : method === 'POST' && path === '/topics/:id/restore'
+          ? mocks.restoreTopic
+          : mocks.restoreAssistant
   })
 }))
 
@@ -81,7 +81,12 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mocks.closeConversationTabs
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.agent.session.restore' ? mocks.restoreSession(input) : mocks.ipcRequest(route, input)
+  }
+}))
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
   ...(await importOriginal<typeof RecycleBinFeedback>()),
   showRecycleBinBatchUndo: mocks.showRecycleBinBatchUndo,
@@ -190,7 +195,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
     expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
-    expect(mocks.restoreSession).toHaveBeenCalledExactlyOnceWith({ params: { sessionId: 'session-2' } })
+    expect(mocks.restoreSession).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session-2' })
   })
 
   it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
@@ -232,8 +237,8 @@ describe('ResourceDeleteConfirmDialog', () => {
       failed: []
     })
 
-    expect(mocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
-    expect(mocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-2' } })
+    expect(mocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+    expect(mocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-2' })
     expect(mocks.restoreAgent).not.toHaveBeenCalled()
     expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
   })
@@ -341,8 +346,8 @@ describe('ResourceDeleteConfirmDialog', () => {
 
   it('counts active protected Sessions as restored after restore NOT_FOUND and keeps missing Sessions failed', async () => {
     const user = userEvent.setup()
-    const firstError = DataApiErrorFactory.notFound('Session', 'session-active')
-    const secondError = DataApiErrorFactory.notFound('Session', 'session-purged')
+    const firstError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    const secondError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session purged')
     mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
     mocks.restoreSession.mockRejectedValueOnce(firstError).mockRejectedValueOnce(secondError)
     mocks.getActiveResource.mockImplementation((path: string) =>

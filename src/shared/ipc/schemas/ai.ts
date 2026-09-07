@@ -17,6 +17,7 @@ import {
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
+  AgentSessionEntitySchema,
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -325,6 +326,10 @@ export const aiRequestSchemas = {
       permanent: z.boolean().optional()
     }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.restore': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: AgentSessionEntitySchema
   }),
   'ai.agent.session.reuse_or_create': defineRoute({
     input: ReuseOrCreateAgentSessionSchema,

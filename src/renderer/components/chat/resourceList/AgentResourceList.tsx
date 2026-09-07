@@ -26,9 +26,9 @@ import { toast } from '@renderer/services/toast'
 import { SESSION_UNKNOWN_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -119,9 +119,10 @@ export function AgentResourceList({
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
     refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
   })
-  const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
-    refresh: ['/agent-sessions']
-  })
+  const restoreSession = useCallback(
+    (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
+    []
+  )
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
@@ -340,12 +341,12 @@ export function AgentResourceList({
               itemCount: deletedSessionIds.length,
               onUndo: async () => {
                 const outcomes = await Promise.allSettled(
-                  deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
+                  deletedSessionIds.map((sessionId) => restoreSession(sessionId))
                 )
                 await refreshAfterRestore()
                 const activeAfterNotFound = await Promise.all(
                   outcomes.map(async (outcome, index) => {
-                    if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
+                    if (outcome.status === 'fulfilled' || !isAgentSessionNotFoundError(outcome.reason)) return false
                     try {
                       await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
                       return true
@@ -377,7 +378,7 @@ export function AgentResourceList({
                   },
                   related: {
                     ids: deletedSessionIds,
-                    restore: (id) => restoreSession({ params: { sessionId: id } }),
+                    restore: restoreSession,
                     getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
                   },
                   refresh: refreshAfterRestore

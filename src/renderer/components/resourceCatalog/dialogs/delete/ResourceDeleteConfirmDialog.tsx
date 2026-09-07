@@ -20,6 +20,7 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import type { FC } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -131,9 +132,10 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
     refresh: ['/agents', '/agents/*']
   })
-  const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
-    refresh: ['/agent-sessions']
-  })
+  const restoreSession = useCallback(
+    (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
+    []
+  )
   const refreshAffected = useCallback(async () => {
     const outcomes = await Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key)))
     for (const outcome of outcomes) {
@@ -157,13 +159,11 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
         showRecycleBinBatchUndo({
           itemCount: deletedSessionIds.length,
           onUndo: async () => {
-            const outcomes = await Promise.allSettled(
-              deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
-            )
+            const outcomes = await Promise.allSettled(deletedSessionIds.map((sessionId) => restoreSession(sessionId)))
             await refreshAffected()
             const activeAfterNotFound = await Promise.all(
               outcomes.map(async (outcome, index) => {
-                if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
+                if (outcome.status === 'fulfilled' || !isAgentSessionNotFoundError(outcome.reason)) return false
                 try {
                   await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
                   return true
@@ -206,7 +206,7 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
             },
             related: {
               ids: deletedSessionIds,
-              restore: (id) => restoreSession({ params: { sessionId: id } }),
+              restore: restoreSession,
               getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
             },
             refresh: refreshAffected
