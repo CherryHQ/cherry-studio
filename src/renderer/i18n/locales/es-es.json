@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} llamadas a herramientas",
   "agent.right_pane.tabs.files": "Archivos",
   "agent.right_pane.tabs.status": "Estado",
+  "agent.runtime_mode.label": "Modo de ejecución del agente: {{mode}}",
   "agent.session.add.title": "Agregar una sesión",
   "agent.session.agent.delete.content": "Eliminar las tareas de este agente eliminará todas las tareas asociadas con este agente. El agente en sí no se eliminará.",
   "agent.session.agent.delete.title": "Eliminar tareas del agente",

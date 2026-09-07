@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} appels d'outils",
   "agent.right_pane.tabs.files": "Fichiers",
   "agent.right_pane.tabs.status": "Statut",
+  "agent.runtime_mode.label": "Mode d’exécution de l’agent : {{mode}}",
   "agent.session.add.title": "Ajouter une session",
   "agent.session.agent.delete.content": "La suppression des tâches de cet agent entraînera la suppression de toutes les tâches associées à cet agent. L'agent lui-même ne sera pas supprimé.",
   "agent.session.agent.delete.title": "Supprimer les tâches de l'agent",
