@@ -144,6 +144,10 @@ export class DshStreamAdapter {
   private savedHostTurnEndedAt?: number
   /** Call ids from a suppressed autonomous turn; isolates late bridge approvals even after a host turn begins. */
   private readonly suppressedToolCallIds = new Set<string>()
+  /** The next `turn/start` after `beginTurn()` belongs to the host prompt; distinguishes host vs autonomous even when reordered. */
+  private pendingHostTurn = false
+  /** Turn id of the currently active non-suppressed turn, if any. */
+  private activeTurnId?: number
 
   constructor(private readonly sink: DshStreamSink) {}
 
@@ -157,6 +161,7 @@ export class DshStreamAdapter {
     // `suppressedTurn` for late-event isolation until its `turn/end` arrives.
     this.autonomousTurnSuppressed = false
     this.hostTurnEndedAt = undefined
+    this.pendingHostTurn = true
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
@@ -164,6 +169,7 @@ export class DshStreamAdapter {
     this.turnActive = false
     this.autonomousTurn = false
     this.autonomousTurnSuppressed = false
+    this.pendingHostTurn = false
     if (this.savedHostTurnEndedAt !== undefined) {
       this.hostTurnEndedAt = this.savedHostTurnEndedAt
       this.savedHostTurnEndedAt = undefined
@@ -178,6 +184,12 @@ export class DshStreamAdapter {
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
     if (this.suppressedToolCallIds.has(callId)) return
+    // A stream-presented approval from a suppressed autonomous turn can arrive
+    // after the next host turn has begun (beginTurn clears grace). The bridge
+    // path carries no turn id, so we cannot correlate directly — defer and let
+    // the session's `tool/call` (which does carry turn) decide. The host's own
+    // approval will still materialize when its `tool/call` arrives.
+    if (this.suppressedTurn !== undefined) return
     if (this.ensureTurnOpen()) {
       this.suppressedToolCallIds.add(callId)
       return
@@ -198,7 +210,8 @@ export class DshStreamAdapter {
     // downstream service never opens a receive-only stream, so content chunks would be dropped
     // anyway — better to not enqueue them at all.
     if (this.autonomousTurnSuppressed) return true
-    if (this.hostTurnEndedAt !== undefined && Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
+    const graceAt = this.hostTurnEndedAt ?? this.savedHostTurnEndedAt
+    if (graceAt !== undefined && Date.now() - graceAt < POST_HOST_TURN_GRACE_MS) {
       return true
     }
     this.sink.onAutonomousTurnState('started')
@@ -209,23 +222,34 @@ export class DshStreamAdapter {
 
   handleEvent(event: SessionEvent): void {
     switch (event.type) {
-      case 'turn/start':
+      case 'turn/start': {
+        const turnId = (event.data as { turn: number }).turn
+        // Host-prompted turn: the next start after beginTurn belongs to the user.
+        if (this.pendingHostTurn) {
+          this.pendingHostTurn = false
+          this.activeTurnId = turnId
+          this.flushPendingProviderUsage()
+          this.turnUsage = emptyTurnUsage()
+          this.resetStepTiming()
+          return
+        }
+        // Autonomous turn: latch suppression if within grace after a host turn.
+        // Check both the live and saved grace stamps so a late-arriving
+        // autonomous start (after the next host turn has begun) is still caught.
+        const graceAt = this.hostTurnEndedAt ?? this.savedHostTurnEndedAt
+        const withinGrace = graceAt !== undefined && Date.now() - graceAt < POST_HOST_TURN_GRACE_MS
+        if (withinGrace) {
+          this.autonomousTurnSuppressed = true
+          this.suppressedTurn = turnId
+          return
+        }
         this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
-        // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
-        // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
         if (!this.turnActive) this.startedTools.clear()
         this.resetStepTiming()
-        // Latch the suppression decision at turn boundary: if this autonomous turn starts
-        // within the grace window after a host turn ended, suppress it for the entire turn.
-        if (!this.turnActive && this.hostTurnEndedAt !== undefined) {
-          const withinGrace = Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS
-          if (withinGrace) {
-            this.autonomousTurnSuppressed = true
-            this.suppressedTurn = (event.data as { turn: number }).turn
-          }
-        }
+        this.activeTurnId = turnId
         return
+      }
       case 'step/start':
         if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         this.startProviderAttempt(event.data, true)
@@ -261,7 +285,14 @@ export class DshStreamAdapter {
           this.suppressedTurn = undefined
           this.autonomousTurnSuppressed = false
           this.suppressedToolCallIds.clear()
-          this.pendingProviderUsage = undefined
+          if (this.pendingProviderUsage?.turn === (event.data as { turn: number }).turn) {
+            this.pendingProviderUsage = undefined
+          }
+          // Only clear step timing if it belongs to the suppressed turn; otherwise
+          // a late autonomous cleanup would erase the host turn's in-flight timing.
+          if (this.lastStepKey?.startsWith(`${(event.data as { turn: number }).turn}:`)) {
+            this.resetStepTiming()
+          }
           return
         }
         this.flushPendingProviderUsage()
@@ -269,6 +300,8 @@ export class DshStreamAdapter {
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
         this.turnActive = false
+        this.activeTurnId = undefined
+        this.pendingHostTurn = false
         this.savedHostTurnEndedAt = undefined
         if (this.autonomousTurn) {
           this.autonomousTurn = false
@@ -293,8 +326,12 @@ export class DshStreamAdapter {
         return
       case 'step/end': {
         if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) {
-          this.pendingProviderUsage = undefined
-          this.resetStepTiming()
+          if (this.pendingProviderUsage?.turn === (event.data as { turn: number }).turn) {
+            this.pendingProviderUsage = undefined
+          }
+          if (this.lastStepKey?.startsWith(`${(event.data as { turn: number }).turn}:`)) {
+            this.resetStepTiming()
+          }
           return
         }
         this.flushPendingProviderUsage()
