@@ -64,7 +64,8 @@ See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limit
 controllers borrow those guests and share actions with the standalone controller. Browser settings
 controls Agent access; bindings and manual browsing survive control-off. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
-History is SQLite-backed through `BrowserHistoryService`. Import readers live in `import/` and
+History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
+lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and
 run as tracked, cancellable operations of this lifecycle service. Cookie decryption uses per-import
 keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned

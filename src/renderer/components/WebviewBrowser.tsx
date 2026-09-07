@@ -81,6 +81,7 @@ export function WebviewBrowser({
         webviewRef={webviewRef}
         webviewRevision={webviewRevision}
         initialUrl={initialUrl}
+        historyEnabled={securityProfile === WebviewSecurityProfile.AgentBrowser}
         onNavigate={onNavigate}
         isWebviewReady={isReady}
         isHostActive={isHostActive}

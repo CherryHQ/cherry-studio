@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { type BrowserWindow, dialog, session } from 'electron'
+import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
 import type { SessionOwnership } from './browserUse'
@@ -13,6 +13,7 @@ import { AgentBrowserController } from './mcp/AgentBrowserController'
 import { BrowserServer } from './mcp/server'
 import { BrowserSessionError } from './session/BrowserSessionError'
 import { GuestSession } from './session/GuestSession'
+import { trackBrowserHistory } from './trackBrowserHistory'
 
 const logger = loggerService.withContext('BrowserSessionService')
 const MAX_GUESTS_PER_OWNER = 4
@@ -39,6 +40,30 @@ export class BrowserSessionService extends BaseService {
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
+    const histories = new Map<Electron.WebContents, () => void>()
+    const track = (_event: Electron.Event | undefined, guest: Electron.WebContents) => {
+      if (
+        guest.isDestroyed() ||
+        guest.getType() !== 'webview' ||
+        guest.session !== session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)) ||
+        histories.has(guest)
+      )
+        return
+      const release = trackBrowserHistory(guest)
+      const dispose = () => {
+        release()
+        guest.removeListener('destroyed', dispose)
+        histories.delete(guest)
+      }
+      histories.set(guest, dispose)
+      guest.once('destroyed', dispose)
+    }
+    for (const guest of webContents.getAllWebContents()) track(undefined, guest)
+    app.on('web-contents-created', track)
+    this.registerDisposable(() => {
+      app.removeListener('web-contents-created', track)
+      for (const dispose of histories.values()) dispose()
+    })
     this.registerInterval(() => this.sweep(), 60_000)
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('app.browser.agent_control.enabled', (enabled) => {

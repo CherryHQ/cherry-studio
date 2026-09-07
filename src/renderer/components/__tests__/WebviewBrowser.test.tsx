@@ -4,20 +4,12 @@ import '@testing-library/jest-dom/vitest'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, render, screen } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import { Activity, type ReactNode } from 'react'
+import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { WebviewBrowser } from '../WebviewBrowser'
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  ),
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
+vi.unmock('@cherrystudio/ui')
 
 vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
   WebviewAnnotationControls: ({ target }: { target: { id: string } }) => (
@@ -65,7 +57,7 @@ describe('WebviewBrowser', () => {
     view.rerender(<Activity mode="hidden">{browser}</Activity>)
     view.rerender(<Activity mode="visible">{browser}</Activity>)
     expect(view.container.querySelector('webview')).toBe(guest)
-    expect(screen.getByRole('textbox', { name: 'webview.navigation.address' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'webview.navigation.address' })).toBeEnabled()
   })
 
   it('activates navigation and annotations when its isolated guest becomes ready', () => {
@@ -91,7 +83,6 @@ describe('WebviewBrowser', () => {
 
     const addressInput = screen.getByRole('textbox', { name: 'webview.navigation.address' })
     expect(addressInput).toBeDisabled()
-    expect(addressInput).toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: 'webview.navigation.back' })).toHaveClass('text-muted-foreground')
     expect(screen.getByRole('status')).toHaveTextContent('webview.browser.loading')
 

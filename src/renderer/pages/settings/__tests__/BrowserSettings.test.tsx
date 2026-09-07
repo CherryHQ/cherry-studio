@@ -16,6 +16,8 @@ import { BrowserSettings } from '../BrowserSettings'
 vi.unmock('@cherrystudio/ui')
 vi.unmock('react-i18next')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+const { openTab } = vi.hoisted(() => ({ openTab: vi.fn() }))
+vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ openTab }) }))
 const i18n = createInstance()
 const chrome: BrowserImportSource = {
   id: 'chrome:Default',
@@ -54,13 +56,13 @@ beforeAll(async () => {
 })
 afterEach(cleanup)
 beforeEach(() => {
+  openTab.mockReset()
   MockUseDataApiUtils.resetMocks()
   MockUseDataApiUtils.mockQueryData('/browser-visits', { items: [], hasMore: false })
   vi.mocked(ipcApi.request)
     .mockReset()
     .mockImplementation(async (route) => {
       if (route === 'browser.import.sources') return [chrome]
-      if (route === 'browser.pane.list') return []
       if (route === 'browser.import.run') return emptyResult()
       return undefined
     })
@@ -249,23 +251,24 @@ describe('Browser settings workflows', () => {
     expect(historyDeleted).toHaveBeenCalledTimes(1)
   })
 
-  it('reopens history in the only available Agent pane without asking for a destination', async () => {
+  it('opens history in a new browser tab without an Agent pane, preserving the complete URL', async () => {
     const user = userEvent.setup()
-    const url = 'http://internal.test/dashboard'
+    const url = 'http://internal.test/dashboard?q=a%26b&lang=zh#section'
     MockUseDataApiUtils.mockQueryData('/browser-visits', {
       items: [{ id: 'visit-1', title: 'Dashboard', url, visitedAt: Date.now(), source: 'local' }],
       hasMore: false
     })
-    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
-      route === 'browser.pane.list' ? [{ sessionId: 'session-1', title: 'Agent browser' }] : undefined
-    )
     renderSettings()
     await user.click(screen.getByRole('button', { name: 'Manage History' }))
-    const open = await screen.findByRole('button', { name: 'Open' })
+    const open = await screen.findByRole('button', { name: 'Open in new tab' })
     await waitFor(() => expect(open).toBeEnabled())
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     await user.click(open)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(ipcApi.request).toHaveBeenCalledWith('browser.pane.open', { sessionId: 'session-1', url })
+    expect(openTab).toHaveBeenCalledWith(
+      '/app/browser?url=http%3A%2F%2Finternal.test%2Fdashboard%3Fq%3Da%2526b%26lang%3Dzh%23section',
+      { title: 'Dashboard', forceNew: true }
+    )
+    expect(ipcApi.request).not.toHaveBeenCalled()
   })
 })

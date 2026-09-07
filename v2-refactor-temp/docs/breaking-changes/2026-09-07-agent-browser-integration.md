@@ -18,6 +18,10 @@ Agent actions are visible in the existing browser pane. Imported login data is s
 Agent pages; local previews and HTML artifacts retain their separate profiles. Turning Agent control
 off leaves manual browsing and saved login data available.
 
+History entries open directly in new browser tabs, without an Agent conversation. These tabs share
+website data with ordinary Agent browser panes. Their address bars search browsing history by title
+or URL, with mouse and keyboard selection.
+
 ## What the user should do
 
 Enable Agent control in Settings → Browser when needed. Import starts with a detected browser;

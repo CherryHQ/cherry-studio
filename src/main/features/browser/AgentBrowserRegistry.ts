@@ -9,7 +9,6 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { session, type WebContents, webContents } from 'electron'
 
 import { BrowserSessionError } from './session/BrowserSessionError'
-import { trackBrowserHistory } from './trackBrowserHistory'
 
 export interface AgentBrowserContext {
   agentId: string
@@ -60,16 +59,11 @@ export class AgentBrowserRegistry implements Disposable {
     existing?.dispose()
     const tabId = randomUUID()
     const abort = new AbortController()
-    const releaseHistory =
-      guest.session === session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-        ? trackBrowserHistory(guest, existing?.guest !== guest)
-        : () => undefined
     const dispose = () => {
       if (this.targets.get(sessionId)?.tabId !== tabId) return
       this.targets.delete(sessionId)
       guest.removeListener('destroyed', dispose)
       if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
-      releaseHistory()
       abort.abort(new BrowserSessionError('not_found'))
       this.changed.fire()
     }

@@ -990,7 +990,7 @@ previews, HTML artifacts, private guests and import helper pages. Late title cha
 for that document only. Do not store URL credentials or data URLs; review query/fragment redaction
 before persistence, rather than relying only on MCP-output sanitization.
 
-Provide paginated search by URL/title, reopen through the normal pane navigation policy, delete and
+Provide paginated search by URL/title, reopen in a regular browser tab, delete and
 clear. History is user-facing browser data, not a new model history-search tool. Domain imports apply
 the same URL/title normalization and use synchronous, bounded DB transactions through the data service.
 Cookie/storage import stays an IpcApi command because it affects Electron state; its history portion
@@ -1013,8 +1013,12 @@ localStorage as website data, and offer file import as a secondary path. The UI 
 the lower-level importer retains domain filtering for callers that need it. File-picker cancellation
 returns to the form; partial results never claim complete success.
 
-History loads only when opened, uses the sole available Agent pane automatically, and asks for a
-destination only when multiple panes exist. Clearing uses one confirmation dialog with independently
+History loads only when opened and reopens pages in new browser tabs without requiring an Agent
+conversation or pane. These tabs share the ordinary browser partition with Agent panes; history
+tracking follows webContents lifetime independently of Agent bindings. Ordinary browser address bars
+show recent visits on focus and search titles/URLs while typing, with debounced queries and up to eight
+unique URL suggestions. Arrow keys and Enter select a result; Escape dismisses suggestions. Direct URL
+submission remains available. Preview and artifact surfaces do not expose ordinary browser history. Clearing uses one confirmation dialog with independently
 selectable history, website data and cache; only cache is selected initially. After partial failure,
 uncheck completed categories so retry affects only the remaining selection.
 

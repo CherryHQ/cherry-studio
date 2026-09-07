@@ -7,18 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
+  Label
 } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
-import { ipcApi } from '@renderer/ipc'
+import { useTabs } from '@renderer/hooks/tab'
 import { LoaderCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
@@ -27,9 +22,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
   const [offset, setOffset] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
-  const [panes, setPanes] = useState<{ sessionId: string; title: string }[]>([])
-  const [paneId, setPaneId] = useState('')
-  const [refresh, setRefresh] = useState(0)
+  const { openTab } = useTabs()
   const {
     data,
     error: historyError,
@@ -39,22 +32,6 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
   const { trigger: deleteVisit } = useMutation('DELETE', '/browser-visits/:id')
   useDataChange('/browser-visits', () => void refetch())
 
-  useEffect(() => {
-    let active = true
-    ipcApi
-      .request('browser.pane.list')
-      .then((items) => {
-        if (!active) return
-        setPanes(items)
-        setPaneId(items[0]?.sessionId ?? '')
-      })
-      .catch(() => {
-        if (active) setError(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [refresh])
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
     setError(false)
@@ -85,33 +62,10 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
             setOffset(0)
           }}
         />
-        {panes.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="browser-history-destination">{t('settings.browser.destination')}</Label>
-            <Select value={paneId} onValueChange={setPaneId} disabled={busy}>
-              <SelectTrigger id="browser-history-destination" className="min-w-0 flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {panes.map((pane) => (
-                  <SelectItem key={pane.sessionId} value={pane.sessionId}>
-                    {pane.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {!panes.length && <p className="text-muted-foreground text-sm">{t('settings.browser.noPane')}</p>}
         {(error || historyError) && (
           <p role="alert" className="text-error text-sm">
             {t('settings.browser.error')}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setRefresh((value) => value + 1)
-                void run(refetch)
-              }}>
+            <Button variant="ghost" onClick={() => void run(refetch)}>
               {t('common.refresh')}
             </Button>
           </p>
@@ -163,14 +117,17 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={busy || !paneId}
+                    disabled={busy}
                     onClick={() =>
                       void run(async () => {
-                        await ipcApi.request('browser.pane.open', { sessionId: paneId, url: visit.url })
+                        openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
+                          title: visit.title || visit.url,
+                          forceNew: true
+                        })
                         onOpenPage()
                       })
                     }>
-                    {t('common.open')}
+                    {t('common.open_in_new_tab')}
                   </Button>
                   <Button
                     variant="ghost"
