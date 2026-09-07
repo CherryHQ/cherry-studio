@@ -60,8 +60,13 @@ The MCP adapter and input tools live in `mcp/` and `actions/`. The factory calls
 `BrowserSessionService.createMcpServer()`; it has no direct feature import.
 See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limits.
 
-Real agent-turn identity, uploads, retained-tab freezing, WebMCP and browser-data
-import remain follow-ups.
+`AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP
+controllers borrow those guests and share actions with the standalone controller. Browser settings
+controls Agent access; bindings and manual browsing survive control-off. Ordinary pages use
+`persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
+History is SQLite-backed through `BrowserHistoryService`. Import readers live in `import/` and
+run as tracked, cancellable operations of this lifecycle service. Direct encrypted-cookie import,
+uploads, retained-tab freezing and WebMCP remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or
 times out, initialization stops and detaches; cancellation by one caller leaves other

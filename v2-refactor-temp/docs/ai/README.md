@@ -61,9 +61,9 @@ docs above reference them:
 - [`browser-use-design.md`](./browser-use-design.md) — gap analysis of the
   built-in browser MCP against real browser use (open-source field, Chromium
   Actor/WebMCP, Codex desktop) and the P0–P3 roadmap.
-- [`browser-use-implementation.md`](./browser-use-implementation.md) — P0/P1 of
-  that roadmap as files, APIs, algorithms, the stacked PR/commit split and the
-  automated + manual test plan.
+- [`browser-use-implementation.md`](./browser-use-implementation.md) — P0/P1 engine
+  plus the existing Agent browser integration, history/import and built-in skill;
+  files, APIs, stacked PR/commit split and automated + manual acceptance.
 - [`tool-approval-state-consolidation.md`](./tool-approval-state-consolidation.md) —
   diagnosis + target design + **phased refactor plan** for the approval split-brain
   (stream / DB / renderer state can't be simultaneously consistent); single-authority

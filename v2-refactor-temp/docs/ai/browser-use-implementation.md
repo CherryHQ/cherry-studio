@@ -1,8 +1,8 @@
 # Browser Use — Implementation Plan
 
-Turns [`browser-use-design.md`](./browser-use-design.md) (P0 + P1 of its roadmap) into files,
-APIs, commits and tests. P2 (frames, vision, extract) and P3 (drive the visible pane, handoff)
-are out of scope here; they build on the same engine and get their own plan once P1 has shipped.
+Turns [`browser-use-design.md`](./browser-use-design.md) into files, APIs, commits and tests.
+Sections 1–9 cover the P0/P1 engine; §10 and §12 plan the next integrated PR for the existing
+Agent browser, history and import. P2 (frames, vision, extract) and a full handoff protocol remain deferred.
 
 Read the design doc first. This document does not repeat the rationale; it fixes the decisions.
 
@@ -17,12 +17,13 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
 | PR3 / C1–C2 — `browser-use-inspection` | PR B | Open in [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139): inspection and same-document ref recovery |
-| C3–C5 follow-ups | PR3 | Planned separately: WebMCP, retained-tab freezing, WebContentsView |
-| PR D | PR A | Planned independent branch: browser-data import (§10) |
+| Existing Agent browser integration | PR3 | Next planned PR: visible-page control, ordinary browsing, history/import, settings and skill (§12); no PR number assigned |
+| C3–C5 follow-ups | PR3 | WebMCP deferred while Electron stays at 41.8.0; retained-tab freezing and WebContentsView remain independent |
+| D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
 PR B is published as [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134) on
 `browser-use-mcp`, stacked on #20128.
-Sections below distinguish delivered PR A/B/C1–C2 contracts from planned C3–C5/D work. `upload_file`
+Sections below distinguish delivered PR A/B/C1–C2 contracts from planned C3–C5/D and §12 work. `upload_file`
 is excluded from PR B until MCP calls carry trusted session/workdir context (§4); true per-turn
 retention has the same upstream identity dependency. P0/P1 are roadmap milestones, not PR numbers.
 
@@ -219,7 +220,7 @@ only knows absolute `expireAt` — it cannot run `close` / `freeze` / `detach` o
 retention order would need two containers, and its TTL ignores Vitest fake timers. Every peer in the
 repo (`WebviewService.annotationSessions`, `McpRuntimeService.clients`, `CdpBrowserController`) is a
 `Map` plus a timer; so is this. What the registry does reuse: `BaseService.registerInterval` for the
-sweep, and — when P3 shows sessions in the UI — a Shared-cache projection
+sweep, and — for the visible integration in §12 — a Shared-cache projection
 (`setShared('browser.sessions.<owner>', summary)`) instead of a new IPC event. The per-tab last
 snapshot stays inside `GuestSession`; it is main-only and diffed in place.
 
@@ -474,8 +475,9 @@ validity/handoff contract belong to the P3 consumer; no speculative persisted fi
 ## 7. Commit and PR split
 
 PR A combines the original design documents and the implemented engine in #20128. PR B builds
-on A; C builds on B. PR D branches from A independently (§10). Future commit groups below are
-planning units, not a claim that those commits or APIs already exist.
+on A; PR3 implements C1–C2 on B. The next integrated browser PR builds on PR3 and includes the
+import work packages (§10) plus the existing-pane integration (§12). Future commit groups below
+are planning units, not a claim that those commits or APIs already exist.
 
 ### PR A / PR1 — completed in #20128 (open)
 
@@ -543,8 +545,10 @@ PR B validation:
 
 ### PR C work packages — stability, inspection and follow-ups
 
-PR3 ([#20139](https://github.com/CherryHQ/cherry-studio/pull/20139)) implements C1–C2 on `browser-use-inspection`. C3 ships separately after its runtime compatibility gate (§5.7);
-C4–C5 remain separately scoped work. These labels identify work packages, not one required PR.
+PR3 ([#20139](https://github.com/CherryHQ/cherry-studio/pull/20139)) implements C1–C2 on `browser-use-inspection`.
+The next delivery is §12. C3 is deferred while Electron remains at 41.8.0; its eventual delivery still
+requires the runtime compatibility gate (§5.7). C4–C5 remain separately scoped work. These labels
+identify work packages, not one required PR; C5 does not mean an assigned PR5.
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
@@ -570,7 +574,8 @@ PR3 validation:
 
 Deferred (tracked as follow-ups, not in these PRs): the upstream turn signal (agent session id on
 MCP tool calls + a turn-ended event, §4 "Turn boundary") without which `temporary` cannot mean
-per-turn; trusted runtime workdir context and `upload_file`; per-origin CDP policy; the `<webview>` pane as an engine target (P3).
+per-turn; trusted runtime workdir context and `upload_file`; configurable per-origin CDP policy.
+The `<webview>` pane as an engine target moves into the next integrated PR (§12).
 
 ## 8. Automated test plan
 
@@ -686,7 +691,7 @@ are what the tool text must contain.
 | 6 | `spa.html`: `click` the pushState link, `click` the fetch button | refs survive the first click; the second returns only after the delayed fetch settles |
 | 7 (deferred) | After trusted runtime context exists: `upload_file` with a path outside the workdir | `not_allowed`, no CDP `setFileInputFiles` in the debug log |
 | 8 | Open DevTools on the hidden window's tab, run `snapshot` | `debugger_unavailable`; close DevTools, `snapshot` works again |
-| 9 | Acquire a borrowed engine session for the annotation guest, export annotations while that session is held, then release it | export contains the AX path and does not detach the other owner; the hidden MCP tab and visible pane remain different guests until P3 |
+| 9 | Acquire a borrowed engine session for the annotation guest, export annotations while that session is held, then release it | export contains the AX path and does not detach the other owner; PR1–3 use separate MCP/pane guests, while §12 adds same-pane acceptance |
 | 10 | Open 5 tabs, wait 5 min | only marked tabs survive; `app.getAppMetrics()` logged before/after shows the freed renderer processes |
 | 11 | C3 `webmcp.html`: list/call, abort, remove registration, navigate, disconnect | record capability and runtime versions; supported paths list untrusted metadata and return the expected result; unsupported is explicit; stale IDs cannot run a later document's tool; pending calls settle on cancellation/cleanup |
 | 12 | Perf: `open https://github.com/CherryHQ/cherry-studio/pulls`, `snapshot` ×3 | logged capture + serialise time < 1 s each, output ≤ 40 000 chars, diff #2 and #3 < 2 000 chars |
@@ -696,10 +701,10 @@ session-management commit.
 
 ## 10. Importing external browser data
 
-Browser use is only useful on sites the user is already signed in to. The hidden MCP tabs use
-`persist:default`, which starts empty, so the user needs a way to bring login state over from
-the browser they actually use. This is a **user action** (credentials move), never a tool the
-model can call.
+Import is part of the existing Agent browser integration (§12), not a separate hidden-MCP feature.
+The destination is the ordinary visible browser's persistent profile, selected by main; neither
+the renderer nor the model chooses an Electron partition. Import is a **user action**, never a model
+tool. The previous `persist:default` destination and MCP-settings entry are superseded by this plan.
 
 ### 10.1 Scope
 
@@ -707,9 +712,9 @@ model can call.
 |---|---|---|
 | Cookies | yes | login state; what every site checks |
 | `localStorage` per origin | yes, from storage-state files only | SPA tokens (JWT in `localStorage`) — not readable from browser profiles without the browser's own LevelDB, so file import only |
-| Bookmarks | no (deferred) | Chrome `Bookmarks` is plain JSON and trivial to read, but no tool consumes it yet |
-| History | no | same, plus privacy cost with no consumer |
-| Passwords | never | Chrome `Login Data` / Firefox `key4.db`; an agent must not hold the user's password store |
+| Bookmarks | deferred | requires a bookmark browsing/management consumer; not needed for the agreed history/login scope |
+| History | yes, from supported profiles | consumed by the Browser history UI (§12.4); preserve visit timestamps and deduplicate repeated imports |
+| Passwords, extensions, browser settings | no | outside this PR; no password-vault import or model tool |
 
 Two import paths, in order of preference:
 
@@ -718,23 +723,24 @@ Two import paths, in order of preference:
    and Netscape `cookies.txt` (what curl, yt-dlp and the "Get cookies.txt" extensions emit). Works on every
    OS and every browser, including ones we cannot decrypt.
 2. **Profile read** from a detected installed browser: Chromium family (Chrome, Edge, Brave, Chromium,
-   Arc) and Firefox. Copy the cookie database to a temp path first (the live file is locked while the
-   browser runs on Windows), open it read-only with the already installed `better-sqlite3`, decrypt
-   where needed, apply.
+   Arc) and Firefox. Detect support separately for history and cookies: encrypted cookies must not
+   disable an otherwise readable history source. Use a consistent read-only SQLite snapshot (including
+   WAL state), or report that the browser must be closed; copying only the main database can omit visits.
+   Decrypt cookies only through a supported, user-authorized path, then apply.
 
 ### 10.2 Module layout and API
 
 ```
 src/main/features/browser/import/
   formats.ts            parseStorageState(json) / parseNetscape(text) → ImportedCookie[] + ImportedOrigin[]
-  chromiumProfile.ts    locate profiles, copy + read `Cookies`, decrypt `encrypted_value`
-  firefoxProfile.ts     locate profiles via profiles.ini, read `cookies.sqlite`
+  chromiumProfile.ts    locate profiles; read consistent Cookies/History snapshots; supported cookie decryption
+  firefoxProfile.ts     locate profiles via profiles.ini; read cookies.sqlite/places.sqlite snapshots
   applyImport.ts        ImportedCookie[] → session.cookies.set, ImportedOrigin[] → DOMStorage via a GuestSession
   index.ts              barrel
 src/shared/types/browserImport.ts        ImportedCookie, ImportSource, ImportResult (+ zod)
 src/shared/ipc/schemas/browser.ts        `browser.list_import_sources`, `browser.import_data`
 src/main/ipc/handlers/browser.ts         delegate to BrowserSessionService
-src/renderer/pages/settings/McpSettings/BrowserImportDialog.tsx   entry from the `@cherry/browser` card in BuiltinMcpServerList
+src/renderer/pages/settings/BrowserSettings/BrowserImportDialog.tsx   entry from Browser settings
 ```
 
 ```ts
@@ -749,11 +755,17 @@ export interface ImportSource {
   id: string            // "chrome:Default", "firefox:abcd.default-release", "file"
   browser: 'chrome' | 'edge' | 'brave' | 'chromium' | 'arc' | 'firefox' | 'file'
   profileName: string
-  path: string
-  supported: boolean    // false with `reason` when we know decryption cannot work (§10.4)
-  reason?: 'app_bound_encryption' | 'locked' | 'keychain_denied'
+  capabilities: Partial<Record<'cookies' | 'localStorage' | 'history', {
+    supported: boolean
+    reason?: 'app_bound_encryption' | 'locked' | 'keychain_denied' | 'unsupported_format'
+  }>>
 }
-export interface ImportResult { imported: number; skipped: number; origins: number; errors: string[] }
+export interface ImportResult {
+  categories: Partial<Record<'cookies' | 'localStorage' | 'history', {
+    imported: number; skipped: number; failed: number
+  }>>
+  errors: string[]      // bounded, sanitized reasons; no cookie/storage values
+}
 ```
 
 IpcApi routes (`defineRoute`, same style as `webview.ts`):
@@ -761,11 +773,12 @@ IpcApi routes (`defineRoute`, same style as `webview.ts`):
 | Route | Input | Output |
 |---|---|---|
 | `browser.list_import_sources` | `{}` | `ImportSource[]` — detected profiles for the current OS plus the `file` pseudo-source |
-| `browser.import_data` | `{ sourceId: string, filePath?: string, domains?: string[], partition?: 'persist:default' }` | `ImportResult` |
+| `browser.import_data` | `{ sourceId: string, filePath?: string, categories: ('cookies' \| 'localStorage' \| 'history')[], domains?: string[] }` | `ImportResult` |
 
-`domains` filters by suffix match (`github.com` matches `.github.com` and `api.github.com`); the
-dialog offers "all" or a pasted list. Target partition is `persist:default` only; private mode never
-receives imports and the annotation/agent-pane partitions are not targets until P3 decides they should be.
+`domains` uses exact-domain or dot-boundary subdomain matching (`github.com` matches `.github.com`
+and `api.github.com`, not `evilgithub.com`). Main resolves a detected source ID to its stored source
+path; a file path must come through the app's user-selected file flow. Import targets only the ordinary
+Agent browser profile; private, development-preview and artifact partitions never receive login data.
 
 ### 10.3 Readers
 
@@ -803,8 +816,12 @@ first 32 bytes equal that hash. Cookies with an empty decrypted value are skippe
 Table `moz_cookies`: `host, name, value, path, expiry (unix seconds), isSecure, isHttpOnly, sameSite`
 (0 → `no_restriction`, 1 → `lax`, 2 → `strict`). Values are plaintext.
 
-Every reader copies the database file to `application.getPath(<temp namespace>)` before opening
-(`readonly: true, fileMustExist: true`), deletes the copy in `finally`, and never logs a cookie value.
+These browser-specific layouts and crypto recipes are research notes, not a compatibility guarantee.
+Before implementing each adapter, verify its actual browser version/schema and check existing library
+support. History uses the source's visit records, not just each URL's last-visited summary.
+Acquire consistent read-only snapshots under a registered `application.getPath()` temp namespace,
+clean them in `finally`, and never log cookie/storage values. History application uses the production
+data service and appended migrations described in §12.4; foreign-profile fixtures stay separate.
 
 ### 10.4 Apply
 
@@ -815,20 +832,22 @@ cookies that are not `secure` + https and cookies whose `domain` does not match 
 counted as `skipped` with the reason in `errors` (name and domain only). After the loop,
 `session.cookies.flushStore()`.
 
-`localStorage` entries (storage-state files only): for each origin, open a temporary hidden tab through
-`BrowserSessionService` on `about:blank` under that origin (`Page.navigate` to `origin + '/favicon.ico'`
-is enough to get a document), then `DOMStorage.setDOMStorageItem({ storageId: { securityOrigin, isLocalStorage: true }, key, value })`;
-close the tab. `DOMStorage.enable` / `setDOMStorageItem` join the allow-list.
+`localStorage` entries (storage-state files only) use a temporary import-owned guest in the destination
+profile and the official CDP `DOMStorage` commands. Validate the exact destination origin/storage key
+before writing; do not assume `about:blank` or navigation to a site's favicon establishes that origin
+(redirects can change it). Reject unsupported origin setup and report partial results. Register only
+the required typed commands, suppress import-generated visits, and always release temporary guests.
+Cookies/storage and SQLite visits cannot form one atomic transaction: report results per category.
 
 ### 10.5 UI
 
-One dialog from the `@cherry/browser` card in `BuiltinMcpServerList.tsx` ("Import browser data"):
-a list of detected sources with their `supported` state and reason, a file picker for storage-state
-/ `cookies.txt`, an optional domain filter, and the result summary. Strings under
-`settings.mcp.browser_import.*` in `en-us.json`, synced with `pnpm i18n:sync`. No preference is
-stored; the import is a one-shot action.
+Browser settings owns the import dialog, history management and separate clearing controls (§12.5).
+Show detected sources/profiles, selectable supported categories with reason text, a storage-state /
+`cookies.txt` picker, a domain filter and per-category results. Explain which shared browser profile
+receives login data. Strings belong under `settings.browser.*`, synced and translated through the
+existing i18n workflow. Import itself is a one-shot IpcApi action, not a Preference or model tool.
 
-### 10.6 PR D — `feat(browser-import): import cookies and site storage from external browsers`
+### 10.6 D work packages — part of the integrated browser PR
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
@@ -837,11 +856,12 @@ stored; the import is a one-shot action.
 | D3 | `feat(browser-import): read Chromium-family profiles` | `import/chromiumProfile.ts` | `chromiumProfile.test.ts`: sqlite fixture built in the test with the real `cookies` schema; `expires_utc` conversion; samesite map; `v10` decrypt against a fixture encrypted with password `test` and the documented KDF; SHA-256 prefix stripped; `v20` → `unsupported` without touching the keychain |
 | D4 | `feat(browser-import): read Firefox profiles` | `import/firefoxProfile.ts` | `firefoxProfile.test.ts`: `profiles.ini` parsing incl. `Default=1`; `moz_cookies` fixture |
 | D5 | `feat(browser-import): expose import routes and the settings dialog` | `ipc/schemas/browser.ts`, `ipc/handlers/browser.ts`, `BrowserImportDialog.tsx`, i18n | `schemas/__tests__` input validation; renderer test: sources render with reason text, file path submitted, result summary shown |
+| D6 | `feat(browser-history): import external visits` | Chromium/Firefox visit readers and the history data service (§12.4) | source timestamps, WAL snapshot completeness, repeat-import deduplication, and history import when cookie decryption is unsupported |
 
-Manual acceptance (add to §9): import from the local Chrome default profile with `domains: ['github.com']`,
-`open https://github.com` in the MCP browser → the snapshot shows the signed-in header; repeat with a
-`cookies.txt` exported from Firefox; on Windows with Chrome ≥ 127 the source shows the
-app-bound-encryption reason and the file path succeeds.
+Manual acceptance: import a user-selected supported profile or cookie file, open the site in the
+existing right pane, and verify that a model snapshot observes the same signed-in page. Record tested
+OS/browser versions; unsupported cookie decryption must still permit history import when supported.
+Use disposable test accounts/fixtures and never include actual login values in acceptance artifacts.
 
 Gotcha for the sqlite tests: `better-sqlite3` is rebuilt for Electron's ABI when the dev app runs,
 which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
@@ -861,5 +881,182 @@ which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
 - Cookie decryption depends on browser internals that change without notice (app-bound encryption
   on Windows, the SHA-256 value prefix). The readers fail closed to `unsupported` + the file path;
   the file import is the contract, profile reading is best effort.
-- Imported cookies are credentials at rest in `persist:default`, shared by every MCP client
-  (see the browser server README note). The dialog says so; the private partition never receives them.
+- The current standalone MCP uses `persist:default`, shared by its clients. The integrated browser
+  uses a dedicated ordinary profile (§12.2); imported login state is shared across its ordinary pages,
+  not copied into legacy MCP, private or preview partitions. The import dialog explains this scope.
+
+## 12. Existing Agent browser integration
+
+**Status: implemented on `agent-browser-integration`, pending PR publication.** This product layer
+is based on PR3 and combines this section with the supported import paths in §10.
+Keep Electron 41.8.0. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
+full handoff protocol or `WebContentsView` migration is required to complete this scope.
+
+### 12.1 Reuse and first vertical slice
+
+Reuse `AgentBrowserRightPanel` in `AgentRightPane.tsx`, `WebviewBrowser`, `WebviewHost`, navigation,
+search, annotations and the shared CDP engine. First prove that a snapshot and one click from an
+Agent Session affect the very guest shown in its right pane; do this before history/import work.
+Keep one visible browser page per Agent Session in this delivery.
+
+Extend `BrowserSessionService` with a main-owned binding from Agent Session to the attached guest:
+`{ agentId, sessionId, tabId, guest, windowId, abort }`. The guest determines its validated profile,
+and each fresh opaque `tabId` is the binding generation. It changes when the UI replaces or resumes
+the guest. Activity suspension revokes control while retaining the page as a history destination
+until native guest destruction. History reopening uses the existing conversation navigation service
+to focus the owning session before revealing and navigating its browser. This is runtime state,
+not a SQLite record.
+The owning app renderer registers/unregisters via typed IpcApi. Main validates the sender, guest's
+host window, security profile and actual session ownership; renderer-supplied IDs alone grant nothing.
+Only non-authoritative display summaries belong in Shared Cache.
+
+The MCP instance receives trusted `agentId`/`sessionId` from the runtime and resolves the binding on
+each call. Never accept a raw `webContentsId`, profile or owner from model arguments. Missing, stale
+or foreign targets fail; do not fall back to another session or create a hidden MCP tab. Opening a
+browser may request that the owning renderer reveal/mount its pane, then wait with cancellation and
+a deadline for the verified binding. A headless/unavailable host returns an explicit unavailable result.
+
+### 12.2 Ordinary browsing and profile boundaries
+
+Add an ordinary-browsing security profile alongside `AgentDevPreview` and `AgentHtmlArtifact`, using
+a dedicated persistent partition (`persist:agent-browser`). The settings import and
+visible ordinary pages resolve the same partition centrally. Do not merge the existing preview,
+artifact, MiniApp or legacy `persist:default` partitions, or silently migrate their data.
+
+Ordinary pages share login state across Agent Sessions; control authority does not cross sessions.
+Local preview URLs and explicitly opened HTML artifacts continue through their existing policies.
+Mode changes replace the guest and invalidate its binding/refs, so an ordinary website cannot gain
+artifact-file access by navigating to `file:`. Preserve sandboxing and annotation preload boundaries.
+The current `WebviewBrowser` guest key includes the entry origin: ordinary cross-origin navigation
+must preserve its guest, while changes of session or security mode must revoke the previous binding.
+
+Ordinary HTTP(S) navigation permits public websites, LAN addresses and loopback, as explicitly
+authorized for this delivery. It uses a separate policy from restricted local previews. URL validation
+limits schemes and credentials; it is not an SSRF or DNS-rebinding boundary. Preview/file restrictions
+remain scoped to their existing profiles.
+
+### 12.3 Ownership, runtime mounting and tool behavior
+
+The UI owns visible guests; the engine acquires them as `borrowed`, including annotation leases.
+Disconnect releases only the caller's lease, and idle sweeps never close/freeze visible pages.
+Guest destruction revokes the binding and cancels pending work. Returning to a session may attach a
+new guest, but old refs/generations can never target it. Do not promise page persistence on pane
+unmount: preserve the guest when merely hiding it; handle actual unmount through explicit revocation.
+
+`GuestSession` currently gates Network/inspection, download observation, dialog timers and focus
+emulation on `managed`. Separate the requested browser-observation lifetime from destruction ownership
+so an authorized visible control lease can observe console/network/downloads without making the page
+evictable. Annotation-only leases keep their current lightweight behavior. Do not copy hidden-page
+focus emulation or automatic dialog dismissal to user-visible pages; reuse native dialog UI and
+explicit `handle_dialog`. A remaining annotation lease must survive browser-controller disposal.
+
+Extract the target lookup/page-host boundary currently embedded in `CdpBrowserController`; keep
+actions and snapshots shared. The standalone host retains its existing behavior. The pane host
+supports only its actual capabilities: `open` navigates/reveals its one page, `list_tabs` returns that
+session's page, and explicit tab targets must match it. `newTab`/private-window requests and multi-tab
+operations are rejected until supported, rather than silently opening hidden windows. Popup attempts
+must be reported as unsupported; no fabricated `newTabId`. Closing/resetting the visible page requires
+an explicit host operation, never direct destruction by borrowed-session disposal.
+
+Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the
+shared path consumed by Claude Code, Pi and Dsh. Runtime connection signatures include effective
+browser enablement so cached sessions refresh their tool surface. Preserve existing per-tool approval
+rules; adding a first-party server must not wildcard auto-approve every browser action. When this
+capability is mounted, exclude a duplicate bridge to the legacy `@cherry/browser` preset for that
+session; do not alter the user's stored MCP configuration or unrelated clients.
+
+The Browser setting controls Agent access, not the ability to browse manually. Default off until the
+user enables it; follow agent tool restrictions as well. Turning it off immediately rejects new calls,
+cancels queued work and releases control leases while preserving the visible page and login state.
+Already-dispatched page effects cannot be undone; report interruption without replay. Enabling control
+starts from a fresh observation of the current document. The skill toggle is not an authorization gate.
+
+### 12.4 Persistent history and imported visits
+
+Use SQLite + DataApi for visits, not a Cache history list or an IPC CRUD surface. Proposed visit fields
+are `id`, sanitized `url`, bounded `title`, `visitedAt` and a source (`local` or imported browser/profile).
+Imported visits retain a stable source identity for idempotency; repeat imports do not create duplicate
+visits, and ordinary revisits remain distinct. Index time and the chosen pagination/search access path.
+Add schemas under `src/main/data/db/schemas/`, generate an appended migration, and test migrate-forward
+against populated production tables. Do not rewrite shipped migrations or hand-edit generated schemas.
+
+Record committed main-frame navigation for bound ordinary browser guests, regardless of whether user
+or model initiated it. Handle same-document URL changes; deduplicate overlapping Electron notifications
+for a single visit. Skip failed/aborted loads, redirect intermediates, subframes, `about:blank`, local
+previews, HTML artifacts, private guests and import helper pages. Late title changes update the visit
+for that document only. Do not store URL credentials or data URLs; review query/fragment redaction
+before persistence, rather than relying only on MCP-output sanitization.
+
+Provide paginated search by URL/title, reopen through the normal pane navigation policy, delete and
+clear. History is user-facing browser data, not a new model history-search tool. Domain imports apply
+the same URL/title normalization and use synchronous, bounded DB transactions through the data service.
+Cookie/storage import stays an IpcApi command because it affects Electron state; its history portion
+delegates to that same data service. Per-category results describe partial completion truthfully.
+
+### 12.5 Browser settings and bundled skill
+
+Add a Browser settings entry with Agent control, history management, data import and separate actions
+for clearing history versus cookies/site storage/cache. Clearing history must not log the user out;
+site-data clearing must explain and apply the shared ordinary-profile scope. Persistent toggles use
+Preference (edit classification sources and regenerate), runtime bindings use main-owned resources,
+and commands use IpcApi. Build UI with existing Shadcn/Tailwind components and translated strings.
+
+Add `resources/skills/cherry-browser/SKILL.md` through the existing built-in skill installer; update
+`cherry-tool-guide/SKILL.md` and its `references/web.md` to route interaction to it. Keep the skill
+focused on live tool discovery, observe → act → verify, explicit page identity, stale-ref recovery,
+dialogs and login, untrusted page content, and no automatic replay of uncertain effects. Explain that
+imports/history management are user settings, and that the visible host may expose fewer tools than
+the standalone MCP. No separate installer, bundled automation runtime or duplicated tool schemas.
+
+### 12.6 Commit order and acceptance
+
+| Step | Implementation boundary | Contract to verify |
+|---|---|---|
+| 1. Bind the existing pane | BrowserSessionService, browser IpcApi, AgentRightPane/WebviewHost | Session A can snapshot/click its visible page; forged, destroyed and session B targets fail |
+| 2. Mount shared tools | runtime server resolution/signatures, MCP target lookup, GuestSession observation | Same page for user, annotations and model; no duplicate MCP; disconnect preserves page/annotation lease; observation works on borrowed guests |
+| 3. Add ordinary mode | shared security profile, main navigation policy, WebviewBrowser identity | Cross-origin browsing keeps the guest; mode/session replacement invalidates refs; preview/artifact restrictions hold; restart retains ordinary login |
+| 4. Persist visits | data schemas/migration/service/DataApi and owned navigation listeners | Recorded visits survive restart; main-frame deduplication, source timestamps, search/delete/clear and exclusions hold |
+| 5. Import data | §10 readers/apply/IpcApi and Browser settings | Same visible page sees imported login; history available in UI; repeat import, unsupported cookies, partial failures and temp cleanup |
+| 6. Expose the feature | preference, settings UI, skill and guide routing | Skill is installed/discoverable, missing tools are explained, control-off blocks model calls while manual browsing remains usable |
+
+Keep these as focused commits in one product PR. Start with the same-page slice; a skill draft may
+be authored early, but its end-to-end acceptance requires real mounted tools. Run the affected main,
+runtime, database, shared and renderer tests plus `pnpm lint`, `pnpm test:lint` and `pnpm docs:check`.
+Use the unified mocks and `setupTestDatabase()` for production history tests. Run Electron acceptance
+on the existing version: same-page interaction, session switching, annotation concurrency, disconnect,
+toggle-off during a pending call, login persistence/import, history after restart and clearing scope.
+Record evidence and untested OS/profile combinations. Full `pnpm test` / `pnpm build:check` remain
+intentionally excluded under this workspace's local validation override.
+
+
+### 12.7 Delivered import support and validation
+
+The implementation discovers standard Chrome, Edge, Brave and Firefox profile directories on the
+current platform. Profile history uses SQLite's online backup API, including committed WAL data,
+and bounded 500-visit transactions. Source databases are opened read-only and private temporary
+snapshots are removed on success, failure and cancellation. Search uses literal URL/title matching
+with a time/id pagination index; it does not add an FTS engine.
+
+| Source | History | Login state |
+|---|---|---|
+| Chrome / Edge / Brave standard profiles | Visit timestamps and stable source-key deduplication | Unencrypted cookies only; encrypted and partitioned cookies are skipped |
+| Firefox standard profiles | Places visit timestamps and stable source-key deduplication | Ordinary cookies; container/partitioned origin attributes are skipped |
+| JSON storage state | Not supported | Cookies and selected origins' localStorage; partitioned cookies are skipped |
+| Netscape cookies file | Not supported | Host-only/domain scope, secure/HTTP-only flags and expiry preserved |
+
+OS keychain/DPAPI/libsecret decryption recipes in §10 remain research, not shipped support. A failed
+or unsupported cookie category does not block history. Passwords, extensions, browser settings,
+bookmarks, IndexedDB and sessionStorage are outside this delivery. LocalStorage import uses a
+short-lived sandboxed guest with page JavaScript disabled, verifies the final origin, writes via
+CDP DOMStorage and closes the guest. It never binds the helper to an Agent or records its visits.
+Reload existing pages after import. Category counts describe applied, skipped and failed entries;
+cancellation preserves committed changes and reports available partial counts.
+
+Validation uses synthetic browser databases, cookies and a local fixture website. The Electron 41.8.0
+acceptance verifies same-guest snapshot/click, native input readback, cross-origin guest retention,
+storage-state cookies/localStorage visible in the pane, and control-off cancellation while an
+annotation lease stays alive. Restart preserves imported login/storage, history and existing Agent
+rows. Cache clearing retains history/login; site-data clearing signs out the fixture while retaining
+history. No live personal browser credentials were imported. Windows/Linux
+profile discovery and native browser schema variations have not been verified on those operating
+systems; unsupported input is reported without claiming complete migration.
