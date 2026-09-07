@@ -184,6 +184,42 @@ export function useFollowupQueue({
     persistState(scopeKeyRef.current, next.items, next.paused)
   }, [])
 
+  // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
+  const failHead = useCallback(
+    (id: string) => {
+      setFailedItemId(id)
+      setState((prev) => {
+        const next = { ...prev, paused: true }
+        persist(next)
+        stateRef.current = next
+        return next
+      })
+    },
+    [persist]
+  )
+  const failHeadRef = useRef(failHead)
+  failHeadRef.current = failHead
+
+  const removeIdRef = useRef<(id: string) => void>(() => {})
+  const drainHead = useCallback((head: FollowupQueueItem | undefined) => {
+    if (!head || drainingIdRef.current !== null) return
+    drainingIdRef.current = head.id
+    const epoch = drainEpochRef.current
+    void onDrainRef.current(head.payload).then(
+      (sent) => {
+        if (drainEpochRef.current !== epoch) return
+        drainingIdRef.current = null
+        if (sent) removeIdRef.current(head.id)
+        else failHeadRef.current(head.id)
+      },
+      () => {
+        if (drainEpochRef.current !== epoch) return
+        drainingIdRef.current = null
+        failHeadRef.current(head.id)
+      }
+    )
+  }, [])
+
   // Reload when switching conversations; the previous queue stays in its own scoped entry.
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
@@ -200,12 +236,7 @@ export function useFollowupQueue({
     setFailedItemId(null)
     // If the restored queue is non-empty and completion is already fulfilled, re-arm
     // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
-    if (
-      next.items.length > 0 &&
-      !next.paused &&
-      isFulfilledRef.current &&
-      isWindowFocused()
-    ) {
+    if (next.items.length > 0 && !next.paused && isFulfilledRef.current && isWindowFocused()) {
       const head = next.items[0]
       if (head) {
         markSeenRef.current()
@@ -258,12 +289,19 @@ export function useFollowupQueue({
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
+      const nextIds = new Set(nextItems.map((i) => i.id))
+      if (drainingIdRef.current && !nextIds.has(drainingIdRef.current)) {
+        drainEpochRef.current += 1
+        drainingIdRef.current = null
+      }
+      const shouldClearFailed = failedItemIdRef.current !== null && !nextIds.has(failedItemIdRef.current)
       setState((prev) => {
-        const next = { ...prev, items: nextItems }
+        const next = { items: nextItems, paused: shouldClearFailed ? false : prev.paused }
         persist(next)
         stateRef.current = next
         return next
       })
+      if (shouldClearFailed) setFailedItemId(null)
     },
     [persist]
   )
@@ -277,41 +315,6 @@ export function useFollowupQueue({
     stateRef.current = next
     setFailedItemId(null)
   }, [persist])
-
-  // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
-  const failHead = useCallback(
-    (id: string) => {
-      setFailedItemId(id)
-      setState((prev) => {
-        const next = { ...prev, paused: true }
-        persist(next)
-        return next
-      })
-    },
-    [persist]
-  )
-  const failHeadRef = useRef(failHead)
-  failHeadRef.current = failHead
-
-  const removeIdRef = useRef<(id: string) => void>(() => {})
-  const drainHead = useCallback((head: FollowupQueueItem | undefined) => {
-    if (!head || drainingIdRef.current !== null) return
-    drainingIdRef.current = head.id
-    const epoch = drainEpochRef.current
-    void onDrainRef.current(head.payload).then(
-      (sent) => {
-        if (drainEpochRef.current !== epoch) return
-        drainingIdRef.current = null
-        if (sent) removeIdRef.current(head.id)
-        else failHeadRef.current(head.id)
-      },
-      () => {
-        if (drainEpochRef.current !== epoch) return
-        drainingIdRef.current = null
-        failHeadRef.current(head.id)
-      }
-    )
-  }, [])
 
   const removeId = useCallback(
     (id: string) => {
@@ -426,11 +429,15 @@ export function useFollowupQueue({
   // keep a stale stateRef and attempt to drain an already-removed head when it regains focus.
   useEffect(() => {
     return cacheService.subscribe(QUEUE_STORAGE_KEY, () => {
-      const next = loadState(scopeKeyRef.current)
+      let next = loadState(scopeKeyRef.current)
       if (isEqual(next, stateRef.current)) return
       // If the failed item was removed externally, clear the failure so drains can resume.
       if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
         setFailedItemId(null)
+        if (next.paused) {
+          next = { ...next, paused: false }
+          persistState(scopeKeyRef.current, next.items, next.paused)
+        }
       }
       // If the draining item disappeared externally, invalidate its resolution.
       if (drainingIdRef.current && !next.items.some((item) => item.id === drainingIdRef.current)) {
