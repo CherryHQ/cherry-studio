@@ -85,7 +85,11 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
+  const {
+    hiddenBuiltinAgentIds,
+    hideBuiltinAgent,
+    isLoading: isBuiltinAgentVisibilityLoading
+  } = useBuiltinAgentListVisibility()
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     isLoading,
@@ -203,7 +207,13 @@ export function AgentResourceList({
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
+    isLoading:
+      isAgentsLoading ||
+      isBuiltinAgentVisibilityLoading ||
+      isLoading ||
+      isLoadingAll ||
+      !isFullyLoaded ||
+      isPinsLoading,
     isError: !!(agentsError || sessionsError),
     onPickResource: handlePickSession,
     loadResourceForEntity: loadLatestSession,

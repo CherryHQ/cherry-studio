@@ -128,6 +128,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@data/PreferenceService', () => ({
   preferenceService: {
+    getCachedValue: (key: string) => preferenceMocks.values.get(key),
     update: async (key: string, updater: (currentValue: string[]) => string[]) => {
       const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
       preferenceMocks.values.set(key, value)
@@ -417,6 +418,7 @@ describe('classic layout entity resource list actions', () => {
     ]
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.topics = [

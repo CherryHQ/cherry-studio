@@ -52,6 +52,23 @@ describe('agentAdapter.useList', () => {
 
     expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1', 'cherry-support'])
   })
+
+  it('keeps the primary catalog available when the supplemental hidden-agent query fails', () => {
+    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    const supplementalError = new Error('supplemental query failed')
+    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
+      data: options.query.ids ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+      isLoading: false,
+      isRefreshing: false,
+      error: options.query.ids ? supplementalError : undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1'])
+    expect(result.current.error).toBeUndefined()
+  })
 })
 
 describe('useAgentMutationsById', () => {

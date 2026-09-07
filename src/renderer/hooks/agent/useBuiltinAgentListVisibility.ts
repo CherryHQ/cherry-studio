@@ -10,6 +10,7 @@ const logger = loggerService.withContext('useBuiltinAgentListVisibility')
 export function useBuiltinAgentListVisibility() {
   const { t } = useTranslation()
   const [hiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const isLoading = preferenceService.getCachedValue('agent.session.hidden_builtin_ids') === undefined
 
   const setBuiltinAgentVisible = useCallback(
     async (agentId: string, visible: boolean) => {
@@ -38,5 +39,5 @@ export function useBuiltinAgentListVisibility() {
     [setBuiltinAgentVisible]
   )
 
-  return { hiddenBuiltinAgentIds, hideBuiltinAgent, showBuiltinAgent }
+  return { hiddenBuiltinAgentIds, hideBuiltinAgent, isLoading, showBuiltinAgent }
 }

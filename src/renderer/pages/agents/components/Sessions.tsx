@@ -81,6 +81,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -389,7 +390,11 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const { hiddenBuiltinAgentIds = [], hideBuiltinAgent } = useBuiltinAgentListVisibility()
+  const {
+    hiddenBuiltinAgentIds = [],
+    hideBuiltinAgent,
+    isLoading: isBuiltinAgentVisibilityLoading
+  } = useBuiltinAgentListVisibility()
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -507,6 +512,10 @@ const Sessions = ({
     }
     return [...missingIds]
   }, [loadedAgentIdSet, sessionItems])
+  const supplementalSessionAgentIds = useMemo(
+    () => missingSessionAgentIds.slice(0, AGENTS_MAX_LIMIT),
+    [missingSessionAgentIds]
+  )
   const {
     agents: sessionAgents,
     error: sessionAgentsError,
@@ -514,7 +523,7 @@ const Sessions = ({
     refetch: refetchSessionAgents
   } = useAgents({
     enabled: displayMode === 'agent' && !isAgentsLoading,
-    ids: missingSessionAgentIds
+    ids: supplementalSessionAgentIds
   })
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
@@ -1263,7 +1272,7 @@ const Sessions = ({
     }
     if (displayMode === 'agent') {
       await refetchAgents()
-      if (missingSessionAgentIds.length > 0) {
+      if (supplementalSessionAgentIds.length > 0) {
         await refetchSessionAgents()
       }
     }
@@ -1273,7 +1282,7 @@ const Sessions = ({
   }, [
     displayMode,
     hiddenBuiltinAgentIds.length,
-    missingSessionAgentIds.length,
+    supplementalSessionAgentIds.length,
     refetchAgents,
     refetchHiddenBuiltinAgents,
     refetchSessionAgents,
@@ -2022,6 +2031,7 @@ const Sessions = ({
   const historyLoading = isLoadingAll || !isFullyLoaded
   const metadataLoading =
     isSessionPinsLoading ||
+    isBuiltinAgentVisibilityLoading ||
     isHiddenBuiltinAgentsLoading ||
     isWorkdirMetadataLoading ||
     (displayMode === 'agent' && (isAgentsLoading || isSessionAgentsLoading))

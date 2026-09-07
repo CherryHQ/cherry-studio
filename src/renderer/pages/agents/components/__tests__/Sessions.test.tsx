@@ -405,6 +405,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@data/PreferenceService', () => ({
   preferenceService: {
+    getCachedValue: (key: string) => preferenceMocks.values.get(key),
     update: async (key: string, updater: (currentValue: string[]) => string[]) => {
       const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
       preferenceMocks.values.set(key, value)
@@ -856,6 +857,7 @@ describe('Sessions', () => {
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
@@ -1442,6 +1444,33 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_PINNED_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_AGENT_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+  })
+
+  it('keeps Agent history available when more than 500 missing owners need supplemental metadata', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    const sessions = Array.from({ length: 501 }, (_, index) =>
+      createSession({
+        id: `session-${index}`,
+        name: `Session ${index}`,
+        agentId: `missing-agent-${index}`,
+        orderKey: `${index}`
+      })
+    )
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => {
+      const ids = options?.ids ?? []
+      return {
+        agents: ids.map((id) => ({ id, model: 'model-a', name: id, configuration: {} })),
+        isLoading: false,
+        error: ids.length > 500 ? new Error('Too many Agent ids') : undefined,
+        refetch: dataApiMocks.refetchAgents
+      }
+    })
+    setupSessions({ sessions })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Session 0')).toBeInTheDocument()
   })
 
   it('keeps a pinned session in its expanded agent group', () => {
@@ -3847,6 +3876,36 @@ describe('Sessions', () => {
       error: undefined,
       refetch: dataApiMocks.refetchAgents
     }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('does not reveal Agent tasks before the hidden built-in preference is resolved', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.delete('agent.session.hidden_builtin_ids')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'cherry-support',
+          model: 'model-a',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
     setupSessions({
       sessions: [
         createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),

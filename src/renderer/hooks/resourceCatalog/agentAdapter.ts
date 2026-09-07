@@ -59,7 +59,7 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
     data: items,
     isLoading: primary.isLoading || hiddenBuiltin.isLoading,
     isRefreshing: primary.isRefreshing || hiddenBuiltin.isRefreshing,
-    error: primary.error ?? hiddenBuiltin.error,
+    error: primary.error,
     refetch: stableRefetch
   }
 }
