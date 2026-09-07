@@ -333,18 +333,9 @@ export function useFollowupQueue({
         stateRef.current = next
         return next
       })
-      if (wasFailed) {
-        setFailedItemId(null)
-        if (isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
-          const head = stateRef.current.items[0]
-          if (head) {
-            markSeenRef.current()
-            drainHead(head)
-          }
-        }
-      }
+      if (wasFailed) setFailedItemId(null)
     },
-    [persist, drainHead]
+    [persist]
   )
   removeIdRef.current = removeId
 
