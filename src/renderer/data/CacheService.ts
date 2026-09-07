@@ -1226,14 +1226,24 @@ export class CacheService {
                 const existingEntry = existingVal as { items?: unknown; paused?: unknown }
                 const incomingEntry = incomingVal as { items?: unknown; paused?: unknown }
                 if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
-                  const byId = new Map<string, unknown>()
-                  for (const it of existingEntry.items as Array<{ id?: string }>) {
-                    if (it && typeof it.id === 'string') byId.set(it.id, it)
+                  // Preserve pause intent from either window; do not let an idle window clear a failure pause.
+                  const pausedMerged = existingEntry.paused === true || incomingEntry.paused === true
+                  const existingItems = existingEntry.items as Array<{ id?: string }>
+                  const incomingItems = incomingEntry.items as Array<{ id?: string }>
+                  // Union on enqueue (incoming larger) to avoid losing concurrent enqueues;
+                  // otherwise treat incoming as authoritative to propagate individual removals.
+                  if (incomingItems.length > existingItems.length) {
+                    const byId = new Map<string, unknown>()
+                    for (const it of existingItems) {
+                      if (it && typeof it.id === 'string') byId.set(it.id, it)
+                    }
+                    for (const it of incomingItems) {
+                      if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
+                    }
+                    merged[convKey] = { ...incomingEntry, paused: pausedMerged, items: Array.from(byId.values()) }
+                  } else {
+                    merged[convKey] = { ...incomingEntry, paused: pausedMerged, items: incomingItems }
                   }
-                  for (const it of incomingEntry.items as Array<{ id?: string }>) {
-                    if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
-                  }
-                  merged[convKey] = { ...incomingEntry, items: Array.from(byId.values()) }
                   continue
                 }
               }
