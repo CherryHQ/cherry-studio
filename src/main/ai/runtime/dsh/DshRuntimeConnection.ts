@@ -25,10 +25,9 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -395,11 +394,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // MISE vars are added only where the user has no mise of their own
       // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
       const rawMiseEnv = Object.fromEntries(Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_')))
-      const hasUserMiseInPath =
-        (loginPath ?? '').split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise')) ||
-        Object.keys(rawShellEnv).some(
-          (key) => key.toLowerCase() === 'path' && (rawShellEnv[key] ?? '').toLowerCase().includes('mise')
-        )
+      const hasUserMiseInPath = hasMiseInPath(loginPath)
       const hasUserMise = Object.keys(rawMiseEnv).length > 0 || hasUserMiseInPath
       const cherryToolDirs = getBinarySearchDirs()
       const bundledGitDir = getBundledGitDir()

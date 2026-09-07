@@ -11,12 +11,11 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
-import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
@@ -171,7 +170,7 @@ async function createStdio(
   const rawShellEnv = await getRawShellEnv()
   const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
   const rawPath = getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>) ?? ''
-  const hasUserMiseInPath = rawPath.split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseInPath = hasMiseInPath(rawPath)
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
   const cherryToolDirs = getBinarySearchDirs()
   const bundledGitDir = getBundledGitDir()
