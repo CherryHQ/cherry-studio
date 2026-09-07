@@ -183,6 +183,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^mercury-2' },
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
+  // meta
+  { pattern: '^muse-spark' },
   // minimax
   { pattern: 'minimax-m\\d' },
   // mistral

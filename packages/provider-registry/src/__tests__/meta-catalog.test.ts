@@ -1,5 +1,5 @@
 /**
- * Vercel creator catalog — MuseSpark 1.3 regression guard for #20096.
+ * Meta creator catalog — MuseSpark 1.3 regression guard for #20096.
  *
  * The issue: the model shipped (2026-09-02) before the catalog listed it, so
  * runtime lookups missed and `isVisionModel` came back false — chat images
@@ -25,7 +25,7 @@ const loader = new RegistryLoader({
   providerModels: join(dataDir, 'provider-models.json')
 })
 
-describe('Vercel MuseSpark 1.3 catalog (#20096)', () => {
+describe('Meta MuseSpark 1.3 catalog (#20096)', () => {
   it('resolves the issue’s raw wire id to a vision-capable catalog row', () => {
     // OpenRouter serves `meta/muse-spark-1.3`; the runtime lookup normalizes
     // namespace and dot/ dash spelling before hitting the catalog.
@@ -34,7 +34,8 @@ describe('Vercel MuseSpark 1.3 catalog (#20096)', () => {
 
     expect(loader.findModel(normalized)).toMatchObject({
       id: 'muse-spark-1-3',
-      ownedBy: 'vercel',
+      // Meta is the lineage owner — Vercel's gateway listing only resells it.
+      ownedBy: 'meta',
       // image-recognition + image input are what isVisionModel reads — without
       // them chat images degrade to OCR text before reaching the provider.
       capabilities: expect.arrayContaining(['image-recognition']),
@@ -43,9 +44,9 @@ describe('Vercel MuseSpark 1.3 catalog (#20096)', () => {
   })
 
   it('hand-lists the model in the creator so inclusion survives listing churn', () => {
-    const vercel = CREATORS.find(({ id }) => id === 'vercel')
+    const meta = CREATORS.find(({ id }) => id === 'meta')
 
-    expect(vercel?.models?.find(({ id }) => id === 'muse-spark-1-3')).toMatchObject({
+    expect(meta?.models?.find(({ id }) => id === 'muse-spark-1-3')).toMatchObject({
       name: 'Muse Spark 1.3',
       family: 'muse',
       capabilities: expect.arrayContaining(['image-recognition', 'reasoning', 'function-call']),

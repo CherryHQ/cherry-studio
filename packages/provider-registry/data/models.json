@@ -11874,6 +11874,49 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-1-3",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Muse Spark 1.3",
+      "outputModalities": ["text"],
+      "ownedBy": "meta",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
       "capabilities": ["image-recognition", "image-generation"],
       "id": "mai-image-2-5",
       "inputModalities": ["text", "image"],
@@ -19337,49 +19380,6 @@
       ],
       "contextWindow": 1048576,
       "family": "muse",
-      "id": "muse-spark-1-3",
-      "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 1048576,
-      "metadata": {},
-      "name": "Muse Spark 1.3",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4.25
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "muse",
       "id": "muse-spark-1-3-contributor",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 1048576,
@@ -21958,5 +21958,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "e7be1c56f1d096a6"
+  "version": "d7096183a2f31eb6"
 }
