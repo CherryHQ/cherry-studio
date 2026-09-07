@@ -23,7 +23,7 @@ import {
 import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
-export type AihubmixMode = 'generate' | 'remix' | 'upscale'
+export type AihubmixMode = 'generate' | 'edit' | 'remix' | 'upscale'
 
 export type AihubmixImageOptions = Pick<
   ParamValues,
@@ -53,7 +53,9 @@ export interface AihubmixImageTransportSettings {
   fetch?: FetchFunction
 }
 
-const modeEndpoint: Record<AihubmixMode, string> = {
+type IdeogramMode = Exclude<AihubmixMode, 'edit'>
+
+const modeEndpoint: Record<IdeogramMode, string> = {
   generate: 'generate',
   remix: 'remix',
   upscale: 'upscale'
@@ -96,13 +98,16 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
   supportsInput(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageTransportInputSupport {
     const mode = input.providerParams.mode ?? 'generate'
     return {
-      files: isDoubaoSeedreamModel(input.modelId) || mode === 'remix' || mode === 'upscale',
+      files: isDoubaoSeedreamModel(input.modelId) || mode === 'edit' || mode === 'remix' || mode === 'upscale',
       mask: false
     }
   }
 
   async submit(input: ImageGenerationSubmitInput<AihubmixImageOptions>) {
     const mode = input.providerParams.mode ?? 'generate'
+    if (mode === 'edit') {
+      return this.submitRegistryEdit(input)
+    }
     if (input.modelId === 'ideogram/V3' && mode !== 'upscale') {
       return this.submitIdeogramV3(input, mode)
     }
@@ -112,9 +117,37 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     return this.submitIdeogramV1V2(input, mode)
   }
 
+  private async submitRegistryEdit(input: ImageGenerationSubmitInput<AihubmixImageOptions>) {
+    const descriptor = input.modelDescriptor
+    if (!descriptor || descriptor.mode !== 'edit') {
+      throw new Error(`AiHubMix edit model '${input.modelId}' is missing its registry transport descriptor`)
+    }
+    const images = (input.files ?? []).map(fileToDataUrl)
+    if (images.length === 0) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+
+    const bag = input.providerParams
+    const body: Record<string, unknown> = {
+      prompt: input.prompt ?? '',
+      images,
+      n: input.n
+    }
+    if (input.size !== undefined) body.size = input.size
+    if (input.seed !== undefined) body.seed = input.seed
+    if (bag.negativePrompt) body.negative_prompt = bag.negativePrompt
+    if (bag.addWatermark !== undefined) body.watermark = bag.addWatermark
+
+    const response = await this.postJson(
+      `${this.settings.apiRoot}${descriptor.endpoint}`,
+      { input: body },
+      openAIImageResponseSchema,
+      input
+    )
+    return completedImageTransportSubmission(parseOpenAIImageResults(response), 'AiHubMix registry edit')
+  }
+
   private async submitIdeogramV3(
     input: ImageGenerationSubmitInput<AihubmixImageOptions>,
-    mode: Exclude<AihubmixMode, 'upscale'>
+    mode: Exclude<IdeogramMode, 'upscale'>
   ) {
     const bag = input.providerParams
     const formData = new FormData()
@@ -147,7 +180,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     return completedImageTransportSubmission(parseOpenAIImageResults(response), 'AiHubMix Doubao')
   }
 
-  private async submitIdeogramV1V2(input: ImageGenerationSubmitInput<AihubmixImageOptions>, mode: AihubmixMode) {
+  private async submitIdeogramV1V2(input: ImageGenerationSubmitInput<AihubmixImageOptions>, mode: IdeogramMode) {
     const bag = input.providerParams
     const aspectRatio = aspectRatioToIdeogramV1V2(input.aspectRatio)
     const url = `${this.settings.apiRoot}/ideogram/${modeEndpoint[mode]}`

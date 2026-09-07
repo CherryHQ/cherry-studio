@@ -348,6 +348,57 @@ describe('AihubmixImageModel', () => {
     })
   })
 
+  describe('registry-declared edit models', () => {
+    it('posts zimage input to the declared qwen-image-edit prediction endpoint', async () => {
+      // Contract: https://docs.aihubmix.com/cn/api/Image-Gen (retrieved 2026-09-07).
+      // The zimage protocol wraps prompt/images/n/seed/watermark in `input`, and
+      // qwen-image-edit is served at the registry-declared qianfan prediction path.
+      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/edit.png' }] }))
+      const model = createAihubmixImageModel('qwen-image-edit', {
+        baseURL,
+        resolveApiKey,
+        headers,
+        fetch: fetchMock,
+        imageTransportDescriptors: {
+          edit: {
+            id: 'qwen-image-edit',
+            endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+            mode: 'edit'
+          }
+        }
+      })
+
+      const result = await model.doGenerate(
+        callOptions({
+          prompt: 'replace the sky',
+          n: 1,
+          seed: 7,
+          files: [
+            { type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2]) },
+            { type: 'file', mediaType: 'image/jpeg', data: 'AwQ=' }
+          ],
+          headers: { 'X-Request': 'edit' },
+          providerOptions: { aihubmix: { mode: 'edit', addWatermark: false } }
+        })
+      )
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('https://aihubmix.com/v1/models/qianfan/qwen-image-edit/predictions')
+      expect(new Headers(init.headers).get('Authorization')).toBe('Bearer sk-test')
+      expect(new Headers(init.headers).get('X-Request')).toBe('edit')
+      expect(JSON.parse(init.body as string)).toEqual({
+        input: {
+          prompt: 'replace the sky',
+          images: ['data:image/png;base64,AQI=', 'data:image/jpeg;base64,AwQ='],
+          n: 1,
+          seed: 7,
+          watermark: false
+        }
+      })
+      expect(result.images).toEqual(['https://img/edit.png'])
+    })
+  })
+
   describe('response parsing', () => {
     it('parses data.output.b64_json[].bytesBase64', async () => {
       vi.stubGlobal(

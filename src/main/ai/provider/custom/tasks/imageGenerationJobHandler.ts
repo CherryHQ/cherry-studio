@@ -90,10 +90,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     })
     const usageStartedAt = Date.now()
 
-    if (!isImageTransportConfig(sdkConfig, sdkConfig.modelId)) {
+    if (!isImageTransportConfig(sdkConfig, sdkConfig.modelId, input.modelDescriptor)) {
       throw new Error(`Image generation job: no transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`)
     }
-    const transport = await resolveImageTransport(sdkConfig, sdkConfig.modelId)
+    const transport = await resolveImageTransport(sdkConfig, sdkConfig.modelId, input.modelDescriptor)
     if (!transport) {
       throw new Error(
         `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`

@@ -1,14 +1,21 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { wireName } from '@cherrystudio/provider-registry'
-import { type CanonicalParamKey, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ImageGenerationSupportSchema, wireName } from '@cherrystudio/provider-registry'
+import {
+  type CanonicalParamKey,
+  type EndpointType,
+  ImageGenerationModeSchema,
+  type ImageGenerationSupport,
+  MODEL_CAPABILITY
+} from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { nativeBindingFor, type NativeParamKey } from '../../utils/aiSdkNativeBindings'
+import { imageTransportDescriptorFor } from '../custom/imageTransport'
 import { isImageTransportConfig, resolveImageTransport } from '../custom/imageTransportRegistry'
 import { resolveWireRegistration, type WireProfile } from '../custom/wire/wireProfile'
 
@@ -66,9 +73,6 @@ const { providerToAiSdkConfig } = await import('../config')
 const dataDir = resolve(process.cwd(), 'packages/provider-registry/data')
 const readJson = (file: string) => JSON.parse(readFileSync(resolve(dataDir, file), 'utf8'))
 
-type SupportRecord = Record<string, unknown>
-type ImageGenerationSupport = { modes: Record<string, { supports?: SupportRecord }> }
-
 const providers: Array<{
   id: string
   defaultChatEndpoint?: EndpointType
@@ -87,7 +91,8 @@ const presetById = new Map(presetModels.map((m) => [m.id, m]))
 
 /** Mirrors `ProviderRegistryService.getImageGenerationSupport`: override wins wholesale. */
 function imageSupportFor(override: (typeof overrides)[number]): ImageGenerationSupport | null {
-  return override.imageGeneration ?? presetById.get(override.modelId)?.imageGeneration ?? null
+  const support = override.imageGeneration ?? presetById.get(override.modelId)?.imageGeneration
+  return support ? ImageGenerationSupportSchema.parse(support) : null
 }
 
 const declarations = overrides.flatMap((override) => {
@@ -97,7 +102,8 @@ const declarations = overrides.flatMap((override) => {
   return Object.entries(support.modes).map(([mode, def]) => ({
     override,
     provider,
-    mode,
+    mode: ImageGenerationModeSchema.parse(mode),
+    support,
     // `supports` is `z.partialRecord(CanonicalParamKeySchema, …)` in the registry
     // schema, so its keys are canonical by construction — assert once here rather
     // than at each `nativeBindingFor` / `wireName` use below.
@@ -119,7 +125,7 @@ function profileCovers(profile: WireProfile, key: string): boolean {
 }
 
 /** Resolve a declaration through the real production path — no resolution logic here. */
-function resolveSdkConfig({ override, provider }: (typeof declarations)[number]) {
+function resolveSdkConfig({ override, provider, support }: (typeof declarations)[number]) {
   return providerToAiSdkConfig(
     makeProvider({
       id: provider.id,
@@ -131,7 +137,8 @@ function resolveSdkConfig({ override, provider }: (typeof declarations)[number])
       apiModelId: override.modelId,
       providerId: override.providerId,
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-      endpointTypes: override.endpointTypes
+      endpointTypes: override.endpointTypes,
+      imageGeneration: support
     })
   )
 }
@@ -143,16 +150,17 @@ describe('registry image params are deliverable on the runtime wire', () => {
   })
 
   it.each(declarations)('$override.providerId / $override.modelId ($mode)', async (declaration) => {
-    const { override, keys } = declaration
+    const { override, keys, mode, support } = declaration
     const sdkConfig = await resolveSdkConfig(declaration)
 
     // A transport builds its own envelope from the raw canonical bag, so every key
     // reaches it; otherwise the key must be a native AI SDK option, mapped by the
     // provider's wire profile, or carried by its passthrough.
+    const descriptor = imageTransportDescriptorFor(override.modelId, mode, support)
     const registration = resolveWireRegistration(sdkConfig.providerId)
     const hasTransport =
-      isImageTransportConfig(sdkConfig, override.modelId) &&
-      Boolean(await resolveImageTransport(sdkConfig, override.modelId))
+      isImageTransportConfig(sdkConfig, override.modelId, descriptor) &&
+      Boolean(await resolveImageTransport(sdkConfig, override.modelId, descriptor))
     const profiles = [registration.profile, ...(registration.also ?? []).map((a) => a.profile)]
 
     const undeliverable = keys.filter(

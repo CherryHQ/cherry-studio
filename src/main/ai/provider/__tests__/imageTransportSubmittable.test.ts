@@ -58,8 +58,9 @@ const declarations = overrides.flatMap((override) => {
   // DashScope declares `wanx2-1-t2i-turbo` and dispatches on `wanx2.1-t2i-turbo`.
   const modelId = override.apiModelId ?? override.modelId
   return Object.entries(support.modes).flatMap(([mode, def]) => {
-    if (!hasImageTransport(override.providerId, modelId)) return []
-    return [{ providerId: override.providerId, modelId, mode, def }]
+    const descriptor = descriptorFor(modelId, mode, def)
+    if (!hasImageTransport(override.providerId, modelId, descriptor)) return []
+    return [{ providerId: override.providerId, modelId, mode, def, descriptor }]
   })
 })
 
@@ -91,12 +92,14 @@ describe('every transport-routed registry image model is submittable', () => {
     expect(new Set(declarations.map((d) => d.providerId)).size).toBeGreaterThan(2)
   })
 
-  it.each(declarations)('$providerId / $modelId ($mode)', async ({ providerId, modelId, mode, def }) => {
+  it.each(declarations)('$providerId / $modelId ($mode)', async ({ providerId, modelId, descriptor }) => {
     const config = { providerId, providerSettings: PROBE_SETTINGS }
-    if (!isImageTransportConfig(config, modelId)) throw new Error(`expected transport for ${providerId}/${modelId}`)
-    const transport = await resolveImageTransport(config, modelId)
+    if (!isImageTransportConfig(config, modelId, descriptor)) {
+      throw new Error(`expected transport for ${providerId}/${modelId}`)
+    }
+    const transport = await resolveImageTransport(config, modelId, descriptor)
     if (!transport) throw new Error(`expected transport for ${providerId}/${modelId}`)
-    const input = submitInput({ modelId, modelDescriptor: descriptorFor(modelId, mode, def) })
+    const input = submitInput({ modelId, modelDescriptor: descriptor })
 
     // `captureImageRequest` rethrows only when the transport failed BEFORE fetching —
     // i.e. it rejected the model itself rather than the canned `{}` response.

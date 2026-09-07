@@ -1132,7 +1132,19 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         }
       })
-      const model = makeModel({ providerId: 'ppio', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+      const model = makeModel({
+        providerId: 'ppio',
+        apiModelId: 'qwen-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        imageGeneration: {
+          modes: {
+            generate: {
+              supports: {},
+              vendorTransport: { endpoint: '/v3/async/qwen-image' }
+            }
+          }
+        }
+      })
 
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('ppio')
@@ -1455,6 +1467,71 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'https://responses.aihubmix.example/v1'
       })
     })
+
+    it('passes AiHubMix registry transport descriptors to its image adapter', async () => {
+      // Endpoint contract: https://docs.aihubmix.com/cn/api/Image-Gen (retrieved 2026-09-07).
+      const provider = makeProvider({
+        id: 'aihubmix',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://aihubmix.com/v1',
+            adapterFamily: 'aihubmix'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'aihubmix::qwen-image-edit',
+        providerId: 'aihubmix',
+        apiModelId: 'qwen-image-edit',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        imageGeneration: {
+          modes: {
+            edit: {
+              supports: {},
+              vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions' }
+            }
+          }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('aihubmix')
+      if (config.providerId !== 'aihubmix') throw new Error('expected AiHubMix config')
+      expect(config.providerSettings.imageTransportDescriptors).toEqual({
+        edit: {
+          id: 'qwen-image-edit',
+          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+          mode: 'edit'
+        }
+      })
+    })
+
+    it.each(['ppio', 'dashscope', 'tokenhub'] as const)(
+      'keeps an unregistered %s image model on openai-compatible',
+      async (presetProviderId) => {
+        const provider = makeProvider({
+          id: `custom-${presetProviderId}`,
+          presetProviderId,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl: 'https://custom.example.com/v1',
+              adapterFamily: 'openai-compatible'
+            }
+          }
+        })
+        const model = makeModel({
+          id: `${provider.id}::custom-image`,
+          providerId: provider.id,
+          apiModelId: 'custom-image',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        expect((await providerToAiSdkConfig(provider, model)).providerId).toBe('openai-compatible')
+      }
+    )
 
     it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {
       const provider = makeProvider({

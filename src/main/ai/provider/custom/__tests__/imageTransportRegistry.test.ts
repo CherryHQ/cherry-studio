@@ -1,27 +1,35 @@
 /**
  * Unit tests for resolveImageTransport — the routing that decides which
  * custom-provider image models run on the job system. ppio / dashscope /
- * modelscope always resolve a poll-capable transport; dmxapi resolves one only
- * for its bespoke families (native gpt-image / dall-e / imagen / gemini-image
- * and the openai-flat fallback stay on the in-SDK path); everything else is
- * null.
+ * tokenhub require a registry descriptor, modelscope accepts arbitrary models,
+ * and dmxapi resolves only its bespoke families. Everything else is null.
  */
 import { describe, expect, it } from 'vitest'
 
 import { hasImageTransport, isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
 
 describe('resolveImageTransport', () => {
-  it('resolves a poll-capable transport for ppio / dashscope / modelscope', async () => {
-    for (const providerId of ['ppio', 'dashscope', 'modelscope'] as const) {
-      expect(hasImageTransport(providerId, 'any-model')).toBe(true)
-      const config = { providerId, providerSettings: {} }
-      expect(isImageTransportConfig(config, 'any-model')).toBe(true)
-      if (!isImageTransportConfig(config, 'any-model')) throw new Error('expected transport config')
-      const transport = await resolveImageTransport(config, 'any-model')
+  it('requires a registry descriptor for ppio / dashscope / tokenhub', async () => {
+    const descriptor = { id: 'any-model', endpoint: '/vendor/task', mode: 'generate' as const }
+    for (const providerId of ['ppio', 'dashscope', 'tokenhub'] as const) {
+      expect(hasImageTransport(providerId, 'any-model')).toBe(false)
+      expect(hasImageTransport(providerId, 'any-model', descriptor)).toBe(true)
+      const config = { providerId, providerSettings: { baseURL: 'https://example.invalid', apiKey: 'sk-test' } }
+      expect(isImageTransportConfig(config, 'any-model', descriptor)).toBe(true)
+      if (!isImageTransportConfig(config, 'any-model', descriptor)) throw new Error('expected transport config')
+      const transport = await resolveImageTransport(config, 'any-model', descriptor)
       expect(transport).not.toBeNull()
       expect(typeof transport?.submit).toBe('function')
       expect(transport?.task.kind).toBe('supported')
     }
+  })
+
+  it('keeps modelscope available without a registry descriptor', async () => {
+    const config = { providerId: 'modelscope' as const, providerSettings: {} }
+    expect(hasImageTransport('modelscope', 'any-model')).toBe(true)
+    expect(isImageTransportConfig(config, 'any-model')).toBe(true)
+    if (!isImageTransportConfig(config, 'any-model')) throw new Error('expected transport config')
+    expect(await resolveImageTransport(config, 'any-model')).not.toBeNull()
   })
 
   it('resolves a transport for dmxapi bespoke families', async () => {
@@ -53,9 +61,11 @@ describe('resolveImageTransport', () => {
 
   it('resolves tokenhub models by the provider id', async () => {
     const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
+    const descriptor = { id: 'hy-image-v3.0', endpoint: '/v1/images/generations', mode: 'generate' as const }
     const transport = await resolveImageTransport(
       { providerId: 'tokenhub', providerSettings: settings },
-      'hy-image-v3.0'
+      'hy-image-v3.0',
+      descriptor
     )
     expect(transport).not.toBeNull()
     expect(transport?.task.kind).toBe('supported')

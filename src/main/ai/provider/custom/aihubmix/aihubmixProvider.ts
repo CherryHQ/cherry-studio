@@ -17,8 +17,9 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type ImageGenerationMode } from '@shared/data/types/model'
 
+import type { ImageTransportDescriptor } from '../imageTransport'
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
@@ -28,6 +29,7 @@ export interface AihubmixProviderSettings {
   apiKey?: string
   baseURL?: string
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
+  imageTransportDescriptors?: Partial<Record<ImageGenerationMode, ImageTransportDescriptor>>
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -150,7 +152,13 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     })
 
   provider.imageModel = (modelId: string) =>
-    createAihubmixImageModel(modelId, { baseURL: chatBaseURL, resolveApiKey, headers: authHeaders, fetch: customFetch })
+    createAihubmixImageModel(modelId, {
+      baseURL: chatBaseURL,
+      resolveApiKey,
+      headers: authHeaders,
+      fetch: customFetch,
+      imageTransportDescriptors: options.imageTransportDescriptors
+    })
 
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {

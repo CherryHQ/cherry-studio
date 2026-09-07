@@ -1,12 +1,19 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
+import {
+  type EndpointType,
+  ImageGenerationModeSchema,
+  type ImageGenerationSupport,
+  MODEL_CAPABILITY
+} from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
+import { imageTransportDescriptorFor } from '../../imageTransport'
 import { hasImageTransport } from '../../imageTransportRegistry'
 import { WIRE_REGISTRY } from '../wireProfile'
 
@@ -19,7 +26,7 @@ import { WIRE_REGISTRY } from '../wireProfile'
  *
  * Two ways a row dies, one check each:
  *
- *  1. **Unconditional transport** — `dashscope` resolved one for every image model, so
+ *  1. **Unconditional transport** — `modelscope` resolves one for every image model, so
  *     `DASHSCOPE_WIRE_PROFILE` (`negative_prompt`/`seed`/`style`) was never built while
  *     `dashscopeTransport` read the camelCase keys off the raw bag.
  *  2. **Coupled routing** — `dmxapi` got its own SDK id from `config.ts` under exactly
@@ -61,7 +68,7 @@ describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () 
   it('the probe is meaningful — an unconditional transport provider is detectable', () => {
     // Guards the guard: if this stops resolving, the test above silently passes for
     // every provider and the invariant is no longer enforced.
-    expect(hasImageTransport('ppio', PROBE_MODEL_ID)).toBe(true)
+    expect(hasImageTransport('modelscope', PROBE_MODEL_ID)).toBe(true)
   })
 })
 
@@ -70,7 +77,6 @@ describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () 
 const dataDir = resolve(process.cwd(), 'packages/provider-registry/data')
 const readJson = (file: string) => JSON.parse(readFileSync(resolve(dataDir, file), 'utf8'))
 
-type ImageGenerationSupport = { modes: Record<string, unknown> }
 const providers: Array<{
   id: string
   defaultChatEndpoint?: EndpointType
@@ -88,15 +94,18 @@ const providerById = new Map(providers.map((p) => [p.id, p]))
 const presetById = new Map(presetModels.map((m) => [m.id, m]))
 
 /** Every (provider, model) the registry declares image generation for. */
-const imageModels = overrides.filter(
-  (o) => (o.imageGeneration ?? presetById.get(o.modelId)?.imageGeneration) != null && providerById.has(o.providerId)
-)
+const imageModels = overrides.flatMap((override) => {
+  const support = override.imageGeneration ?? presetById.get(override.modelId)?.imageGeneration
+  return support && providerById.has(override.providerId)
+    ? [{ override, support: ImageGenerationSupportSchema.parse(support) }]
+    : []
+})
 
 describe('WIRE_REGISTRY rows are reachable from a real declared model', () => {
   it('a row whose provider has declared image models is reached by at least one', async () => {
     const reachedOnSdkBranch = new Set<string>()
 
-    for (const override of imageModels) {
+    for (const { override, support } of imageModels) {
       const provider = providerById.get(override.providerId)
       if (!provider) continue
       const sdkConfig = await providerToAiSdkConfig(
@@ -110,10 +119,17 @@ describe('WIRE_REGISTRY rows are reachable from a real declared model', () => {
           apiModelId: override.modelId,
           providerId: override.providerId,
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-          endpointTypes: override.endpointTypes
+          endpointTypes: override.endpointTypes,
+          imageGeneration: support
         })
       )
-      const hasTransport = hasImageTransport(sdkConfig.providerId, override.modelId)
+      const hasTransport = ImageGenerationModeSchema.options.some((mode) =>
+        hasImageTransport(
+          sdkConfig.providerId,
+          override.modelId,
+          imageTransportDescriptorFor(override.modelId, mode, support)
+        )
+      )
       // Only the SDK branch consults WIRE_REGISTRY.
       if (!hasTransport) reachedOnSdkBranch.add(sdkConfig.providerId)
     }
@@ -121,7 +137,7 @@ describe('WIRE_REGISTRY rows are reachable from a real declared model', () => {
     // Rows for providers with no declared image models can't be judged here — their
     // models live in the provider-agnostic `models.json` with no provider override, so
     // this check has no corpus for them. Only rows with a corpus are asserted.
-    const providersWithCorpus = new Set(imageModels.map((o) => o.providerId))
+    const providersWithCorpus = new Set(imageModels.map(({ override }) => override.providerId))
     const judgeable = Object.keys(WIRE_REGISTRY).filter((id) => providersWithCorpus.has(id))
     const unreachable = judgeable.filter((id) => !reachedOnSdkBranch.has(id))
 

@@ -52,6 +52,7 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { resolveProviderAiSdkConfig } from './provider/config'
+import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './provider/custom/imageTransport'
 import {
   hasImageTransport,
   isImageTransportConfig,
@@ -892,8 +893,12 @@ export class AiService extends BaseService {
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
+    const transportModelId = model.apiModelId ?? model.id
+    const transportMode = request.mode ?? 'generate'
+    const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
+    const modelDescriptor = imageTransportDescriptorFor(transportModelId, transportMode, imageSupport)
+    if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
+      return await this.generateImageViaJob(request, structured, vendorBag, signal, source, modelDescriptor)
     }
 
     const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
@@ -912,7 +917,10 @@ export class AiService extends BaseService {
       registration,
       vendorBag
     )
-    if (sdkConfig.providerId === 'aihubmix' && (request.mode === 'remix' || request.mode === 'upscale')) {
+    if (
+      sdkConfig.providerId === 'aihubmix' &&
+      (request.mode === 'edit' || request.mode === 'remix' || request.mode === 'upscale')
+    ) {
       imageProviderOptions.aihubmix = { ...imageProviderOptions.aihubmix, mode: request.mode }
     }
 
@@ -1011,7 +1019,8 @@ export class AiService extends BaseService {
     structured: SplitImageParams['structured'],
     providerParams: SplitImageParams['vendorBag'],
     signal: AbortSignal | undefined,
-    source: SourceSnapshot | undefined
+    source: SourceSnapshot | undefined,
+    modelDescriptor: ImageTransportDescriptor | undefined
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
@@ -1036,17 +1045,6 @@ export class AiService extends BaseService {
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
       const requestSize = resolveImageRequestSize(structured.size)
-
-      // Per-model transport routing, derived from the registry (main hosts it) —
-      // NOT laundered through paramValues. Carried in the payload so the handler
-      // reaches the right endpoint / response family without re-resolving it.
-      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-      const mode = request.mode ?? 'generate'
-      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
-      const vendorTransport = support?.modes?.[mode]?.vendorTransport
-      const modelDescriptor = vendorTransport?.endpoint
-        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
-        : undefined
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
@@ -1312,23 +1310,24 @@ export class AiService extends BaseService {
         }
       }
       const transportProviderId = provider.presetProviderId ?? provider.id
-      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      const transportModelId = model.apiModelId ?? model.id
+      const modelDescriptor = imageTransportDescriptorFor(transportModelId, probeMode, imageSupport)
+      if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
         // Transport models run their submit/poll loop on the job system, whose
         // handler re-selects a serving key — dropping the health check's
         // `apiKeyOverride` and possibly probing a different rotated credential
         // than the one being reported. A check needs no restart survival, so
         // probe inline: one submit (accepted = credential + endpoint + model OK)
         // with the caller's key, no job row, no result download.
-        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
         probe = (async () => {
           const { config } = await resolveProviderAiSdkConfig(provider, model, {
             apiKeyOverride: request.apiKeyOverride
           })
           const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          if (!isImageTransportConfig(config, wireModelId)) {
+          if (!isImageTransportConfig(config, wireModelId, modelDescriptor)) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
           }
-          const transport = await resolveImageTransport(config, wireModelId)
+          const transport = await resolveImageTransport(config, wireModelId, modelDescriptor)
           if (!transport) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
           }
@@ -1340,9 +1339,7 @@ export class AiService extends BaseService {
             seed: undefined,
             files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
             mask: undefined,
-            modelDescriptor: vendorTransport
-              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
-              : undefined,
+            modelDescriptor,
             providerParams: probeParams,
             signal: controller.signal
           })

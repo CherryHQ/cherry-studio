@@ -23,8 +23,9 @@ import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/p
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { IMAGE_PARAM_CATALOG_KEYS, type ParamValues, wireName } from '@cherrystudio/provider-registry'
-import type { CanonicalParamKey } from '@shared/data/types/model'
+import type { CanonicalParamKey, ImageGenerationMode } from '@shared/data/types/model'
 
+import type { ImageTransportDescriptor } from '../imageTransport'
 import { executeImageTransport } from '../imageTransportRuntime'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
 import { type AihubmixImageOptions, type AihubmixMode, createAihubmixImageTransport } from './aihubmixImageTransport'
@@ -40,6 +41,7 @@ export interface CreateAihubmixImageModelOptions {
   resolveApiKey: () => string
   headers: () => Record<string, string | undefined>
   fetch?: FetchFunction
+  imageTransportDescriptors?: Partial<Record<ImageGenerationMode, ImageTransportDescriptor>>
 }
 
 function isGoogleImageModel(modelId: string): boolean {
@@ -262,6 +264,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
           seed: options.seed,
           files: options.files,
           mask: options.mask,
+          modelDescriptor: opts.imageTransportDescriptors?.[mode],
           providerParams: bag,
           headers: options.headers,
           signal: abortSignal

@@ -1,13 +1,23 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ImageSizeToken } from '@main/ai/utils/aiSdkNativeBindings'
 import type { VendorBag, WireVendorBag } from '@main/ai/utils/imageOptions'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 export interface ImageTransportDescriptor {
   id: string
   endpoint: string
   isSync?: boolean
   mode?: ImageGenerationMode
+}
+
+export function imageTransportDescriptorFor(
+  modelId: string,
+  mode: ImageGenerationMode,
+  support: ImageGenerationSupport | null | undefined
+): ImageTransportDescriptor | undefined {
+  const vendorTransport = support?.modes[mode]?.vendorTransport
+  if (!vendorTransport) return undefined
+  return { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
 }
 
 export interface ImageTransportInputSupport {

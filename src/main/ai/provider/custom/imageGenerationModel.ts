@@ -21,12 +21,11 @@ export interface CreateImageGenerationModelOptions {
 }
 
 /**
- * The `imageModel` for a provider whose images ALWAYS take the job transport:
- * `AiService.generateImage` resolves `resolveImageTransport` first and these providers'
- * resolvers return unconditionally, so this is never built (`wireRegistryReachability`
- * asserts the same property). `ProviderV3` requires an `imageModel`, so it says that
- * instead of re-delivering the bag under the in-SDK path's WIRE spelling — which is now
- * a compile error, and which used to surface as `Missing modelDescriptor`.
+ * The `imageModel` for a registry-declared model that takes the job transport.
+ * `AiService.generateImage` resolves `resolveImageTransport` first, while unregistered
+ * models stay on the generic SDK provider. `ProviderV3` still requires an image model
+ * for the transport branch's config, so reaching this implementation is an invariant
+ * violation rather than a second delivery path with different parameter spelling.
  */
 export function transportOnlyImageModel(provider: string, modelId: string): ImageModelV3 {
   return {

@@ -1,14 +1,14 @@
 import type { ProviderConfig } from '../../types'
 import type { VendorBag } from '../../utils/imageOptions'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
-import type { ImageGenerationTransport } from './imageGenerationModel'
+import type { ImageGenerationTransport, ImageTransportDescriptor } from './imageGenerationModel'
 
 const TRANSPORT_SUPPORT = {
-  ppio: () => true,
-  dashscope: () => true,
-  modelscope: () => true,
-  dmxapi: dmxapiUsesCustomTransport,
-  tokenhub: () => true
+  ppio: { requiresDescriptor: true, supports: () => true },
+  dashscope: { requiresDescriptor: true, supports: () => true },
+  modelscope: { requiresDescriptor: false, supports: () => true },
+  dmxapi: { requiresDescriptor: false, supports: dmxapiUsesCustomTransport },
+  tokenhub: { requiresDescriptor: true, supports: () => true }
 }
 
 export type ImageTransportProviderId = keyof typeof TRANSPORT_SUPPORT
@@ -19,22 +19,34 @@ function isImageTransportProviderId(providerId: string): providerId is ImageTran
   return TRANSPORT_PROVIDER_IDS.has(providerId)
 }
 
-export function hasImageTransport(providerId: string, modelId: string): providerId is ImageTransportProviderId {
-  return isImageTransportProviderId(providerId) && TRANSPORT_SUPPORT[providerId](modelId)
+export function requiresImageTransportDescriptor(providerId: string): boolean {
+  return isImageTransportProviderId(providerId) && TRANSPORT_SUPPORT[providerId].requiresDescriptor
+}
+
+export function hasImageTransport(
+  providerId: string,
+  modelId: string,
+  modelDescriptor?: ImageTransportDescriptor
+): providerId is ImageTransportProviderId {
+  if (!isImageTransportProviderId(providerId)) return false
+  const support = TRANSPORT_SUPPORT[providerId]
+  return support.supports(modelId) && (!support.requiresDescriptor || modelDescriptor !== undefined)
 }
 
 export function isImageTransportConfig(
   config: ProviderConfig,
-  modelId: string
+  modelId: string,
+  modelDescriptor?: ImageTransportDescriptor
 ): config is ProviderConfig<ImageTransportProviderId> {
-  return hasImageTransport(config.providerId, modelId)
+  return hasImageTransport(config.providerId, modelId, modelDescriptor)
 }
 
 export async function resolveImageTransport(
   config: ProviderConfig<ImageTransportProviderId>,
-  modelId: string
+  modelId: string,
+  modelDescriptor?: ImageTransportDescriptor
 ): Promise<ImageGenerationTransport<VendorBag> | null> {
-  if (!TRANSPORT_SUPPORT[config.providerId](modelId)) return null
+  if (!hasImageTransport(config.providerId, modelId, modelDescriptor)) return null
 
   switch (config.providerId) {
     case 'ppio': {
