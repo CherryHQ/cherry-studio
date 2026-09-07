@@ -96,4 +96,19 @@ describe('captureScreenshotViaCdp', () => {
     await expect(captureScreenshotViaCdp(wc, CLIP, 1)).rejects.toThrow('destroyed')
     expect(dbg.attach).not.toHaveBeenCalled()
   })
+
+  it('rejects a clip whose rasterized size exceeds the composited-surface limit', async () => {
+    const { wc, dbg } = makeWebContents()
+
+    await expect(captureScreenshotViaCdp(wc, { ...CLIP, width: 20_000 }, 1)).rejects.toThrow('composited-surface limit')
+    expect(dbg.attach).not.toHaveBeenCalled()
+    expect(dbg.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized clip that only crosses the limit after scaling', async () => {
+    const { wc, dbg } = makeWebContents()
+
+    await expect(captureScreenshotViaCdp(wc, { ...CLIP, width: 9_000 }, 2)).rejects.toThrow('composited-surface limit')
+    expect(dbg.sendCommand).not.toHaveBeenCalled()
+  })
 })

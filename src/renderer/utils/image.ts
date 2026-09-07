@@ -385,9 +385,22 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
 
     return await withExpandedForCapture(el, async () => {
       const clip = computeCaptureClip(el)
-      // A parked element that still measures off-document after repositioning
-      // cannot be served natively — fall back rather than capture wrong pixels.
-      if (!clip || clip.x < 0 || clip.y < 0 || !withinLimits(clip)) return undefined
+      // captureBeyondViewport extends the surface only to the document's scroll
+      // bounds — a clip overflowing them (or still off-document) comes back
+      // blank/clipped, so fall back rather than ship wrong pixels.
+      const rootRect = document.documentElement.getBoundingClientRect()
+      const docWidth = Math.max(document.documentElement.scrollWidth, rootRect.width)
+      const docHeight = Math.max(document.documentElement.scrollHeight, rootRect.height)
+      if (
+        !clip ||
+        clip.x < 0 ||
+        clip.y < 0 ||
+        clip.x + clip.width > docWidth + 1 ||
+        clip.y + clip.height > docHeight + 1 ||
+        !withinLimits(clip)
+      ) {
+        return undefined
+      }
       const { dataUrl } = await ipcApi.request('window.capture_screenshot', { clip, scale: CAPTURE_SCALE })
       return dataUrl
     })

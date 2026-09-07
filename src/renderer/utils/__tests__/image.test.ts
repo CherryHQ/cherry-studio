@@ -905,10 +905,14 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 150, configurable: true })
       // First measure decides the parking (negative origin), second measures
       // the clip after the element has been repositioned into the document.
+      // In a real browser an absolute child extends the document's scrollHeight
+      // to cover it (CDP-verified), so the mock document is 6150 tall — the
+      // parked element's bottom edge at 6150 stays inside the surface.
       const rects = [rect(-10000, 0, 300, 150), rect(0, 6000, 300, 150)]
       div.getBoundingClientRect = vi.fn(() => rects.shift() ?? rect(0, 6000, 300, 150))
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6000, configurable: true })
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6150)
+      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
+      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6150, configurable: true })
       ipcMocks.request.mockImplementation(async (_route: string, payload: { clip: { x: number; y: number } }) => {
         // The compositor answers negative-origin clips with the document
         // origin region (wrong pixels), so the shot must only fire parked.
@@ -928,6 +932,7 @@ describe('utils/image', () => {
         expect(div.style.top).toBe('')
         expect(div.style.width).toBe('')
       } finally {
+        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
         Reflect.deleteProperty(document.documentElement, 'scrollHeight')
       }
     })
@@ -946,6 +951,33 @@ describe('utils/image', () => {
       expect(htmlToImage.toCanvas).toHaveBeenCalled()
       expect(div.style.position).toBe('')
       expect(div.style.width).toBe('')
+    })
+
+    it('falls back when the parked clip extends past the document surface', async () => {
+      // A capture root that stays under a positioned/overflow ancestor after
+      // parking measures inside the document but its bottom edge overflows the
+      // composited surface — captureBeyondViewport would return it blank or
+      // clipped, so the native path must fall back instead of shipping a bad shot.
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 900, configurable: true })
+      // Parked at y=5900 but the document surface only reaches 6000 — the clip
+      // bottom (5900+900=6800) overflows it.
+      div.getBoundingClientRect = () => rect(0, 5900, 300, 900)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6000)
+      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
+      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6000, configurable: true })
+
+      try {
+        const result = await captureScrollableAsDataUrl({ current: div })
+
+        expect(ipcMocks.request).not.toHaveBeenCalled()
+        expect(result).toBe('data:image/png;base64,xxx')
+        expect(htmlToImage.toCanvas).toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
+        Reflect.deleteProperty(document.documentElement, 'scrollHeight')
+      }
     })
 
     it('hides interactive HTML artifacts during the native capture and restores them afterwards', async () => {

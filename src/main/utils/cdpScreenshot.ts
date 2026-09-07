@@ -11,6 +11,12 @@ export interface CdpScreenshotClip {
 }
 
 /**
+ * Main-side ceiling on rasterized output (device px) — Chromium's composited
+ * surface cannot exceed this. Renderer applies a tighter per-window bound.
+ */
+const MAX_SCREENSHOT_PHYSICAL_DIMENSION = 16384
+
+/**
  * Rasterize a page-space region of `wc` through Chromium's own compositor via CDP
  * `Page.captureScreenshot` — the same mechanism Puppeteer and DevTools' "capture
  * node screenshot" use. Unlike DOM-clone rasterizers (html-to-image), the compositor
@@ -31,6 +37,15 @@ export async function captureScreenshotViaCdp(
 ): Promise<string> {
   if (wc.isDestroyed()) {
     throw new Error('webContents is destroyed')
+  }
+  // Output = clip × scale (× the window's device-pixel ratio, applied by the
+  // compositor). Guard the clip×scale product so an arbitrary request cannot
+  // arm an oversized capture; scale ≥ 1 is already enforced by the schema.
+  if (
+    clip.width * scale > MAX_SCREENSHOT_PHYSICAL_DIMENSION ||
+    clip.height * scale > MAX_SCREENSHOT_PHYSICAL_DIMENSION
+  ) {
+    throw new Error(`Screenshot clip exceeds the composited-surface limit (${MAX_SCREENSHOT_PHYSICAL_DIMENSION}px)`)
   }
 
   const dbg = wc.debugger
