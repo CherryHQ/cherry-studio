@@ -521,6 +521,21 @@ const TaskTimeSelect: FC<{
   const { hours, minute } =
     parseTimes(value) ?? (value === '' ? { hours: [], minute: '00' } : { hours: ['09'], minute: '00' })
 
+  // The minute is encoded inside the comma-joined value, so clearing the last
+  // hour would otherwise discard it (formatTimes([], '30') === ''). Track the
+  // last committed minute in state so re-picking an hour after clearing every
+  // selection keeps the minute the user did not edit (e.g. 18:30 -> clear 18 ->
+  // pick 20 yields 20:30, not 20:00). While no hour is selected the minute
+  // stays a local preview only: the form value remains '' and saving is blocked.
+  const [rememberedMinute, setRememberedMinute] = useState('00')
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    const parsed = parseTimes(value)
+    if (parsed && parsed.hours.length > 0) setRememberedMinute(parsed.minute)
+  }
+  const displayMinute = hours.length > 0 ? minute : rememberedMinute
+
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
       <Combobox
@@ -533,14 +548,22 @@ const TaskTimeSelect: FC<{
         options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
         value={hours}
         onChange={(next) => {
-          if (Array.isArray(next)) onChange(formatTimes(next, minute))
+          if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
         }}
       />
       <InputGroupText aria-hidden="true">:</InputGroupText>
       <Select
-        value={minute}
+        value={displayMinute}
         disabled={disabled}
-        onValueChange={(nextMinute) => onChange(formatTimes(hours, nextMinute))}>
+        onValueChange={(nextMinute) => {
+          if (hours.length === 0) {
+            // No hour selected: the minute cannot live in the value string, so
+            // keep it only as the preview for the next hour selection.
+            setRememberedMinute(nextMinute)
+            return
+          }
+          onChange(formatTimes(hours, nextMinute))
+        }}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
           <SelectValue />
         </SelectTrigger>

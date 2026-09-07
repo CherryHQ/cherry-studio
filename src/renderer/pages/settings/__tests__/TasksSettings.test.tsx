@@ -1358,6 +1358,58 @@ describe('TasksSettings routing and creation', () => {
     await waitFor(() => expect(screen.getByText('agent.tasks.schedule.invalid')).toBeInTheDocument())
     expect(taskMutationMocks.createTask).not.toHaveBeenCalled()
   })
+
+  it('keeps the shared minute when the last hour is cleared and a new one is picked', async () => {
+    navigationMocks.taskId = undefined
+    taskMutationMocks.createTask.mockResolvedValue({ ...taskDataMock.defaultTask, id: 'task-new' })
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveTextContent('Agent One')
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Review code' }
+    })
+    fireEvent.change(screen.getByLabelText('agent.tasks.prompt.label'), { target: { value: 'Review the repository' } })
+
+    const timeSelect = within(screen.getByRole('dialog')).getByRole('group', { name: 'agent.tasks.schedule.time' })
+    // Start from 09:00, add 18 and move the shared minute to 30 -> 09:30,18:30.
+    fireEvent.click(within(timeSelect).getByRole('button', { name: '18' }))
+    fireEvent.click(within(timeSelect).getByRole('option', { name: '30' }))
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.minute' })).toHaveAttribute(
+      'data-value',
+      '30'
+    )
+
+    // Remove 18, then remove 09 — clearing every hour must not reset the minute
+    // the user never edited: the control keeps showing 30 as a local preview.
+    fireEvent.click(within(timeSelect).getByRole('button', { name: '18' }))
+    fireEvent.click(within(timeSelect).getByRole('button', { name: '09' }))
+    await waitFor(() =>
+      expect(within(timeSelect).getByRole('button', { name: '09' })).toHaveAttribute('aria-pressed', 'false')
+    )
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.minute' })).toHaveAttribute(
+      'data-value',
+      '30'
+    )
+
+    // Picking 20 afterwards must re-use the retained minute (20:30), not reset to 20:00.
+    fireEvent.click(within(timeSelect).getByRole('button', { name: '20' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.createTask).toHaveBeenCalledWith(
+        'agent-1',
+        expect.objectContaining({
+          trigger: { kind: 'cron', expr: '30 20 * * *' }
+        })
+      )
+    )
+  })
 })
 
 describe('TasksSettings detail behavior', () => {
