@@ -163,7 +163,9 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: runtimeMocks.getShellEnv,
   getRawShellEnv: runtimeMocks.getShellEnv,
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
+  hasMiseInPath: (pathValue?: string) =>
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
