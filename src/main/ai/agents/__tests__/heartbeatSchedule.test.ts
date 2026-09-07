@@ -14,6 +14,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
@@ -307,6 +308,58 @@ describe('heartbeatSchedule', () => {
 
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
     expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(0)
+  })
+
+  it('repairs a row that drifted only in reuseRevision', async () => {
+    // reuseRevision is read at run time, so a drift in it alone must not be
+    // reported as 'noop' — that would leave the stale revision committed.
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const template = row.jobInputTemplate as { reuseRevision: number }
+    dbh.db
+      .update(jobScheduleTable)
+      .set({ jobInputTemplate: { ...template, reuseRevision: template.reuseRevision + 1 } })
+      .where(eq(jobScheduleTable.id, row.id))
+      .run()
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('updated')
+    const repaired = jobScheduleService.getById(row.id)
+    expect((repaired?.jobInputTemplate as { reuseRevision: number }).reuseRevision).toBe(0)
+  })
+
+  it('treats a concurrent create name-conflict as a benign race and repairs the winner', async () => {
+    // Simulate a concurrent sync that registered the row against a snapshot
+    // this caller cannot see: pass an empty snapshot so the create branch runs,
+    // then let the INSERT collide with the pre-existing (type, name) row. The
+    // sync must not throw — it re-reads the winner and repairs it in place.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: DEFAULT_HEARTBEAT_INTERVAL_MINUTES * 60_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+
+    expect(outcome).toBe('updated')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    // The winner was repaired to the canonical shape the sync would have written.
+    expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
+      workspace: { type: 'user' },
+      reuseRevision: 0
+    })
+    expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
 
   it('scans the schedule table once across all agents in the repair pass', async () => {

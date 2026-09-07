@@ -76,11 +76,26 @@ function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
   return rows.find((row) => isHeartbeatRow(row, agentId)) ?? null
 }
 
+/**
+ * True when the error is the (type, name) UNIQUE-conflict raised by
+ * registerJobScheduleTx. The schedule service reports it as a DataApiError
+ * whose message carries the `JOB_SCHEDULE_NAME_CONFLICT:` prefix; matching the
+ * prefix keeps the check robust to whichever code field the caller surfaces.
+ */
+function isScheduleNameConflict(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('JOB_SCHEDULE_NAME_CONFLICT')
+}
+
 /** True when the stored template no longer matches what sync would write. */
 function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): boolean {
   if (typeof current !== 'object' || current === null) return true
-  const template = current as { timeoutMinutes?: unknown; workspace?: unknown }
+  const template = current as { timeoutMinutes?: unknown; reuseRevision?: unknown; workspace?: unknown }
   if (template.timeoutMinutes !== target.timeoutMinutes) return true
+  // reuseRevision is read at run time (runAgentTask's session-reuse decision),
+  // so a row that drifts only there must still be repaired — a 'noop' would
+  // leave the stale revision committed indefinitely.
+  if (template.reuseRevision !== target.reuseRevision) return true
   const workspace = template.workspace as { type?: unknown; workspaceId?: unknown } | null
   if (typeof workspace !== 'object' || workspace === null) return true
   return workspace.type !== target.workspace.type || workspace.workspaceId !== target.workspace.workspaceId
@@ -138,43 +153,63 @@ export async function syncHeartbeatSchedule(
     reuseRevision: 0
   }
 
-  const existing = findHeartbeatRow(agentId, rows)
   const jobManager = application.get('JobManager')
+  const scheduleName = `heartbeat_${agentId}`
 
-  if (!existing) {
-    const { id } = application.get('DbService').withWriteTx((tx) =>
-      jobManager.registerJobScheduleTx(tx, {
-        type: AGENT_TASK_TYPE,
-        // Per-agent name: (type, name) is UNIQUE, so a shared literal would
-        // limit heartbeats to a single agent across the whole installation.
-        name: `heartbeat_${agentId}`,
-        trigger,
-        jobInputTemplate,
-        catchUpPolicy: { kind: 'skip-missed' }
+  // The repair branch is shared by the create-race fallback below, so it is
+  // factored into a local that both paths can reach.
+  const repairRow = (row: JobScheduleSnapshot): HeartbeatSyncOutcome => {
+    // Repair in place, preserving the schedule name (renaming a migrated row
+    // could collide with the UNIQUE index and breaks no behavior that reads it).
+    const triggerChanged = !triggersEqual(row.trigger, trigger)
+    const needsRepair = !row.enabled || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
+    if (!needsRepair) return 'noop'
+
+    application.get('DbService').withWriteTx((tx) => {
+      jobManager.updateJobScheduleTx(tx, row.id, {
+        ...(!row.enabled ? { enabled: true } : {}),
+        ...(triggerChanged ? { trigger } : {}),
+        jobInputTemplate
       })
-    )
-    jobManager.syncJobScheduleTimerById(id)
-    logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
-    return 'created'
+    })
+    jobManager.syncJobScheduleTimerById(row.id)
+    logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
+    return 'updated'
   }
 
-  // Repair in place, preserving the schedule name (renaming a migrated row
-  // could collide with the UNIQUE index and breaks no behavior that reads it).
-  const triggerChanged = !triggersEqual(existing.trigger, trigger)
-  const needsRepair =
-    !existing.enabled || triggerChanged || templateDrifted(existing.jobInputTemplate, jobInputTemplate)
-  if (!needsRepair) return 'noop'
+  const existing = findHeartbeatRow(agentId, rows)
+  if (!existing) {
+    // (type, name) is UNIQUE. A concurrent sync (config-save racing the startup
+    // repair pass) may have registered this agent's row against a stale
+    // snapshot, so a name-conflict here means the winner's row now exists.
+    // That is a benign race, not a failure: the INSERT transaction rolls back,
+    // we re-read by (type, name), and repair the winner's row in place.
+    try {
+      const { id } = application.get('DbService').withWriteTx((tx) =>
+        jobManager.registerJobScheduleTx(tx, {
+          type: AGENT_TASK_TYPE,
+          // Per-agent name, as above — never a shared literal.
+          name: scheduleName,
+          trigger,
+          jobInputTemplate,
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+      )
+      jobManager.syncJobScheduleTimerById(id)
+      logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
+      return 'created'
+    } catch (error) {
+      const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
+      if (!isScheduleNameConflict(error) || !winner) throw error
+      logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
+        agentId,
+        scheduleId: winner.id
+      })
+      return repairRow(winner)
+    }
+  }
 
-  application.get('DbService').withWriteTx((tx) => {
-    jobManager.updateJobScheduleTx(tx, existing.id, {
-      ...(!existing.enabled ? { enabled: true } : {}),
-      ...(triggerChanged ? { trigger } : {}),
-      jobInputTemplate
-    })
-  })
-  jobManager.syncJobScheduleTimerById(existing.id)
-  logger.info('Heartbeat schedule repaired', { agentId, scheduleId: existing.id, intervalMinutes })
-  return 'updated'
+  return repairRow(existing)
 }
 
 /**
