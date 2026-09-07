@@ -10,7 +10,7 @@ sources:
 
 `src/main/core/utilityProcess/` runs trusted but crash-prone work in an Electron utility process instead of the main process: native model runtimes, third-party binaries, anything that can take the main process down with it. It owns spawning, the wire protocol, request correlation, cancellation, failure classification, and shutdown — a consumer writes a contract, an entry, and calls typed methods. The process is a crash and native-library isolation boundary, not a security sandbox: the child is a full Node context with no capability or OS-level restriction, so V1 must not run untrusted code.
 
-The design rationale, the rejected alternatives, and the experiment evidence live in the [design RFC](../architecture/utility-process-rfc.md).
+The design rationale, ownership boundaries, and historical experiment evidence live in the [architecture reference](../architecture/utility-process.md).
 
 ## Quick Navigation
 
@@ -73,8 +73,8 @@ Register the entry in `electron.vite.entries.config.ts` under the same key its d
 ## Calling it
 
 ```typescript
-const client = application.get('UtilityProcessManager').client(embeddingProcess)
-const vectors = await client.request('embed', { texts }, { signal })
+const client = application.get('UtilityProcessManager').client(embeddingInferenceProcess)
+const vectors = await client.request('embed', { modelDir, dtype, texts }, { signal })
 ```
 
 Nothing spawns until the first `request()`. The client exposes exactly three operations — `request`, `stop`, `withStopped` — and never a fork, pid, port, or generation number.
@@ -86,14 +86,18 @@ The layer restarts the process, not the work. A rejected `request()` is final: n
 - `PROCESS_START_FAILED` / `PROCESS_EXITED` / `PROCESS_PROTOCOL_ERROR` — infrastructure failed. Surface it; the next `request()` spawns a fresh generation.
 - `PROCESS_REMOTE_ERROR` — the handler threw. Business failure; `error.remote` carries the child's `name` / `message` / `code`.
 - `PROCESS_CIRCUIT_OPEN` — three consecutive infrastructure failures. Stop retrying and tell the user; clear it deliberately with `stop({ resetFailures: true })` after fixing the cause (re-downloading a model, for example).
-- `PROCESS_BLOCKED` — a `withStopped()` maintenance window is open. Retry after it completes.
+- `PROCESS_BLOCKED` — maintenance is queued/running, or the manager is stopped. Retry only after maintenance completes and the service is available.
 - `PROCESS_SERIALIZATION_FAILED` — the input is not structured-cloneable. A programming error, not a runtime condition.
 
 Cancellation is not a `UtilityProcessError`: the caller's own `signal.reason` is rethrown untouched.
 
+Consumers must expose an unavailable/error state and an explicit retry or remediation action; a permanently silent failure is not a recovery strategy. Resetting the breaker belongs after that remediation, not in an automatic retry loop.
+
 ### Maintenance
 
 `withStopped(operation)` is the file-replacement gate: it stops the live process, runs `operation` only after a confirmed exit, and fails concurrent requests with `PROCESS_BLOCKED` meanwhile. Use it to delete or overwrite files the child holds open (a model directory on Windows, for instance). `stop()` alone is the short barrier — the next request lazily respawns.
+
+Maintenance operations are serialized per definition, including calls made while the manager is stopped and across a service restart. The gate remains closed until every queued operation settles, even after the child exits. A callback failure propagates unchanged and does not prevent later queued operations from running.
 
 ## Environment and network
 

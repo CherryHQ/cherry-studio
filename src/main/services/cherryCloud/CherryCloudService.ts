@@ -402,6 +402,7 @@ export class CherryCloudService extends BaseService {
         session
       }
       this.scheduleSessionExpiry(session)
+      application.get('MainWindowService').showMainWindow()
       void application
         .get('ApiGatewayService')
         .start()

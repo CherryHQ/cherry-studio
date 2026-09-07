@@ -117,6 +117,53 @@ describe('ProcessHost lifecycle', () => {
     await waitUntil(() => adapter.spawns[0].child.killed, 'child kill')
   })
 
+  it.each([
+    ['synchronous', 'null prototype'],
+    ['synchronous', 'throwing getter'],
+    ['synchronous', 'symbol message'],
+    ['asynchronous', 'null prototype'],
+    ['asynchronous', 'throwing getter'],
+    ['asynchronous', 'symbol message']
+  ])('normalizes an %s initialization failure with a %s without waiting for the ready timeout', async (mode, kind) => {
+    const cause = kind === 'null prototype' ? Object.create(null) : new Error('init failed')
+    if (kind === 'symbol message') {
+      Object.assign(cause, { stack: 'saved stack', message: Symbol('reason') })
+    }
+    if (kind === 'throwing getter') {
+      Object.defineProperty(cause, 'message', {
+        get() {
+          throw new Error('message getter failed')
+        }
+      })
+    }
+    const { host, adapter } = createHost({
+      definition: {
+        createInitData: () => {
+          if (mode === 'asynchronous') return Promise.reject(cause)
+          throw cause
+        }
+      }
+    })
+    let outcome: unknown
+    const pending = rejectionOf(host.request('ping', undefined)).then((error) => {
+      outcome = error
+    })
+
+    await flushMicrotasks()
+
+    try {
+      const error = expectCode(outcome, 'PROCESS_START_FAILED')
+      expect(error.cause).toBe(cause)
+      expect(error.failureCount).toBe(1)
+      expect(error.message).toContain('generation 1')
+      if (mode === 'asynchronous') expect(adapter.spawns[0].child.killed).toBe(true)
+      else expect(adapter.spawns).toHaveLength(0)
+    } finally {
+      await host.dispose()
+      await pending
+    }
+  })
+
   it('reports the spawn failure when createInitData rejects and spawn throws, leaving no unhandled rejection', async () => {
     const adapter = createMemoryProcessAdapter(undefined, { spawnThrows: new Error('ENOENT') })
     const { host } = createHost({

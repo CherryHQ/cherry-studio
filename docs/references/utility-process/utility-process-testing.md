@@ -10,7 +10,7 @@ sources:
 ## Three layers
 
 1. **Child runtime, no host** — `serveUtilityProcess.test.ts` drives the real runtime through a fake `parentPort`: ready ordering, terminal shape, violations and their exit codes, cancellation, shutdown.
-2. **Host engine, no Electron** — the four `ProcessHost.*.test.ts` files drive the real engine through an in-memory adapter: lifecycle, cancellation and protocol violations, the breaker, and the stop/`withStopped` barriers. Timers are faked, so the 10 s ready timeout and the 4 s stop budget cost nothing.
+2. **Host and manager, no Electron** — the `ProcessHost.*.test.ts` files drive the real engine through an in-memory adapter: lifecycle, cancellation and protocol violations, the breaker, and the stop/`withStopped` barriers. `UtilityProcessManager.test.ts` checks registration, stable clients, and maintenance exclusion across stop/restart, including queued callbacks and callback failure. Timers are faked, so the 10 s ready timeout and the 4 s stop budget cost nothing.
 3. **Real Electron, manual** — `pnpm smoke:utility-process` builds a throwaway app and runs it twice on real processes.
 
 Layers 1 and 2 run in CI as ordinary Vitest tests:
@@ -21,7 +21,7 @@ pnpm exec vitest run --project main src/main/core/utilityProcess
 
 ## The adapter seam
 
-`ProcessAdapter` is the only thing between the engine and `utilityProcess.fork`: spawn returns a handle with `connect` / `send` / `kill` and the five listener registrations. The in-memory implementation (`__tests__/memoryProcessAdapter.ts`) passes frames through `structuredClone` on a fake port pair and delivers them on microtasks, so unclonable payloads raise a real `DataCloneError` and no test has to reason about a bundle. A test child either binds the real runtime (`child.serve(...)`) or scripts raw frames (`reply` / `post` / `onFrame`) for fault injection.
+`ProcessAdapter` is the only thing between the engine and `utilityProcess.fork`: spawn returns a handle with `connect` / `send` / `kill` and six listener registrations. The in-memory implementation (`__tests__/memoryProcessAdapter.ts`) passes frames through `structuredClone` on a fake port pair and delivers them on microtasks, so unclonable payloads raise a real `DataCloneError` and no test has to reason about a bundle. A test child either binds the real runtime (`child.serve(...)`) or scripts raw frames (`reply` / `post` / `onFrame`) for fault injection.
 
 Because the engine takes `{ adapter, logger, resolveEntry, getTempDir }` and imports neither `@application` nor `@logger`, the same engine runs unmodified in unit tests and in the smoke harness.
 
@@ -53,11 +53,18 @@ The build assertions matter as much as the checks: the runner rejects any `requi
 
 `process.abort()` exit codes are platform-specific, so `crash-recovery` only asserts a non-zero code. Anything that reads a pipe rather than the message port (stdout/stderr) is polled with a deadline instead of asserted immediately — the pipe is not synchronised with the port, and asserting an order that does not exist would only produce a flaky gate.
 
-One thing the harness does **not** currently catch: entry bundles folding into one another. That failure mode (RFC §9, E1) needs a main entry in the same rollup graph as the utility entries; the harness builds them in two separate passes, so it cannot arise — verified by rebuilding with `preserveModules: false`, which still emits two independent entries and still passes. A consumer that adds its entries to the main build reintroduces the risk and owes its own check.
+One thing the harness does **not** currently catch: entry bundles folding into one another. That failure mode ([historical E1 experiment](../architecture/utility-process.md#e1-dedicated-entry-build)) needs a main entry in the same rollup graph as the utility entries; the harness builds them in two separate passes, so it cannot arise — verified by rebuilding with `preserveModules: false`, which still emits two independent entries and still passes. A consumer that adds its entries to the main build reintroduces the risk and owes its own check.
 
 ## Scope and residual risk
 
-Proxy inheritance, `process.abort()` behaviour, and kill semantics are the platform-sensitive parts, so the harness must be re-run on every platform a shipped process targets. The inference migration covers macOS (darwin-arm64) and Windows; Linux is still unverified.
+Proxy inheritance, `process.abort()` behaviour, and kill semantics are platform-sensitive. Existing inference-migration evidence includes macOS (darwin-arm64) and Windows runs; this does not establish release-shaped validation on every platform. Linux remains unverified.
+
+Production consumers must also verify:
+
+- The separate named-entry build runs before app startup and packaging; entry changes during development require rebuilding the utility bundles (the current build does not watch them).
+- External dependencies follow the main build's externalization policy, and the transitive entry-graph guard rejects main-only imports.
+- The real electron-builder package includes each utility entry, emitted shared/virtual chunks, and required native dependencies in their correct packed or unpacked locations.
+- Entry isolation, readiness, crash recovery, cancellation, and model-file replacement work in the release-shaped package on every supported platform. The fixture's temporary ASAR alone does not establish this.
 
 The harness is a manual gate, not part of `pnpm test`: it builds two bundles and launches Electron twice. Wiring it into CI is worth doing when the first consumer lands, gated on changes under `src/main/core/utilityProcess/**`.
 

@@ -668,7 +668,7 @@ describe('release publication state', () => {
     target_commitish: workflowSha
   }
 
-  it('combines curated bilingual notes with GitHub generated changes', () => {
+  it('builds a compact release page with user downloads and generated changes', () => {
     const builderContent = [
       'releaseInfo:',
       '  releaseNotes: |',
@@ -680,24 +680,41 @@ describe('release publication state', () => {
       ''
     ].join('\n')
 
-    expect(composeReleaseBody({ builderContent, generatedNotes: "## What's Changed\n- Fix one\n" })).toBe(
-      [
-        '<!--LANG:en-->',
-        'English notes',
-        '<!--LANG:zh-CN-->',
-        '中文说明',
-        '<!--LANG:END-->',
-        '',
-        '---',
-        '',
-        "## What's Changed",
-        '- Fix one',
-        ''
-      ].join('\n')
+    const body = composeReleaseBody({
+      builderContent,
+      generatedNotes: "## What's Changed\n- Fix one\n\n## New Contributors\n- @new",
+      productName: 'Cherry Studio',
+      repository: 'CherryHQ/cherry-studio',
+      tag: 'v1.2.0'
+    })
+
+    expect(body).toContain('## Downloads / 下载 (v1.2.0)')
+    expect(body.match(/^\| (Windows|macOS|Linux) \|/gm)).toHaveLength(6)
+    expect(body.match(/https:\/\/github\.com\/CherryHQ\/cherry-studio\/releases\/download\/v1\.2\.0\//g)).toHaveLength(
+      28
     )
-    expect(composeReleaseBody({ builderContent, generatedNotes: '' })).toBe(
-      '<!--LANG:en-->\nEnglish notes\n<!--LANG:zh-CN-->\n中文说明\n<!--LANG:END-->\n'
+    expect(body).toContain(
+      '[Installer](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-1.2.0-win-x64-setup.exe)'
     )
+    expect(body).toContain(
+      '[RPM](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-CN-1.2.0-linux-arm64.rpm)'
+    )
+    expect(body).not.toMatch(/\.(?:blockmap|ya?ml|json)\)/)
+    expect(body).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
+    expect(body).toContain('<summary>简体中文</summary>\n\n中文说明\n\n</details>')
+    expect(body).not.toContain('<!--LANG:')
+    expect(body.indexOf('## Release Notes / 发布说明')).toBeLessThan(body.indexOf("## What's Changed"))
+    expect(body).toContain("## What's Changed\n- Fix one\n\n## New Contributors\n- @new\n")
+
+    const bodyWithoutChanges = composeReleaseBody({
+      builderContent,
+      generatedNotes: '',
+      productName: 'Cherry Studio',
+      repository: 'CherryHQ/cherry-studio',
+      tag: 'v1.2.0'
+    })
+    expect(bodyWithoutChanges).not.toContain("## What's Changed")
+    expect(bodyWithoutChanges).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
   })
 
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
@@ -1000,7 +1017,10 @@ describe('release workflow gates', () => {
       expect(step.with.name).toContain('${{ matrix.edition }}')
       expect(step.with.path).toContain('dist/${{ steps.release-channel.outputs.channel }}*.yml')
     }
+    expect(stagingSteps[0].with.path).toContain('dist/*.blockmap')
+    expect(stagingSteps[1].with.path).toContain('dist/*.blockmap')
     expect(historyStep.if).toContain("matrix.edition == 'global'")
+    expect(historyStep.with.path).toBe('resources/cherry-studio/release-history.json')
   })
 
   it('revalidates the selected release branch head before draft mutation and tag movement', () => {
@@ -1015,6 +1035,10 @@ describe('release workflow gates', () => {
       (step: { name?: string }) => step.name === 'Move draft tag with lease after artifact upload'
     )
     const draftStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Create or update draft release')
+    const notesStep = finalizeSteps.find(
+      (step: { name?: string }) => step.name === 'Add generated changes to release notes'
+    )
+    const notesSyntax = spawnSync('bash', ['-n'], { encoding: 'utf8', input: notesStep.run })
 
     expect(finalizeSteps.indexOf(headStep)).toBeLessThan(releaseIndex)
     expect(headStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
@@ -1026,6 +1050,10 @@ describe('release workflow gates', () => {
     expect(tagStep.run).toContain('node scripts/release/validate-release-state.js build-completion')
     expect(tagStep.run).toContain('gh api --method POST "repos/$REPO/git/refs"')
     expect(tagStep.run).toContain('beforeOid: $beforeOid')
+    expect(notesSyntax.status, notesSyntax.stderr).toBe(0)
+    expect(notesStep.run).toContain('gh api --paginate --slurp')
+    expect(notesStep.run).toContain('-f previous_tag_name="$PREVIOUS_TAG"')
+    expect(notesStep.run).toContain('if [ -z "$PREVIOUS_TAG" ]')
   })
 
   it('requires environment approval before validating and publishing the exact build', () => {
