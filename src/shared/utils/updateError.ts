@@ -1,6 +1,10 @@
+const MAX_UPDATE_ERROR_MESSAGE_LENGTH = 64 * 1024
+
 /** Recognize the managed feed's missing-manifest response without exposing its HTTP body. */
-export function isMissingUpdateManifest(error: { message?: string } | null | undefined): boolean {
-  const message = error?.message ?? ''
+export function isMissingUpdateManifest(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('message' in error)) return false
+  const message = error.message
+  if (typeof message !== 'string' || message.length > MAX_UPDATE_ERROR_MESSAGE_LENGTH) return false
   if (!message.startsWith('503 ')) return false
 
   const descriptionStart = message.indexOf('\n')
