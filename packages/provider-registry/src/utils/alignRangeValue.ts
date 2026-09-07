@@ -13,6 +13,10 @@ function decimalPlaces(value: number): number {
   return dot === -1 ? 0 : text.length - dot - 1
 }
 
+function roundToDecimalPlaces(value: number, precision: number): number {
+  return precision <= 100 ? Number(value.toFixed(precision)) : value
+}
+
 /** Clamp `value` to `[min, max]`, then snap onto `min + n * step` without overshooting `max`. */
 export function alignRangeValue(value: number, min: number, max: number, step: number): number {
   const clamped = Math.min(max, Math.max(min, value))
@@ -24,9 +28,9 @@ export function alignRangeValue(value: number, min: number, max: number, step: n
   const stepsFromMin = Math.round(
     Math.abs(rawStepsFromMin - nearestHalfStep) <= halfStepTolerance ? nearestHalfStep : rawStepsFromMin
   )
-  let aligned = Number((min + stepsFromMin * step).toFixed(precision))
+  let aligned = roundToDecimalPlaces(min + stepsFromMin * step, precision)
   if (aligned > max) {
-    aligned = Number((min + (stepsFromMin - 1) * step).toFixed(precision))
+    aligned = roundToDecimalPlaces(min + (stepsFromMin - 1) * step, precision)
   }
   if (aligned < min) return min
   if (aligned > max) return max

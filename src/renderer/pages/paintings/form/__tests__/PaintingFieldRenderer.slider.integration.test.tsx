@@ -78,6 +78,47 @@ it('keeps the slider synchronized when the numeric companion steps with arrow ke
   expect(screen.getByRole('slider', { name: 'paintings.num_images' })).toHaveAttribute('aria-valuenow', '2')
 })
 
+it.each([
+  ['99', '{ArrowUp}', '4'],
+  ['0', '{ArrowDown}', '1']
+])('does not commit a boundary when %s remains out of range after %s', async (draft, key, settled) => {
+  const user = userEvent.setup()
+
+  function ControlledRange() {
+    const [numImages, setNumImages] = useState(2)
+    return (
+      <PaintingFieldRenderer
+        item={{
+          type: 'slider',
+          key: 'numImages',
+          title: 'paintings.num_images',
+          min: 1,
+          max: 4,
+          step: 1,
+          initialValue: 1
+        }}
+        painting={{ numImages }}
+        onChange={(updates) => setNumImages(updates.numImages as number)}
+      />
+    )
+  }
+
+  render(<ControlledRange />)
+
+  const input = screen.getByRole('spinbutton', { name: 'paintings.num_images' })
+  const slider = screen.getByRole('slider', { name: 'paintings.num_images' })
+  await user.clear(input)
+  await user.type(input, draft)
+  await user.keyboard(key)
+
+  expect(input).toHaveDisplayValue(draft)
+  expect(slider).toHaveAttribute('aria-valuenow', '2')
+
+  await user.tab()
+  expect(input).toHaveDisplayValue(settled)
+  expect(slider).toHaveAttribute('aria-valuenow', settled)
+})
+
 it('discards a focused draft when a same-key model changes the range constraints', async () => {
   const user = userEvent.setup()
   const onChange = vi.fn()

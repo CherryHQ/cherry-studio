@@ -79,7 +79,7 @@ function PaintingRangeField({
         step={snapStep}
         value={boundedValue}
         onValueChange={(value) => {
-          if (steppingRef.current && value !== null) {
+          if (steppingRef.current && value !== null && value >= min && value <= max) {
             lastSteppedValueRef.current = commitRange(value)
           }
         }}

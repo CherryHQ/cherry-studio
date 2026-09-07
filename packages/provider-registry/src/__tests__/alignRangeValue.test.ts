@@ -39,4 +39,8 @@ describe('alignRangeValue', () => {
   it('does not overshoot max when max is off the step grid', () => {
     expect(alignRangeValue(1, 0, 1, 0.3)).toBe(0.9)
   })
+
+  it('aligns a valid step smaller than the toFixed precision limit', () => {
+    expect(alignRangeValue(1.4e-101, 0, 1e-100, 1e-101)).toBe(1e-101)
+  })
 })
