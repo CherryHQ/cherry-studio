@@ -60,6 +60,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -102,6 +103,37 @@ describe('renderer PreferenceService preloadAll', () => {
 })
 
 describe('renderer PreferenceService keyed subscription batching', () => {
+  it('retries a failed keyed read until the authoritative value reaches the cache', async () => {
+    vi.useFakeTimers()
+    get.mockRejectedValueOnce(new Error('ipc down')).mockResolvedValueOnce(['cherry-support'])
+    const service = await createService()
+    const listener = vi.fn()
+    service.subscribeChange('agent.session.hidden_builtin_ids')(listener)
+
+    await expect(service.get('agent.session.hidden_builtin_ids')).resolves.toEqual([])
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toBeUndefined()
+    expect(listener).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['cherry-support'])
+    expect(listener).toHaveBeenCalledOnce()
+    service.cleanup()
+  })
+
+  it('cancels pending keyed read retries during cleanup', async () => {
+    vi.useFakeTimers()
+    get.mockRejectedValue(new Error('ipc down'))
+    const service = await createService()
+
+    await service.get('agent.session.hidden_builtin_ids')
+    service.cleanup()
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(get).toHaveBeenCalledOnce()
+  })
+
   it('preload of uncached keys subscribes once with all of them', async () => {
     const service = await createService()
 

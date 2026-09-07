@@ -1,3 +1,4 @@
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,6 +69,38 @@ describe('agentAdapter.useList', () => {
 
     expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1'])
     expect(result.current.error).toBeUndefined()
+  })
+
+  it('keeps the primary catalog visible while supplemental hidden-agent metadata loads', () => {
+    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
+      data: options.query.ids ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+      isLoading: !!options.query.ids,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1'])
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('bounds supplemental hidden-agent recovery to the Agent API limit', () => {
+    hiddenBuiltinAgentIdsMock.value = Array.from({ length: AGENTS_MAX_LIMIT + 1 }, (_, index) => `hidden-${index}`)
+    useQueryMock.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(useQueryMock.mock.calls[1][1].query.ids).toHaveLength(AGENTS_MAX_LIMIT)
+    expect(useQueryMock.mock.calls[1][1].query.limit).toBe(AGENTS_MAX_LIMIT)
   })
 })
 

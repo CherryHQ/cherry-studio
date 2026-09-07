@@ -9,6 +9,9 @@ import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('PreferenceService')
+const PREFERENCE_READ_RETRY_INITIAL_DELAY_MS = 1000
+const PREFERENCE_READ_RETRY_MAX_DELAY_MS = 30_000
+const PREFERENCE_READ_RETRY_MAX_EXPONENT = 5
 
 /**
  * Renderer-side PreferenceService providing cached access to preferences with real-time synchronization
@@ -29,6 +32,8 @@ export class PreferenceService {
   private changeListenerCleanup: (() => void) | null = null
 
   private subscribedKeys = new Set<string>()
+  private readRetryAttempts = new Map<UnifiedPreferenceKeyType, number>()
+  private readRetryTimers = new Map<UnifiedPreferenceKeyType, number>()
 
   private fullCacheLoaded = false
 
@@ -73,6 +78,7 @@ export class PreferenceService {
 
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
       const oldValue = this.cache[key]
+      this.clearReadRetry(key)
 
       // Deep equality filters self-induced IPC echoes: the main-process broadcast
       // intentionally does NOT exclude the sender (it relies on this gate to drop
@@ -109,6 +115,26 @@ export class PreferenceService {
     }
   }
 
+  private clearReadRetry(key: UnifiedPreferenceKeyType) {
+    const timer = this.readRetryTimers.get(key)
+    if (timer !== undefined) window.clearTimeout(timer)
+    this.readRetryTimers.delete(key)
+    this.readRetryAttempts.delete(key)
+  }
+
+  private scheduleReadRetry(key: UnifiedPreferenceKeyType) {
+    if (this.readRetryTimers.has(key)) return
+
+    const exponent = this.readRetryAttempts.get(key) ?? 0
+    const delay = Math.min(PREFERENCE_READ_RETRY_INITIAL_DELAY_MS * 2 ** exponent, PREFERENCE_READ_RETRY_MAX_DELAY_MS)
+    const timer = window.setTimeout(() => {
+      this.readRetryTimers.delete(key)
+      void this.get(key)
+    }, delay)
+    this.readRetryAttempts.set(key, Math.min(exponent + 1, PREFERENCE_READ_RETRY_MAX_EXPONENT))
+    this.readRetryTimers.set(key, timer)
+  }
+
   /**
    * Get a single preference value with caching and auto-subscription
    * @param key The preference key to retrieve
@@ -117,6 +143,7 @@ export class PreferenceService {
   public async get<K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> {
     // Check cache first
     if (key in this.cache && this.cache[key] !== undefined) {
+      this.clearReadRetry(key)
       if (!this.subscribedKeys.has(key)) {
         // Heal cached-but-unsubscribed keys (failed subscription, set()-seeded
         // cache) — fire-and-forget like subscribeChange.
@@ -130,6 +157,7 @@ export class PreferenceService {
     try {
       // Fetch from main process if not cached
       const value = await window.api.preference.get(key)
+      this.clearReadRetry(key)
       this.cache[key] = value
 
       // since not cached, notify change listeners to receive the value
@@ -141,6 +169,7 @@ export class PreferenceService {
       return value
     } catch (error) {
       logger.error(`Failed to get preference ${key}:`, error as Error)
+      this.scheduleReadRetry(key)
       return getDefaultValue(key)
     }
   }
@@ -755,6 +784,9 @@ export class PreferenceService {
    * Clear all cached preferences for testing/debugging
    */
   public clearCache(): void {
+    this.readRetryTimers.forEach((timer) => window.clearTimeout(timer))
+    this.readRetryTimers.clear()
+    this.readRetryAttempts.clear()
     this.cache = {}
     this.fullCacheLoaded = false
     logger.debug('Preference cache cleared')

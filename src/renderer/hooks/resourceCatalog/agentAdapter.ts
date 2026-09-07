@@ -20,6 +20,10 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const enabled = query?.enabled !== false
   const { hiddenBuiltinAgentIds = [] } = useBuiltinAgentListVisibility()
+  const hiddenBuiltinAgentIdsForQuery = useMemo(
+    () => hiddenBuiltinAgentIds.slice(0, AGENTS_MAX_LIMIT),
+    [hiddenBuiltinAgentIds]
+  )
   const primary = useQuery('/agents', {
     enabled,
     query: {
@@ -28,10 +32,10 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
     }
   })
   const hiddenBuiltin = useQuery('/agents', {
-    enabled: enabled && hiddenBuiltinAgentIds.length > 0,
+    enabled: enabled && hiddenBuiltinAgentIdsForQuery.length > 0,
     query: {
-      ids: [...hiddenBuiltinAgentIds],
-      limit: hiddenBuiltinAgentIds.length,
+      ids: hiddenBuiltinAgentIdsForQuery,
+      limit: hiddenBuiltinAgentIdsForQuery.length,
       ...(query?.search ? { search: query.search } : {})
     }
   })
@@ -57,7 +61,7 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
 
   return {
     data: items,
-    isLoading: primary.isLoading || hiddenBuiltin.isLoading,
+    isLoading: primary.isLoading,
     isRefreshing: primary.isRefreshing || hiddenBuiltin.isRefreshing,
     error: primary.error,
     refetch: stableRefetch

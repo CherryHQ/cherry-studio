@@ -3,7 +3,9 @@ import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceL
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -48,13 +50,6 @@ const loggerMocks = vi.hoisted(() => ({
   warn: vi.fn()
 }))
 
-const preferenceMocks = vi.hoisted(() => ({
-  setPreference: vi.fn(),
-  sortType: 'list' as 'list' | 'tags',
-  setSortType: vi.fn(),
-  values: new Map<string, unknown>()
-}))
-
 const resourceEntityRailMocks = vi.hoisted(() => ({
   collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
 }))
@@ -89,52 +84,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: { count?: number }) =>
       key === 'assistants.clear.success_title' ? `${key}:${options?.count}` : key
   })
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    if (key === 'assistant.tab.sort_type') {
-      return [
-        preferenceMocks.sortType,
-        (value: unknown) => {
-          preferenceMocks.sortType = value as 'list' | 'tags'
-          preferenceMocks.setSortType(value)
-          preferenceMocks.setPreference(key, value)
-        }
-      ]
-    }
-
-    const defaultValue =
-      key === 'topic.tab.display_mode'
-        ? 'assistant'
-        : key === 'agent.session.display_mode'
-          ? 'agent'
-          : key === 'agent.session.hidden_builtin_ids'
-            ? []
-            : undefined
-
-    return [
-      preferenceMocks.values.get(key) ?? defaultValue,
-      (value: unknown) => {
-        preferenceMocks.values.set(key, value)
-        preferenceMocks.setPreference(key, value)
-        // Mutations through useSidebarFavorites call `.catch` on the returned
-        // promise; resolve so those toggle paths do not throw.
-        return Promise.resolve()
-      }
-    ]
-  }
-}))
-
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: {
-    getCachedValue: (key: string) => preferenceMocks.values.get(key),
-    update: async (key: string, updater: (currentValue: string[]) => string[]) => {
-      const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
-      preferenceMocks.values.set(key, value)
-      await preferenceMocks.setPreference(key, value)
-    }
-  }
 }))
 
 vi.mock('@logger', () => ({
@@ -406,6 +355,8 @@ vi.mock('@renderer/utils/error', () => ({
 describe('classic layout entity resource list actions', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    mockPreferenceService._resetMockState()
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -416,11 +367,13 @@ describe('classic layout entity resource list actions', () => {
         modelName: 'Claude Sonnet 4'
       }
     ]
-    preferenceMocks.sortType = 'list'
-    preferenceMocks.values.clear()
-    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
-    preferenceMocks.setPreference.mockClear()
-    preferenceMocks.setSortType.mockClear()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'agent.session.display_mode': 'agent',
+      'agent.session.hidden_builtin_ids': [],
+      'assistant.tab.sort_type': 'list',
+      'topic.tab.display_mode': 'assistant',
+      'ui.sidebar.favorites': []
+    })
     assistantDataMocks.topics = [
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
       { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
@@ -677,14 +630,14 @@ describe('classic layout entity resource list actions', () => {
   it('switches from assistant reorder to group reorder while grouping by tag', () => {
     const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
 
-    preferenceMocks.sortType = 'list'
+    MockUsePreferenceUtils.setPreferenceValue('assistant.tab.sort_type', 'list')
     const { rerender } = render(<TestAssistantResourceList {...props} />)
     const railInList = screen.getByTestId('resource-entity-rail')
     expect(railInList).toHaveAttribute('data-group-by-group', 'false')
     expect(railInList).toHaveAttribute('data-item-reorder', 'enabled')
     expect(railInList).toHaveAttribute('data-group-reorder', 'disabled')
 
-    preferenceMocks.sortType = 'tags'
+    MockUsePreferenceUtils.setPreferenceValue('assistant.tab.sort_type', 'tags')
     rerender(<TestAssistantResourceList {...props} />)
     const railInTags = screen.getByTestId('resource-entity-rail')
     expect(railInTags).toHaveAttribute('data-group-by-group', 'true')
@@ -693,7 +646,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('restores collapsed assistant groups after the classic rail unmounts and remounts', () => {
-    preferenceMocks.sortType = 'tags'
+    MockUsePreferenceUtils.setPreferenceValue('assistant.tab.sort_type', 'tags')
     const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
     const firstMount = render(<TestAssistantResourceList {...props} />)
 
@@ -745,7 +698,7 @@ describe('classic layout entity resource list actions', () => {
     expect(menu).not.toHaveTextContent('assistants.groups.ungroup')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.groups.group_by' })[0])
-    expect(preferenceMocks.setSortType).toHaveBeenCalledWith('tags')
+    expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type')).toBe('tags')
   })
 
   it('lets the classic assistant rail switch icon display mode from the context menu', () => {
@@ -757,11 +710,11 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.model' })[0])
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'model')
+    expect(MockUsePreferenceUtils.getPreferenceValue('assistant.icon_type')).toBe('model')
   })
 
   it('offers turning tag grouping off when already grouping (tags → list)', () => {
-    preferenceMocks.sortType = 'tags'
+    MockUsePreferenceUtils.setPreferenceValue('assistant.tab.sort_type', 'tags')
 
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -770,7 +723,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.groups.ungroup')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.groups.ungroup' })[0])
-    expect(preferenceMocks.setSortType).toHaveBeenCalledWith('list')
+    expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type')).toBe('list')
   })
 
   it('lets the classic assistant rail switch back to the time topic view', async () => {
@@ -781,7 +734,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
 
     await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode')).toBe('time')
     })
   })
 
@@ -910,7 +863,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('hides the built-in Cherry Assistant from the classic layout without deleting tasks', async () => {
-    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
+    MockUsePreferenceUtils.setPreferenceValue('agent.session.hidden_builtin_ids', [])
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -939,7 +892,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.hide_from_list' })[0])
 
     await waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['agent-1'])
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual(['agent-1'])
     )
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(agentDataMocks.deleteAgentSessions).not.toHaveBeenCalled()
@@ -991,7 +944,7 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'none')
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.icon_type')).toBe('none')
   })
 
   it('lets the classic agent rail switch back to the workdir session view', async () => {
@@ -1008,7 +961,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
 
     await waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.display_mode')).toBe('workdir')
     })
   })
 
@@ -1066,13 +1019,13 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+    expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
       { type: 'agent', id: 'agent-1' }
     ])
   })
 
   it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-1' }])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-1' }])
 
     render(
       <AgentResourceList
@@ -1089,7 +1042,7 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([])
   })
 
   it('offers toggling an assistant into the sidebar from the classic rail context menu', () => {
@@ -1102,13 +1055,13 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+    expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
       { type: 'assistant', id: 'assistant-1' }
     ])
   })
 
   it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'assistant', id: 'assistant-1' }])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'assistant', id: 'assistant-1' }])
 
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -1119,6 +1072,6 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([])
   })
 })

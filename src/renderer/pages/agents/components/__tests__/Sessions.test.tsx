@@ -4,6 +4,7 @@ import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTa
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -1831,6 +1832,18 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
+
+  it('bounds hidden built-in metadata recovery to the Agent API limit', () => {
+    preferenceMocks.values.set(
+      'agent.session.hidden_builtin_ids',
+      Array.from({ length: AGENTS_MAX_LIMIT + 1 }, (_, index) => `hidden-${index}`)
+    )
+
+    render(<SessionsForTest />)
+
+    const hiddenQuery = agentDataMocks.useAgents.mock.calls.find(([options]) => options?.ids?.[0] === 'hidden-0')?.[0]
+    expect(hiddenQuery?.ids).toHaveLength(AGENTS_MAX_LIMIT)
   })
 
   it('shows the first grouped session page while the remaining pages load', () => {
@@ -4155,5 +4168,26 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
+
+  it('retries later Agent metadata sources when hidden built-in refresh fails', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    const refetchHiddenBuiltinAgents = vi.fn().mockRejectedValue(new Error('hidden refresh failed'))
+    agentDataMocks.useAgents.mockImplementation((options: { ids?: readonly string[] } = {}) => ({
+      agents: options.ids?.includes('cherry-support')
+        ? [{ id: 'cherry-support', configuration: { builtin_role: 'support' }, name: 'Cherry Support' }]
+        : [{ id: 'agent-a', model: 'provider-a::model-a', modelName: 'Model A', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: options.ids?.includes('cherry-support') ? refetchHiddenBuiltinAgents : dataApiMocks.refetchAgents
+    }))
+    setupSessions({ refreshError: new Error('refresh failed') })
+
+    render(<SessionsForTest />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await vi.waitFor(() => expect(refetchHiddenBuiltinAgents).toHaveBeenCalled())
+    await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
   })
 })

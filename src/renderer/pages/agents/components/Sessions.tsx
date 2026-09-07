@@ -423,12 +423,16 @@ const Sessions = ({
     togglePin
   } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
+  const hiddenBuiltinAgentIdsForQuery = useMemo(
+    () => hiddenBuiltinAgentIds.slice(0, AGENTS_MAX_LIMIT),
+    [hiddenBuiltinAgentIds]
+  )
   const {
     agents: hiddenBuiltinAgents,
     error: hiddenBuiltinAgentsError,
     isLoading: isHiddenBuiltinAgentsLoading,
     refetch: refetchHiddenBuiltinAgents
-  } = useAgents({ ids: hiddenBuiltinAgentIds })
+  } = useAgents({ ids: hiddenBuiltinAgentIdsForQuery })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
@@ -1266,19 +1270,20 @@ const Sessions = ({
   }, [headerCreateSessionSeed, requestCreateSessionFromSeed])
 
   const handleRetry = useCallback(async () => {
-    await reload()
+    const retries: Promise<unknown>[] = [reload()]
     if (hiddenBuiltinAgentIds.length > 0) {
-      await refetchHiddenBuiltinAgents()
+      retries.push(refetchHiddenBuiltinAgents())
     }
     if (displayMode === 'agent') {
-      await refetchAgents()
+      retries.push(refetchAgents())
       if (supplementalSessionAgentIds.length > 0) {
-        await refetchSessionAgents()
+        retries.push(refetchSessionAgents())
       }
     }
     if (displayMode === 'workdir') {
-      await refetchWorkspaces()
+      retries.push(refetchWorkspaces())
     }
+    await Promise.allSettled(retries)
   }, [
     displayMode,
     hiddenBuiltinAgentIds.length,
