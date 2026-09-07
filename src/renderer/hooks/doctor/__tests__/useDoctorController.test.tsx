@@ -318,14 +318,33 @@ describe('useDoctorController', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'run-1' })
   })
 
-  it('opens the displayed app data directory without copying it into Doctor state', async () => {
+  it('blocks closing while opening the displayed app data directory and releases it afterwards', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    let release!: () => void
+    mocks.request.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
 
-    await act(async () => result.current.openPath('/Users/local/CherryStudio'))
+    let opening!: Promise<void>
+    act(() => {
+      opening = result.current.openPath('/Users/local/CherryStudio')
+    })
 
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_path', '/Users/local/CherryStudio')
+    expect(result.current.session.interaction).toEqual({ kind: 'action', actionKind: 'open_path' })
+    expect(result.current.isCloseBlocked).toBe(true)
+
+    await act(async () => {
+      release()
+      await opening
+    })
+
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.isCloseBlocked).toBe(false)
   })
 
   it('opens the existing application logs directory from the advanced tools', async () => {
