@@ -1,6 +1,7 @@
 import type { BrowserRef, SnapshotNode } from '../browserUse'
 import type { CdpAccessibilityNode } from './accessibilityTypes'
 import type { RawSnapshot } from './captureSnapshot'
+import { sanitizeSnapshotUrl } from './serializeSnapshot'
 
 const interactiveRoles = new Set([
   'button',
@@ -87,7 +88,15 @@ export function buildSnapshotTree(
         const props = (node.properties ?? [])
           .filter((p) => states.has(p.name) && p.value?.value !== false && p.value?.value !== undefined)
           .map((p) => (p.value?.value === true ? p.name : `${p.name}=${String(p.value?.value)}`))
-        if (attributes.has('href')) props.push(`href=${text(attributes.get('href'))}`)
+        if (attributes.has('href')) {
+          const href = attributes.get('href')!.trim().replaceAll('\\', '/')
+          const safeHref = href.startsWith('//')
+            ? sanitizeSnapshotUrl(`https:${href}`).replace(/^https:/, '')
+            : URL.canParse(href)
+              ? sanitizeSnapshotUrl(href)
+              : href
+          props.push(`href=${text(safeHref)}`)
+        }
         const value = password || !raw.dom ? undefined : text(node.value?.value, 80) || undefined
         nodes.push({
           backendNodeId: id,

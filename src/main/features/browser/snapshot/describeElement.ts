@@ -14,8 +14,6 @@ import type {
   AccessibleNodeSummary,
   CdpAccessibilityNode,
   CdpAccessibilityProperty,
-  CdpPageCreateIsolatedWorldResult,
-  CdpPageGetFrameTreeResult,
   CdpRuntimeEvaluateResult
 } from './accessibilityTypes'
 
@@ -127,6 +125,7 @@ async function sendDebuggerCleanupCommand(
 
 export async function describeElement(
   debuggerSession: GuestSession,
+  executionContextId: number,
   annotation: WebviewAnnotation,
   budget: AccessibilityCaptureBudget,
   deadline: number,
@@ -134,29 +133,6 @@ export async function describeElement(
 ): Promise<AccessibilityContext> {
   if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
   if (Date.now() >= deadline) return createAccessibilityContext('timeout')
-
-  const frameTree = await sendDebuggerCommand<CdpPageGetFrameTreeResult>(
-    debuggerSession,
-    'Page.getFrameTree',
-    undefined,
-    deadline,
-    signal
-  )
-  const frameId = frameTree.frameTree?.frame?.id
-  if (!frameId) throw new Error('Webview main frame is unavailable')
-  const world = await sendDebuggerCommand<CdpPageCreateIsolatedWorldResult>(
-    debuggerSession,
-    'Page.createIsolatedWorld',
-    {
-      frameId,
-      worldName: 'cherry-webview-annotation-accessibility',
-      grantUniveralAccess: false
-    },
-    deadline,
-    signal
-  )
-  const executionContextId = world.executionContextId
-  if (typeof executionContextId !== 'number') throw new Error('Webview isolated world is unavailable')
 
   const objectGroup = `webview-annotation:${annotation.id}`
   try {

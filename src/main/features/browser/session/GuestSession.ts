@@ -32,6 +32,9 @@ export class GuestSession {
   private attached = false
   private disposed = false
   private attaching?: Promise<void>
+  private attachingAbort?: AbortController
+  private attachWaiters = 0
+  private annotationContextId?: number
   private epoch = 0
   private nextRef = 1
   private readonly refs = new Map<BrowserRef, number>()
@@ -76,6 +79,7 @@ export class GuestSession {
 
   private invalidateDocument() {
     this.epoch++
+    this.annotationContextId = undefined
     this.refs.clear()
     this.nodeRefs.clear()
     this.revision = undefined
@@ -97,6 +101,11 @@ export class GuestSession {
       this.currentDocumentId = params.frame.loaderId
       this.invalidateDocument()
       this.clearDialog()
+    } else if (
+      method === 'Runtime.executionContextsCleared' ||
+      (method === 'Runtime.executionContextDestroyed' && params.executionContextId === this.annotationContextId)
+    ) {
+      this.annotationContextId = undefined
     } else if (method === 'Page.javascriptDialogOpening') {
       this.pendingDialog = { type: params.type, message: params.message }
       this.rejectPending(new BrowserSessionError('dialog_open', this.pendingDialog))
@@ -145,7 +154,20 @@ export class GuestSession {
     })
   }
 
-  private async ensureAttached(): Promise<void> {
+  private async ensureAttached(options: CommandOptions = {}): Promise<void> {
+    this.attachWaiters++
+    try {
+      await this.wait(this.attach(), options)
+    } finally {
+      this.attachWaiters--
+      if (!this.attachWaiters && this.attaching) {
+        this.attachingAbort?.abort(new BrowserSessionError('debugger_unavailable'))
+        await this.attaching.catch(() => undefined)
+      }
+    }
+  }
+
+  private async attach(): Promise<void> {
     if (this.disposed || this.guest.isDestroyed() || this.guest.isDevToolsOpened())
       throw new BrowserSessionError('debugger_unavailable')
     if (this.attaching) return this.attaching
@@ -158,12 +180,16 @@ export class GuestSession {
       throw new BrowserSessionError('debugger_unavailable')
     }
     const epoch = this.epoch
+    this.attachingAbort = new AbortController()
+    const options = { signal: this.attachingAbort.signal, deadline: Date.now() + 5_000 }
     const init = async () => {
       for (const method of ['Page.enable', 'Runtime.enable', 'DOM.enable', 'Accessibility.enable']) {
+        options.signal.throwIfAborted()
         if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
-        await this.wait(this.guest.debugger.sendCommand(method), {})
+        await this.wait(this.guest.debugger.sendCommand(method), options)
       }
-      const result = await this.wait(this.guest.debugger.sendCommand('Page.getFrameTree'), {})
+      options.signal.throwIfAborted()
+      const result = await this.wait(this.guest.debugger.sendCommand('Page.getFrameTree'), options)
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.epoch === epoch) {
         this.currentMainFrameId = result.frameTree.frame.id
@@ -179,6 +205,7 @@ export class GuestSession {
       throw error
     } finally {
       this.attaching = undefined
+      this.attachingAbort = undefined
     }
   }
 
@@ -191,8 +218,9 @@ export class GuestSession {
     this.lastActive = Date.now()
     this.operations++
     try {
-      await this.wait(this.ensureAttached(), options)
+      await this.ensureAttached(options)
       options.signal?.throwIfAborted()
+      if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
         throw new BrowserSessionError('dialog_open', this.pendingDialog)
@@ -264,10 +292,24 @@ export class GuestSession {
     if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
     this.operations++
     try {
-      await this.wait(this.ensureAttached(), options)
+      await this.ensureAttached(options)
       const epoch = this.epoch
+      if (this.annotationContextId === undefined) {
+        const world = await this.send<{ executionContextId: number }>(
+          'Page.createIsolatedWorld',
+          {
+            frameId: this.mainFrameId,
+            worldName: 'cherry-webview-annotation-accessibility',
+            grantUniveralAccess: false
+          },
+          options
+        )
+        if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+        this.annotationContextId = world.executionContextId
+      }
       const result = await describeElement(
         this,
+        this.annotationContextId,
         annotation,
         budget,
         options.deadline ?? Date.now() + 5_000,

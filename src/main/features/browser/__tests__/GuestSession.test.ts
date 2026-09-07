@@ -65,6 +65,64 @@ describe('GuestSession command lifetime', () => {
     expect(mock.debugger.sendCommand.mock.calls.some(([method]) => method === 'DOM.describeNode')).toBe(false)
   })
 
+  it.each(['abort', 'deadline'])('stops initialization after its last caller leaves via %s', async (reason) => {
+    vi.useFakeTimers()
+    const { session, mock } = setup()
+    let resume!: (value: object) => void
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) =>
+      method === 'Page.enable'
+        ? new Promise((resolve) => {
+            resume = resolve
+          })
+        : fallback(method, params)
+    )
+    const controller = new AbortController()
+    const result = session.send(
+      'DOM.describeNode',
+      { backendNodeId: 1 },
+      {
+        signal: controller.signal,
+        deadline: Date.now() + 100
+      }
+    )
+    const rejected = expect(result).rejects.toThrow(reason === 'abort' ? 'Cancelled' : 'timeout')
+    if (reason === 'abort') controller.abort(new Error('Cancelled'))
+    else await vi.advanceTimersByTimeAsync(101)
+    await rejected
+    resume({})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mock.debugger.sendCommand.mock.calls.map(([method]) => method)).toEqual(['Page.enable'])
+    expect(session.isAvailable()).toBe(false)
+    mock.debugger.sendCommand.mockImplementation(fallback)
+    await session.send('DOM.describeNode', { backendNodeId: 2 })
+    expect(session.documentId).toBe('document-1')
+  })
+
+  it('keeps initialization alive for another caller when one caller aborts', async () => {
+    const { session, mock } = setup()
+    let resume!: (value: object) => void
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) =>
+      method === 'Page.enable'
+        ? new Promise((resolve) => {
+            resume = resolve
+          })
+        : fallback(method, params)
+    )
+    const controller = new AbortController()
+    const rejected = expect(
+      session.send('DOM.describeNode', { backendNodeId: 1 }, { signal: controller.signal })
+    ).rejects.toThrow('Cancelled')
+    const survivor = session.send('DOM.describeNode', { backendNodeId: 2 })
+    controller.abort(new Error('Cancelled'))
+    await rejected
+    resume({})
+    await survivor
+    expect(session.documentId).toBe('document-1')
+    expect(session.isAvailable()).toBe(true)
+  })
+
   it('aborts a pending command and removes its listeners on disposal', async () => {
     const { session, mock } = setup()
     await session.send('Runtime.enable')

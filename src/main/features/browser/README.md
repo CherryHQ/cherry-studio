@@ -29,3 +29,10 @@ Shadow DOM traversal, request budgets, cancellation, and form-value suppression.
 The MCP controller adapter, input tools, real agent-turn identity, retained-tab
 freezing, WebMCP, and browser-data import belong to subsequent PRs. This module
 does not expose tool schemas for those future consumers.
+
+Debugger initialization is shared by its waiting callers. When the last caller aborts or
+times out, initialization stops and detaches; cancellation by one caller leaves other
+callers running. Annotation captures reuse their document's isolated context and drop
+it on navigation, context destruction or detach. Snapshot link destinations use the
+same credential/data-URL sanitization as page URLs. Same-document navigation preserves
+the document identity and refs.

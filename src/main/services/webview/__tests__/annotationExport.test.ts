@@ -155,6 +155,49 @@ describe('exportAnnotationDocument', () => {
     expect(guest.debugger.isAttached()).toBe(false)
   })
 
+  it('shares document setup across a batch and renews it after context destruction', async () => {
+    let context = 73
+    const guest = createGuest(async (method, params) => {
+      if (method === 'Runtime.evaluate') {
+        if (params?.contextId !== context) throw new Error('Stale execution context')
+        return { result: { objectId: 'target' } }
+      }
+      if (method === 'DOM.describeNode') return { node: { backendNodeId: 101 } }
+      if (method === 'Accessibility.getAXNodeAndAncestors')
+        return {
+          nodes: [
+            { nodeId: 'target', backendDOMNodeId: 101, role: { value: 'button' }, name: { value: 'Batch target' } }
+          ]
+        }
+      return {}
+    })
+    const fallback = guest.debugger.sendCommand.getMockImplementation()!
+    guest.debugger.sendCommand.mockImplementation((method, params) =>
+      method === 'Page.createIsolatedWorld'
+        ? Promise.resolve({ executionContextId: context })
+        : fallback(method, params)
+    )
+    const session = service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
+    const annotations = Array.from({ length: 20 }, (_, index) => ({
+      ...annotation,
+      id: `123e4567-e89b-42d3-a456-${String(index).padStart(12, '0')}`
+    }))
+    const markdown = await exportFrom(guest, annotations)
+    expect(markdown.match(/Accessibility status: `available`/g)).toHaveLength(20)
+    const setupCommands = guest.debugger.sendCommand.mock.calls.filter(([method]) =>
+      ['Page.getFrameTree', 'Page.createIsolatedWorld'].includes(method)
+    )
+    expect(setupCommands.length).toBeLessThanOrEqual(2)
+    guest.debugger.emit('message', {}, 'Runtime.executionContextDestroyed', { executionContextId: context })
+    context++
+    expect(await exportFrom(guest)).toContain('Batch target')
+    guest.debugger.emit('message', {}, 'Page.frameNavigated', { frame: { id: 'main-frame', loaderId: 'next' } })
+    context++
+    expect(await exportFrom(guest)).toContain('Batch target')
+    expect(session.documentId).toBe('next')
+    service.release(guest as unknown as Electron.WebContents, 'other')
+  })
+
   it('does not take over an externally attached debugger', async () => {
     const guest = createGuest(async () => ({}))
     guest.debugger.attach()

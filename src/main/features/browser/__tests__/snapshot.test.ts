@@ -146,6 +146,35 @@ describe('browser snapshots', () => {
     expect(serializeSnapshot({ ...base, url: 'https://user:SECRET@example.com/' }, 40_000).text).not.toContain('SECRET')
   })
 
+  it.each([
+    ['https://user:SECRET@example.com/path', 'https://example.com/path'],
+    ['//user:SECRET@example.com/path', '//example.com/path'],
+    ['data:text/plain,SECRET', 'data:[content omitted]'],
+    ['/account?tab=profile', '/account?tab=profile'],
+    ['#details', '#details']
+  ])('sanitizes link destinations before exposing snapshot nodes: %s', (href, safeHref) => {
+    const raw = fixture()
+    const key = raw.dom!.strings.push('href') - 1
+    const value = raw.dom!.strings.push(href) - 1
+    raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+    const tree = buildSnapshotTree(raw, (id) => `e${id}`)
+    expect(tree.nodes.find((node) => node.backendNodeId === 3)?.props).toContain(`href=${safeHref}`)
+    expect(JSON.stringify(tree)).not.toContain('SECRET')
+  })
+
+  it('preserves document identity and refs on a same-document navigation', async () => {
+    const { session, mock } = setup()
+    const previous = await session.snapshot()
+    mock.debugger.emit('message', {}, 'Page.navigatedWithinDocument', {
+      frameId: 'main',
+      url: 'https://example.com/#details',
+      navigationType: 'fragment'
+    })
+    const next = await session.snapshot({ full: true })
+    expect(next.snapshot.documentId).toBe(previous.snapshot.documentId)
+    expect(session.resolveRef('e1')).toBe(2)
+  })
+
   it('validates refs and enforces a bounded output request', () => {
     expect(browserRefSchema.safeParse('e12').success).toBe(true)
     expect(browserRefSchema.safeParse('12').success).toBe(false)
