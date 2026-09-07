@@ -811,7 +811,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868
      )
    ) {
      warnings.push({
-@@ -1325,7 +1351,8 @@ export async function convertToOpenAIResponsesInput({
+@@ -1325,6 +1351,7 @@ export async function convertToOpenAIResponsesInput({
        item =>
          !('type' in item) ||
          item.type !== 'reasoning' ||
@@ -820,8 +820,6 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868
 +        ('content' in item && item.content != null),
      );
    }
--
-+
 @@ -1335,6 +1362,7 @@ export async function convertToOpenAIResponsesInput({
  const openaiResponsesReasoningProviderOptionsSchema = z.object({
    itemId: z.string().nullish(),

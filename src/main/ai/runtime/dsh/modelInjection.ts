@@ -57,7 +57,7 @@ export class DshMissingApiKeyError extends Error {
 }
 
 export type DshInputModality = 'text' | 'image'
-const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
 export type DshReasoningEffort = (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number] | 'off'
 export type DshReasoningEfforts = Partial<Record<DshReasoningEffort, string | null>>
 
