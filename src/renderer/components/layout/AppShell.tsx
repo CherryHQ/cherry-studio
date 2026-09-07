@@ -2,7 +2,6 @@ import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { TabsContext, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
@@ -61,14 +60,10 @@ export const AppShell = () => {
   const isFullscreen = useNativeFullscreen()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const {
-    currentMiniAppId,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setMiniAppShow,
-    setOpenedOneOffMiniApp
-  } = useMiniApps()
+  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const [, setMiniAppShow] = useCache('mini_app.show')
+  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.
@@ -122,8 +117,11 @@ export const AppShell = () => {
       const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
       if (orphanedIds.length === 0) return
       const orphanedSet = new Set(orphanedIds)
+      const keepAliveIds = new Set(openedKeepAliveMiniApps.map((app) => app.appId))
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
-      for (const appId of orphanedIds) clearWebviewState(appId)
+      for (const appId of orphanedIds) {
+        if (keepAliveIds.has(appId)) clearWebviewState(appId)
+      }
       if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
         if (openedOneOffMiniApp?.appId === currentMiniAppId) {
           setOpenedOneOffMiniApp(null)
@@ -138,6 +136,7 @@ export const AppShell = () => {
       splitMiniAppId,
       currentMiniAppId,
       openedOneOffMiniApp,
+      openedKeepAliveMiniApps,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
       setMiniAppShow,
