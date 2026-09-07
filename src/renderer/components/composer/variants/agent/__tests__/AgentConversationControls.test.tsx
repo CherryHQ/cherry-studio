@@ -96,14 +96,13 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelAvailability: () => ({
-    getModelFreeQuotaStatus: (model: Model) => {
-      if (model.id === mocks.availableModel.id || model.id === mocks.sharedFreeModel.id) return 'available'
-      if (model.id === mocks.exhaustedModel.id) return 'exhausted'
+    getModelDetailDescription: (model: Model) => {
+      if (model.id === mocks.availableModel.id) return '限时免费，仅限于工作模块内使用'
+      if (model.id === mocks.sharedFreeModel.id) return '限时免费'
+      if (model.id === mocks.exhaustedModel.id) return '免费额度已用完，待重置'
+      if (model.id === mocks.paidExhaustedModel.id) return '套餐额度已用完，请升级套餐或等待重置'
       return undefined
     },
-    isModelExclusiveToAgent: (model: Model) => model.id === mocks.availableModel.id,
-    isModelQuotaExhausted: (model: Model) =>
-      model.id === mocks.exhaustedModel.id || model.id === mocks.paidExhaustedModel.id,
     isModelDisabled: (model: Model) => model.id === mocks.exhaustedModel.id || model.id === mocks.paidExhaustedModel.id
   })
 }))
