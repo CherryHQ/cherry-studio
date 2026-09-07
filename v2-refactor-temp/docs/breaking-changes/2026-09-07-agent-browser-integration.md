@@ -51,3 +51,9 @@ independently. Password stores, extensions and bookmarks are not imported.
 
 Electron remains at 41.8.0. This is stacked on the browser inspection work. Clearing history does not sign users out; clearing site data applies to all ordinary
 Agent pages. History is preserved unless its checkbox is also selected. Only cache is preselected. Source browser databases are never modified.
+
+Ordinary browser pages show a dismissible prompt to import browsing history and website data.
+The button opens the same import dialog as Browser settings. A renderer persist-cache flag hides
+the prompt across tabs, windows and restarts after dismissal or an import with at least one imported
+item. Empty, failed and cancelled imports with no imported items keep the prompt available.
+Earlier imports have no persisted completion marker and may receive the prompt once after upgrading.

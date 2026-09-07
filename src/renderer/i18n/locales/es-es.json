@@ -5334,6 +5334,8 @@
   "webview.annotation.enable_mode": "Anotar página",
   "webview.annotation.placeholder": "Describe qué debería cambiar o qué has observado…",
   "webview.annotation.save": "Guardar",
+  "webview.browser.dismiss_import": "No volver a mostrar",
+  "webview.browser.import_hint": "Importa tu historial y los datos de sitios web desde otro navegador.",
   "webview.browser.load_failed": "No se pudo cargar esta página. Comprueba que el servidor local siga en ejecución.",
   "webview.browser.loading": "Cargando página…",
   "webview.navigation.address": "Dirección web",

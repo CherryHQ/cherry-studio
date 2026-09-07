@@ -5334,6 +5334,8 @@
   "webview.annotation.enable_mode": "Sayfaya ek açıklama ekle",
   "webview.annotation.placeholder": "Nelerin değişmesi gerektiğini veya neleri fark ettiğinizi açıklayın…",
   "webview.annotation.save": "Kaydet",
+  "webview.browser.dismiss_import": "Bir daha gösterme",
+  "webview.browser.import_hint": "Geçmişinizi ve site verilerinizi başka bir tarayıcıdan içe aktarın.",
   "webview.browser.load_failed": "Bu sayfa yüklenemedi. Yerel sunucunun hâlâ çalıştığını kontrol edin.",
   "webview.browser.loading": "Sayfa yükleniyor…",
   "webview.navigation.address": "Web adresi",

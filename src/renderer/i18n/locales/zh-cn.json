@@ -5334,6 +5334,8 @@
   "webview.annotation.enable_mode": "标注页面",
   "webview.annotation.placeholder": "描述需要修改的内容或你注意到的问题…",
   "webview.annotation.save": "保存",
+  "webview.browser.dismiss_import": "不再提示",
+  "webview.browser.import_hint": "从其他浏览器导入历史记录和网站数据。",
   "webview.browser.load_failed": "页面无法加载，请确认本地服务仍在运行。",
   "webview.browser.loading": "正在加载页面…",
   "webview.navigation.address": "网页地址",

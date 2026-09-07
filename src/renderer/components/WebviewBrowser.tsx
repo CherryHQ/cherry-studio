@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'
+import { WebviewImportBanner } from './WebviewImportBanner'
 import { WebviewNavigation } from './WebviewNavigation'
 import WebviewSearch from './WebviewSearch'
 
@@ -135,6 +136,7 @@ export function WebviewBrowser({
         onAnnotationSaved={onAnnotationSaved}
         toolbarActions={toolbarActions}
       />
+      {securityProfile === WebviewSecurityProfile.AgentBrowser && <WebviewImportBanner />}
       <div className="relative min-h-0 flex-1 bg-white">
         <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={target.id} />
         <WebviewHost

@@ -1,12 +1,12 @@
 import { Button, Dialog, DialogTrigger, Label, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
 import { SettingGroup, SettingRow, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
 import { BrowserHistoryDialog } from './BrowserSettings/BrowserHistoryDialog'
-import { BrowserImportDialog } from './BrowserSettings/BrowserImportDialog'
 import { BrowserToolPermissionsDialog } from './BrowserSettings/BrowserToolPermissionsDialog'
 
 const sections = [

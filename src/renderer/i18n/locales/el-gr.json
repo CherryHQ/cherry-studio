@@ -5334,6 +5334,8 @@
   "webview.annotation.enable_mode": "Σχολιασμός σελίδας",
   "webview.annotation.placeholder": "Περιγράψτε τι πρέπει να αλλάξει ή τι παρατηρήσατε…",
   "webview.annotation.save": "Αποθήκευση",
+  "webview.browser.dismiss_import": "Να μην εμφανιστεί ξανά",
+  "webview.browser.import_hint": "Εισαγάγετε το ιστορικό και τα δεδομένα ιστοτόπων από άλλο πρόγραμμα περιήγησης.",
   "webview.browser.load_failed": "Δεν ήταν δυνατή η φόρτωση της σελίδας. Ελέγξτε ότι ο τοπικός διακομιστής εξακολουθεί να εκτελείται.",
   "webview.browser.loading": "Φόρτωση σελίδας…",
   "webview.navigation.address": "Διεύθυνση ιστού",

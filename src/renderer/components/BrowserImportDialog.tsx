@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { ipcApi } from '@renderer/ipc'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 import { Check, ChevronRight, FileUp, LoaderCircle } from 'lucide-react'
@@ -102,6 +103,8 @@ export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
         localStorage: file && siteData,
         domains: []
       })
+      if ([imported.history, imported.cookies, imported.localStorage].some((item) => item.imported > 0))
+        cacheService.setPersist('ui.browser.import_prompt_hidden', true)
       if (
         !imported.cancelled ||
         [imported.history, imported.cookies, imported.localStorage].some(

@@ -740,7 +740,7 @@ src/main/features/browser/import/
 src/shared/types/browserImport.ts        ImportedCookie, ImportSource, ImportResult (+ zod)
 src/shared/ipc/schemas/browser.ts        `browser.list_import_sources`, `browser.import_data`
 src/main/ipc/handlers/browser.ts         delegate to BrowserSessionService
-src/renderer/pages/settings/BrowserSettings/BrowserImportDialog.tsx   entry from Browser settings
+src/renderer/components/BrowserImportDialog.tsx   shared by Browser settings and the browser import banner
 ```
 
 ```ts

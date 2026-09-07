@@ -5334,6 +5334,8 @@
   "webview.annotation.enable_mode": "標註頁面",
   "webview.annotation.placeholder": "描述需要變更的內容或你注意到的問題…",
   "webview.annotation.save": "儲存",
+  "webview.browser.dismiss_import": "不再提示",
+  "webview.browser.import_hint": "從其他瀏覽器匯入歷史記錄和網站資料。",
   "webview.browser.load_failed": "無法載入此頁面。請確認本機伺服器仍在執行。",
   "webview.browser.loading": "正在載入頁面…",
   "webview.navigation.address": "網址",
