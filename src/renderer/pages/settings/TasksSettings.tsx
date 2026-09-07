@@ -257,7 +257,12 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
-  const value = hourParts.map((part) => `${part.padStart(2, '0')}:${String(minute).padStart(2, '0')}`).join(',')
+  // Canonical form: sorted, deduped (matches parseTimes/formatTimes so the UI
+  // multi-select never disagrees with the value it renders).
+  const value = formatTimes(
+    hourParts.map((part) => part.padStart(2, '0')),
+    String(minute).padStart(2, '0')
+  )
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }

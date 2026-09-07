@@ -802,6 +802,21 @@ describe('scheduled task frequency conversion', () => {
     })
   })
 
+  it('normalizes an unsorted or duplicated hour list to the canonical form', () => {
+    // The cron hour list preserves the author's order and duplicates; the preset
+    // value must be sorted + deduped to match what parseTimes/formatTimes render.
+    expect(triggerToFormState({ kind: 'cron', expr: '30 18,9 * * *' })).toEqual({
+      kind: 'daily',
+      value: '09:30,18:30',
+      weekday: '1'
+    })
+    expect(triggerToFormState({ kind: 'cron', expr: '30 9,18,9 * * *' })).toEqual({
+      kind: 'daily',
+      value: '09:30,18:30',
+      weekday: '1'
+    })
+  })
+
   it('keeps a Cron with per-field minute lists on the custom path', () => {
     // '0,30 9 * * *' is valid but cannot come from the shared-minute presets.
     expect(triggerToFormState({ kind: 'cron', expr: '0,30 9 * * *' }).kind).toBe('cron')
