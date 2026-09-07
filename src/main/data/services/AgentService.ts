@@ -100,6 +100,13 @@ function buildAgentSearchPredicate(search: string): SQL {
   return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch)!
 }
 
+function buildTrustedBuiltinRolePredicate(builtinRole: BuiltinAgentRole): SQL {
+  const rolePredicate = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+  return builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+    ? and(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID), rolePredicate)!
+    : rolePredicate
+}
+
 /**
  * `builtin_role` is a capability identity, not user data. Support additionally requires its
  * reserved ID, so historical configuration cannot grant an ordinary Agent system capabilities.
@@ -367,16 +374,10 @@ export class AgentService {
    */
   findBuiltinAgentByRoleTx(
     tx: DbOrTx,
-    builtinRole: string,
+    builtinRole: BuiltinAgentRole,
     options: { includeDeleted?: boolean } = {}
   ): AgentRow | null {
-    const roleCondition =
-      builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
-        ? and(
-            eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
-            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
-          )
-        : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const roleCondition = buildTrustedBuiltinRolePredicate(builtinRole)
     const [agent] = tx
       .select()
       .from(agentsTable)
@@ -545,19 +546,8 @@ export class AgentService {
     if (options.ids) {
       conditions.push(inArray(agentsTable.id, options.ids))
     }
-    if (options.builtinRoles) {
-      conditions.push(
-        or(
-          ...options.builtinRoles.map((role) =>
-            role === BUILTIN_AGENT_ROLE.SUPPORT
-              ? and(
-                  eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
-                  sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${role}`
-                )
-              : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${role}`
-          )
-        )!
-      )
+    if (options.builtinRoles?.length) {
+      conditions.push(or(...options.builtinRoles.map(buildTrustedBuiltinRolePredicate))!)
     }
     const whereClause = and(...conditions)
 

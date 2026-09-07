@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -254,10 +255,23 @@ const pinMocks = vi.hoisted(() => ({
   usePins: vi.fn()
 }))
 
-const preferenceMocks = vi.hoisted(() => ({
-  values: new Map<string, unknown>(),
-  setPreference: vi.fn()
-}))
+const preferenceMocks = vi.hoisted(() => {
+  const values = new Map<string, unknown>()
+  const state = new Proxy<Record<string, unknown>>(
+    {},
+    {
+      deleteProperty: (_target, key) => values.delete(String(key)),
+      get: (_target, key) => values.get(String(key)),
+      getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }),
+      ownKeys: () => [...values.keys()],
+      set: (_target, key, value) => {
+        values.set(String(key), value)
+        return true
+      }
+    }
+  )
+  return { state, values, setPreference: vi.fn() }
+})
 
 const cacheMocks = vi.hoisted(() => ({
   state: { activeSessionId: 'session-a' as string | null },
@@ -404,16 +418,10 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: {
-    getCachedValue: (key: string) => preferenceMocks.values.get(key),
-    update: async (key: string, updater: (currentValue: string[]) => string[]) => {
-      const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
-      preferenceMocks.values.set(key, value)
-      await preferenceMocks.setPreference(key, value)
-    }
-  }
-}))
+vi.mock('@data/PreferenceService', async () => {
+  const { createMockPreferenceService } = await import('@test-mocks/renderer/PreferenceService')
+  return { preferenceService: createMockPreferenceService({}, preferenceMocks.state) }
+})
 
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
   const React = require('react')
@@ -855,6 +863,7 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
+    vi.mocked(preferenceService.update).mockClear()
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
@@ -4056,9 +4065,8 @@ describe('Sessions', () => {
 
     fireEvent.click(hideMenuItem as HTMLElement)
 
-    await vi.waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['agent-a'])
-    )
+    await vi.waitFor(() => expect(preferenceMocks.values.get('agent.session.hidden_builtin_ids')).toEqual(['agent-a']))
+    expect(preferenceService.update).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', expect.any(Function))
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
     expect(dataApiMocks.deleteAgentSessions).not.toHaveBeenCalled()
     expect(popup.confirm).not.toHaveBeenCalled()

@@ -19,7 +19,7 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const enabled = query?.enabled !== false
-  const { hiddenBuiltinAgentIds = [] } = useBuiltinAgentListVisibility()
+  const { hiddenBuiltinAgentIds = [], isLoading: isVisibilityLoading } = useBuiltinAgentListVisibility()
   const primary = useQuery('/agents', {
     enabled,
     query: {
@@ -57,7 +57,7 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
 
   return {
     data: items,
-    isLoading: primary.isLoading,
+    isLoading: primary.isLoading || isVisibilityLoading,
     isRefreshing: primary.isRefreshing || hiddenBuiltin.isRefreshing,
     error: primary.error,
     refetch: stableRefetch

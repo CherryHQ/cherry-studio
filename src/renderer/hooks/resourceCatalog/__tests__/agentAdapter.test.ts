@@ -9,7 +9,7 @@ const useMutationMock = vi.hoisted(() => vi.fn())
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const hiddenBuiltinAgentIdsMock = vi.hoisted(() => ({ value: [] as string[] }))
+const hiddenBuiltinVisibilityMock = vi.hoisted(() => ({ ids: [] as string[], isLoading: false }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
@@ -18,7 +18,10 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useBuiltinAgentListVisibility', () => ({
-  useBuiltinAgentListVisibility: () => ({ hiddenBuiltinAgentIds: hiddenBuiltinAgentIdsMock.value })
+  useBuiltinAgentListVisibility: () => ({
+    hiddenBuiltinAgentIds: hiddenBuiltinVisibilityMock.ids,
+    isLoading: hiddenBuiltinVisibilityMock.isLoading
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
@@ -26,11 +29,12 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 describe('agentAdapter.useList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hiddenBuiltinAgentIdsMock.value = []
+    hiddenBuiltinVisibilityMock.ids = []
+    hiddenBuiltinVisibilityMock.isLoading = false
   })
 
   it('includes hidden protected built-ins omitted from the main catalog page', () => {
-    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
     useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
       data: {
         items: options.query.builtinRoles
@@ -55,7 +59,7 @@ describe('agentAdapter.useList', () => {
   })
 
   it('keeps the primary catalog available when the supplemental hidden-agent query fails', () => {
-    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
     const supplementalError = new Error('supplemental query failed')
     useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
       data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
@@ -72,7 +76,7 @@ describe('agentAdapter.useList', () => {
   })
 
   it('keeps the primary catalog visible while supplemental hidden-agent metadata loads', () => {
-    hiddenBuiltinAgentIdsMock.value = ['cherry-support']
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
     useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
       data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
       isLoading: !!options.query.builtinRoles,
@@ -87,8 +91,23 @@ describe('agentAdapter.useList', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
+  it('keeps the catalog loading until hidden built-in visibility is resolved', () => {
+    hiddenBuiltinVisibilityMock.isLoading = true
+    useQueryMock.mockReturnValue({
+      data: { items: [{ id: 'cherry-support', name: 'Cherry Support', configuration: { builtin_role: 'support' } }] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.isLoading).toBe(true)
+  })
+
   it('recovers a hidden protected built-in after the Agent API limit of stale ids', () => {
-    hiddenBuiltinAgentIdsMock.value = [
+    hiddenBuiltinVisibilityMock.ids = [
       ...Array.from({ length: AGENTS_MAX_LIMIT }, (_, index) => `stale-${index}`),
       'builtin-assistant'
     ]
