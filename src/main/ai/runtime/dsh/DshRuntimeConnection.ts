@@ -292,6 +292,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath: this.agentDataPath,
       agent,
       citationsGuidance,
+      effectiveLanguage: snapshot.effectiveLanguage,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
         '## Current Workspace',
