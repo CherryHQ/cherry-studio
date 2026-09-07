@@ -40,7 +40,7 @@ export interface MigrationPaths {
 
   /** Resolved v1 userData directory (accounts for legacy config.json custom path). */
   readonly userData: string
-  /** ~/.cherrystudio — cherry home directory. */
+  /** Cherry home directory (`~/.cherrystudio` by default). */
   readonly cherryHome: string
 
   // ── Derived from userData (pre-computed, consumers use directly) ──

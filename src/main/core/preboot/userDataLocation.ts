@@ -12,7 +12,8 @@ const logger = loggerService.withContext('Preboot')
 /**
  * "userData" in this module means Electron's complete OS-level userData
  * directory, including user content, Chromium state, and — on Windows and
- * Linux — application logs (macOS keeps logs in ~/Library/Logs instead).
+ * Linux — application logs. macOS normally keeps logs in ~/Library/Logs;
+ * dev profile-root mode keeps them under the configured root on every OS.
  */
 
 export function getNormalizedExecutablePath(): string {

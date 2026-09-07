@@ -87,6 +87,12 @@ This keeps Cherry home, BootConfig, legacy config discovery, Electron
 filesystem root, and packaged builds ignore it. When set, it takes precedence
 over `CS_DEV_USER_DATA_SUFFIX`.
 
+| Data | Isolated location |
+|------|-------------------|
+| Cherry home and BootConfig | `{profileRoot}/.cherrystudio` |
+| Electron `userData` | `{profileRoot}/userData` |
+| Application logs | `{profileRoot}/logs` |
+
 For lightweight isolation of multiple development instances, give each
 instance a unique userData suffix. You can set it in `.env`:
 
