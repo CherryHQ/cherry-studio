@@ -772,6 +772,40 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     expect((migrator as unknown as { reduxTopicOrderIds: string[] }).reduxTopicOrderIds).toEqual([])
   })
 
+  it('ignores malformed assistants while preserving default assistant topics', async () => {
+    const migrator = new ChatMigrator()
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(0),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            assistants: { malformed: true },
+            defaultAssistant: {
+              id: 'default',
+              topics: [{ id: 'topic-valid', name: 'Valid' }]
+            }
+          })
+        }
+      },
+      sharedData: new Map()
+    }
+
+    await expect(migrator.prepare(ctx as any)).resolves.toMatchObject({ success: true })
+    const internal = migrator as unknown as {
+      reduxTopicOrderIds: string[]
+      topicMetaLookup: Map<string, { name?: string }>
+    }
+    expect(internal.reduxTopicOrderIds).toEqual(['topic-valid'])
+    expect(internal.topicMetaLookup.get('topic-valid')?.name).toBe('Valid')
+  })
+
   it('skips null topic entries while preserving valid topic metadata', async () => {
     const migrator = new ChatMigrator()
     const ctx = {

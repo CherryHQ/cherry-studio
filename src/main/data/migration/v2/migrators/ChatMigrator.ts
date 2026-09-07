@@ -188,7 +188,8 @@ function collectV1TopicOrderIds(source: AssistantState | undefined): string[] {
     }
   }
 
-  for (const assistant of source?.assistants ?? []) visit(assistant)
+  const assistants = Array.isArray(source?.assistants) ? source.assistants : []
+  for (const assistant of assistants) visit(assistant)
   visit(source?.defaultAssistant)
   return topicIds
 }
@@ -402,8 +403,7 @@ export class ChatMigrator extends BaseMigrator {
       // up post-migration unnamed and with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
       this.reduxTopicOrderIds = collectV1TopicOrderIds(assistantState)
-      const allAssistants: OldAssistant[] = []
-      if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
+      const allAssistants = Array.isArray(assistantState?.assistants) ? [...assistantState.assistants] : []
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
 
       // AssistantMigrator remapped legacy 'default' to a UUID; replay the same
