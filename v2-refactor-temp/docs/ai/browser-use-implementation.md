@@ -1155,8 +1155,9 @@ and Pi re-evaluate approval at call time. DSH’s host guard tightens approval l
 included in its next connection snapshot. Tool dispatch also rechecks denied tools and the Agent switch
 before queued work executes. Disabling Agent control leaves manual browsing available.
 
-`app.browser.open_links_in_browser` defaults false. When enabled, ordinary HTTP(S) website links open
-`/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
+`app.browser.open_links_in_browser` defaults false. When enabled, ordinary HTTP(S) clicks in Agent
+message links open the current session's right browser pane through the message action provider;
+other website links open `/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
 IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
 external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
 their existing handling.

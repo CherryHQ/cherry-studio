@@ -9,6 +9,7 @@ import { omit } from 'es-toolkit/compat'
 import type { Element } from 'hast'
 import React, { useMemo } from 'react'
 
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import CitationTooltip from './CitationTooltip'
 import Hyperlink from './Hyperlink'
 
@@ -45,12 +46,30 @@ function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
 }
 
 const Link: React.FC<LinkProps> = (props) => {
+  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
   const citationData = useMemo(() => {
     const number = Number(findCitationInChildren(props.children))
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
   }, [props.children, props.citationRegistry])
   const hostname = useMemo(() => getWebHostname(props.href), [props.href])
   const containsFaviconChild = useMemo(() => hasFaviconChild(props.children), [props.children])
+  const handleWebsiteClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.stopPropagation()
+    props.onClick?.(event)
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      !hostname ||
+      !openExternalUrl
+    )
+      return
+    event.preventDefault()
+    void openExternalUrl(props.href!)
+  }
 
   // 处理内部链接
   if (props.href?.startsWith('#')) {
@@ -130,7 +149,7 @@ const Link: React.FC<LinkProps> = (props) => {
           target="_blank"
           rel="noreferrer"
           className={linkClassName}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleWebsiteClick}
         />
       </CitationTooltip>
     )
@@ -144,7 +163,7 @@ const Link: React.FC<LinkProps> = (props) => {
         target="_blank"
         rel="noreferrer"
         className={linkClassName}
-        onClick={(e) => e.stopPropagation()}>
+        onClick={handleWebsiteClick}>
         {linkContent}
       </a>
     </Hyperlink>

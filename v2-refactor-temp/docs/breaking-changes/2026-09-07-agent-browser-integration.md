@@ -24,8 +24,9 @@ or URL, with mouse and keyboard selection.
 
 Browser control now appears under the Agent’s built-in tools. Browser settings owns tool permissions
 (ask, allow or block); the legacy browser entry no longer appears in MCP settings or Agent MCP selection.
-An optional setting opens website links in shared browser tabs. Explicit external-browser actions and
-authentication flows keep their existing destinations.
+An optional setting opens website links in the built-in browser: ordinary clicks in Agent messages
+expand the current session's browser pane; links elsewhere open shared browser tabs. Explicit
+external-browser actions and authentication flows keep their existing destinations.
 
 ## What the user should do
 

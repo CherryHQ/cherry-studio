@@ -9,10 +9,12 @@ import Link from '../Link'
 
 const mocks = vi.hoisted(() => {
   const navigateToRoute = vi.fn()
+  const openExternalUrl = vi.fn()
 
   return {
     navigateToRoute,
-    messageListActions: { navigateToRoute },
+    openExternalUrl,
+    messageListActions: { navigateToRoute, openExternalUrl },
     findCitationInChildren: vi.fn(),
     Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
       <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
@@ -68,6 +70,38 @@ const bareUrlNode = {
 
 describe('Link', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it.each([false, true])('routes a website click through the host action (citation: %s)', async (isCitation) => {
+    mocks.findCitationInChildren.mockReturnValue(isCitation ? '1' : undefined)
+    render(
+      <Link href={citation.url} node={isCitation ? supNode : undefined} citationRegistry={new Map([[1, citation]])}>
+        Example website
+      </Link>
+    )
+    const anchor = screen.getByRole('link', { name: 'Example website' })
+    const event = createEvent.click(anchor)
+    fireEvent(anchor, event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(mocks.openExternalUrl).toHaveBeenCalledWith(citation.url)
+  })
+
+  it('preserves modified clicks and a caller-cancelled click', () => {
+    const view = render(<Link href={citation.url}>Example website</Link>)
+    const anchor = screen.getByRole('link', { name: 'Example website' })
+    for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+      const event = createEvent.click(anchor, { [modifier]: true })
+      fireEvent(anchor, event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(mocks.openExternalUrl).not.toHaveBeenCalled()
+    view.rerender(
+      <Link href={citation.url} onClick={(event) => event.preventDefault()}>
+        Example website
+      </Link>
+    )
+    fireEvent.click(anchor)
+    expect(mocks.openExternalUrl).not.toHaveBeenCalled()
+  })
 
   it('keeps internal anchors clickable without opening a new window', () => {
     const scrollIntoView = vi.fn()

@@ -13,6 +13,7 @@ import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgrou
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type {
@@ -393,8 +394,8 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => (key === 'app.developer_mode.enabled' ? [true, vi.fn()] : [undefined, vi.fn()])
+vi.mock('@renderer/data/hooks/usePreference', async () => ({
+  usePreference: (await import('@test-mocks/renderer/usePreference')).mockUsePreference
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
@@ -546,6 +547,15 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
+function OpenWebsiteButton({ url }: { url: string }) {
+  const { openExternalUrl } = useAgentRightPaneActions()
+  return (
+    <button type="button" onClick={() => openExternalUrl(url)}>
+      Open website
+    </button>
+  )
+}
+
 function UserOpenSeqProbe() {
   const { userOpenSeq } = useRightPanelState()
   return <output data-testid="user-open-seq">{userOpenSeq}</output>
@@ -628,6 +638,8 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
@@ -657,6 +669,38 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it.each([
+    [true, 'https://example.com/path?q=hello#section', true],
+    [false, 'https://example.com/path?q=hello#section', false],
+    [true, 'mailto:test@example.com', false]
+  ] as const)('opens message URLs according to the browser setting (%s, %s)', async (enabled, url, inPane) => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', enabled)
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      const user = userEvent.setup()
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+          <OpenWebsiteButton url={url} />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Open website' }))
+      if (inPane) {
+        const browser = await screen.findByTestId('webview-browser')
+        expect(browser).toHaveAttribute('data-url', url)
+        expect(browser).toHaveAttribute('data-security-profile', 'agent-browser')
+        expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+        expect(openWindow).not.toHaveBeenCalled()
+      } else {
+        expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+        expect(openWindow).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
+      }
+    } finally {
+      openWindow.mockRestore()
+    }
   })
 
   it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
