@@ -399,6 +399,20 @@
       "description": "BinaryManager custom tool registry: each entry is a user-added custom tool definition; requestedVersion is an optional version pin"
     },
     {
+      "targetKey": "shortcut.app.devtools.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "I"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.devtools.toggle (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.fullscreen.exit",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

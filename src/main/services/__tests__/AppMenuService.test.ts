@@ -8,7 +8,9 @@ const {
   appMock,
   preferenceServiceMock,
   openSettingsInMainWindowMock,
-  commandServiceMock
+  commandServiceMock,
+  ipcApiServiceMock,
+  windowManagerMock
 } = vi.hoisted(() => {
   const preferenceServiceMock = {
     get: vi.fn(),
@@ -16,20 +18,28 @@ const {
   }
   const openSettingsInMainWindowMock = vi.fn()
   const commandServiceMock = {
-    execute: vi.fn()
+    execute: vi.fn(),
+    // Main registers handlers only for `scope: 'main'` commands.
+    hasHandler: vi.fn((command: string) => command !== 'app.devtools.toggle')
+  }
+  const ipcApiServiceMock = { send: vi.fn() }
+  const windowManagerMock = {
+    getWindowsByType: vi.fn(() => []),
+    getWindowIdByWebContents: vi.fn(() => 'main-window')
   }
 
   return {
     preferenceServiceMock,
     openSettingsInMainWindowMock,
     commandServiceMock,
+    ipcApiServiceMock,
+    windowManagerMock,
     applicationMock: {
       get: vi.fn((name: string) => {
         if (name === 'PreferenceService') return preferenceServiceMock
         if (name === 'CommandService') return commandServiceMock
-        if (name === 'WindowManager') {
-          return { getWindowsByType: vi.fn(() => []) }
-        }
+        if (name === 'IpcApiService') return ipcApiServiceMock
+        if (name === 'WindowManager') return windowManagerMock
         return undefined
       })
     },
@@ -91,6 +101,7 @@ describe('AppMenuService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     preferenceServiceMock.get.mockReturnValue(undefined)
+    windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window')
     service = new AppMenuService()
   })
 
@@ -107,6 +118,43 @@ describe('AppMenuService', () => {
     settingsItem?.click?.(undefined as never, undefined as never, undefined as never)
 
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
+  })
+
+  it('routes DevTools through the renderer command instead of the focused-WebContents role', async () => {
+    await (service as any).onInit()
+
+    const window = { id: 1 } as BrowserWindow
+    const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
+    const devToolsItem = viewSubmenu.find((item) => item.label === 'Toggle Developer Tools')
+
+    // Electron's `toggleDevTools` role dispatches on getFocusedWebContents(), which a hidden
+    // MiniApp <webview> guest keeps owning — only the renderer knows which tab is on screen.
+    expect(devToolsItem?.role).toBeUndefined()
+    // Electron's own per-platform defaults for this action; the service resolves them
+    // from process.platform, so the expectation has to follow the runner.
+    expect(devToolsItem?.accelerator).toBe(
+      process.platform === 'darwin' ? 'CommandOrControl+Alt+I' : 'CommandOrControl+Shift+I'
+    )
+
+    devToolsItem?.click?.(undefined as never, window as never, undefined as never)
+
+    // Main owns no handler for it, so dispatching through CommandService would silently
+    // drop the click AND the menu has already claimed the accelerator from the renderer.
+    expect(commandServiceMock.execute).not.toHaveBeenCalledWith('app.devtools.toggle', expect.anything())
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-window', 'app.command.execute', {
+      command: 'app.devtools.toggle'
+    })
+  })
+
+  it('drops a renderer command with no owning window instead of throwing', async () => {
+    await (service as any).onInit()
+    windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined as never)
+
+    const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
+    const devToolsItem = viewSubmenu.find((item) => item.label === 'Toggle Developer Tools')
+
+    expect(() => devToolsItem?.click?.(undefined as never, { id: 1 } as never, undefined as never)).not.toThrow()
+    expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
   })
 
   it('opens the About settings route from the native app menu', async () => {

@@ -8,6 +8,7 @@ import {
   CommandSharedPreferencesContext,
   useCommandContextSnapshot
 } from '@renderer/hooks/command'
+import { useIpcOn } from '@renderer/ipc'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
@@ -168,6 +169,10 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [])
+
+  // The native application menu lives in main, so a menu item for a renderer-scoped
+  // command arrives here instead of through the keydown listener above.
+  useIpcOn('app.command.execute', ({ command }) => execute(command))
 
   const value = useMemo(
     () => ({

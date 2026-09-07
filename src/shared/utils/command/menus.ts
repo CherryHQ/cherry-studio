@@ -39,6 +39,7 @@ export const resolveMenuPresentationMode = (
 
 export const MENU_CONTRIBUTIONS = [
   { location: 'app.menu', command: 'app.settings.open', group: 'app', order: 10 },
+  { location: 'app.menu', command: 'app.devtools.toggle', group: 'view', order: 5 },
   { location: 'app.menu', command: 'app.zoom.reset', group: 'view', order: 10 },
   { location: 'app.menu', command: 'app.zoom.in', group: 'view', order: 20 },
   { location: 'app.menu', command: 'app.zoom.out', group: 'view', order: 30 },

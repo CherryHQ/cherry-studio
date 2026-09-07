@@ -8,6 +8,7 @@ import {
   CACHE_CLEANUP_SIZE_COMPLETENESS
 } from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
+import type { CommandId } from '../../utils/command'
 import { defineRoute } from '../define'
 
 const relocationInspectionSchema = z.discriminatedUnion('valid', [
@@ -100,6 +101,11 @@ export const appRequestSchemas = {
 }
 
 export type AppEventSchemas = {
+  /**
+   * Run a renderer-scoped command in this window. The native application menu lives in
+   * main, so a menu item for a command the renderer owns has no other way to reach it.
+   */
+  'app.command.execute': { command: CommandId }
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
   'app.updater.not_available': void

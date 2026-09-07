@@ -210,7 +210,9 @@ describe('ArtifactPane Context Menu Integration', () => {
       targets: defaultExternalTargets
     })
     mocks.openTarget.mockResolvedValue(undefined)
+    // Keep the setup's IpcApi bridge: CommandProvider subscribes to `app.command.execute`.
     window.api = {
+      ...window.api,
       command: {
         showNativePopupMenu: mocks.showNativePopupMenu
       }
