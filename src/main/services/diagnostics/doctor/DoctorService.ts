@@ -153,11 +153,17 @@ export class DoctorService extends BaseService {
       this.publish({ status: 'completed', report })
       return { status: 'completed', report }
     } catch (error) {
-      this.publish({ status: 'canceled', runId })
+      // `running` was already published; without a terminal state every window spins forever.
+      this.publish({ status: 'idle' })
       throw error
     } finally {
       this.activeRun = null
     }
+  }
+
+  /** A run outlives the service otherwise, publishing onto the shared cache after teardown. */
+  protected onStop(): void {
+    this.activeRun?.controller.abort()
   }
 
   cancel(runId: string): DoctorCancelResult {
@@ -167,12 +173,13 @@ export class DoctorService extends BaseService {
   }
 
   /**
-   * A fix is bound to the finding of one run. It is refused when that run was superseded,
+   * A fix is bound to the finding of one run. It is refused when that run was superseded or expired,
    * and again when a fresh probe no longer offers the fix — so it never acts on a stale conclusion.
+   * It occupies `activeRun` for its duration, so a fix and a run can never overlap in either order.
    */
   async fix(request: DoctorFixRequest): Promise<DoctorFixResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
-    if (this.activeRun) throw new Error('Doctor is busy')
+    if (this.activeRun) return { status: 'stale', reason: 'run_superseded' }
     const stale = this.validateFix(request)
     if (stale) return stale
     const controller = new AbortController()

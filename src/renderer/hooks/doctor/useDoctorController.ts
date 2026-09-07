@@ -9,13 +9,12 @@ import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
   type DoctorCheckId,
-  doctorCheckTitleKey,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
-  type DoctorPanel,
   type DoctorRunTier,
   type DoctorState
 } from '@shared/types/doctor'
+import { doctorCheckTitleKey, type DoctorPanel } from '@shared/utils/doctor'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

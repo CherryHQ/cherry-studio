@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  DOCTOR_CHECK_CATALOG,
-  type DoctorCheckId,
-  type DoctorReport,
-  isDoctorFixRequest,
-  projectDoctorReport
-} from '../doctor'
+import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
+import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -21,6 +16,15 @@ describe('DOCTOR_CHECK_CATALOG', () => {
       done.add(id)
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
+  })
+
+  it('exposes fix metadata the dialog needs before offering the button', () => {
+    expect(doctorFixMeta('config-boot-config-valid', 'repair')).toEqual({
+      id: 'repair',
+      risk: 'low',
+      reversible: true,
+      relaunch: true
+    })
   })
 })
 
@@ -137,5 +141,11 @@ describe('projectDoctorReport', () => {
 
   it('shows everything locally', () => {
     expect(classes('display')).toEqual(['public', 'local_only', 'consent_required'])
+  })
+
+  it.each(['display', 'export'] as const)('keeps developer text in the %s view', (view) => {
+    const [warned, errored] = projectDoctorReport(report, view, { consentToSensitive: true }).results
+    expect(warned).toMatchObject({ devMessage: 'developer trace at /Users/alice/private.log' })
+    expect(errored).toMatchObject({ message: expect.stringContaining('private-runtime') })
   })
 })

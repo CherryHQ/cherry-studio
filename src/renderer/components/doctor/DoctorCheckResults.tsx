@@ -27,13 +27,8 @@ import {
   isDoctorRowExpandedByDefault,
   resolveDoctorFixLabel
 } from '@renderer/utils/doctor'
-import {
-  type DoctorAction,
-  doctorCheckDetailKey,
-  type DoctorCheckId,
-  type DoctorCheckResult,
-  doctorCheckTitleKey
-} from '@shared/types/doctor'
+import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
+import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

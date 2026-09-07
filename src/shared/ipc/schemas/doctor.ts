@@ -3,9 +3,9 @@ import {
   type DoctorCancelResult,
   type DoctorFixRequest,
   type DoctorFixResult,
-  type DoctorRunResult,
-  isDoctorFixRequest
+  type DoctorRunResult
 } from '@shared/types/doctor'
+import { isDoctorFixRequest } from '@shared/utils/doctor'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

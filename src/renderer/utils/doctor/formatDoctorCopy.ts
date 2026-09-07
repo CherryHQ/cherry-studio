@@ -1,5 +1,5 @@
 import type { DoctorBasics, DoctorCheckId, DoctorCheckStatus, DoctorReport } from '@shared/types/doctor'
-import { projectDoctorReport } from '@shared/types/doctor'
+import { projectDoctorReport } from '@shared/utils/doctor'
 
 type CopyBasic = 'version' | 'edition' | 'channel' | 'system' | 'osRelease' | 'isPackaged' | 'isPortable'
 

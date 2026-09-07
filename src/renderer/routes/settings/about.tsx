@@ -1,5 +1,5 @@
 import { AboutSettings } from '@renderer/pages/settings/AboutSettings'
-import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/types/doctor'
+import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 import { createFileRoute } from '@tanstack/react-router'
 
 type AboutSettingsSearch = Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>

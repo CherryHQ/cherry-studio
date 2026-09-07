@@ -18,7 +18,7 @@ import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
-import { doctorCheckTitleKey } from '@shared/types/doctor'
+import { doctorCheckTitleKey } from '@shared/utils/doctor'
 import { ChevronDown, Copy, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
