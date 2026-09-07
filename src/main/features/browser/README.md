@@ -65,8 +65,12 @@ controllers borrow those guests and share actions with the standalone controller
 controls Agent access; bindings and manual browsing survive control-off. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 History is SQLite-backed through `BrowserHistoryService`. Import readers live in `import/` and
-run as tracked, cancellable operations of this lifecycle service. Direct encrypted-cookie import,
-uploads, retained-tab freezing and WebMCP remain follow-ups.
+run as tracked, cancellable operations of this lifecycle service. Cookie decryption uses per-import
+keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
+bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
+cookies remain unsupported, with per-reason counts. See the
+[import support matrix](../../../../v2-refactor-temp/docs/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
+Uploads, retained-tab freezing and WebMCP remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or
 times out, initialization stops and detaches; cancellation by one caller leaves other

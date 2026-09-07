@@ -59,6 +59,13 @@ the user in Browser settings. Profile readers report support per data category; 
 available when login-data decryption is unsupported. Password stores, extensions and browser settings
 are excluded; bookmark import needs a bookmark consumer and remains a follow-up.
 
+Cookie decryption is scoped to each user-started import: macOS Keychain, Windows current-user DPAPI
+and Linux Secret Service/KWallet. Windows app-bound (`v20`) cookies remain unsupported and require
+login in the pane. Report expired, partitioned, unsupported, inaccessible-key and decryption-failure
+counts separately. System helpers and key buffers end with the tracked import operation; discovery
+never reads keys. See [delivered support](./browser-use-implementation.md#127-delivered-import-support-and-validation)
+for supported formats, Linux prerequisites and OS validation limits.
+
 Keep Electron at 41.8.0 because an upgrade needs a separate operating-system compatibility decision.
 WebMCP is deferred. Multiple visible tabs, retained-tab freezing, a full handoff protocol and
 `WebContentsView` migration are not prerequisites for this PR. The file-level plan, tool compatibility

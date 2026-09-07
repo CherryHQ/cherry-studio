@@ -3,13 +3,15 @@ import { open } from 'node:fs/promises'
 import { setImmediate } from 'node:timers/promises'
 
 import { browserHistoryService, type BrowserVisitInput } from '@data/services/BrowserHistoryService'
-import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
+import type { BrowserImportOptions, BrowserImportReason, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { session, WebContentsView } from 'electron'
 
 import { GuestSession } from '../session/GuestSession'
 import { listBrowserProfiles } from './browserProfiles'
+import { ChromiumCookieDecryptor } from './ChromiumCookieDecryptor'
+import { CookieImportError } from './CookieImportError'
 import {
   ImportedCookieSchema,
   ImportedOriginSchema,
@@ -34,11 +36,17 @@ export async function importBrowserData(
 ): Promise<BrowserImportResult> {
   const result = emptyImportResult()
   const target = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+  const cookieIssue = (reason: BrowserImportReason, failed = false) => {
+    const category = result.cookies
+    category[failed ? 'failed' : 'skipped']++
+    category.reasons ??= {}
+    category.reasons[reason] = (category.reasons[reason] ?? 0) + 1
+    if (reason !== 'expired' && !failed) category.unsupported = true
+  }
   const applyCookie = async (raw: unknown) => {
     signal.throwIfAborted()
     if (raw && typeof raw === 'object' && 'partitionKey' in raw) {
-      result.cookies.skipped++
-      result.cookies.unsupported = true
+      cookieIssue('partitioned')
       return
     }
     const parsed = ImportedCookieSchema.safeParse(raw)
@@ -47,11 +55,12 @@ export async function importBrowserData(
       return
     }
     const cookie = parsed.data
-    if (
-      !matchesImportDomain(cookie.domain, options.domains) ||
-      (cookie.expires !== undefined && cookie.expires > 0 && cookie.expires <= Date.now() / 1000)
-    ) {
+    if (!matchesImportDomain(cookie.domain, options.domains)) {
       result.cookies.skipped++
+      return
+    }
+    if (cookie.expires !== undefined && cookie.expires > 0 && cookie.expires <= Date.now() / 1000) {
+      cookieIssue('expired')
       return
     }
     try {
@@ -208,6 +217,17 @@ export async function importBrowserData(
           try {
             await withBrowserSnapshot(profile.cookiesFile, signal, async (db) => {
               const firefox = profile.browser === 'firefox'
+              const databaseVersion = firefox
+                ? Number(db.pragma('user_version', { simple: true }))
+                : db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").get()
+                  ? Number(
+                      db.prepare<[], { value: string }>("SELECT value FROM meta WHERE key = 'version'").get()?.value
+                    )
+                  : 0
+              const decryptor =
+                profile.browser === 'firefox'
+                  ? undefined
+                  : new ChromiumCookieDecryptor(profile.browser, databaseVersion, signal)
               const hasPartitionKey =
                 !firefox &&
                 (db.pragma('table_info(cookies)') as { name: string }[]).some(
@@ -218,42 +238,78 @@ export async function importBrowserData(
                 : 'SELECT host_key AS domain, name, value, path, expires_utc AS expires, is_secure AS secure, is_httponly AS httpOnly, samesite AS sameSite, encrypted_value' +
                   (hasPartitionKey ? ', top_frame_site_key AS originAttributes' : '') +
                   ' FROM cookies'
-              for (const row of db
-                .prepare<
-                  [],
-                  {
-                    domain: string
-                    name: string
-                    value: string
-                    path: string
-                    expires: number
-                    secure: number
-                    httpOnly: number
-                    sameSite: number
-                    encrypted_value?: Buffer
-                    originAttributes?: string
+              try {
+                let count = 0
+                for (const row of db
+                  .prepare<
+                    [],
+                    {
+                      domain: string
+                      name: string
+                      value: string
+                      path: string
+                      expires: number
+                      secure: number
+                      httpOnly: number
+                      sameSite: number
+                      encrypted_value?: Buffer
+                      originAttributes?: string
+                    }
+                  >(statement)
+                  .iterate()) {
+                  signal.throwIfAborted()
+                  if (++count % 500 === 0) await setImmediate()
+                  if (!matchesImportDomain(row.domain, options.domains)) {
+                    result.cookies.skipped++
+                    continue
                   }
-                >(statement)
-                .iterate()) {
-                signal.throwIfAborted()
-                if (row.encrypted_value?.length || row.originAttributes) {
-                  result.cookies.skipped++
-                  result.cookies.unsupported = true
-                  continue
+                  const expires = row.expires
+                    ? firefox
+                      ? row.expires / (databaseVersion >= 16 ? 1000 : 1)
+                      : row.expires / 1_000_000 - 11644473600
+                    : undefined
+                  if (expires !== undefined && expires <= Date.now() / 1000) {
+                    cookieIssue('expired')
+                    continue
+                  }
+                  if (row.originAttributes) {
+                    cookieIssue('partitioned')
+                    continue
+                  }
+                  let value = row.value
+                  if (decryptor && row.encrypted_value?.length) {
+                    try {
+                      value = await decryptor.decrypt(row.encrypted_value, row.domain)
+                    } catch (error) {
+                      signal.throwIfAborted()
+                      const reason = error instanceof CookieImportError ? error.reason : 'decryption_failed'
+                      cookieIssue(reason, reason === 'decryption_failed')
+                      continue
+                    }
+                  }
+                  await applyCookie({
+                    ...row,
+                    value,
+                    expires,
+                    secure: !!row.secure,
+                    httpOnly: !!row.httpOnly,
+                    sameSite:
+                      row.sameSite === 2
+                        ? 'Strict'
+                        : row.sameSite === 1
+                          ? 'Lax'
+                          : row.sameSite === 0
+                            ? 'None'
+                            : undefined
+                  })
                 }
-                await applyCookie({
-                  ...row,
-                  expires: row.expires ? (firefox ? row.expires : row.expires / 1_000_000 - 11644473600) : undefined,
-                  secure: !!row.secure,
-                  httpOnly: !!row.httpOnly,
-                  sameSite:
-                    row.sameSite === 2 ? 'Strict' : row.sameSite === 1 ? 'Lax' : row.sameSite === 0 ? 'None' : undefined
-                })
+              } finally {
+                await decryptor?.dispose()
               }
             })
           } catch {
             signal.throwIfAborted()
-            result.cookies.failed++
+            cookieIssue('source_unavailable', true)
           }
       }
     } else {

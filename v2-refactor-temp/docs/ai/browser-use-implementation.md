@@ -716,7 +716,7 @@ tool. The previous `persist:default` destination and MCP-settings entry are supe
 | History | yes, from supported profiles | consumed by the Browser history UI (§12.4); preserve visit timestamps and deduplicate repeated imports |
 | Passwords, extensions, browser settings | no | outside this PR; no password-vault import or model tool |
 
-Two import paths, in order of preference:
+Two import paths (the settings dialog defaults to the detected browser):
 
 1. **Storage-state file** (portable, no decryption): Playwright `storageState` JSON
    (`{ cookies: [{ name, value, domain, path, expires, httpOnly, secure, sameSite }], origins: [{ origin, localStorage: [{ name, value }] }] }`)
@@ -794,7 +794,7 @@ marks httpOnly. sameSite defaults to `unspecified`.
 | Windows | `%LOCALAPPDATA%\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium}\User Data\<Profile>` | same |
 | Linux | `~/.config/{google-chrome, microsoft-edge, BraveSoftware/Brave-Browser, chromium}/<Profile>` | same |
 
-Profiles come from `Local State` → `profile.info_cache` (name per directory). Table `cookies`:
+The current reader discovers `Default` and `Profile N` directories. Table `cookies`:
 `host_key, name, value, encrypted_value, path, expires_utc, is_secure, is_httponly, samesite, has_expires`.
 `expires_utc` is microseconds since 1601-01-01: `unix = expires_utc / 1e6 − 11644473600`.
 `samesite`: −1 → `unspecified`, 0 → `no_restriction`, 1 → `lax`, 2 → `strict`.
@@ -803,17 +803,20 @@ Decryption of `encrypted_value` (prefix `v10`; `v11` on Linux keyrings):
 
 | OS | Key | Cipher |
 |---|---|---|
-| macOS | Keychain item "`<Browser> Safe Storage`" via `security find-generic-password -w -s "<Browser> Safe Storage"` (the OS prompts the user, naming the browser) → `pbkdf2(password, 'saltysalt', 1003, 16, sha1)` | AES-128-CBC, IV = 16 spaces, PKCS7 |
+| macOS | Keychain item "`<Browser> Safe Storage`" via `security find-generic-password -w -a "<Browser>" -s "<Browser> Safe Storage"` (the OS may request access) → `pbkdf2(password, 'saltysalt', 1003, 16, sha1)` | AES-128-CBC, IV = 16 spaces, PKCS7 |
 | Linux | `v11`: libsecret / kwallet password, same PBKDF2 with 1 iteration; `v10`: literal `peanuts`, 1 iteration | same |
 | Windows | `v10`: DPAPI-protected key in `Local State` → `os_crypt.encrypted_key`, unprotected with `CryptUnprotectData` via `powershell -c [Security.Cryptography.ProtectedData]::Unprotect` (Electron's `safeStorage` holds Cherry's key, not Chrome's) | AES-256-GCM, 12-byte nonce after the prefix, 16-byte tag |
-| Windows, `v20` prefix | Chrome ≥ 127 app-bound encryption: the key is only released to Chrome's own elevated service | **not supported** → `reason: 'app_bound_encryption'`, the dialog points to the file path |
+| Windows, `v20` prefix | Chrome ≥ 127 app-bound encryption: the key is only released to Chrome's own elevated service | **not supported** → `reason: 'app_bound'`; sign in again in the built-in browser |
 
-Recent Chrome builds prepend `SHA-256(host_key)` (32 bytes) to the plaintext value; strip it when the
-first 32 bytes equal that hash. Cookies with an empty decrypted value are skipped and counted.
+Cookie database `meta.version >= 24` requires a `SHA-256(host_key)` prefix (32 bytes). Verify the
+exact stored host, including its leading dot, before stripping the prefix; a mismatch fails the item.
+Older versions have no prefix. Preserve valid empty cookie values. Unknown metadata or encryption
+formats never fall back to guessed plaintext.
 
 **Firefox** (`firefoxProfile.ts`): `profiles.ini` → `Path` per profile (`Default=1` first); roots
 `~/Library/Application Support/Firefox/Profiles`, `%APPDATA%\Mozilla\Firefox\Profiles`, `~/.mozilla/firefox`.
-Table `moz_cookies`: `host, name, value, path, expiry (unix seconds), isSecure, isHttpOnly, sameSite`
+Table `moz_cookies`: `host, name, value, path, expiry, isSecure, isHttpOnly, sameSite`. Expiry is Unix
+seconds before `user_version = 16`, milliseconds from version 16 onward
 (0 → `no_restriction`, 1 → `lax`, 2 → `strict`). Values are plaintext.
 
 These browser-specific layouts and crypto recipes are research notes, not a compatibility guarantee.
@@ -1001,6 +1004,20 @@ site-data clearing must explain and apply the shared ordinary-profile scope. Per
 Preference (edit classification sources and regenerate), runtime bindings use main-owned resources,
 and commands use IpcApi. Build UI with existing Shadcn/Tailwind components and translated strings.
 
+Keep the settings landing page to one Agent-control toggle and three management rows: import,
+history and clearing. Open each task in a focused dialog. Import discovers browsers on entry,
+selects the first detected source, and shows a profile selector only when that browser has multiple
+profiles. Default to readable history and website data; Chromium sources explain that the system
+may request key-store access and some sign-ins may need to be repeated. Keep category choices under a disclosure, combine cookies and
+localStorage as website data, and offer file import as a secondary path. The UI imports all domains;
+the lower-level importer retains domain filtering for callers that need it. File-picker cancellation
+returns to the form; partial results never claim complete success.
+
+History loads only when opened, uses the sole available Agent pane automatically, and asks for a
+destination only when multiple panes exist. Clearing uses one confirmation dialog with independently
+selectable history, website data and cache; only cache is selected initially. After partial failure,
+uncheck completed categories so retry affects only the remaining selection.
+
 Add `resources/skills/cherry-browser/SKILL.md` through the existing built-in skill installer; update
 `cherry-tool-guide/SKILL.md` and its `references/web.md` to route interaction to it. Keep the skill
 focused on live tool discovery, observe → act → verify, explicit page identity, stale-ref recovery,
@@ -1039,17 +1056,40 @@ with a time/id pagination index; it does not add an FTS engine.
 
 | Source | History | Login state |
 |---|---|---|
-| Chrome / Edge / Brave standard profiles | Visit timestamps and stable source-key deduplication | Unencrypted cookies only; encrypted and partitioned cookies are skipped |
+| Chrome / Edge / Brave standard profiles | Visit timestamps and stable source-key deduplication | Plaintext cookies and the encrypted formats below; partitioned cookies are skipped |
 | Firefox standard profiles | Places visit timestamps and stable source-key deduplication | Ordinary cookies; container/partitioned origin attributes are skipped |
 | JSON storage state | Not supported | Cookies and selected origins' localStorage; partitioned cookies are skipped |
 | Netscape cookies file | Not supported | Host-only/domain scope, secure/HTTP-only flags and expiry preserved |
 
-OS keychain/DPAPI/libsecret decryption recipes in §10 remain research, not shipped support. A failed
-or unsupported cookie category does not block history. Passwords, extensions, browser settings,
+The importer implements these platform adapters without upgrading Electron:
+
+| Platform | Supported encryption | System access |
+|---|---|---|
+| macOS | `v10` AES-128-CBC, PBKDF2-SHA1 with 1003 iterations | Browser-specific Safe Storage account/service through `security`; access denial is reported |
+| Windows | `v10` AES-256-GCM using the DPAPI-wrapped Local State key; legacy DPAPI blobs | Current-user `ProtectedData.Unprotect` through PowerShell; ciphertext goes through stdin, never command arguments |
+| Linux | `v10` with Chromium's `peanuts` key; `v11` AES-128-CBC with a system key | `secret-tool` (libsecret-tools), or KWallet 5/6 via `dbus-send` and `kwallet-query`; the configured network wallet is queried |
+
+Linux selects the desktop's key store first and tries the other if no key is available. An explicit
+access denial stops lookup. Browser-specific Secret Service application attributes and KWallet
+folder/item names are fixed in `browserCookieKey.ts`; users do not configure encryption backends.
+Missing helpers, unavailable keys and denied access are separate result reasons. Profiles created
+under a different desktop, custom password-store override or browser variant may still require login.
+Windows `v20` app-bound encryption is deliberately unsupported: no elevation, process injection or
+changes to the source browser's security policy. The result asks the user to sign in in the pane.
+
+`ChromiumCookieDecryptor` belongs to one import operation. Key retrieval is lazy and successful or
+failed lookups are cached for that operation; owned password/key buffers are erased when finished.
+No keys are persisted by Cherry. Helpers have a 30-second timeout, bounded output, cancellation and
+exit tracking. Raw helper errors/output never cross IPC or enter logs. Filtering and expiry checks
+precede key access; skipped items yield every 500 rows. Database metadata controls host-hash checking.
+Cancellation preserves applied data and still closes helpers and removes snapshots.
+
+A failed or unsupported cookie category does not block history. Passwords, extensions, browser settings,
 bookmarks, IndexedDB and sessionStorage are outside this delivery. LocalStorage import uses a
 short-lived sandboxed guest with page JavaScript disabled, verifies the final origin, writes via
 CDP DOMStorage and closes the guest. It never binds the helper to an Agent or records its visits.
-Reload existing pages after import. Category counts describe applied, skipped and failed entries;
+Reload guidance appears only after website data was applied. Category counts and typed reason counts
+describe imported, expired, partitioned, unsupported, unavailable and failed entries;
 cancellation preserves committed changes and reports available partial counts.
 
 Validation uses synthetic browser databases, cookies and a local fixture website. The Electron 41.8.0
@@ -1058,5 +1098,15 @@ storage-state cookies/localStorage visible in the pane, and control-off cancella
 annotation lease stays alive. Restart preserves imported login/storage, history and existing Agent
 rows. Cache clearing retains history/login; site-data clearing signs out the fixture while retaining
 history. No live personal browser credentials were imported. Windows/Linux
-profile discovery and native browser schema variations have not been verified on those operating
-systems; unsupported input is reported without claiming complete migration.
+native key-store interactions and profile discovery have not been exercised on this macOS host.
+Focused tests cover independent CBC/GCM known answers, Linux v10/v11, host binding, empty values,
+key refusal, helper cancellation/exit, DPAPI stdin framing, source preservation and Firefox expiry.
+A synthetic native DPAPI round-trip test runs only on Windows. These tests do not prove every
+installed browser/OS combination; unsupported input is reported without claiming complete migration.
+
+Format references: [Chromium macOS OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_mac.mm),
+[Linux OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_linux.cc),
+[Windows OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_win.cc),
+[Chrome app-bound encryption](https://security.googleblog.com/2024/07/improving-security-of-chrome-cookies-on.html),
+[KWallet query](https://github.com/KDE/kwallet/tree/master/src/runtime/kwallet-query) and
+[Firefox expiry migration](https://github.com/mozilla-firefox/firefox/commit/5869af852cd20425165837f6c2d9971f3efba83d).

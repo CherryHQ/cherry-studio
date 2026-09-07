@@ -50,7 +50,7 @@ export async function listBrowserProfiles(): Promise<BrowserProfile[]> {
         historyFile,
         cookiesFile,
         history: !!historyFile,
-        cookies: !cookiesFile ? 'unavailable' : browser === 'firefox' ? 'supported' : 'unencrypted_only'
+        cookies: !cookiesFile ? 'unavailable' : browser === 'firefox' ? 'supported' : 'requires_authorization'
       })
     }
   }

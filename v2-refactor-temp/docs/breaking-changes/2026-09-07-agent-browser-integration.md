@@ -10,7 +10,7 @@ date: 2026-09-07
 
 Browser settings can enable Agent tools for the same page shown in the Agent right pane.
 Ordinary pages support HTTP(S), including local networks, and share a dedicated persistent login
-profile. Settings also provides searchable history, browser-data import and separate clearing actions.
+profile. Settings provides compact entries for import, searchable history and clearing, each in its own dialog.
 
 ## Why this matters to the user
 
@@ -20,13 +20,18 @@ off leaves manual browsing and saved login data available.
 
 ## What the user should do
 
-Enable Agent control in Settings → Browser when needed. Choose a profile or a JSON storage-state /
-Netscape cookies file to import data, then reload open pages. Direct Chromium cookie decryption is
-unsupported; encrypted, partitioned and Firefox container cookies are skipped. History import remains
-available independently. Password stores, extensions and bookmarks are not imported.
+Enable Agent control in Settings → Browser when needed. Import starts with a detected browser;
+choose a profile only if several exist. Website data combines cookies and supported local storage,
+with file import available as a secondary path. Chromium cookies can use macOS Keychain, Windows
+current-user DPAPI, and Linux Secret Service/KWallet. Allow system key access when prompted.
+Linux needs secret-tool (libsecret-tools), or kwallet-query and dbus-send. Windows app-bound encryption,
+partitioned cookies and Firefox container cookies remain unsupported; sign in again in the pane when
+needed. Results explain unavailable keys, denied access, unsupported formats, expired and failed
+items separately. Reload open pages after website data was imported. History import remains available
+independently. Password stores, extensions and bookmarks are not imported.
 
 ## Notes for release manager
 
 Electron remains at 41.8.0. This is stacked on the browser inspection work; fill the PR number when
 published. Clearing history does not sign users out; clearing site data applies to all ordinary
-Agent pages and preserves history. Source browser databases are never modified.
+Agent pages. History is preserved unless its checkbox is also selected. Only cache is preselected. Source browser databases are never modified.
