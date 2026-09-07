@@ -942,11 +942,13 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   const { cache, mutate } = useSWRConfig()
   const limit = options?.limit ?? 10
   const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
-  const getKey = useMemo(
-    () => createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit),
-    [resolvedPath, options?.query, limit]
-  )
-  const infiniteCacheKey = useMemo(() => unstable_serialize_infinite(getKey), [getKey])
+  const nextGetKey = createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit)
+  const nextInfiniteCacheKey = unstable_serialize_infinite(nextGetKey)
+  const keyStateRef = useRef({ getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey })
+  if (keyStateRef.current.infiniteCacheKey !== nextInfiniteCacheKey) {
+    keyStateRef.current = { getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey }
+  }
+  const { getKey, infiniteCacheKey } = keyStateRef.current
 
   return useCallback(
     async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {

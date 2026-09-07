@@ -909,6 +909,24 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
+  it('keeps a cache-only writer stable across equivalent inline query options', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      () =>
+        useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId: 't1' },
+          query: { includeSiblings: true },
+          limit: 37
+        }),
+      { wrapper: Wrapper }
+    )
+    const writer = result.current
+
+    rerender()
+
+    expect(result.current).toBe(writer)
+  })
+
   it('keeps a captured cache-only writer scoped to the reader key and synchronizes page caches', async () => {
     spyGet().mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
       const topicId = path.includes('/t1/') ? 't1' : 't2'
