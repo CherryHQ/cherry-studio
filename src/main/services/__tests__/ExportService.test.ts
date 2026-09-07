@@ -70,5 +70,72 @@ describe('ExportService.exportToWord', () => {
       expect(documentXml).toContain('Title')
       expect(documentXml).toContain('Body paragraph')
     })
+
+    describe('blockquotes', () => {
+      async function exportXml(markdown: string) {
+        vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+        const service = await freshService()
+        await service.exportToWord(markdown, 'doc.docx')
+        return new AdmZip(tmpFile).readAsText('word/document.xml')
+      }
+
+      const countIndent = (xml: string, twips: number) => xml.split(`<w:ind w:left="${twips}"`).length - 1
+
+      it('exports a document that is only an empty blockquote', async () => {
+        await expect(exportXml('>')).resolves.toContain('<w:body>')
+      })
+
+      it('exports an empty blockquote at the end of the document', async () => {
+        const xml = await exportXml('Body text\n\n>')
+        expect(xml).toContain('Body text')
+      })
+
+      it('keeps the paragraph that follows an empty blockquote, unquoted', async () => {
+        const xml = await exportXml('>\n\nafter the quote')
+        expect(xml).toContain('after the quote')
+        expect(countIndent(xml, 720)).toBe(0)
+      })
+
+      it('indents every paragraph of a multi-paragraph blockquote', async () => {
+        const xml = await exportXml('> first quoted\n>\n> second quoted')
+        expect(xml).toContain('first quoted')
+        expect(xml).toContain('second quoted')
+        expect(countIndent(xml, 720)).toBe(2)
+      })
+
+      it('indents nested blockquotes one level deeper and keeps their text', async () => {
+        const xml = await exportXml('> > nested quote')
+        expect(xml).toContain('nested quote')
+        expect(countIndent(xml, 1440)).toBe(1)
+      })
+
+      it('keeps a quote inside a list from changing a later quote', async () => {
+        const xml = await exportXml('- > inner\n\n> later\n\nafter')
+        const paragraphs = xml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
+        for (const text of ['inner', 'later']) {
+          const paragraph = paragraphs.find((value) => value.includes(`>${text}</w:t>`))
+          expect(paragraph).toBeDefined()
+          expect(paragraph).toContain('<w:ind w:left="720"')
+          expect(paragraph).toContain('<w:pBdr>')
+          expect(paragraph).toContain('<w:i/>')
+        }
+        const followingParagraph = paragraphs.find((value) => value.includes('>after</w:t>'))
+        expect(followingParagraph).toBeDefined()
+        expect(followingParagraph).not.toContain('<w:ind')
+        expect(followingParagraph).not.toContain('<w:i/>')
+      })
+
+      it.each([
+        ['soft break', '\n', 'first second'],
+        ['two-space hard break', '  \n', 'first\nsecond'],
+        ['backslash hard break', '\\\n', 'first\nsecond']
+      ])('preserves the word boundary at a %s in a quote', async (_name, separator, expected) => {
+        const xml = await exportXml(`> first${separator}> second`)
+        const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:br\s*\/>/g)]
+          .map((match) => match[1] ?? '\n')
+          .join('')
+        expect(text).toBe(expected)
+      })
+    })
   })
 })
