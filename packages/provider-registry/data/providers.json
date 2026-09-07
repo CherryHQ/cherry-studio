@@ -707,6 +707,54 @@
     },
     {
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Jalapeno Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.jalapeno-cloud.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "jalapeno-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.jalapeno-cloud.ai/keys/",
+          "docs": "https://www.jalapeno-cloud.ai/docs",
+          "models": "https://www.jalapeno-cloud.ai/models",
+          "official": "https://www.jalapeno-cloud.ai"
+        }
+      },
+      "name": "Jalapeno Cloud"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2485,5 +2533,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c81369dcccb6c728"
+  "version": "b990f06965363776"
 }

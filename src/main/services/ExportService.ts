@@ -29,53 +29,46 @@ export class ExportService {
     const tokens = md.parse(markdown, {})
     const elements: any[] = []
     let listLevel = 0
+    let quoteLevel = 0
+    const quoteBorder = { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
     let currentTable: Table | null = null
     let currentRowCells: TableCell[] = []
     let isHeaderRow = false
     let tableColumnCount = 0
     let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+    const processInlineTokens = (
+      tokens: any[],
+      isHeaderRow: boolean,
+      isQuote = false
+    ): (TextRun | ExternalHyperlink)[] => {
       const runs: (TextRun | ExternalHyperlink)[] = []
-      let linkText = ''
+      let linkRuns: TextRun[] = []
       let linkUrl = ''
-      let insideLink = false
       let boldStack = 0 // 跟踪嵌套的粗体标记
       let italicStack = 0 // 跟踪嵌套的斜体标记
+
+      const pushRun = (options: Docx.IRunOptions) => {
+        if (linkUrl) {
+          linkRuns.push(new TextRun({ ...options, style: 'Hyperlink', color: '0000FF', underline: { type: 'single' } }))
+        } else {
+          runs.push(new TextRun(options))
+        }
+      }
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i]
         switch (token.type) {
           case 'link_open':
-            insideLink = true
             linkUrl = token.attrs.find((attr: [string, string]) => attr[0] === 'href')[1]
-            linkText = tokens[i + 1].content
-            i += 1
+            linkRuns = []
             break
           case 'link_close':
-            if (insideLink && linkUrl && linkText) {
-              // Handle any accumulated link text with the ExternalHyperlink
-              runs.push(
-                new ExternalHyperlink({
-                  children: [
-                    new TextRun({
-                      text: linkText,
-                      style: 'Hyperlink',
-                      color: '0000FF',
-                      underline: {
-                        type: 'single'
-                      }
-                    })
-                  ],
-                  link: linkUrl
-                })
-              )
-
-              // Reset link variables
-              linkText = ''
-              linkUrl = ''
-              insideLink = false
+            if (linkRuns.length > 0) {
+              runs.push(new ExternalHyperlink({ children: linkRuns, link: linkUrl }))
             }
+            linkRuns = []
+            linkUrl = ''
             break
           case 'strong_open':
             boldStack++
@@ -89,25 +82,27 @@ export class ExportService {
           case 'em_close':
             italicStack--
             break
+          case 'softbreak':
+            pushRun({ text: ' ' })
+            break
+          case 'hardbreak':
+            pushRun({ break: 1 })
+            break
           case 'text':
-            runs.push(
-              new TextRun({
-                text: token.content,
-                bold: isHeaderRow || boldStack > 0,
-                italics: italicStack > 0
-              })
-            )
+            pushRun({
+              text: token.content,
+              bold: isHeaderRow || boldStack > 0,
+              italics: isQuote || italicStack > 0
+            })
             break
           case 'code_inline':
-            runs.push(
-              new TextRun({
-                text: token.content,
-                font: 'Consolas',
-                size: 20,
-                bold: isHeaderRow || boldStack > 0,
-                italics: italicStack > 0
-              })
-            )
+            pushRun({
+              text: token.content,
+              font: 'Consolas',
+              size: 20,
+              bold: isHeaderRow || boldStack > 0,
+              italics: isQuote || italicStack > 0
+            })
             break
         }
       }
@@ -136,9 +131,11 @@ export class ExportService {
 
         case 'paragraph_open':
           const inlineTokens = tokens[i + 1].children || []
+          const quoteStyle = quoteLevel > 0 ? { indent: { left: quoteLevel * 720 }, border: quoteBorder } : {}
           elements.push(
             new Paragraph({
-              children: processInlineTokens(inlineTokens, false),
+              children: processInlineTokens(inlineTokens, false, quoteLevel > 0),
+              ...quoteStyle,
               spacing: {
                 before: 120,
                 after: 120
@@ -157,17 +154,20 @@ export class ExportService {
           break
 
         case 'list_item_open':
+          // Nested blocks must reach their own handlers so container levels stay balanced.
+          if (tokens[i + 1].type !== 'paragraph_open') {
+            break
+          }
           const itemInlineTokens = tokens[i + 2].children || []
           elements.push(
             new Paragraph({
               children: [
                 new TextRun({ text: '•', bold: true }),
                 new TextRun({ text: '\t' }),
-                ...processInlineTokens(itemInlineTokens, false)
+                ...processInlineTokens(itemInlineTokens, false, quoteLevel > 0)
               ],
-              indent: {
-                left: listLevel * 720
-              }
+              indent: { left: (listLevel + quoteLevel) * 720 },
+              ...(quoteLevel > 0 ? { border: quoteBorder } : {})
             })
           )
           i += 3
@@ -214,32 +214,11 @@ export class ExportService {
           break
 
         case 'blockquote_open':
-          const quoteText = tokens[i + 2].content
-          elements.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: quoteText,
-                  italics: true
-                })
-              ],
-              indent: {
-                left: 720
-              },
-              border: {
-                left: {
-                  style: BorderStyle.SINGLE,
-                  size: 3,
-                  color: 'CCCCCC'
-                }
-              },
-              spacing: {
-                before: 120,
-                after: 120
-              }
-            })
-          )
-          i += 3
+          quoteLevel++
+          break
+
+        case 'blockquote_close':
+          quoteLevel--
           break
 
         // 表格处理
