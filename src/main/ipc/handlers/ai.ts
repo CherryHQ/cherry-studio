@@ -27,9 +27,9 @@ const logger = loggerService.withContext('ipc/ai')
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
- * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
- * resolution, the image abort registry and the stream registry all stay in those
- * services — these handlers only translate the IPC call.
+ * the streaming-chat ops delegate to `AiStreamManager`. Business logic and provider
+ * resolution stay in those services; request-scoped cancellation state lives in its
+ * lifecycle owner rather than this transport module.
  *
  * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
  * is re-thrown as an `AI_REQUEST_FAILED` IpcError carrying the full SerializedError
@@ -154,8 +154,20 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  'ai.text.generate': (request) =>
-    exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
+  'ai.text.generate': ({ requestId, ...request }) =>
+    requestId
+      ? application.get('TextGenerationRequestService').run(requestId, (signal) =>
+          exposeAiError('ai.text.generate', () =>
+            application.get('AiService').generateText({
+              ...request,
+              requestOptions: { ...request.requestOptions, signal }
+            })
+          )
+        )
+      : exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
+  'ai.text.abort': async ({ requestId }) => {
+    application.get('TextGenerationRequestService').abort(requestId)
+  },
   'ai.embedding.embed_many': (request) =>
     exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
   'ai.image.generate': ({ requestId, payload }) =>

@@ -166,6 +166,9 @@ export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
+      // Optional request identity pairs this one-shot call with `ai.text.abort`.
+      // Callers that do not need cancellation keep the existing wire shape.
+      requestId: z.string().min(1).optional(),
       ...aiBaseRequestShape,
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -174,6 +177,10 @@ export const aiRequestSchemas = {
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.text.abort': defineRoute({
+    input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
   }),
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiBaseRequestShape, values: z.array(z.string()) }),

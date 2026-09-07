@@ -101,30 +101,61 @@ export async function fetchGenerate({
   prompt,
   content,
   model,
-  throwOnError = false
+  throwOnError = false,
+  signal
 }: {
   prompt: string
   content: string
   model?: Model
   throwOnError?: boolean
+  signal?: AbortSignal
 }): Promise<string> {
+  const requestId = signal ? crypto.randomUUID() : undefined
+  let abortListener: (() => void) | undefined
+
   try {
+    signal?.throwIfAborted()
     const resolvedModel = model ?? (await readDefaultModel())
+    signal?.throwIfAborted()
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
-    const { text } = await ipcApi.request('ai.text.generate', {
+
+    const generation = ipcApi.request('ai.text.generate', {
+      ...(requestId ? { requestId } : {}),
       uniqueModelId: resolvedModel.id,
       reasoningEffort: 'none',
       system: prompt,
       prompt: content
     })
-    return text || ''
+
+    const result = signal
+      ? await Promise.race([
+          generation,
+          new Promise<never>((_, reject) => {
+            abortListener = () => {
+              if (requestId) {
+                void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
+              }
+              reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+            }
+            signal.addEventListener('abort', abortListener, { once: true })
+          })
+        ])
+      : await generation
+
+    return result.text || ''
   } catch (error: any) {
-    logger.error('fetchGenerate failed', error)
+    if (!signal?.aborted) {
+      logger.error('fetchGenerate failed', error)
+    }
     if (throwOnError) throw error
     return ''
+  } finally {
+    if (signal && abortListener) {
+      signal.removeEventListener('abort', abortListener)
+    }
   }
 }
