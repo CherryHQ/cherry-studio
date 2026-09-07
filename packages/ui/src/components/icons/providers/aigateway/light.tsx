@@ -6,7 +6,6 @@ const AigatewayLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     xmlns="http://www.w3.org/2000/svg"
     width="1em"
     height="1em"
-    aria-label="AIgateway"
     viewBox="0 0 32 32"
     {...props}>
     <rect width={30} height={30} x={1} y={1} fill="#fdfcf9" stroke="#d8d4ce" rx={7} />

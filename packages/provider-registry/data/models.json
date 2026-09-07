@@ -16152,7 +16152,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT 5.2 ",
+      "name": "GPT 5.2",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
