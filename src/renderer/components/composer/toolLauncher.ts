@@ -1,5 +1,6 @@
 import type {
   QuickPanelContextType,
+  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
@@ -10,6 +11,11 @@ import type { ReactElement, ReactNode } from 'react'
 export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'
 
 export type ComposerToolLauncherSource = 'popover' | 'root-panel'
+
+export interface ComposerToolFooterAction extends QuickPanelFooterAction {
+  panelSymbol: string
+  order: number
+}
 
 export interface ComposerToolLauncherActionOptions {
   quickPanel: QuickPanelContextType

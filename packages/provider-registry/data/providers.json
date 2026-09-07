@@ -51,27 +51,6 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "AMD GPU Cloud - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
-        }
-      },
-      "id": "radeon-cloud",
-      "metadata": {
-        "website": {
-          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
-          "docs": "https://developer.amd.com.cn/radeon/",
-          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
-          "official": "https://developer.amd.com.cn/radeon/"
-        }
-      },
-      "name": "AMD GPU Cloud"
-    },
-    {
-      "availableInEditions": ["global", "cn"],
-      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Silicon - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -597,12 +576,14 @@
             "type": "openai-chat",
             "wire": {
               "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
                 "operations": [
                   {
                     "target": "reasoning.effort",
                     "value": {
-                      "source": "literal",
-                      "value": "medium"
+                      "source": "effort"
                     }
                   }
                 ]
@@ -677,6 +658,54 @@
       ]
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "Ollama - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:11434"
+        },
+        "ollama-chat": {
+          "adapterFamily": "ollama",
+          "baseUrl": "http://localhost:11434",
+          "reasoningFormat": {
+            "type": "ollama"
+          }
+        }
+      },
+      "id": "ollama",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/ollama/ollama/tree/main/docs",
+          "models": "https://ollama.com/library",
+          "official": "https://ollama.com/"
+        }
+      },
+      "name": "Ollama"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AMD GPU Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
+        }
+      },
+      "id": "radeon-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "docs": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "official": "https://developer.amd.com.cn/radeon/"
+        }
+      },
+      "name": "AMD GPU Cloud"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -719,33 +748,6 @@
         }
       },
       "name": "TokenDance"
-    },
-    {
-      "authOptional": true,
-      "availableInEditions": ["global", "cn"],
-      "description": "Ollama - AI model provider",
-      "endpointConfigs": {
-        "anthropic-messages": {
-          "adapterFamily": "anthropic",
-          "baseUrl": "http://localhost:11434"
-        },
-        "ollama-chat": {
-          "adapterFamily": "ollama",
-          "baseUrl": "http://localhost:11434",
-          "reasoningFormat": {
-            "type": "ollama"
-          }
-        }
-      },
-      "id": "ollama",
-      "metadata": {
-        "website": {
-          "docs": "https://github.com/ollama/ollama/tree/main/docs",
-          "models": "https://ollama.com/library",
-          "official": "https://ollama.com/"
-        }
-      },
-      "name": "Ollama"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2527,5 +2529,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "fe9ec1c4ba36002d"
+  "version": "a03bbd51f5a2734a"
 }

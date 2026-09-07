@@ -111,7 +111,8 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {

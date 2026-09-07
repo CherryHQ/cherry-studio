@@ -32,6 +32,7 @@ import {
 import { shortcutAnchorId } from '@renderer/pages/settings/shortcut.search'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -48,7 +49,7 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { useSearch } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -56,6 +57,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ShortcutSettings')
+const shortcutRouteApi = getRouteApi('/settings/shortcut')
 
 const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
   a.length === b.length && a.every((key, index) => key === b[index])
@@ -106,7 +108,7 @@ const ShortcutSettings: FC = () => {
 
   // `?command=<id>` arrives from pages that own a feature but not its shortcut, so landing
   // here mid-list would leave the user hunting. Highlight fades; the scroll stays put.
-  const { command: focusedCommand } = useSearch({ strict: false }) as { command?: CommandId }
+  const { command: focusedCommand } = shortcutRouteApi.useSearch<AppRouter>()
   const focusedRowRef = useRef<HTMLDivElement | null>(null)
   const [focusFaded, setFocusFaded] = useState(false)
 
