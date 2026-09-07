@@ -49,7 +49,7 @@ const electron = vi.hoisted(() => ({
   primaryDisplay: undefined as unknown,
   app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn() },
   browserWindows: [] as unknown[],
-  clipboard: { write: vi.fn(async (_items: { data: Record<string, Blob> }[]) => {}) },
+  clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
   // isEmpty() is what distinguishes a decoded image from the empty one
   // createFromBuffer hands back for undecodable input.
