@@ -70,5 +70,43 @@ describe('ExportService.exportToWord', () => {
       expect(documentXml).toContain('Title')
       expect(documentXml).toContain('Body paragraph')
     })
+
+    const textsOf = (xml: string) => [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1])
+
+    // Catches the link handler taking only the first text token: `[A **B** C](url)` used to
+    // come out as B, C, then a hyperlink holding just "A ".
+    it('exports a link with inline formatting as one hyperlink in source order', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+
+      const service = await freshService()
+      await service.exportToWord('[A **B** C](https://example.com) tail', 'doc.docx')
+
+      const zip = new AdmZip(tmpFile)
+      const documentXml = zip.readAsText('word/document.xml')
+      const hyperlinks = documentXml.match(/<w:hyperlink[^>]*>[\s\S]*?<\/w:hyperlink>/g) ?? []
+      expect(hyperlinks).toHaveLength(1)
+      const [hyperlink = ''] = hyperlinks
+
+      const linkRuns = hyperlink.match(/<w:r>[\s\S]*?<\/w:r>/g) ?? []
+      expect(linkRuns.map((run) => textsOf(run)[0])).toEqual(['A ', 'B', ' C'])
+      expect(linkRuns.map((run) => run.includes('<w:b/>'))).toEqual([false, true, false])
+      expect(textsOf(documentXml.replace(hyperlink, ''))).toEqual([' tail'])
+
+      const relId = hyperlink.match(/r:id="([^"]+)"/)?.[1]
+      const rels = zip.readAsText('word/_rels/document.xml.rels')
+      expect(rels).toMatch(new RegExp(`Id="${relId}"[^>]*Target="https://example.com"`))
+    })
+
+    it('keeps the text of a link with an empty target as plain text', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+
+      const service = await freshService()
+      await service.exportToWord('[empty]()', 'doc.docx')
+
+      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      expect(documentXml).not.toContain('<w:hyperlink')
+      expect(documentXml).not.toContain('Hyperlink')
+      expect(textsOf(documentXml)).toEqual(['empty'])
+    })
   })
 })

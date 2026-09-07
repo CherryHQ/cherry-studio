@@ -37,45 +37,32 @@ export class ExportService {
 
     const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
       const runs: (TextRun | ExternalHyperlink)[] = []
-      let linkText = ''
+      let linkRuns: TextRun[] = []
       let linkUrl = ''
-      let insideLink = false
       let boldStack = 0 // 跟踪嵌套的粗体标记
       let italicStack = 0 // 跟踪嵌套的斜体标记
+
+      const pushRun = (options: Docx.IRunOptions) => {
+        if (linkUrl) {
+          linkRuns.push(new TextRun({ ...options, style: 'Hyperlink', color: '0000FF', underline: { type: 'single' } }))
+        } else {
+          runs.push(new TextRun(options))
+        }
+      }
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i]
         switch (token.type) {
           case 'link_open':
-            insideLink = true
             linkUrl = token.attrs.find((attr: [string, string]) => attr[0] === 'href')[1]
-            linkText = tokens[i + 1].content
-            i += 1
+            linkRuns = []
             break
           case 'link_close':
-            if (insideLink && linkUrl && linkText) {
-              // Handle any accumulated link text with the ExternalHyperlink
-              runs.push(
-                new ExternalHyperlink({
-                  children: [
-                    new TextRun({
-                      text: linkText,
-                      style: 'Hyperlink',
-                      color: '0000FF',
-                      underline: {
-                        type: 'single'
-                      }
-                    })
-                  ],
-                  link: linkUrl
-                })
-              )
-
-              // Reset link variables
-              linkText = ''
-              linkUrl = ''
-              insideLink = false
+            if (linkRuns.length > 0) {
+              runs.push(new ExternalHyperlink({ children: linkRuns, link: linkUrl }))
             }
+            linkRuns = []
+            linkUrl = ''
             break
           case 'strong_open':
             boldStack++
@@ -90,24 +77,20 @@ export class ExportService {
             italicStack--
             break
           case 'text':
-            runs.push(
-              new TextRun({
-                text: token.content,
-                bold: isHeaderRow || boldStack > 0,
-                italics: italicStack > 0
-              })
-            )
+            pushRun({
+              text: token.content,
+              bold: isHeaderRow || boldStack > 0,
+              italics: italicStack > 0
+            })
             break
           case 'code_inline':
-            runs.push(
-              new TextRun({
-                text: token.content,
-                font: 'Consolas',
-                size: 20,
-                bold: isHeaderRow || boldStack > 0,
-                italics: italicStack > 0
-              })
-            )
+            pushRun({
+              text: token.content,
+              font: 'Consolas',
+              size: 20,
+              bold: isHeaderRow || boldStack > 0,
+              italics: italicStack > 0
+            })
             break
         }
       }
