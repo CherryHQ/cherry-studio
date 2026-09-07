@@ -342,4 +342,63 @@ describe('IpcChatTransport', () => {
     reader.releaseLock()
     await stream!.cancel().catch(() => {})
   })
+
+  it('reconnectToStream drops orphaned tool-output when tool-input is truncated', async () => {
+    const execId = 'provider-a::model-a' as UniqueModelId
+    const toolStart = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'tool-input-start', toolCallId: 't1', toolName: 'read', id: 't1' } as unknown as UIMessageChunk
+    }
+    const filler = Array.from({ length: 1100 }, (_, i) => ({
+      topicId,
+      executionId: execId,
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` } as UIMessageChunk
+    }))
+    const toolOutput = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'done' } as unknown as UIMessageChunk
+    }
+    const trailingText = {
+      topicId,
+      executionId: execId,
+      chunk: { type: 'text-delta', id: 'x', delta: 'after' } as UIMessageChunk
+    }
+    const bufferedChunks = [toolStart, ...filler, toolOutput, trailingText]
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks.some((c) => (c as { type: string }).type === 'tool-output-available')).toBe(false)
+    expect(chunks.some((c) => (c as { type: string; delta?: string }).delta === 'after')).toBe(true)
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('topic-level stream isolates first execution to avoid mixing part IDs', async () => {
+    const stream = await transport.sendMessages(baseOptions)
+    const reader = stream.getReader()
+
+    const execA = 'provider-a::model-a' as UniqueModelId
+    const execB = 'provider-b::model-b' as UniqueModelId
+    mock.emitChunk(topicId, { type: 'text-start', id: '0' } as UIMessageChunk, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-A' } as UIMessageChunk, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-B' } as UIMessageChunk, execB)
+    mock.emitDone(topicId, undefined, true)
+
+    const first = await reader.read()
+    expect(first.value).toEqual({ type: 'text-start', id: '0' })
+    const second = await reader.read()
+    expect(second.value).toEqual({ type: 'text-delta', id: '0', delta: 'from-A' })
+    const third = await reader.read()
+    expect(third.done).toBe(true)
+  })
 })

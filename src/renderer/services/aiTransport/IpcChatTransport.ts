@@ -104,6 +104,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
     let isStreamClosed = false
+    let pinnedExecutionId: UniqueModelId | undefined
 
     const cleanup = () => {
       if (isCleaned) return
@@ -168,7 +169,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
-          return true
+          if (data.isTopicDone) return true
+          if (!data.executionId) return true
+          if (pinnedExecutionId === undefined) {
+            pinnedExecutionId = data.executionId
+            return true
+          }
+          return data.executionId === pinnedExecutionId
         }
 
         unsubscribers.push(

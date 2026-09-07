@@ -6,8 +6,11 @@ export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 // buildCompactReplay (ring buffer + delta merge/synthesis); this helper only
 // bounds synchronous replay work during attach before the live stream handoff.
 // Lives in `shared/ai/transport` alongside the stream types so both renderer
-// call sites (IpcChatTransport, TopicStreamSubscription) share one cap path;
-// it is not used from Main.
+// call sites (IpcChatTransport, TopicStreamSubscription) share one cap path
+// without duplicating protocol-repair logic; it is not imported or used from
+// Main. If a third renderer consumer appears, keep sharing here; if Main ever
+// needs the same cap, extract the pure tail/synthesis core to a shared util
+// and keep the renderer cap wrapper separate.
 
 function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
   return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
