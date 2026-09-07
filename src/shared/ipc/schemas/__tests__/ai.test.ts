@@ -177,51 +177,26 @@ describe('ai.agent.handoff.draft.open IPC schema', () => {
   const openDraftResult = aiRequestSchemas['ai.agent.handoff.draft.open'].output
   const streamId = 'handoff:draft:00000000-0000-4000-8000-000000000001'
 
-  it('requires a namespaced UUID stream id when supplied', () => {
-    const base = {
-      sourceSessionId: 'source-1',
-      task: 'continue',
-      target: { agentId: 'agent-1', name: 'Builder' }
-    }
+  it('requires a namespaced stream id and target identity, rejecting renderer-supplied target details', () => {
+    const base = { sourceSessionId: 'source-1', task: 'continue', targetAgentId: 'agent-1' }
     expect(openDraft.safeParse({ ...base, streamId }).success).toBe(true)
+    expect(openDraft.safeParse(base).success).toBe(false)
     expect(openDraft.safeParse({ ...base, streamId: 'topic-1' }).success).toBe(false)
+    expect(openDraft.safeParse({ ...base, streamId, target: { agentId: 'agent-1', name: 'Forged' } }).success).toBe(
+      false
+    )
   })
 
-  it('returns coverage, selected model, and standard file-part metadata', () => {
-    expect(
-      openDraftResult.parse({
-        streamId,
-        modelId: 'openai::summary',
-        coverage: {
-          source: 'topic',
-          sessionId: 'source-1',
-          capturedAt: '2026-09-07T00:00:00.000Z',
-          messageCount: 1,
-          messageIds: ['m1'],
-          attachmentCount: 1,
-          toolPartCount: 0
-        },
-        attachments: [{ type: 'file', mediaType: 'text/plain', url: 'file:///tmp/a.txt' }]
-      })
-    ).toMatchObject({ streamId, modelId: 'openai::summary', coverage: { messageCount: 1 } })
-  })
-
-  it('rejects malformed attachment metadata', () => {
+  it('accepts standard file parts and rejects malformed attachment metadata', () => {
+    const base = { modelId: 'openai::summary', messageCount: 1 }
     expect(
       openDraftResult.safeParse({
-        streamId,
-        modelId: 'openai::summary',
-        coverage: {
-          source: 'topic',
-          sessionId: 'source-1',
-          capturedAt: '2026-09-07T00:00:00.000Z',
-          messageCount: 0,
-          messageIds: [],
-          attachmentCount: 1,
-          toolPartCount: 0
-        },
-        attachments: [{ type: 'file', mediaType: 'text/plain' }]
+        ...base,
+        attachments: [{ type: 'file', mediaType: 'text/plain', url: 'file:///tmp/a.txt' }]
       }).success
+    ).toBe(true)
+    expect(
+      openDraftResult.safeParse({ ...base, attachments: [{ type: 'file', mediaType: 'text/plain' }] }).success
     ).toBe(false)
   })
 })

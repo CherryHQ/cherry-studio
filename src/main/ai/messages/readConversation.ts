@@ -1,24 +1,14 @@
-import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
-import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
-import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { AgentSessionMessagesListQuerySchema } from '@shared/data/api/schemas/agentSessionMessages'
 import { BranchMessagesQuerySchema } from '@shared/data/api/schemas/messages'
-import type { BranchMessagesResponse, Message } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
+import type { Message } from '@shared/data/types/message'
 import * as z from 'zod'
-
-const logger = loggerService.withContext('ai:readConversation')
 
 export type ConversationSource = 'topic' | 'agent' | 'temporary'
 
@@ -32,42 +22,17 @@ export class ConversationReadError extends Error {
   }
 }
 
-export interface ReadConversationInput {
-  sessionId: string
-  cursor?: string
-  limit?: number
-  nodeId?: string
-  includeSiblings?: boolean
-  messageId?: string
-  toolCallId?: string
-}
+const conversationQuerySchema = z.strictObject({
+  sessionId: z.string().min(1),
+  cursor: z.string().optional(),
+  limit: z.number().int().positive().optional(),
+  nodeId: z.string().optional(),
+  includeSiblings: z.boolean().optional(),
+  messageId: z.string().min(1).optional()
+})
 
-export type ReadConversationResult =
-  | {
-      source: 'topic'
-      sessionId: string
-      messages: BranchMessagesResponse['items']
-      nextCursor?: string
-      activeNodeId: string | null
-      assistantId: string | null
-      rootId: string | null
-    }
-  | {
-      source: 'agent'
-      sessionId: string
-      messages: AgentSessionMessageEntity[]
-      nextCursor?: string
-    }
-  | {
-      source: 'temporary'
-      sessionId: string
-      messages: Message[]
-    }
-  | {
-      source: ConversationSource
-      sessionId: string
-      message: Message | AgentSessionMessageEntity
-    }
+export type ReadConversationInput = z.infer<typeof conversationQuerySchema>
+export type ReadConversationResult = ReturnType<typeof readConversation>
 
 type ConversationCandidate = {
   source: ConversationSource
@@ -75,30 +40,14 @@ type ConversationCandidate = {
 }
 
 function assertValidQuery(input: ReadConversationInput): void {
-  const common = z
-    .strictObject({
-      sessionId: z.string().min(1),
-      cursor: z.string().optional(),
-      limit: z.number().int().positive().optional(),
-      nodeId: z.string().optional(),
-      includeSiblings: z.boolean().optional(),
-      messageId: z.string().min(1).optional(),
-      toolCallId: z.string().min(1).optional()
-    })
-    .safeParse(input)
+  const common = conversationQuerySchema.safeParse(input)
   if (!common.success)
     throw new ConversationReadError('INVALID_PARAMS', common.error.issues[0]?.message ?? 'Invalid query')
-  if (input.toolCallId && !input.messageId) {
-    throw new ConversationReadError('INVALID_PARAMS', "'tool_call_id' requires 'message_id'")
-  }
   if (
     input.messageId &&
     (input.cursor || input.nodeId || input.limit !== undefined || input.includeSiblings !== undefined)
   ) {
     throw new ConversationReadError('INVALID_PARAMS', "'message_id' cannot be combined with list query parameters")
-  }
-  if (input.toolCallId && input.limit !== undefined) {
-    throw new ConversationReadError('INVALID_PARAMS', "'tool_call_id' cannot be combined with 'limit'")
   }
 }
 
@@ -166,8 +115,7 @@ function assertSourceQuery(source: ConversationSource, input: ReadConversationIn
     input.limit !== undefined ||
     input.nodeId !== undefined ||
     input.includeSiblings !== undefined ||
-    input.messageId !== undefined ||
-    input.toolCallId !== undefined
+    input.messageId !== undefined
   ) {
     throw new ConversationReadError('INVALID_PARAMS', 'Temporary conversations do not support query parameters')
   }
@@ -196,7 +144,7 @@ function readExactMessage(
   }
 }
 
-export function readConversation(input: ReadConversationInput): ReadConversationResult {
+export function readConversation(input: ReadConversationInput) {
   assertValidQuery(input)
   const candidate = identifyConversation(input.sessionId)
   assertSourceQuery(candidate.source, input)
@@ -209,6 +157,10 @@ export function readConversation(input: ReadConversationInput): ReadConversation
     return { source: candidate.source, sessionId: candidate.sessionId, message }
   }
 
+  return readConversationPage(candidate, input)
+}
+
+function readConversationPage(candidate: ConversationCandidate, input: ReadConversationInput) {
   if (candidate.source === 'topic') {
     const result = messageService.getBranchMessages(candidate.sessionId, {
       cursor: input.cursor,
@@ -217,7 +169,7 @@ export function readConversation(input: ReadConversationInput): ReadConversation
       includeSiblings: input.includeSiblings
     })
     return {
-      source: 'topic',
+      source: 'topic' as const,
       sessionId: candidate.sessionId,
       messages: result.items,
       nextCursor: result.nextCursor,
@@ -231,58 +183,31 @@ export function readConversation(input: ReadConversationInput): ReadConversation
       cursor: input.cursor,
       limit: input.limit
     })
-    return { source: 'agent', sessionId: candidate.sessionId, messages: result.items, nextCursor: result.nextCursor }
+    return {
+      source: 'agent' as const,
+      sessionId: candidate.sessionId,
+      messages: result.items,
+      nextCursor: result.nextCursor
+    }
   }
   return {
-    source: 'temporary',
+    source: 'temporary' as const,
     sessionId: candidate.sessionId,
     messages: temporaryChatService.listMessages(candidate.sessionId)
   }
 }
 
-export async function findPersistedToolOutput(
-  topicId: string,
-  messageId: string,
-  toolCallId: string
-): Promise<AiToolResultResponse> {
-  try {
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
-    for (const part of parts ?? []) {
-      if (!isToolUIPart(part) || part.state !== 'output-available') continue
-      if (part.toolCallId !== toolCallId) continue
-      if (isPersistedToolOutput(part.output)) {
-        return { found: true, output: await resolvePersistedToolOutput(part.output) }
-      }
-      return { found: true, output: part.output }
-    }
-  } catch (error) {
-    // Preserve ai.tool.get_result's miss contract; readable envelopes can still
-    // degrade to an excerpt when their blob is unavailable.
-    logger.warn('persisted tool result lookup failed', { topicId, messageId, toolCallId, error })
-  }
-  return { found: false }
-}
-
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
-  const ref = output.$persistedToolOutput
-  const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
-    try {
-      const entry = fileEntryService.findById(blob.fileEntryId)
-      if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
-      const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
-      return content
-    } catch (error) {
-      logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, error })
-      return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
-    }
-  }
-  if (ref.shape === 'entities') {
-    const texts = Object.fromEntries(
-      await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
-    )
-    return inflateEntities(ref, texts)
-  }
-  return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
+/** Read one source's selected history in chronological order without re-identifying it per page. */
+export function readAllConversationMessages(input: Pick<ReadConversationInput, 'sessionId' | 'nodeId'>) {
+  assertValidQuery(input)
+  const candidate = identifyConversation(input.sessionId)
+  const messages: Array<Message | AgentSessionMessageEntity> = []
+  let cursor: string | undefined
+  do {
+    const page = readConversationPage(candidate, { ...input, cursor, limit: 200, includeSiblings: false })
+    if (page.source === 'topic') messages.unshift(...page.messages.map((entry) => entry.message))
+    else messages.push(...page.messages)
+    cursor = 'nextCursor' in page ? page.nextCursor : undefined
+  } while (cursor)
+  return { ...candidate, messages: candidate.source === 'agent' ? messages.reverse() : messages }
 }

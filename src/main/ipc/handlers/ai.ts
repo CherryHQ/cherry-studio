@@ -1,17 +1,10 @@
-import { randomUUID } from 'node:crypto'
-
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import {
-  HandoffDraftError,
-  HandoffStartConflictError,
-  startHandoff,
-  streamHandoffDraft
-} from '@main/ai/agentSession/handoff'
-import { findPersistedToolOutput } from '@main/ai/messages/readConversation'
+import { HandoffStartConflictError, startHandoff } from '@main/ai/agentSession/handoff'
+import { HandoffDraftError, openHandoffDraft } from '@main/ai/agentSession/handoffDraft'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
@@ -96,8 +89,7 @@ async function exposeHandoffDraftError<T>(op: () => T | Promise<T>): Promise<T> 
   } catch (error) {
     if (error instanceof HandoffDraftError) {
       throw new IpcError(aiErrorCodes.AI_HANDOFF_DRAFT_FAILED, error.message, {
-        code: error.code,
-        details: error.details
+        code: error.code
       })
     }
     throw error
@@ -162,30 +154,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.handoff.draft.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.agent.handoff.draft.open requires a managed window')
-    const streamId = request.streamId ?? `handoff:draft:${randomUUID()}`
-    const targetAgent = agentService.getAgent(request.target.agentId)
-    if (!targetAgent) throw new Error(`Target Agent not found: ${request.target.agentId}`)
-    const draft = streamHandoffDraft({
-      ...request,
-      target: {
-        ...request.target,
-        name: targetAgent.name,
-        description: targetAgent.description
-      },
-      streamId,
-      listener: new WebContentsListener(wc, streamId)
-    })
-    const result = await exposeHandoffDraftError(() => draft.ready)
-    const prepared = result.draft
-    return {
-      streamId: draft.streamId,
-      modelId: prepared.modelId,
-      coverage: {
-        ...prepared.material.coverage,
-        messageIds: [...prepared.material.coverage.messageIds]
-      },
-      attachments: [...prepared.material.attachments]
-    }
+    return exposeHandoffDraftError(() => openHandoffDraft(request, new WebContentsListener(wc, request.streamId)))
   },
   'ai.agent.handoff.start': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)

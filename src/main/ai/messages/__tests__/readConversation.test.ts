@@ -10,7 +10,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findPersistedToolOutput, readConversation } from '../readConversation'
+import { findPersistedToolOutput } from '../persistedToolOutput'
+import { readAllConversationMessages, readConversation } from '../readConversation'
 
 const fileManager = MockMainFileManagerExport.fileManager as unknown as {
   read: ReturnType<typeof vi.fn>
@@ -304,6 +305,61 @@ describe('readConversation', () => {
     await expect(findPersistedToolOutput(`agent-session:${session.id}`, message.id, 'call-1')).resolves.toEqual({
       found: true,
       output: 'legacy full output'
+    })
+  })
+  it('reads a real current branch through pagination and restores chronological order', () => {
+    const topic = topicService.create({ name: `handoff pagination ${Date.now()}` })
+    const messageIds: string[] = []
+    let parentId: string | undefined
+    for (let index = 1; index <= 400; index += 1) {
+      const message = messageService.create(topic.id, {
+        role: index % 2 === 0 ? 'assistant' : 'user',
+        data: { parts: [{ type: 'text', text: `message ${index}` }] },
+        status: 'success',
+        ...(parentId ? { parentId } : {})
+      })
+      messageIds.push(message.id)
+      parentId = message.id
+    }
+
+    const material = readAllConversationMessages({ sessionId: topic.id })
+
+    expect(material.messages).toHaveLength(400)
+    expect(material.messages.map((message) => message.id)).toEqual(messageIds)
+  })
+
+  it('reads Agent and temporary sources with their own query contracts without creating either source', () => {
+    const agentId = `handoff-agent-${Date.now()}`
+    dbh.db
+      .insert(agentTable)
+      .values({ id: agentId, type: 'claude-code', name: 'Handoff Agent', instructions: '', orderKey: agentId })
+      .run()
+    const workspace = agentWorkspaceService.findOrCreateByPath(`/tmp/cherry-handoff-${Date.now()}`)
+    const session = agentSessionService.create({
+      agentId,
+      name: 'Handoff source',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+    agentSessionMessageService.saveMessages({
+      sessionId: session.id,
+      messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'Agent source' }] }, status: 'success' }]
+    })
+    const agentMaterial = readAllConversationMessages({ sessionId: session.id })
+    expect(agentMaterial.source).toBe('agent')
+    expect(agentMaterial.messages.length).toBe(1)
+
+    const temporary = temporaryChatService.createTopic({ name: 'Handoff temporary source' })
+    temporaryTopicId = temporary.id
+    const temporaryMessage = temporaryChatService.appendMessage(temporary.id, {
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'Temporary source' }] },
+      status: 'success'
+    })
+    const temporaryMaterial = readAllConversationMessages({ sessionId: temporary.id })
+    expect(temporaryMaterial).toMatchObject({
+      source: 'temporary',
+      sessionId: temporary.id,
+      messages: [expect.objectContaining({ id: temporaryMessage.id })]
     })
   })
 })

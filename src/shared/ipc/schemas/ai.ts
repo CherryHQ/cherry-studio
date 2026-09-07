@@ -94,15 +94,6 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
 
-const handoffDraftTargetSchema = z.strictObject({
-  agentId: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().optional(),
-  workspaceSource: AgentSessionWorkspaceSourceSchema.optional()
-})
-
-export type HandoffDraftTarget = z.infer<typeof handoffDraftTargetSchema>
-
 const handoffDraftStreamIdPattern =
   /^handoff:draft:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export const HandoffDraftStreamIdSchema = z.string().regex(handoffDraftStreamIdPattern)
@@ -110,23 +101,13 @@ export const HandoffDraftStreamIdSchema = z.string().regex(handoffDraftStreamIdP
 export const HandoffDraftOpenSchema = z.strictObject({
   sourceSessionId: z.string().min(1),
   task: z.string().trim().min(1),
-  target: handoffDraftTargetSchema,
+  targetAgentId: z.string().min(1),
   summaryModelId: UniqueModelIdSchema.optional(),
   nodeId: z.string().min(1).optional(),
   /** Renderer-generated identity lets it subscribe before preparation finishes. */
-  streamId: HandoffDraftStreamIdSchema.optional()
+  streamId: HandoffDraftStreamIdSchema
 })
 export type HandoffDraftOpen = z.infer<typeof HandoffDraftOpenSchema>
-
-const handoffCoverageSchema = z.strictObject({
-  source: z.enum(['topic', 'agent', 'temporary']),
-  sessionId: z.string().min(1),
-  capturedAt: z.iso.datetime(),
-  messageCount: z.number().int().nonnegative(),
-  messageIds: z.array(z.string().min(1)),
-  attachmentCount: z.number().int().nonnegative(),
-  toolPartCount: z.number().int().nonnegative()
-})
 
 const handoffAttachmentSchema = z.custom<FileUIPart>((value) => {
   if (!value || typeof value !== 'object') return false
@@ -135,9 +116,8 @@ const handoffAttachmentSchema = z.custom<FileUIPart>((value) => {
 })
 
 export const HandoffDraftOpenResponseSchema = z.strictObject({
-  streamId: HandoffDraftStreamIdSchema,
   modelId: UniqueModelIdSchema,
-  coverage: handoffCoverageSchema,
+  messageCount: z.number().int().nonnegative(),
   attachments: z.array(handoffAttachmentSchema)
 })
 export type HandoffDraftOpenResponse = z.infer<typeof HandoffDraftOpenResponseSchema>

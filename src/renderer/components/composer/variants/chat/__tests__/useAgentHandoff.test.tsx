@@ -31,8 +31,7 @@ vi.mock('@renderer/components/DefaultModelSelector', () => ({
 }))
 vi.mock('@renderer/utils/file/buildFileParts', () => ({ buildFilePartsForAttachments: mocks.buildFiles }))
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
-  WorkspaceSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
-  AgentSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+  WorkspaceSelector: ({ trigger }: { trigger: ReactNode }) => trigger
 }))
 vi.mock('@cherrystudio/ui', () => ({
   Button: (props: ComponentProps<'button'>) => <button {...props} />,
@@ -63,8 +62,6 @@ function Harness({ sourceId = 'topic-1' }: { sourceId?: string }) {
   return (
     <>
       <button onClick={() => handoff.open(draft, target, source, [])}>open</button>
-      <button onClick={() => void handoff.start()}>program-start</button>
-      <button onClick={handoff.cancel}>program-cancel</button>
       {handoff.dialog}
     </>
   )
@@ -76,7 +73,7 @@ describe('useAgentHandoff', () => {
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.stream.abort'
         ? Promise.resolve(undefined)
-        : Promise.resolve({ streamId: '', modelId: 'm', coverage: {}, attachments: [] })
+        : Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
     )
     mocks.listeners.clear()
     mocks.openConversation.mockReset()
@@ -101,7 +98,7 @@ describe('useAgentHandoff', () => {
       Promise.resolve(
         route === 'ai.agent.handoff.start'
           ? { sessionId: 'session-1', state: 'started' }
-          : { streamId: '', modelId: 'provider::summary', coverage: {}, attachments: [] }
+          : { modelId: 'provider::summary', messageCount: 0, attachments: [] }
       )
     )
     mocks.openConversation.mockImplementation(() => {
@@ -126,7 +123,7 @@ describe('useAgentHandoff', () => {
     expect(mocks.openConversation).not.toHaveBeenCalled()
     await act(async () => {
       mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' })
-      resolve({ streamId, modelId: 'm', coverage: {}, attachments: [] })
+      resolve({ modelId: 'm', messageCount: 0, attachments: [] })
     })
     expect(mocks.openConversation).not.toHaveBeenCalled()
   })
@@ -134,7 +131,7 @@ describe('useAgentHandoff', () => {
   it('sends an explicit summary model id and regenerates the preview without creating a session', async () => {
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.agent.handoff.draft.open'
-        ? Promise.resolve({ streamId: 'unused', modelId: 'provider::default', coverage: {}, attachments: [] })
+        ? Promise.resolve({ modelId: 'provider::default', messageCount: 0, attachments: [] })
         : Promise.resolve(undefined)
     )
     render(<Harness />)
@@ -165,12 +162,12 @@ describe('useAgentHandoff', () => {
     expect(streamId).toMatch(/^handoff:draft:/)
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     expect(mocks.request).toHaveBeenCalledWith('ai.stream.abort', expect.anything())
-    await act(async () => resolve({ streamId: 'late', modelId: 'm', coverage: {}, attachments: [] }))
+    await act(async () => resolve({ modelId: 'm', messageCount: 0, attachments: [] }))
     expect(mocks.request.mock.calls.filter(([route]) => route === 'ai.stream.abort')).toHaveLength(2)
   })
 
   it('submits edited goal and summary with the same confirmation identity after a retry', async () => {
-    const draftOpen = Promise.resolve({ streamId: 'handoff:draft:ready', modelId: 'm', coverage: {}, attachments: [] })
+    const draftOpen = Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.agent.handoff.draft.open'
         ? draftOpen
@@ -192,7 +189,11 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     const starts = mocks.request.mock.calls.filter(([route]) => route === 'ai.agent.handoff.start')
     expect(starts).toHaveLength(2)
-    expect(starts[0][1]).toMatchObject({ goal: 'Edited goal', summary: 'Edited summary' })
+    expect(starts[0][1]).toMatchObject({
+      targetAgentId: target.agentId,
+      goal: 'Edited goal',
+      summary: 'Edited summary'
+    })
     expect(starts[1][1]).toMatchObject({ goal: 'Edited goal', summary: 'Edited summary' })
     expect(starts[1][1].handoffId).toBe(starts[0][1].handoffId)
   })
@@ -210,7 +211,7 @@ describe('useAgentHandoff', () => {
   it('sends only one start request when confirmation is clicked twice', async () => {
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.agent.handoff.draft.open'
-        ? Promise.resolve({ streamId: 'unused', modelId: 'm', coverage: {}, attachments: [] })
+        ? Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
         : route === 'ai.agent.handoff.start'
           ? new Promise(() => undefined)
           : Promise.resolve(undefined)
@@ -232,7 +233,7 @@ describe('useAgentHandoff', () => {
     mocks.buildFiles.mockImplementationOnce(() => new Promise((resolve) => (resolveFiles = resolve)))
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.agent.handoff.draft.open'
-        ? Promise.resolve({ streamId: 'unused', modelId: 'm', coverage: {}, attachments: [] })
+        ? Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
         : Promise.resolve(undefined)
     )
     render(<Harness />)
@@ -248,7 +249,7 @@ describe('useAgentHandoff', () => {
   it('keeps a created session recoverable when start reports an error', async () => {
     mocks.request.mockImplementation((route: string) =>
       route === 'ai.agent.handoff.draft.open'
-        ? Promise.resolve({ streamId: 'unused', modelId: 'm', coverage: {}, attachments: [] })
+        ? Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
         : route === 'ai.agent.handoff.start'
           ? Promise.resolve({ sessionId: 'session-1', state: 'created', error: { message: 'delivery failed' } })
           : Promise.resolve(undefined)

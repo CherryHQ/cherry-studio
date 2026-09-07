@@ -336,6 +336,24 @@ describe('startHandoff', () => {
     ).toBe(currentAgent.model)
   })
 
+  it('does not execute a validated turn after its session is reassigned to another Agent', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'other-agent', type: 'claude-code', name: 'Other', instructions: '', orderKey: 'other' })
+      .run()
+    const validate = mocks.validateDispatch.getMockImplementation()!
+    mocks.validateDispatch.mockImplementationOnce(async (request) => {
+      const validated = await validate(request)
+      agentSessionService.update(validated.sessionId, { agentId: 'other-agent' })
+      return validated
+    })
+    await expect(startHandoff(input(), listener)).resolves.toMatchObject({
+      state: 'created',
+      error: { message: expect.stringContaining('Target Session') }
+    })
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+
   it('does not create while quiesced and leaves a pending placeholder when the target changes during validation', async () => {
     mocks.isWriteQuiesced = true
     await expect(startHandoff(input(), listener)).rejects.toThrow('write-quiesced')

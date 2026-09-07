@@ -11,11 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '@renderer/components/composer/tokens'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
-import {
-  AgentSelector,
-  type AgentSelectorItem,
-  WorkspaceSelector
-} from '@renderer/components/resourceCatalog/selectors'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -165,7 +161,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
         .request('ai.agent.handoff.draft.open', {
           sourceSessionId: source.id,
           task: draft.text.trim(),
-          target: { agentId: target.agentId, name: target.name, description: target.description },
+          targetAgentId: target.agentId,
           ...(options?.summaryModelId ? { summaryModelId: options.summaryModelId } : {}),
           streamId
         })
@@ -239,30 +235,6 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
     cancel()
   }, [cancel, navigation, sourceId, state.phase, state.result, state.source?.id, state.target?.name])
 
-  const changeTarget = useCallback(
-    (item: AgentSelectorItem | null) => {
-      const current = stateRef.current
-      if (!item || !current.source) return
-      open(
-        { text: current.task, tokens: [] },
-        {
-          agentId: item.id,
-          name: item.name,
-          description: typeof item.description === 'string' ? item.description : undefined
-        },
-        current.source,
-        current.attachments,
-        {
-          summaryModelId: current.summaryModelId,
-          workspaceId: current.workspaceId,
-          excludedAttachments: current.excludedAttachments,
-          handoffId: current.handoffId
-        }
-      )
-    },
-    [open]
-  )
-
   useEffect(() => cancel, [cancel, sourceId])
 
   const close = useCallback(() => {
@@ -301,16 +273,6 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
             <DialogDescription>{t('agent.session.handoff.description')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <AgentSelector
-              selectionType="item"
-              value={{ id: state.target.agentId, name: state.target.name, description: state.target.description }}
-              onChange={changeTarget}
-              trigger={
-                <Button type="button" variant="outline" disabled={inputDisabled}>
-                  {state.target.name}
-                </Button>
-              }
-            />
             <label className="block font-medium text-sm" htmlFor={taskId}>
               {t('agent.session.handoff.goal')}
             </label>
@@ -351,7 +313,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
             {state.metadata ? (
               <p className="text-muted-foreground text-xs">
                 {t('agent.session.handoff.coverage', {
-                  count: state.metadata.coverage.messageCount,
+                  count: state.metadata.messageCount,
                   attachments: state.metadata.attachments.length
                 })}
               </p>
@@ -413,7 +375,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
       </Dialog>
     ) : null
 
-  return { open, cancel, start, close, dialog, state }
+  return { open, dialog }
 }
 
 export function getHandoffTarget(tokens: readonly ComposerSerializedToken[]) {

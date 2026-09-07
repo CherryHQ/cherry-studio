@@ -18,11 +18,8 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
-import {
-  findPersistedToolOutput,
-  readConversation,
-  type ReadConversationInput
-} from '@main/ai/messages/readConversation'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -648,6 +645,9 @@ export class CherryAutonomyTools {
     if (!parsed.success)
       throw new McpError(ErrorCode.InvalidParams, parsed.error.issues[0]?.message ?? 'Invalid session_read input')
     const sessionId = parsed.data.session_id.trim()
+    if (parsed.data.tool_call_id && !parsed.data.message_id) {
+      throw new McpError(ErrorCode.InvalidParams, "'tool_call_id' requires 'message_id'")
+    }
 
     const readInput: ReadConversationInput = {
       sessionId,
@@ -655,14 +655,10 @@ export class CherryAutonomyTools {
       limit: parsed.data.limit,
       nodeId: parsed.data.node_id,
       includeSiblings: parsed.data.include_siblings,
-      messageId: parsed.data.message_id,
-      toolCallId: parsed.data.tool_call_id
+      messageId: parsed.data.message_id
     }
     const conversation = readConversation(readInput)
-    if (parsed.data.tool_call_id) {
-      if (!parsed.data.message_id) {
-        throw new McpError(ErrorCode.InvalidParams, "'tool_call_id' requires 'message_id'")
-      }
+    if (parsed.data.tool_call_id && parsed.data.message_id) {
       const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
       const toolResult = await findPersistedToolOutput(topicId, parsed.data.message_id, parsed.data.tool_call_id)
       return {

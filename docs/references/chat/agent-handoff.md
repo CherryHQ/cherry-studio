@@ -2,7 +2,9 @@
 description: Explicit Chat-to-Agent handoff with an editable draft, independent target configuration, and current source-history reads
 sources:
   - src/main/ai/agentSession/handoff.ts
+  - src/main/ai/agentSession/handoffDraft.ts
   - src/main/ai/messages/readConversation.ts
+  - src/main/ai/messages/persistedToolOutput.ts
   - src/shared/ipc/schemas/ai.ts
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
 ---
@@ -18,17 +20,20 @@ create a Session or ask the source Assistant to answer.
 
 Main gathers the selected source branch and generates a target-oriented draft with
 the existing prompt stream. The request does not inherit the source Assistant's
-tools or MCP servers. The response includes the model used, source coverage, and
-available attachments so the renderer can present what was included.
+tools or MCP servers. The response includes the model used, message count, and
+available attachments. Detailed coverage remains in the summary prompt.
 
 The configured quick model is preferred, with the source model as fallback. An
-explicit summary model does not silently fall back. Capacity checks reject an input
-that cannot fit; the source is not silently shortened to the composer's input limit.
-Models without a declared context window can generate a draft; the provider reports
-any capacity error, following the existing prompt-stream behavior.
+explicit summary model does not silently fall back. The source is not silently
+shortened to the composer's input limit. Capacity errors follow the existing model
+stream error path; handoff does not run a separate asynchronous capacity preflight.
+The stream is registered synchronously, so the existing abort route also covers
+the interval before its first output.
 The task and summary remain editable before confirmation. The preview also lets
 the user select a different summary model and regenerate without changing global
 model defaults.
+The selected Agent is fixed for this draft. To change it, cancel and select another
+`@Agent` in the composer.
 
 ## Confirmation and execution
 

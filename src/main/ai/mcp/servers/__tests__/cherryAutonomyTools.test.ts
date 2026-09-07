@@ -51,7 +51,9 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@main/ai/messages/readConversation', () => ({
-  readConversation: mockReadConversation,
+  readConversation: mockReadConversation
+}))
+vi.mock('@main/ai/messages/persistedToolOutput', () => ({
   findPersistedToolOutput: mockFindPersistedToolOutput
 }))
 
@@ -290,8 +292,7 @@ describe('CherryAutonomyTools', () => {
         limit: 10,
         nodeId: undefined,
         includeSiblings: undefined,
-        messageId: undefined,
-        toolCallId: undefined
+        messageId: undefined
       })
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         source: 'topic',
