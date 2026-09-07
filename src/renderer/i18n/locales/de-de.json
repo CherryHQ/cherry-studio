@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Vererbt ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Bevorzugter Endpunkt",
   "settings.models.add.preferred_endpoint.tooltip": "Wähle den API-Endpunkt aus, den dieses Modell für Anfragen bevorzugen soll. Die unterstützten Funktionen können je nach Endpunkt variieren; prüfe die Dokumentation des Anbieters.",
-  "settings.models.add.purpose.label": "Modellzweck",
   "settings.models.add.quick_presets": "Schnellvorgaben",
   "settings.models.add.supported_text_delta.label": "Unterstützt inkrementelle Textausgabe",
   "settings.models.add.supported_text_delta.tooltip": "Modell gibt Text inkrementell zurück statt alles auf einmal. Standardmäßig aktiviert, bei Nicht-Unterstützung deaktivieren",

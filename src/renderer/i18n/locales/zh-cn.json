@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "跟随默认（{{endpoint}}）",
   "settings.models.add.preferred_endpoint.label": "首选端点",
   "settings.models.add.preferred_endpoint.tooltip": "选择此模型发送请求时优先使用的 API 端点。不同端点支持的能力可能不同，请参考服务商文档。",
-  "settings.models.add.purpose.label": "模型用途",
   "settings.models.add.quick_presets": "快捷输入",
   "settings.models.add.supported_text_delta.label": "支持增量文本输出",
   "settings.models.add.supported_text_delta.tooltip": "模型每次返回文本增量，而不是一次性返回所有文本，默认开启，如果模型不支持，请关闭",

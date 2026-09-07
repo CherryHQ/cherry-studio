@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Κληρονομημένο ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Προτιμώμενο endpoint",
   "settings.models.add.preferred_endpoint.tooltip": "Επιλέξτε το endpoint API που θα προτιμά αυτό το μοντέλο για αιτήματα. Οι υποστηριζόμενες δυνατότητες ενδέχεται να διαφέρουν· ανατρέξτε στην τεκμηρίωση του παρόχου.",
-  "settings.models.add.purpose.label": "Σκοπός του μοντέλου",
   "settings.models.add.quick_presets": "Γρήγορες προεπιλογές",
   "settings.models.add.supported_text_delta.label": "αυξητική έξοδος κειμένου",
   "settings.models.add.supported_text_delta.tooltip": "Το μοντέλο επιστρέφει το κείμενο σταδιακά και όχι όλο μαζί. Η επιλογή είναι ενεργοποιημένη από προεπιλογή· αν το μοντέλο δεν την υποστηρίζει, απενεργοποιήστε την.",

@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Kế thừa ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Điểm cuối ưu tiên",
   "settings.models.add.preferred_endpoint.tooltip": "Chọn điểm cuối API mà mô hình này nên ưu tiên khi gửi yêu cầu. Các khả năng được hỗ trợ có thể khác nhau; hãy xem tài liệu của nhà cung cấp.",
-  "settings.models.add.purpose.label": "Mục đích của mô hình",
   "settings.models.add.quick_presets": "Giá trị đặt sẵn nhanh",
   "settings.models.add.supported_text_delta.label": "Hỗ trợ xuất văn bản tăng dần",
   "settings.models.add.supported_text_delta.tooltip": "Mô hình trả về văn bản theo từng phần, thay vì toàn bộ cùng lúc. Được bật theo mặc định, nếu mô hình không hỗ trợ, vui lòng tắt tùy chọn này",

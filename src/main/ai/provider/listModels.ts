@@ -625,7 +625,11 @@ const ppioFetcher: ModelFetcher = {
         return
       }
 
-      existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), capability]))
+      // The unfiltered `/models` list repeats the typed ones, so a reranker or embedder arrives here as
+      // a chat model too. Its typed endpoint is the authoritative answer about what it does: that
+      // operation replaces the generic one, or a dedicated model lands in every chat picker. Metadata
+      // still comes from whichever entry created the row — the typed listings carry their own names.
+      existing.capabilities = [capability]
     }
 
     for (const model of chat.data) mergeModel(model, MODEL_CAPABILITY.TEXT_GENERATION)

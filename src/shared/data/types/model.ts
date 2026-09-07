@@ -403,8 +403,8 @@ const ModelObjectSchema = z.object({
   /**
    * The user's explicit routing choice. Honored only while it stays available on the current model
    * and provider; a caller that speaks exactly one dialect still outranks it. Unset — or no longer
-   * available — falls through the rest of the order (declared set → gateway route → provider
-   * default). See `getModelPreferredEndpoint` and `resolveEffectiveEndpoint`.
+   * available — falls through the rest of the order (supported provider default → declared set →
+   * gateway route → provider default). See `getModelPreferredEndpoint` and `resolveEffectiveEndpoint`.
    */
   preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Whether streaming is supported */

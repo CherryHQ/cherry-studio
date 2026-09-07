@@ -68,7 +68,6 @@ export interface AddModelFormPanelProps {
   prefill: AddModelDrawerPrefill | null
   onSuccess: (modelIds: UniqueModelId[]) => void
   onCancel: () => void
-  showPurposeSelection?: boolean
   onDrawerFooterBinding?: (binding: AddModelDrawerFooterBinding | null) => void
   formId?: string
   'data-testid'?: string

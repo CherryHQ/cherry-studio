@@ -124,14 +124,18 @@ idempotent when the base id is already a variant.
 
 ## Provider config
 
-`providerToAiSdkConfig(provider, model, { resolvedEndpoint? })`
+`providerToAiSdkConfig(provider, model, { apiKeyOverride?, operationCapability?, resolvedEndpoint?, sessionId? })`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
 The standard request path passes its already-resolved endpoint into this
 function, which then calls `resolveAiSdkProviderId` and dispatches through an
 ordered `{ match, build }` table to build the provider-specific settings
-object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
-the option and let the function resolve the endpoint itself.
+object (apiKey, baseURL, organization, headers, ...).
+
+A direct caller may omit `resolvedEndpoint` and let the function resolve the
+endpoint itself — in which case it **must** pass `operationCapability`, because
+the default is `text-generation`. An embedding, rerank, image, audio, or video
+request that omits both options resolves a chat endpoint.
 
 The builder table (`config.ts`, first match wins):
 

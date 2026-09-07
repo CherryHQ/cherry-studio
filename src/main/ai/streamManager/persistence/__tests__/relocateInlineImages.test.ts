@@ -10,11 +10,13 @@ const { createInternalEntryMock, getPhysicalPathMock } = vi.hoisted(() => ({
   createInternalEntryMock: vi.fn(),
   getPhysicalPathMock: vi.fn()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: () => ({ createInternalEntry: createInternalEntryMock, getPhysicalPath: getPhysicalPathMock })
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const overrides = {
+    FileManager: { createInternalEntry: createInternalEntryMock, getPhysicalPath: getPhysicalPathMock }
+  } as Parameters<typeof mockApplicationFactory>[0]
+  return mockApplicationFactory(overrides)
+})
 
 import { relocateInlineImages } from '../relocateInlineImages'
 

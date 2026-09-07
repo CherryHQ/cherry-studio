@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Devral ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Tercih Edilen Uç Nokta",
   "settings.models.add.preferred_endpoint.tooltip": "İsteklerde bu modelin tercih etmesi gereken API uç noktasını seçin. Uç nokta özellikleri değişebilir; sağlayıcınızın belgelerine bakın.",
-  "settings.models.add.purpose.label": "Model amacı",
   "settings.models.add.quick_presets": "Hızlı ön ayarlar",
   "settings.models.add.supported_text_delta.label": "Artımlı metin çıktısını destekle",
   "settings.models.add.supported_text_delta.tooltip": "Model, metni tek seferde değil artımlı olarak döndürür. Varsayılan olarak etkindir; model bunu desteklemiyorsa bu seçeneği devre dışı bırakın",

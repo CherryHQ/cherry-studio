@@ -3029,6 +3029,7 @@
     },
     {
       "capabilities": [
+        "text-generation",
         "function-call",
         "reasoning",
         "image-recognition",
@@ -22696,5 +22697,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ba0a1c370820000a"
+  "version": "d6bcf9c6cb07c77f"
 }

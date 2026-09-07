@@ -782,7 +782,6 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         open={manualModelDialogOpen}
         onClose={closeManualModelDialog}
         onSuccess={handleManualModelSuccess}
-        showPurposeSelection={false}
       />
     </>
   )

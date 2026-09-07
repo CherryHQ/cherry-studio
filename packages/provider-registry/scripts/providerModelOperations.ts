@@ -6,11 +6,16 @@ import {
 import { MODEL_CAPABILITY, type ModelCapability } from '../src/schemas/enums'
 import type { ProviderModelOverride } from '../src/schemas/provider-models'
 
+/**
+ * Decide the row's operation capabilities. Identity (a standalone row's `name`) is the caller's —
+ * `baseCapabilities === undefined` cannot tell a legitimate standalone from a base id that no longer
+ * resolves, so repairing identity here would let the second silently pass the catalog invariant.
+ */
 export function normalizeProviderModelOperations(
   row: ProviderModelOverride,
   baseCapabilities: readonly ModelCapability[] | undefined
 ): ProviderModelOverride {
-  const normalized = baseCapabilities === undefined && !row.name ? { ...row, name: row.modelId } : row
+  const normalized = row
   const effectiveCapabilities = applyModelCapabilityOverride(baseCapabilities ?? [], normalized.capabilities)
   if (getModelOperationCapabilities(effectiveCapabilities).length > 0) return normalized
 

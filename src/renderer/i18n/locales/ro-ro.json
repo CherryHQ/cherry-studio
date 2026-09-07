@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Moștenire ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Endpoint preferat",
   "settings.models.add.preferred_endpoint.tooltip": "Selectați endpointul API pe care acest model trebuie să îl prefere pentru solicitări. Funcționalitățile acceptate pot varia; consultați documentația furnizorului.",
-  "settings.models.add.purpose.label": "Scopul modelului",
   "settings.models.add.quick_presets": "Presetări rapide",
   "settings.models.add.supported_text_delta.label": "Suportă ieșire text incrementală",
   "settings.models.add.supported_text_delta.tooltip": "Modelul returnează text incremental, mai degrabă decât tot odată. Activat implicit, dacă modelul nu acceptă acest lucru, te rugăm să dezactivezi această opțiune",

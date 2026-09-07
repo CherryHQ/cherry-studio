@@ -481,8 +481,12 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
-  // Every model declares at least one operation. Infer dedicated audio-to-text
-  // models before the generic text fallback so ASR rows cannot enter chat routes.
+  // Last-resort default so every model declares at least one operation — NOT a derivation. A model
+  // that already declares one keeps exactly what it declares, so a multi-operation model (an omni
+  // SKU that both chats and speaks) has to say so at its source; upstream modality metadata is too
+  // noisy to infer a second operation from (it would hand `text-generation` to rerankers and to
+  // image models whose vendor serves them off the images API). Dedicated audio-to-text is inferred
+  // before the generic text fallback so ASR rows cannot enter chat routes.
   const operationCapabilities = new Set<ModelCapability>(MODEL_OPERATION_CAPABILITIES)
   for (const m of models.values()) {
     const capabilities = (m.capabilities ?? []) as ModelCapability[]
@@ -673,8 +677,13 @@ function buildProviderModels(
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
-    const baseCapabilities = baseModels.get(row.modelId)?.capabilities as ModelCapability[] | undefined
-    rows[index] = normalizeProviderModelOperations(row, baseCapabilities)
+    const baseModel = baseModels.get(row.modelId)
+    // A row with no base model is a standalone: the catalog invariant requires it to carry its own
+    // name, and nothing downstream can invent one. Identity belongs here, at row construction — not
+    // inside the operation normalizer, which must only decide operations.
+    const namedRow = baseModel === undefined && !row.name ? { ...row, name: row.modelId } : row
+    const baseCapabilities = baseModel?.capabilities as ModelCapability[] | undefined
+    rows[index] = normalizeProviderModelOperations(namedRow, baseCapabilities)
     const normalizedRow = rows[index]
     const effectiveCapabilities = applyModelCapabilityOverride(baseCapabilities ?? [], normalizedRow.capabilities)
     const issues = getModelEndpointContractIssues({

@@ -505,8 +505,9 @@ describe('listModels — ppioFetcher capability mapping', () => {
     const chatModel = models.find((model) => model.apiModelId === 'ppio-chat')
     const rerankerModel = models.find((model) => model.apiModelId === 'ppio-reranker')
 
-    expect(chatModel?.capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
-    expect(rerankerModel?.capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(chatModel?.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
+    // The id is in both lists; the reranker endpoint decides, so no text-generation survives.
+    expect(rerankerModel?.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     expect(rerankerModel?.ownedBy).toBeUndefined()
     expect(rerankerModel?.name).toBe('ppio-reranker')
     expect(rerankerModel?.description).toBeUndefined()

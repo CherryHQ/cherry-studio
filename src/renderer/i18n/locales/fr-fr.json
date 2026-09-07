@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Hériter ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Point d'extrémité préféré",
   "settings.models.add.preferred_endpoint.tooltip": "Sélectionnez le point de terminaison API que ce modèle doit privilégier pour les requêtes. Les fonctionnalités prises en charge peuvent varier ; consultez la documentation du fournisseur.",
-  "settings.models.add.purpose.label": "Objectif du modèle",
   "settings.models.add.quick_presets": "Préréglages rapides",
   "settings.models.add.supported_text_delta.label": "sortie de texte incrémentielle",
   "settings.models.add.supported_text_delta.tooltip": "Le modèle renvoie le texte progressivement plutôt qu'en une seule fois. Cette option est activée par défaut ; désactivez-la si le modèle ne prend pas en charge cette fonctionnalité.",

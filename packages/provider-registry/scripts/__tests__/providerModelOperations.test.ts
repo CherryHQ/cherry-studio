@@ -26,10 +26,10 @@ describe('normalizeProviderModelOperations', () => {
       undefined
     )
 
-    expect(normalized).toMatchObject({
-      name: 'image-model',
-      capabilities: { add: ['image-generation'] }
-    })
+    // Naming a standalone row is the generator's job, not this function's: it cannot tell a real
+    // standalone from a base id that stopped resolving.
+    expect(normalized).toMatchObject({ capabilities: { add: ['image-generation'] } })
+    expect(normalized.name).toBeUndefined()
   })
 
   it('does not repair an invalid incremental override of an existing model', () => {

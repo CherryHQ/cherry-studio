@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "継承（{{endpoint}}）",
   "settings.models.add.preferred_endpoint.label": "優先エンドポイント",
   "settings.models.add.preferred_endpoint.tooltip": "このモデルがリクエストで優先して使用する API エンドポイントを選択します。対応機能はエンドポイントによって異なる場合があるため、プロバイダーのドキュメントを確認してください。",
-  "settings.models.add.purpose.label": "モデルの目的",
   "settings.models.add.quick_presets": "クイックプリセット",
   "settings.models.add.supported_text_delta.label": "インクリメンタルテキスト出力のサポート",
   "settings.models.add.supported_text_delta.tooltip": "モデルがテキストをチャンクで返す場合、デフォルトで有効になっています。モデルがサポートしていない場合は、このオプションを無効にしてください",

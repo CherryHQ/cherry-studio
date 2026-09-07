@@ -4252,7 +4252,6 @@
   "settings.models.add.preferred_endpoint.inherit_resolved": "Herdar ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Endpoint preferido",
   "settings.models.add.preferred_endpoint.tooltip": "Selecione o endpoint da API que este modelo deve privilegiar nos pedidos. As funcionalidades suportadas podem variar; consulte a documentação do fornecedor.",
-  "settings.models.add.purpose.label": "Propósito do modelo",
   "settings.models.add.quick_presets": "Predefinições rápidas",
   "settings.models.add.supported_text_delta.label": "Suportar saída de texto incremental",
   "settings.models.add.supported_text_delta.tooltip": "O modelo devolve o texto de forma incremental, em vez de o devolver todo de uma vez. Esta opção está ativada por predefinição; se o modelo não a suportar, desative-a.",

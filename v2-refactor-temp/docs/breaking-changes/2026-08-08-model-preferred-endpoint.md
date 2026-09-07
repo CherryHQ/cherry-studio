@@ -8,13 +8,13 @@ date: 2026-08-08
 
 ## What changed
 
-A model on a provider that serves more than one chat protocol (doubao, dashscope, deepseek, azure-openai, and multi-endpoint aggregator models) now shows a **Preferred Endpoint** choice in the model drawer. The drawer always displays the effective route. A preference is persisted only after the user chooses one; otherwise requests retain the existing first-supported-endpoint and provider-default fallback.
+A model on a provider that serves more than one chat protocol (doubao, dashscope, deepseek, azure-openai, and multi-endpoint aggregator models) now shows a **Preferred Endpoint** choice in the model drawer. The drawer always displays the effective route. A preference is persisted only after the user chooses one; otherwise requests fall through the rest of the resolution order.
 
 On aggregators (CherryIN, New API, AiOnly) this **replaces** the multi-select the edit drawer used to show. That control listed all eight protocols regardless of what the model actually speaks, and every edit overwrote the endpoint set the provider's own `/models` listing reported. Editing now offers exactly the protocols upstream reported for that model and changes only the route — the supported set stays as the provider reported it, which also keeps the code-agent, painting and TTS model filters reading the provider's answer instead of whatever was last clicked. Adding a model by hand is unchanged: with no upstream listing to go on, you still declare the set yourself.
 
-Routing resolves as `preferredEndpointType` → the first supported endpoint → the provider default, so models without an explicit choice behave exactly as before. Refreshing a provider's model list updates which endpoints a model supports without overwriting a choice the user made.
+Routing resolves as `preferredEndpointType` → the provider's default chat endpoint when the model declares it → the first supported endpoint the provider still serves → the gateway route → the provider default. Refreshing a provider's model list updates which endpoints a model supports without overwriting a choice the user made. The full order lives in `docs/references/ai/provider-resolution.md`.
 
-Existing models are untouched: the new column starts empty for every stored model, so they keep routing on their supported-endpoint order exactly as before. Nothing is backfilled — an upgrade must not invent a preference the user never expressed.
+Existing models are untouched by the new column: it starts empty for every stored model, and nothing is backfilled — an upgrade must not invent a preference the user never expressed. Their route can still change, because the provider default now outranks the declared order (see the separate entry for that).
 
 Migrating from v1 now carries the model's v1 `endpoint_type` across as the preferred endpoint. Previously it was merged into the supported-endpoint list, where a model whose v1 route was not first in `supported_endpoint_types` silently moved to a different protocol on upgrade. This applies to new v1 → v2 migrations and to an explicit migration rerun from retained v1 sources in Settings → Data. A rerun discards the current v2 data, so create a full backup and follow the confirmation flow first. Users who do not rerun keep today's behavior and can set the endpoint by hand in the model drawer.
 
@@ -24,7 +24,7 @@ Endpoint choice controls request format, response parsing, reasoning dialect, an
 
 ## What the user should do
 
-Nothing is required. To change a model's protocol, open Settings → Providers → the model, and pick an endpoint; pick **Inherit** to hand routing back to the supported-endpoint order.
+Nothing is required. To change a model's protocol, open Settings → Providers → the model, and pick an endpoint; pick **Inherit** to hand routing back to the provider default and the supported-endpoint order.
 
 One exception to "automatic": users already on v2 do not get their v1 `endpoint_type` back on upgrade, because the v1 migrator does not re-run. Recovering it means an explicit migration rerun from retained v1 sources in Settings → Data, which discards current v2 data — back up first. Setting the endpoint by hand is the cheaper path.
 

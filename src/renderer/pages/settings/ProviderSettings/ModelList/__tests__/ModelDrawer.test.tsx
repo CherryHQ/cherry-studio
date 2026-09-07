@@ -216,7 +216,6 @@ describe('Model drawers', () => {
     const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
     const endpointSelect = within(endpointField).getByRole('combobox')
     expect(endpointSelect).toHaveTextContent('endpoint_type.openai')
-    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
 
     await user.click(endpointSelect)
     await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
@@ -607,11 +606,8 @@ describe('Model drawers', () => {
       }
     })
 
-    render(
-      <AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} showPurposeSelection={false} />
-    )
+    render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-model')
     await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
