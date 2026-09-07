@@ -478,19 +478,35 @@ function createPresetFallback(
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
+/** Field → messages, so an update can reject only the violations it introduces. */
+type EndpointContractIssues = { capabilities: string[]; preferredEndpointType: string[] }
+
+const PREFERRED_ENDPOINT_UNAVAILABLE = 'Preferred endpoint is not available for this model and provider'
+
+function hasNewIssues(before: string[], after: string[]): boolean {
+  const known = new Set(before)
+  return after.some((issue) => !known.has(issue))
+}
+
 class ModelService {
-  private assertEffectiveEndpointContract(
+  /**
+   * The contract holds over the *effective* model — the stored row joined with its registry baseline
+   * and the provider's live endpoint configs — so a row can turn invalid without being touched, when
+   * a provider drops an endpoint or the contract itself tightens. Collect rather than throw so a
+   * write can tell an inherited violation from one it causes.
+   */
+  private collectEffectiveEndpointIssues(
     providerId: string,
     modelId: string,
     model: ModelEndpointContractInput
-  ): void {
-    const issues = getModelEndpointContractIssues(model)
-    if (issues.length > 0) {
-      throw DataApiErrorFactory.validation({ capabilities: issues })
+  ): EndpointContractIssues {
+    const issues: EndpointContractIssues = {
+      capabilities: getModelEndpointContractIssues(model),
+      preferredEndpointType: []
     }
 
     const preferredEndpointType = model.preferredEndpointType
-    if (!preferredEndpointType) return
+    if (!preferredEndpointType) return issues
 
     const provider = providerService.getByProviderId(providerId)
     if (
@@ -505,9 +521,22 @@ class ModelService {
         preferredEndpointType
       )
     ) {
-      throw DataApiErrorFactory.validation({
-        preferredEndpointType: ['Preferred endpoint is not available for this model and provider']
-      })
+      issues.preferredEndpointType.push(PREFERRED_ENDPOINT_UNAVAILABLE)
+    }
+    return issues
+  }
+
+  private assertEffectiveEndpointContract(
+    providerId: string,
+    modelId: string,
+    model: ModelEndpointContractInput
+  ): void {
+    const issues = this.collectEffectiveEndpointIssues(providerId, modelId, model)
+    if (issues.capabilities.length > 0) {
+      throw DataApiErrorFactory.validation({ capabilities: issues.capabilities })
+    }
+    if (issues.preferredEndpointType.length > 0) {
+      throw DataApiErrorFactory.validation({ preferredEndpointType: issues.preferredEndpointType })
     }
   }
 
@@ -585,7 +614,17 @@ class ModelService {
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
     const currentModel = this.enrichRowsFromRegistry([existing])[0]
-    this.assertEffectiveEndpointContract(existing.providerId, existing.modelId, {
+    // Reject only what this patch introduces. A stored row can already violate the contract without
+    // anyone touching it — the provider dropped the pinned endpoint, or the contract tightened after
+    // the row was written — and the read path already handles both (a stale pin is skipped, a model
+    // with no operation is non-chat). Re-asserting the whole entity here would make every unrelated
+    // edit, down to a rename, fail on a condition the user did not cause and cannot see.
+    const issuesBefore = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, {
+      capabilities: currentModel.capabilities,
+      endpointTypes: currentModel.endpointTypes,
+      preferredEndpointType: currentModel.preferredEndpointType
+    })
+    const issuesAfter = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, {
       capabilities: dto.capabilities ?? currentModel.capabilities,
       endpointTypes: dto.endpointTypes ?? currentModel.endpointTypes,
       preferredEndpointType:
@@ -593,6 +632,12 @@ class ModelService {
           ? undefined
           : (dto.preferredEndpointType ?? currentModel.preferredEndpointType)
     })
+    if (hasNewIssues(issuesBefore.capabilities, issuesAfter.capabilities)) {
+      throw DataApiErrorFactory.validation({ capabilities: issuesAfter.capabilities })
+    }
+    if (hasNewIssues(issuesBefore.preferredEndpointType, issuesAfter.preferredEndpointType)) {
+      throw DataApiErrorFactory.validation({ preferredEndpointType: issuesAfter.preferredEndpointType })
+    }
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)

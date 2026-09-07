@@ -40,8 +40,10 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: compatible caller requirement → compatible preference → first compatible model endpoint.
- * Text generation alone may then inherit a gateway route or the provider's default chat endpoint.
+ * Priority: compatible caller requirement → compatible preference → the provider's default chat
+ * endpoint when the model declares and it still serves it → first compatible model endpoint. Text
+ * generation alone may then inherit a gateway route or the provider default unconditionally.
+ * `docs/references/ai/provider-resolution.md` is the canonical order.
  *
  * Hard requirements belong to runtimes that speak exactly one dialect. Every candidate is checked
  * against the model's current capability set and the provider's live endpoint configs.

@@ -259,6 +259,54 @@ describe('ModelService.update', () => {
     )
   })
 
+  it('still renames a model whose pinned endpoint the provider has since dropped', async () => {
+    // The pin was valid when stored; the provider then lost that route. Runtime skips the stale pin
+    // and falls back, so an unrelated edit must not fail on a condition the user cannot see here.
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('relay', 'Relay'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://relay.example.com/chat' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('relay', 'model', {
+        endpointTypes: ['openai-chat-completions', 'openai-responses'],
+        preferredEndpointType: 'openai-responses'
+      })
+    )
+
+    modelService.update('relay', 'model', { name: 'Renamed' })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'relay::model'))
+    expect(row.name).toBe('Renamed')
+    // The patch neither repairs nor worsens the pin, so it stays exactly as stored.
+    expect(row.preferredEndpointType).toBe('openai-responses')
+  })
+
+  it('still rejects a patch that pins an endpoint the provider does not serve', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('relay', 'Relay'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://relay.example.com/chat' },
+        'openai-responses': { baseUrl: 'https://relay.example.com/responses' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('relay', 'model', {
+        endpointTypes: ['openai-chat-completions', 'openai-responses', 'anthropic-messages'],
+        preferredEndpointType: 'openai-responses'
+      })
+    )
+
+    expect(() => modelService.update('relay', 'model', { preferredEndpointType: 'anthropic-messages' })).toThrowError(
+      expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+    )
+  })
+
   it('clears a stored preference when the same patch removes its endpoint', async () => {
     await dbh.db.insert(userProviderTable).values({
       ...providerRow('relay', 'Relay'),

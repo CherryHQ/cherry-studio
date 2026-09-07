@@ -2,10 +2,6 @@ import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
-}))
-
 const { createInternalEntryMock, getPhysicalPathMock } = vi.hoisted(() => ({
   createInternalEntryMock: vi.fn(),
   getPhysicalPathMock: vi.fn()

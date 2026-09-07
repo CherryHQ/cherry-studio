@@ -625,10 +625,8 @@ const ppioFetcher: ModelFetcher = {
         return
       }
 
-      // The unfiltered `/models` list repeats the typed ones, so a reranker or embedder arrives here as
-      // a chat model too. Its typed endpoint is the authoritative answer about what it does: that
-      // operation replaces the generic one, or a dedicated model lands in every chat picker. Metadata
-      // still comes from whichever entry created the row — the typed listings carry their own names.
+      // The unfiltered `/models` repeats the typed listings, so a reranker also arrives as a chat
+      // model. Only the operation is taken from the typed pass, and it replaces the generic one.
       existing.capabilities = [capability]
     }
 
