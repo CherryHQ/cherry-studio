@@ -52,10 +52,15 @@ function deriveMessageActivityState(
   return getStableMessageActivityState(isProcessing, isApprovalAnchor, isActiveTurnProcessing, isStreamLive)
 }
 
+interface MessageActivitySubscription {
+  message: MessageListItem
+  snapshot: MessageActivityState
+}
+
 export class KeyedMessageActivityStore implements MessageActivityStore {
   private activeMessageIds = new Set<string>()
   private approvalMessageIds = new Set<string>()
-  private listeners = new Map<string, Map<() => void, MessageListItem>>()
+  private listeners = new Map<string, Map<() => void, MessageActivitySubscription>>()
   private topicStreamStatus: TopicStreamStatus | undefined
   private topicId: string | undefined
 
@@ -70,8 +75,8 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   }
 
   subscribe = (message: MessageListItem, listener: () => void) => {
-    const listeners = this.listeners.get(message.id) ?? new Map<() => void, MessageListItem>()
-    listeners.set(listener, message)
+    const listeners = this.listeners.get(message.id) ?? new Map<() => void, MessageActivitySubscription>()
+    listeners.set(listener, { message, snapshot: this.getSnapshot(message) })
     this.listeners.set(message.id, listeners)
 
     return () => {
@@ -89,22 +94,40 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   ) {
     const nextActiveMessageIds = new Set(activeMessageIds)
     const nextApprovalMessageIds = new Set(approvalMessageIds)
-    const previousSnapshots = new Map<string, Map<() => void, MessageActivityState>>()
-    for (const [messageId, listeners] of this.listeners) {
-      const messageSnapshots = new Map<() => void, MessageActivityState>()
-      for (const [listener, message] of listeners) {
-        messageSnapshots.set(listener, this.getSnapshot(message))
+    const affectedMessageIds = new Set<string>()
+    for (const messageId of this.activeMessageIds) {
+      if (!nextActiveMessageIds.has(messageId)) affectedMessageIds.add(messageId)
+    }
+    for (const messageId of nextActiveMessageIds) {
+      if (!this.activeMessageIds.has(messageId)) affectedMessageIds.add(messageId)
+    }
+    for (const messageId of this.approvalMessageIds) {
+      if (!nextApprovalMessageIds.has(messageId)) affectedMessageIds.add(messageId)
+    }
+    for (const messageId of nextApprovalMessageIds) {
+      if (!this.approvalMessageIds.has(messageId)) affectedMessageIds.add(messageId)
+    }
+    if (this.topicStreamStatus !== topicStreamStatus) {
+      for (const [messageId, listeners] of this.listeners) {
+        for (const subscription of listeners.values()) {
+          if (!subscription.snapshot.isProcessing) continue
+          affectedMessageIds.add(messageId)
+          break
+        }
       }
-      previousSnapshots.set(messageId, messageSnapshots)
     }
 
     this.activeMessageIds = nextActiveMessageIds
     this.approvalMessageIds = nextApprovalMessageIds
     this.topicStreamStatus = topicStreamStatus
     const changedListeners = new Set<() => void>()
-    for (const [messageId, listeners] of this.listeners) {
-      for (const [listener, message] of listeners) {
-        if (previousSnapshots.get(messageId)?.get(listener) !== this.getSnapshot(message)) {
+    for (const messageId of affectedMessageIds) {
+      const listeners = this.listeners.get(messageId)
+      if (!listeners) continue
+      for (const [listener, subscription] of listeners) {
+        const nextSnapshot = this.getSnapshot(subscription.message)
+        if (subscription.snapshot !== nextSnapshot) {
+          subscription.snapshot = nextSnapshot
           changedListeners.add(listener)
         }
       }

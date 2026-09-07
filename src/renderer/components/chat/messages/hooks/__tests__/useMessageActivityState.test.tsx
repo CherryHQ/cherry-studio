@@ -110,6 +110,24 @@ describe('KeyedMessageActivityStore', () => {
     expect(onSecondMessageChange).not.toHaveBeenCalled()
   })
 
+  it('skips snapshot derivation for subscribers whose keyed inputs did not change', () => {
+    const store = new KeyedMessageActivityStore()
+    const message = createMessage('message-1')
+    let statusReads = 0
+    Object.defineProperty(message, 'status', {
+      get: () => {
+        statusReads += 1
+        return 'success'
+      }
+    })
+    store.subscribe(message, vi.fn())
+    statusReads = 0
+
+    store.update(['message-2'], [])
+
+    expect(statusReads).toBe(0)
+  })
+
   it('keeps snapshots stable and preserves persisted pending state', () => {
     const store = new KeyedMessageActivityStore()
     const pendingMessage = createMessage('message-1', 'pending')
