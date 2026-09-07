@@ -14,6 +14,7 @@ import {
   ZodCurrencySchema
 } from './common'
 import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { looseArray } from './forwardCompat'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -54,7 +55,7 @@ export const ReasoningControlSchema = z.discriminatedUnion('kind', [
      *  UI display order. The active endpoint profile may map those values to a
      *  narrower wire vocabulary (`'none'` present ⇔ reasoning can be disabled). */
     kind: z.literal('effort'),
-    values: z.array(ReasoningEffortSchema).min(1),
+    values: looseArray(ReasoningEffortSchema, { min: 1 }),
     default: ReasoningEffortSchema.optional()
   }),
   z.object({
@@ -140,7 +141,7 @@ export const ReasoningFamilyRuleSchema = z
     /** Case-insensitive regex source. Must compile. */
     pattern: compilableRegexSource,
     /** Intrinsic effort vocabulary, in UI display order. */
-    effort: z.array(ReasoningEffortSchema).min(1).optional(),
+    effort: looseArray(ReasoningEffortSchema, { min: 1 }).optional(),
     /**
      * Thinking on/off switch. `false` is an EXPLICIT "always-on, no switch"
      * declaration that stops broader family rules below from applying
@@ -176,9 +177,9 @@ export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
 export const CommonReasoningFieldsSchema = {
   /** Source of truth for the model's reasoning knobs (at most one per kind).
    *  The legacy fields below are DERIVED from it when present. */
-  controls: z.array(ReasoningControlSchema).optional(),
+  controls: looseArray(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  supportedEfforts: looseArray(ReasoningEffortSchema).optional(),
   /** What the API does when no reasoning param is sent. */
   defaultEffort: ReasoningEffortSchema.optional(),
   /** Native-protocol dialect this model generation speaks, when its protocol
@@ -480,22 +481,19 @@ export const ModelConfigSchema = z.object({
   description: z.string().optional(),
 
   // Capabilities
-  capabilities: z
-    .array(ModelCapabilityTypeSchema)
+  capabilities: looseArray(ModelCapabilityTypeSchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Capabilities must be unique'
     })
     .optional(),
 
   // Modalities
-  inputModalities: z
-    .array(ModalitySchema)
+  inputModalities: looseArray(ModalitySchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Input modalities must be unique'
     })
     .optional(),
-  outputModalities: z
-    .array(ModalitySchema)
+  outputModalities: looseArray(ModalitySchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Output modalities must be unique'
     })
@@ -537,7 +535,7 @@ export const ModelConfigSchema = z.object({
 // Model list container schema for JSON files
 export const ModelListSchema = z.object({
   version: VersionSchema,
-  models: z.array(ModelConfigSchema)
+  models: looseArray(ModelConfigSchema)
 })
 
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
