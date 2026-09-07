@@ -36,11 +36,17 @@ import {
   echoServeOptions,
   rejectionOf
 } from '@main/core/utilityProcess/__tests__/hostTestUtils'
-import { createMemoryProcessAdapter, waitUntil } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
+import {
+  createMemoryProcessAdapter,
+  flushMicrotasks,
+  waitUntil
+} from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
+import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 
+import { embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
 import type { InferenceInitData } from '../protocol'
 
@@ -83,7 +89,7 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
   }
 }
 
-async function createService(): Promise<{
+async function createService(handlers: Partial<UtilityProcessHandlers<EchoContract>> = {}): Promise<{
   service: TestInferenceService
   adapter: ReturnType<typeof createMemoryProcessAdapter>
 }> {
@@ -96,7 +102,7 @@ async function createService(): Promise<{
       }
     })
     childStates.push(state)
-    child.serve(options)
+    child.serve<EchoContract, unknown>({ ...options, handlers: { ...options.handlers, ...handlers } })
   })
   const manager = new UtilityProcessManager({
     adapter,
@@ -133,34 +139,100 @@ describe('InferenceServiceBase lifecycle', () => {
 
 describe('InferenceServiceBase dispatch', () => {
   it('never has two requests in flight at the child at once', async () => {
-    const { service } = await createService()
+    const { service, adapter } = await createService()
 
     const first = service.block()
     const second = service.ping()
     await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'first request in flight')
 
     // The queued ping must not reach the child while `wait` is still blocking it.
-    await Promise.resolve()
-    expect(childStates[0].waitSignals).toHaveLength(1)
+    await flushMicrotasks()
+    expect(
+      adapter.spawns[0].child.frames.filter((frame) => frame.kind === 'request').map((frame) => frame.method)
+    ).toEqual(['wait'])
 
     childStates[0].release()
     await expect(first).resolves.toBe('released')
     await expect(second).resolves.toBe('pong')
   })
 
-  it('rejects a request whose signal aborted while it waited in the queue', async () => {
-    const { service } = await createService()
-    const controller = new AbortController()
+  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+    '$id cancellation waits for exit before dispatching the next native operation',
+    async (processDefinition) => {
+      definition = { ...definition, cancellation: processDefinition.cancellation }
+      const work = Promise.withResolvers<string>()
+      const started: string[] = []
+      const { service, adapter } = await createService({
+        wait: () => {
+          started.push('A')
+          return work.promise
+        },
+        ping: () => {
+          started.push('B')
+          return 'pong'
+        }
+      })
+      const controller = new AbortController()
+      const reason = new Error('cancel native operation')
+      let firstSettled = false
+      const first = rejectionOf(service.block(controller.signal)).then((error) => {
+        firstSettled = true
+        return error
+      })
 
-    const blocking = service.block()
-    await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'first request in flight')
-    const queued = rejectionOf(service.ping(controller.signal))
-    controller.abort(new Error('caller gave up'))
-    childStates[0].release()
+      try {
+        await waitUntil(() => started.length === 1, 'native operation A started')
+        const oldChild = adapter.spawns[0].child
+        oldChild.onKill(() => {})
+        controller.abort(reason)
+        const second = service.ping().catch((error: unknown) => error)
+        await flushMicrotasks()
 
-    await expect(blocking).resolves.toBe('released')
-    expect(await queued).toEqual(new Error('caller gave up'))
-  })
+        expect(started).toEqual(['A'])
+        expect(firstSettled).toBe(false)
+        expect(oldChild.killed).toBe(true)
+        expect(oldChild.exited).toBe(false)
+        expect(adapter.spawns).toHaveLength(1)
+
+        oldChild.exit(143)
+        expect(await first).toBe(reason)
+        await expect(second).resolves.toBe('pong')
+        expect(started).toEqual(['A', 'B'])
+        expect(adapter.spawns).toHaveLength(2)
+      } finally {
+        work.resolve('released')
+        for (const { child } of adapter.spawns) child.exit(0)
+        await service.terminate()
+      }
+    }
+  )
+
+  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+    '$id skips a cancelled queued request without killing the active process',
+    async (processDefinition) => {
+      definition = { ...definition, cancellation: processDefinition.cancellation }
+      const { service, adapter } = await createService()
+      const controller = new AbortController()
+      const reason = new Error('caller gave up')
+
+      const blocking = service.block()
+      await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'first request in flight')
+      const queued = rejectionOf(service.ping(controller.signal))
+      controller.abort(reason)
+      await flushMicrotasks()
+      expect(adapter.spawns[0].child.killed).toBe(false)
+      childStates[0].release()
+
+      await expect(blocking).resolves.toBe('released')
+      expect(await queued).toBe(reason)
+      expect(adapter.spawns[0].child.killed).toBe(false)
+      expect(adapter.spawns).toHaveLength(1)
+      expect(
+        adapter.spawns[0].child.frames.filter((frame) => frame.kind === 'request').map((frame) => frame.method)
+      ).toEqual(['wait'])
+      await service.terminate()
+    }
+  )
 
   it('resolves a method whose output is void instead of reading it as a failure', async () => {
     const { service } = await createService()
@@ -192,17 +264,23 @@ describe('InferenceServiceBase runtime staleness', () => {
   })
 
   it('relaunches when the hardware acceleration preference changes the resolved profile', async () => {
+    const profiles = await import('../inferenceAcceleration')
+    const hardwareProfile = profiles.resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
+    const resolveProfile = vi
+      .spyOn(profiles, 'resolveLocalInferenceProfile')
+      .mockImplementation((enabled) => (enabled ? hardwareProfile : profiles.CPU_LOCAL_INFERENCE_PROFILE))
     const { service, adapter } = await createService()
-    await service.ping()
 
-    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
-    await service.ping()
+    try {
+      await service.ping()
+      MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+      await service.ping()
 
-    // Only platforms with a hardware profile change id here; on the rest the profile stays
-    // `cpu` and reusing the process is correct.
-    const { resolveLocalInferenceProfile } = await import('../inferenceAcceleration')
-    const expected = resolveLocalInferenceProfile(true).id === 'cpu' ? 1 : 2
-    expect(adapter.spawns).toHaveLength(expected)
+      expect(adapter.spawns).toHaveLength(2)
+    } finally {
+      resolveProfile.mockRestore()
+      await service.terminate()
+    }
   })
 })
 

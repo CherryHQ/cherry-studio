@@ -39,7 +39,7 @@ function createInferenceInitData(capability: LocalModelCapability): InferenceIni
 export const embeddingInferenceProcess = defineUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
   id: 'inference.embedding',
   entry: 'inference-embedding',
-  cancellation: 'cooperative',
+  cancellation: 'terminate',
   idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
   createInitData: () => createInferenceInitData('embedding')
 })
@@ -47,7 +47,7 @@ export const embeddingInferenceProcess = defineUtilityProcess<EmbeddingInference
 export const ocrInferenceProcess = defineUtilityProcess<OcrInferenceContract, InferenceInitData>({
   id: 'inference.ocr',
   entry: 'inference-ocr',
-  cancellation: 'cooperative',
+  cancellation: 'terminate',
   idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
   createInitData: () => createInferenceInitData('ocr')
 })

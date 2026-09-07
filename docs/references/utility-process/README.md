@@ -37,7 +37,7 @@ export type EmbeddingInferenceContract = {
 export const embeddingInferenceProcess = defineUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
   id: 'inference.embedding',
   entry: 'inference-embedding',
-  cancellation: 'cooperative',
+  cancellation: 'terminate',
   idleTimeoutMs: 60_000,
   createInitData: () => createInferenceInitData('embedding')
 })
@@ -90,6 +90,8 @@ The layer restarts the process, not the work. A rejected `request()` is final: n
 - `PROCESS_SERIALIZATION_FAILED` — the input is not structured-cloneable. A programming error, not a runtime condition.
 
 Cancellation is not a `UtilityProcessError`: the caller's own `signal.reason` is rethrown untouched.
+
+Embedding and OCR use `terminate` because native handlers may ignore abort signals. Once a request reaches the child, cancellation waits for confirmed process exit before releasing the inference queue to the next request. This discards that capability's warm model state; the next request starts a new process and reloads its model. A request cancelled while still queued never reaches the child and does not terminate another request's work.
 
 Consumers must expose an unavailable/error state and an explicit retry or remediation action; a permanently silent failure is not a recovery strategy. Resetting the breaker belongs after that remediation, not in an automatic retry loop.
 
