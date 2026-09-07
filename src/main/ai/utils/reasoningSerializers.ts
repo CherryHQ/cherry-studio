@@ -7,13 +7,12 @@
  */
 import type {
   ReasoningEffort,
+  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireProfile,
   ReasoningWireTarget
 } from '@cherrystudio/provider-registry'
 
-// Local alias: provider-registry no longer exports a delivery type useful here
-export type ReasoningWireDelivery = 'provider-option' | 'request-body'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
@@ -132,8 +131,7 @@ function resolveModeEffort(
 function resolveModeBudget(
   selection: CanonicalReasoningSelection,
   model: Model,
-  // The provider-registry union typing can be awkward here; treat as any to keep code straightforward
-  policy: any,
+  policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
   maxTokens: number | undefined
 ): number | undefined | null {
   let budget = selection === 'auto' ? policy.autoValue : undefined

@@ -72,6 +72,7 @@ export function useProviderEndpointActions({
   const hostPatchInFlightRef = useRef<Promise<void> | null>(null)
   const reasoningPatchInFlightRef = useRef<Promise<void> | null>(null)
   const pendingReasoningFormatRef = useRef<ProviderReasoningFormatSelector | undefined>(undefined)
+  const hasPendingReasoningFormatRef = useRef(false)
 
   useEffect(() => {
     lastPersistedApiHostRef.current = trim(providerApiHost)
@@ -130,12 +131,21 @@ export function useProviderEndpointActions({
       if (!nextEndpointConfigs) {
         return false
       }
-      if (pendingReasoningFormatRef.current !== undefined) {
-        nextEndpointConfigs = {
-          ...nextEndpointConfigs,
-          [primaryEndpoint]: {
-            ...nextEndpointConfigs[primaryEndpoint],
-            reasoningFormat: pendingReasoningFormatRef.current
+      if (hasPendingReasoningFormatRef.current) {
+        const pending = pendingReasoningFormatRef.current
+        if (pending === undefined) {
+          const { reasoningFormat: _removed, ...rest } = (nextEndpointConfigs[primaryEndpoint] ?? {}) as Record<string, unknown>
+          nextEndpointConfigs = {
+            ...nextEndpointConfigs,
+            [primaryEndpoint]: rest as typeof nextEndpointConfigs[typeof primaryEndpoint]
+          }
+        } else {
+          nextEndpointConfigs = {
+            ...nextEndpointConfigs,
+            [primaryEndpoint]: {
+              ...nextEndpointConfigs[primaryEndpoint],
+              reasoningFormat: pending
+            }
           }
         }
       } else if (liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
@@ -309,29 +319,54 @@ export function useProviderEndpointActions({
   }, [apiVersion, patchProvider, provider, t])
 
   const resetApiHost = useCallback(async (): Promise<boolean> => {
-    if (!provider) {
+    const currentProvider = providerRef.current
+    if (!currentProvider) {
       return false
     }
 
-    const nextBaseUrl = defaultApiHost
-    const nextEndpointConfigs = {
-      ...provider.endpointConfigs,
-      [primaryEndpoint]: {
-        ...provider.endpointConfigs?.[primaryEndpoint],
-        baseUrl: nextBaseUrl
+    // Coordinate with any in-flight reasoning-format patch to avoid overwriting its snapshot.
+    if (reasoningPatchInFlightRef.current) {
+      try {
+        await reasoningPatchInFlightRef.current
+      } catch {
+        // Proceed with reset using last known good state.
       }
+    }
+
+    const liveProvider = providerRef.current ?? currentProvider
+    const nextBaseUrl = defaultApiHost
+    let nextEndpoint: Record<string, unknown> = {
+      ...liveProvider.endpointConfigs?.[primaryEndpoint],
+      baseUrl: nextBaseUrl
+    }
+    // Preserve or coalesce a pending reasoning-format change (including clear).
+    if (hasPendingReasoningFormatRef.current) {
+      const pending = pendingReasoningFormatRef.current
+      if (pending === undefined) {
+        delete nextEndpoint.reasoningFormat
+      } else {
+        nextEndpoint.reasoningFormat = pending
+      }
+    } else if (liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
+      nextEndpoint.reasoningFormat = liveProvider.endpointConfigs[primaryEndpoint]!.reasoningFormat
+    }
+
+    const nextEndpointConfigs = {
+      ...liveProvider.endpointConfigs,
+      [primaryEndpoint]: nextEndpoint
     }
 
     setApiHost(nextBaseUrl)
     try {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      await patchProvider({ endpointConfigs: nextEndpointConfigs as typeof liveProvider.endpointConfigs })
+      lastPersistedApiHostRef.current = nextBaseUrl
       return true
     } catch (error) {
-      logger.error('Failed to reset provider API host', { providerId: provider.id, error })
+      logger.error('Failed to reset provider API host', { providerId: currentProvider.id, error })
       toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
-  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
+  }, [defaultApiHost, patchProvider, primaryEndpoint, setApiHost, t])
 
   const commitReasoningFormat = useCallback(
     async (reasoningFormat: ProviderReasoningFormatSelector | undefined): Promise<boolean> => {
@@ -341,6 +376,7 @@ export function useProviderEndpointActions({
       }
 
       pendingReasoningFormatRef.current = reasoningFormat
+      hasPendingReasoningFormatRef.current = true
       const doCommit = async (): Promise<boolean> => {
         // Cancel any pending debounced host save so the two whole-snapshot patches don't race.
         // If a host PATCH is already in flight, wait for it so we don't overwrite its
@@ -360,10 +396,12 @@ export function useProviderEndpointActions({
           trimmedDraft !== trim(currentProvider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
         const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
 
-        const baseEndpoint = currentProvider.endpointConfigs?.[primaryEndpoint]
-        const nextEndpoint: Record<string, unknown> = {
-          ...baseEndpoint,
-          reasoningFormat
+        const baseEndpoint = currentProvider.endpointConfigs?.[primaryEndpoint] as Record<string, unknown> | undefined
+        const nextEndpoint: Record<string, unknown> = { ...baseEndpoint }
+        if (reasoningFormat === undefined) {
+          delete nextEndpoint.reasoningFormat
+        } else {
+          nextEndpoint.reasoningFormat = reasoningFormat
         }
         if (effectiveBaseUrl !== undefined) {
           nextEndpoint.baseUrl = effectiveBaseUrl
@@ -394,6 +432,7 @@ export function useProviderEndpointActions({
         .finally(() => {
           if (reasoningPatchInFlightRef.current === trackedReasoningPatch) reasoningPatchInFlightRef.current = null
           pendingReasoningFormatRef.current = undefined
+          hasPendingReasoningFormatRef.current = false
         }) as Promise<void>
       reasoningPatchInFlightRef.current = trackedReasoningPatch
       return patchPromise

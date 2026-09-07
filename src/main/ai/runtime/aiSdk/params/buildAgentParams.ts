@@ -802,9 +802,25 @@ function extractCallOverridesBodyParams(
         }
         continue
       }
-      // Classify by explicit delivery declared on the wire operation. Currently
-      // only `chat_template_kwargs.*` is body-routed; keep this generic so future
-      // body-routed targets are handled without adding new prefix heuristics.
+      if (key.startsWith('extra_body.')) {
+        const rest = key.slice('extra_body.'.length)
+        const bag = (body['extra_body'] ??= {}) as Record<string, unknown>
+        bag[rest] = value
+        continue
+      }
+      if (key === 'extra_body') {
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          body[key] = merge(
+            {},
+            (body[key] as Record<string, unknown> | undefined) ?? {},
+            value as Record<string, unknown>
+          )
+        } else {
+          body[key] = value
+        }
+        continue
+      }
+      // Generic body-routed targets declared with explicit delivery.
       if (isRequestBodyTarget(key as any)) {
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
@@ -844,6 +860,8 @@ function stripRequestBodyFromCallOverrides(
       Object.entries(opts as Record<string, unknown>).filter(([k]) => {
         if (bodyKeys.has(k)) return false
         if (k.startsWith('chat_template_kwargs.')) return false
+        if (k.startsWith('extra_body.')) return false
+        if (k === 'extra_body' || k === 'chat_template_kwargs') return false
         if (isRequestBodyTarget(k as any)) return false
         return true
       })
