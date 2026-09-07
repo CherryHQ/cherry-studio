@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { RelocationProgress } from '@shared/types/userDataRelocation'
@@ -22,9 +21,7 @@ import {
   isPathInside,
   normalizeForCompare,
   pathEntryExists,
-  realPath,
   relocationArtifactPaths,
-  resolveEffectivePath,
   resolveExistingAncestor
 } from './validation'
 import { openUserDataRelocationWindow, type UserDataRelocationWindow } from './window'
@@ -248,8 +245,6 @@ async function executeRelocation(
     await writeRelocationOwner(workPath, pending.taskId)
     assertEffectiveSeparation(pending.from, workPath)
 
-    const sourceReal = realPath(pending.from)
-    const finalTargetEffective = resolveEffectivePath(pending.to)
     // File-granularity approximate progress: the filter observes each file
     // right before fsp.cp copies it, so the bar leads the actual writes by at
     // most the file currently being copied. Clamped to the pre-scan total
@@ -266,19 +261,18 @@ async function executeRelocation(
       publish(makeProgress('copying', pending, bytesCopied, total))
     }
     // Let Node own recursive copying. The filter only applies relocation-specific
-    // exclusions and records links that must stop pointing at the old userData tree.
+    // exclusions and records file-granularity progress.
     // fsp.cp with force:false + errorOnExist:true requires that payloadPath not
     // exist — Node 24 patch releases disagree on what happens when it does
     // (24.11 silently merges, 24.14 throws ERR_FS_CP_EEXIST), so the only
     // portable contract is to let cp create its own destination. That is why
     // the payload lives one level below the marker-carrying workPath.
-    const symlinks: Array<{ source: string; target: string; type: 'dir' | 'file' | 'junction' | undefined }> = []
     await fsp.cp(pending.from, payloadPath, {
       recursive: true,
       force: false,
       errorOnExist: true,
-      verbatimSymlinks: true,
-      filter: async (source, target) => {
+      dereference: true,
+      filter: async (source) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
         // The reset marker is bound to the source profile.
@@ -299,47 +293,40 @@ async function executeRelocation(
           }
           throw error
         }
-        if (!stat.isSymbolicLink()) {
-          if (stat.isFile()) {
-            processedBytes += stat.size
-            publishCopyProgress()
+        if (stat.isSymbolicLink()) {
+          try {
+            stat = await fsp.stat(source)
+          } catch (error) {
+            if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) {
+              logger.warn('Skipping broken symlink during userData relocation', { source })
+              return false
+            }
+            if (isErrno(error, 'ELOOP')) {
+              logger.warn('Skipping circular symlink during userData relocation', { source })
+              return false
+            }
+            throw error
           }
-          return stat.isDirectory() || stat.isFile()
+          if (stat.isDirectory()) {
+            try {
+              if (await isCircularDirectorySymlink(source)) {
+                logger.warn('Skipping circular symlink during userData relocation', { source })
+                return false
+              }
+            } catch (error) {
+              if (!isErrno(error, 'ENOENT')) throw error
+              logger.warn('Skipping userData symlink that vanished during relocation', { source })
+              return false
+            }
+          }
         }
-
-        let type: 'dir' | 'file' | 'junction' | undefined
-        try {
-          const followed = await fsp.stat(source)
-          type = followed.isDirectory() ? (isWin ? 'junction' : 'dir') : 'file'
-        } catch (error) {
-          if (!isErrno(error, 'ENOENT')) throw error
-          type = isWin ? 'file' : undefined
+        if (stat.isFile()) {
+          processedBytes += stat.size
+          publishCopyProgress()
         }
-        symlinks.push({ source, target, type })
-        return true
+        return stat.isDirectory() || stat.isFile()
       }
     })
-
-    for (const symlink of symlinks) {
-      let linkTarget: string
-      try {
-        linkTarget = await fsp.readlink(symlink.target)
-      } catch (error) {
-        if (isErrno(error, 'ENOENT')) continue
-        throw error
-      }
-      const rewrittenTarget = await rewriteSymlinkTarget(
-        symlink.source,
-        linkTarget,
-        symlink.type,
-        sourceReal,
-        finalTargetEffective
-      )
-      if (rewrittenTarget !== linkTarget) {
-        await fsp.unlink(symlink.target)
-        await fsp.symlink(rewrittenTarget, symlink.target, symlink.type)
-      }
-    }
 
     publish(makeProgress('copying', pending, total, total))
 
@@ -482,46 +469,38 @@ async function rollbackCopy(options: {
   }
 }
 
-/**
- * Symlink policy: links resolving outside the copied tree are kept verbatim
- * (except Windows junctions, which cannot stay relative and are re-anchored
- * to their absolute resolution); links resolving inside the tree are
- * rewritten to the final target so the copy never points back into the old
- * userData. Relative in-tree links survive the whole-tree move as-is.
- */
-async function rewriteSymlinkTarget(
-  source: string,
-  linkTarget: string,
-  type: 'dir' | 'file' | 'junction' | undefined,
-  sourceRootReal: string,
-  finalTargetEffective: string
-): Promise<string> {
-  const isAbsolute = path.isAbsolute(linkTarget)
-  let effectiveLinkTarget = isAbsolute ? path.resolve(linkTarget) : path.resolve(path.dirname(source), linkTarget)
+async function isCircularDirectorySymlink(source: string): Promise<boolean> {
+  let targetReal: string
   try {
-    effectiveLinkTarget = await fsp.realpath(effectiveLinkTarget)
+    targetReal = normalizeForCompare(await fsp.realpath(source))
   } catch (error) {
-    if (!isErrno(error, 'ENOENT')) throw error
+    if (isErrno(error, 'ELOOP')) return true
+    throw error
   }
 
-  const sourceRoot = normalizeForCompare(sourceRootReal)
-  const effective = normalizeForCompare(effectiveLinkTarget)
-  if (effective !== sourceRoot && !isPathInside(effective, sourceRoot)) {
-    return isWin && type === 'junction' ? effectiveLinkTarget : linkTarget
-  }
+  let ancestor = path.dirname(source)
+  while (true) {
+    let ancestorReal: string
+    try {
+      ancestorReal = normalizeForCompare(await fsp.realpath(ancestor))
+    } catch (error) {
+      if (isErrno(error, 'ELOOP')) return true
+      throw error
+    }
+    if (targetReal === ancestorReal || isPathInside(ancestorReal, targetReal)) return true
 
-  const relative = path.relative(sourceRoot, effective)
-  const rewritten = path.join(finalTargetEffective, relative)
-  if (isAbsolute || (isWin && type === 'junction')) {
-    logger.info('Rewriting internal symlink during userData relocation', { source, linkTarget, rewritten })
-    return rewritten
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) return false
+    ancestor = parent
   }
-  return linkTarget
 }
 
-// Symlinks count as zero bytes — the copy recreates the link itself, never
-// its referent.
-async function calculateTotalBytes(root: string, allowMissing = false): Promise<number> {
+// Symlinks are followed because relocation materializes their referents.
+async function calculateTotalBytes(
+  root: string,
+  allowMissing = false,
+  ancestorDirectories: ReadonlySet<string> = new Set()
+): Promise<number> {
   let stat: Awaited<ReturnType<typeof fsp.lstat>>
   try {
     stat = await fsp.lstat(root)
@@ -529,8 +508,28 @@ async function calculateTotalBytes(root: string, allowMissing = false): Promise<
     if (allowMissing && isErrno(error, 'ENOENT')) return 0
     throw error
   }
+  if (stat.isSymbolicLink()) {
+    try {
+      stat = await fsp.stat(root)
+    } catch (error) {
+      if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) return 0
+      if (isErrno(error, 'ELOOP')) return 0
+      throw error
+    }
+  }
   if (stat.isFile()) return stat.size
-  if (stat.isSymbolicLink() || !stat.isDirectory()) return 0
+  if (!stat.isDirectory()) return 0
+
+  let directoryReal: string
+  try {
+    directoryReal = normalizeForCompare(await fsp.realpath(root))
+  } catch (error) {
+    if (allowMissing && isErrno(error, 'ENOENT')) return 0
+    if (isErrno(error, 'ELOOP')) return 0
+    throw error
+  }
+  if (ancestorDirectories.has(directoryReal)) return 0
+  const childAncestors = new Set(ancestorDirectories).add(directoryReal)
 
   let entries: fs.Dirent<string>[]
   try {
@@ -541,7 +540,7 @@ async function calculateTotalBytes(root: string, allowMissing = false): Promise<
   }
   let total = 0
   for (const entry of entries) {
-    total += await calculateTotalBytes(path.join(root, entry.name), true)
+    total += await calculateTotalBytes(path.join(root, entry.name), true, childAncestors)
   }
   return total
 }

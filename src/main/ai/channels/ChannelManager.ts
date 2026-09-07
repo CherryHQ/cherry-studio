@@ -3,6 +3,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
@@ -156,7 +157,7 @@ export class ChannelManager extends BaseService {
     return result
   }
 
-  /** Return all connected adapters for an agent. */
+  /** Return all registered adapters for an agent, connected or not (a dropped one stays for reconnect). */
   getAgentAdapters(agentId: string): ChannelAdapter[] {
     const result: ChannelAdapter[] = []
     for (const [, adapter] of this.adapters) {
@@ -336,7 +337,10 @@ export class ChannelManager extends BaseService {
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .sendMessage(msg.chatId, t('common.channel_message_processing_error'), {
+              replyToMessageId: msg.messageId,
+              ...(msg.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })
@@ -354,7 +358,10 @@ export class ChannelManager extends BaseService {
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+            .sendMessage(cmd.chatId, t('common.channel_command_processing_error'), {
+              replyToMessageId: cmd.messageId,
+              ...(cmd.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })

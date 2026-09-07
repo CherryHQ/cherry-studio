@@ -1,3 +1,10 @@
+---
+description: How CodeBlock classifies Markdown code and CodeBlockView renders the fenced-code workbench across streaming states
+sources:
+  - src/renderer/components/CodeBlockView
+  - src/renderer/components/chat/messages/markdown
+---
+
 # Code Block Rendering
 
 ## Overview

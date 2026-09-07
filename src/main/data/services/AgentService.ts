@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
@@ -10,6 +11,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -27,6 +29,7 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
@@ -251,10 +254,8 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   /**
-   * DB-only create primitive for main-process command orchestration.
-   *
-   * The caller owns non-database side effects (for example provisioning the
-   * agent data directory) and supplies the already-reserved id.
+   * Create primitive for main-process command orchestration. The caller owns
+   * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
@@ -332,6 +333,7 @@ export class AgentService {
     }
 
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -768,6 +770,22 @@ export class AgentService {
     id: string,
     options: { deleteSessions?: boolean } = {}
   ): { deleted: boolean; deletedSessionIds?: string[] } {
+    const result = this.deleteAgentForDelivery(id, options)
+    return {
+      deleted: result.deleted,
+      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+    }
+  }
+
+  deleteAgentForDelivery(
+    id: string,
+    options: { deleteSessions?: boolean } = {}
+  ): {
+    deleted: boolean
+    deletedSessionIds?: string[]
+    affectedSessionIds: string[]
+    deliveryResults: AgentSessionMessageEntity[]
+  } {
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
@@ -794,16 +812,30 @@ export class AgentService {
     const deleted = result.rowsAffected > 0
     if (deleted && result.sessionImpact) {
       agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
+      getDataService('AgentSessionMessageService').publishDeliveryChanges(result.sessionImpact.deliveryResults)
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
+    }
+    if (deleted) {
+      notifyDataApiDataChange([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
+      promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
-    return { deleted, deletedSessionIds }
+    return {
+      deleted,
+      deletedSessionIds,
+      affectedSessionIds: result.sessionImpact?.sessionIds ?? [],
+      deliveryResults: result.sessionImpact?.deliveryResults ?? []
+    }
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
     pinService.purgeForEntityTx(tx, 'agent', id)
+    promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
     return { rowsAffected: result.changes }
   }

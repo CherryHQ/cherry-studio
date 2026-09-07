@@ -1,13 +1,13 @@
 /**
  * ChatContextProvider — produces a ready-to-dispatch bundle for one
- * `Ai_Stream_Open` request. `dispatchStreamRequest` picks the first
+ * `ai.stream.open` request. `dispatchStreamRequest` picks the first
  * provider whose `canHandle(topicId)` matches, asks it to prepare, and
  * calls `manager.send(...)` itself. See `docs/references/ai/stream-manager.md`.
  */
 
 import type { Span } from '@opentelemetry/api'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
@@ -46,6 +46,8 @@ export interface PreparedDispatch {
   pendingSteerUserMessageId?: string
   /** Canonical selection captured alongside the pending steer. */
   pendingSteerReasoningEffort?: ReasoningEffortOption
+  /** Provider request tier captured alongside the pending steer. */
+  pendingSteerServiceTier?: ServiceTierSelection
   /** Fast selection captured alongside the pending steer. */
   pendingSteerFastMode?: boolean
   /** Persisted user/assistant skeletons created for this dispatch. */
@@ -71,6 +73,8 @@ export interface DispatchContext {
 
 export interface ChatContextProvider {
   readonly name: string
+  /** Admission-time ownership; temporary providers must opt out. */
+  readonly isPersistentConversation: boolean
 
   /** Synchronous, side-effect free — runs on every request. */
   canHandle(topicId: string): boolean

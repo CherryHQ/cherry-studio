@@ -9,13 +9,14 @@ import {
   RadioGroup,
   RadioGroupItem
 } from '@cherrystudio/ui'
-import { Deepseek } from '@cherrystudio/ui/icons/providers'
+import { type IconComponent, PiCli } from '@cherrystudio/ui/icons'
+import { ClaudeCode, Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { TFunction } from 'i18next'
-import { Check, Sparkles, Zap } from 'lucide-react'
-import { type ElementType, useId } from 'react'
+import { Check } from 'lucide-react'
+import { useId } from 'react'
 
 /**
  * Shared presentation for the agent runtimes.
@@ -26,10 +27,16 @@ import { type ElementType, useId } from 'react'
  */
 
 const RUNTIME_ICONS = {
-  'claude-code': Sparkles,
-  pi: Zap,
+  'claude-code': ClaudeCode,
+  pi: PiCli,
   dsh: Deepseek
-} satisfies Record<AgentType, ElementType>
+} satisfies Record<AgentType, IconComponent>
+
+const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
+  'claude-code': 'size-6',
+  pi: 'size-4',
+  dsh: 'size-7'
+}
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   // t('library.config.agent.field.runtime.option_description.claude_code')
@@ -41,6 +48,7 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
 }
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
+const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {
   const caps = AGENT_RUNTIME_CAPABILITIES[runtime]
@@ -50,14 +58,18 @@ function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; 
     <>
       <ItemMedia
         variant={compact ? 'default' : 'icon'}
-        className={cn(compact ? 'size-4.5 text-muted-foreground' : 'border-border-subtle bg-muted/60')}>
-        <Icon className={cn(compact && 'size-4.5', runtime === 'dsh' && 'scale-150')} />
+        className={cn(
+          compact
+            ? 'size-7 self-center text-foreground group-has-[[data-slot=item-description]]/item:translate-y-0 group-has-[[data-slot=item-description]]/item:self-center'
+            : 'border-border-subtle bg-muted/60'
+        )}>
+        <Icon className={compact ? COMPACT_RUNTIME_ICON_CLASS[runtime] : undefined} />
       </ItemMedia>
       <ItemContent className={cn('min-w-0 text-left', compact && 'gap-0.5')}>
-        <ItemTitle className={compact ? 'block max-w-full truncate' : undefined}>
+        <ItemTitle className={compact ? 'block max-w-full truncate font-medium leading-4' : undefined}>
           {t(caps.labelKey, caps.labelFallback)}
         </ItemTitle>
-        <ItemDescription className={cn('text-xs', compact && 'min-h-8')}>
+        <ItemDescription className={cn('text-xs', compact && 'min-w-0 text-ellipsis whitespace-nowrap leading-4')}>
           {t(RUNTIME_DESCRIPTION_KEYS[runtime])}
         </ItemDescription>
       </ItemContent>
@@ -83,7 +95,7 @@ export function AgentRuntimeTiles({
   return (
     <RadioGroup
       aria-label={ariaLabel}
-      className="grid-cols-2 gap-2"
+      className="grid-cols-1 gap-2"
       value={value}
       onValueChange={(next) => onValueChange(next as AgentType)}>
       {RUNTIMES.map((runtime) => {
@@ -96,12 +108,11 @@ export function AgentRuntimeTiles({
             size="sm"
             variant="outline"
             className={cn(
-              'w-full cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 font-normal hover:bg-accent/50',
-              // Focus needs its own signal: the selected card is already `border-primary`, so
-              // reusing the border would make tabbing onto it invisible.
+              RUNTIME_CARD_CLASS_NAME,
+              'cursor-pointer hover:bg-accent/50',
+              // Keep keyboard focus visible while selection is indicated by the checkmark alone.
               'has-[[data-slot=radio-group-item]:focus-visible]:bg-accent',
-              'has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset',
-              selected && 'border-primary bg-accent/50'
+              'has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset'
             )}>
             <Label htmlFor={optionId}>
               <RadioGroupItem id={optionId} value={runtime} className="sr-only" />
@@ -120,8 +131,8 @@ export function AgentRuntimeTiles({
 /** The runtime an agent already has. Not a control — there is nothing left to choose. */
 export function AgentRuntimeSummary({ value, t }: { value: AgentType; t: TFunction }) {
   return (
-    <Item size="sm" variant="muted" className="w-full rounded-xl">
-      <RuntimeCardBody runtime={value} t={t} />
+    <Item size="sm" variant="outline" className={RUNTIME_CARD_CLASS_NAME}>
+      <RuntimeCardBody runtime={value} t={t} compact />
     </Item>
   )
 }

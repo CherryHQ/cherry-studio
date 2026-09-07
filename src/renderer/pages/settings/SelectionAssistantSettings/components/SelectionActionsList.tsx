@@ -10,6 +10,7 @@ import type { FC } from 'react'
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'
+import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
 import SettingsActionsListHeader from './SettingsActionsListHeader'
@@ -62,6 +63,8 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
       />
 
       <SettingDivider />
+
+      <SelectionActionModelSettings />
 
       <div className="my-6 flex items-center justify-center">
         <SelectionToolbarView

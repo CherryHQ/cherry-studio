@@ -20,6 +20,7 @@ import {
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -35,7 +36,7 @@ import { noteTable } from '@data/db/schemas/note'
 import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { promptTable } from '@data/db/schemas/prompt'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -95,8 +96,10 @@ const MIGRATION_TARGET_TABLES = [
   { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
   { table: knowledgeBaseTable, name: 'knowledge_base' },
   { table: groupTable, name: 'group' }, // Shared parent: topic/assistant/knowledge_base cleared above
+  { table: promptBindingTable, name: 'prompt_binding' }, // Junction: clear before prompt
   { table: promptTable, name: 'prompt' },
   // Agents-domain tables — child → parent order
+  { table: agentSessionMessageFileRefTable, name: 'agent_session_message_file_ref' },
   { table: agentSessionMessageTable, name: 'agent_session_message' },
   { table: agentChannelTaskTable, name: 'agent_channel_task' },
   { table: agentMcpServerTable, name: 'agent_mcp_server' },
@@ -204,7 +207,7 @@ export class MigrationEngine {
     }
 
     logger.info('Fresh install detected (no legacy data found), skipping migration')
-    await this.markCompleted()
+    await this.markCompleted(false)
     return false
   }
 
@@ -343,7 +346,7 @@ export class MigrationEngine {
       this.verifyForeignKeys()
 
       // Mark migration completed
-      await this.markCompleted()
+      await this.markCompleted(true)
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
@@ -570,6 +573,7 @@ export class MigrationEngine {
       this.clearMigrationData(tx)
       this.upsertMigrationStatus(tx, {
         status: 'completed',
+        migratedFromV1: false,
         completedAt: Date.now(),
         version: '2.0.0',
         error: null
@@ -580,9 +584,10 @@ export class MigrationEngine {
   /**
    * Mark migration as completed in app_state
    */
-  private async markCompleted(): Promise<void> {
+  private async markCompleted(migratedFromV1: boolean): Promise<void> {
     this.upsertMigrationStatus(this.getDb(), {
       status: 'completed',
+      migratedFromV1,
       completedAt: Date.now(),
       version: '2.0.0',
       error: null
@@ -595,6 +600,7 @@ export class MigrationEngine {
   private async markFailed(error: string): Promise<void> {
     this.upsertMigrationStatus(this.getDb(), {
       status: 'failed',
+      migratedFromV1: false,
       failedAt: Date.now(),
       version: '2.0.0',
       error: error

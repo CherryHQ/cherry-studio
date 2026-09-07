@@ -67,6 +67,58 @@ describe('toModelMessages', () => {
     ])
   })
 
+  it('drops a tool call parked on an unanswered approval (#17936)', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          { type: 'text', text: 'let me check' },
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-requested',
+            input: {},
+            approval: { id: 'ap-1' }
+          }
+        ],
+        'a1'
+      ),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'let me check' }] },
+      { role: 'user', content: [{ type: 'text', text: '继续' }] }
+    ])
+  })
+
+  it('keeps an answered approval so the continuation can resume it', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-responded',
+            input: {},
+            approval: { id: 'ap-1', approved: true }
+          }
+        ],
+        'a1'
+      )
+    ])
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'tool-call', toolCallId: '1', toolName: 'kb_manage', input: {}, providerExecuted: undefined },
+        { type: 'tool-approval-request', approvalId: 'ap-1', toolCallId: '1' }
+      ]
+    })
+  })
+
   it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
       [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],

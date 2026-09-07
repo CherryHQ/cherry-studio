@@ -1,0 +1,20 @@
+{
+  "description": {
+    "en": "Exercises every window.cherry capability against its documented contract. Every permission is optional, so revoking one tests that refusal path.",
+    "zh": "逐项验证 window.cherry 的每个能力是否符合文档契约。所有权限均为可选，撤销任一项即可测试对应的拒绝路径。"
+  },
+  "entry": "index.html",
+  "icon": {
+    "path": "icon.png",
+    "sha256": "c6db1876f673b8d256e41d77c1da164b5081ff76d01f054ff426ba9649cf6aee"
+  },
+  "id": "com.example.capability-tests",
+  "name": {
+    "en": "Capability Tests",
+    "zh": "能力测试"
+  },
+  "network": ["postman-echo.com", "nodejs.org", "localtest.me"],
+  "optionalPermissions": ["ai.chat", "storage.*", "file.*", "notification.show", "network.fetch", "clipboard.*"],
+  "permissions": [],
+  "version": "1.1.0"
+}

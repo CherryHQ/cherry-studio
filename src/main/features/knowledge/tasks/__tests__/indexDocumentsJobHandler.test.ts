@@ -326,22 +326,38 @@ describe('index-documents job handler', () => {
     ).toHaveLength(0)
   })
 
-  it('warns when an item yields no indexable text, and still completes it with an empty material', async () => {
+  it('rejects a file when its reader yields no indexable text', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
+    const failureReason =
+      'No indexable text was extracted. Check the source, OCR, or document processing settings, then reindex.'
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))).rejects.toThrow(failureReason)
 
-    // An image-only PDF or failed extraction must leave a diagnosable trace —
-    // without the warn it would look indexed while matching nothing.
+    // JobManager forwards the thrown reason to onSettled; verify that the existing
+    // settlement seam makes the row visibly failed (and therefore reindexable).
+    await handler.onSettled?.({
+      jobId: 'index-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'failed',
+      input: { baseId: 'kb-1', itemId: FILE_ITEM_ID },
+      error: { code: 'FAILED', message: failureReason, retryable: false },
+      attempt: 1,
+      metadata: {}
+    })
+
+    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(FILE_ITEM_ID, 'embedding')
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(FILE_ITEM_ID, 'completed')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: failureReason })
     expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Knowledge item produced no indexable text; it will complete with an empty index',
-      expect.objectContaining({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })
+      'Knowledge item produced no indexable text; failing indexing',
+      expect.objectContaining({ baseId: 'kb-1', itemId: FILE_ITEM_ID })
     )
-    expect(lastRebuildInput().units).toEqual([])
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
   it('uses the processed-artifact path (indexedRelativePath) as the material relative path', async () => {
@@ -365,21 +381,17 @@ describe('index-documents job handler', () => {
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(expect.objectContaining({ id: FILE_ITEM_ID }))
   })
 
-  it('completes with empty vectors when the reader returns no documents', async () => {
+  it('rejects whitespace-only reader output before embedding or material replacement', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([{ text: ' \n\t ', metadata: { source: FILE_ITEM_ID } }])
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
-
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
-    expect(rebuildMaterialMock).toHaveBeenCalledWith(
-      NOTE_ITEM_ID,
-      expect.objectContaining({ content: expect.objectContaining({ text: '' }), units: [], embeddings: [] })
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))).rejects.toThrow(
+      'No indexable text was extracted'
     )
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+
+    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
   })
 
   it('skips vector write when the item becomes deleting inside the mutation lock', async () => {

@@ -3,6 +3,22 @@ import { describe, expect, it } from 'vitest'
 import { mergeOpenRouterReasoningContracts, parseOpenRouterReasoning } from '../../scripts/upstream'
 
 describe('OpenRouter reasoning descriptor ingestion', () => {
+  it('keeps Off available when effort levels are optional', () => {
+    const support = parseOpenRouterReasoning({
+      reasoning: {
+        supported_efforts: ['xhigh', 'high'],
+        default_effort: 'high',
+        mandatory: false
+      }
+    })
+
+    expect(support).toEqual({
+      controls: [{ kind: 'effort', values: ['xhigh', 'high'], default: 'high' }, { kind: 'toggle' }],
+      supportedEfforts: ['xhigh', 'high', 'none'],
+      defaultEffort: 'high'
+    })
+  })
+
   it('preserves supported efforts and removes none for mandatory models', () => {
     const support = parseOpenRouterReasoning({
       reasoning: {
@@ -19,12 +35,15 @@ describe('OpenRouter reasoning descriptor ingestion', () => {
     })
   })
 
-  it('does not invent effort choices for max-token-only descriptors', () => {
+  it('keeps Off available without inventing effort choices for max-token-only descriptors', () => {
     const support = parseOpenRouterReasoning({
       reasoning: { supports_max_tokens: true, default_enabled: true }
     })
 
-    expect(support).toEqual({ controls: [] })
+    expect(support).toEqual({
+      controls: [{ kind: 'toggle', default: true }],
+      supportedEfforts: ['none', 'auto']
+    })
   })
 
   it('keeps hand-written endpoint fields above generated support', () => {

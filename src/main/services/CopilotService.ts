@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { mergeHeaders } from '@main/utils/http'
 import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -31,6 +32,19 @@ const CONFIG = {
   },
   TOKEN_FILE_NAME: '.copilot_token'
 }
+
+const BASE_HEADERS = {
+  ...CONFIG.DEFAULT_HEADERS,
+  accept: 'application/json',
+  'user-agent': 'Visual Studio Code (desktop)'
+}
+
+// accept / content-type are forced back on: GitHub's OAuth endpoints only speak JSON.
+const authHeaders = (headers?: Record<string, string>): Record<string, string> =>
+  mergeHeaders(BASE_HEADERS, headers, {
+    accept: BASE_HEADERS.accept,
+    'content-type': BASE_HEADERS['content-type']
+  })
 
 // 接口定义移到顶部，便于查阅
 interface UserResponse {
@@ -67,15 +81,6 @@ class CopilotService {
   // Memoized backing field for the lazy `tokenFilePath` getter below.
   // `undefined` until first access; resolved exactly once and cached.
   private _tokenFilePath: string | undefined
-  private headers: Record<string, string>
-
-  constructor() {
-    this.headers = {
-      ...CONFIG.DEFAULT_HEADERS,
-      accept: 'application/json',
-      'user-agent': 'Visual Studio Code (desktop)'
-    }
-  }
 
   // TODO(v2): Lazy + memoized getter is a workaround, not a fix.
   //
@@ -120,15 +125,6 @@ class CopilotService {
   }
 
   /**
-   * 设置自定义请求头
-   */
-  private updateHeaders = (headers?: Record<string, string>): void => {
-    if (headers && Object.keys(headers).length > 0) {
-      this.headers = { ...headers }
-    }
-  }
-
-  /**
    * 获取GitHub登录信息
    */
   public getUser = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<UserResponse> => {
@@ -169,14 +165,11 @@ class CopilotService {
     headers?: Record<string, string>
   ): Promise<AuthResponse> => {
     try {
-      this.updateHeaders(headers)
+      const requestHeaders = authHeaders(headers)
 
       const response = await net.fetch(CONFIG.API_URLS.GITHUB_DEVICE_CODE, {
         method: 'POST',
-        headers: {
-          ...this.headers,
-          'Content-Type': 'application/json'
-        },
+        headers: requestHeaders,
         body: JSON.stringify({
           client_id: CONFIG.GITHUB_CLIENT_ID,
           scope: 'read:user'
@@ -202,7 +195,7 @@ class CopilotService {
     device_code: string,
     headers?: Record<string, string>
   ): Promise<TokenResponse> => {
-    this.updateHeaders(headers)
+    const requestHeaders = authHeaders(headers)
 
     let currentDelay = CONFIG.POLLING.INITIAL_DELAY_MS
 
@@ -212,10 +205,7 @@ class CopilotService {
       try {
         const response = await net.fetch(CONFIG.API_URLS.GITHUB_ACCESS_TOKEN, {
           method: 'POST',
-          headers: {
-            ...this.headers,
-            'Content-Type': 'application/json'
-          },
+          headers: requestHeaders,
           body: JSON.stringify({
             client_id: CONFIG.GITHUB_CLIENT_ID,
             device_code,
@@ -274,17 +264,14 @@ class CopilotService {
     headers?: Record<string, string>
   ): Promise<CopilotTokenResponse> => {
     try {
-      this.updateHeaders(headers)
+      const requestHeaders = authHeaders(headers)
 
       const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
       const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
 
       const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
         method: 'GET',
-        headers: {
-          ...this.headers,
-          authorization: `token ${access_token}`
-        }
+        headers: mergeHeaders(requestHeaders, { authorization: `token ${access_token}` })
       })
 
       if (!response.ok) {

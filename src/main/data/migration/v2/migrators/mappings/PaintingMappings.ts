@@ -7,7 +7,7 @@ import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/Mode
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
   'dmxapi_paintings',
-  // Provider retired in v2 (see ProviderModelMigrator RETIRED_PROVIDER_IDS), but its
+  // Provider retired in v2 (see main/data/retiredProviders), but its
   // history is a frozen receipt — prompt + local output files stay readable.
   'tokenflux_paintings',
   'zhipu_paintings',

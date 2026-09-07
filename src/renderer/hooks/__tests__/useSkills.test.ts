@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
+const useDataChangeMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const refetchMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
@@ -14,6 +15,7 @@ const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
+  useDataChange: useDataChangeMock,
   useInvalidateCache: () => invalidateMock
 }))
 
@@ -69,6 +71,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     version: null,
     sourceTags: [],
     contentHash: 'hash-1',
+    isGlobalEnabled: true,
     isEnabled: false,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
@@ -106,12 +109,22 @@ describe('useInstalledSkills', () => {
 
     expect(result.current.skills).toHaveLength(2)
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
+    expect(useDataChangeMock).toHaveBeenCalledWith('/skills', expect.any(Function))
   })
 
   it('keeps the installed-skills query free of filesystem reconciliation side effects', () => {
     renderHook(() => useInstalledSkills('agent-1'))
 
     expect(skillMocks.request).not.toHaveBeenCalledWith('skill.reconcile', {})
+  })
+
+  it('refetches skills after a cross-window data change', () => {
+    renderHook(() => useInstalledSkills('agent-1'))
+
+    const listener = useDataChangeMock.mock.calls.at(-1)?.[1]
+    listener?.([])
+
+    expect(refetchMock).toHaveBeenCalledOnce()
   })
 
   it('reconciles the on-disk library when an explicit Skills view opens, then refreshes', async () => {

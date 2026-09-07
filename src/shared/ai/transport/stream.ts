@@ -1,7 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 
 import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
-import type { UniqueModelId } from '../../data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
@@ -99,6 +99,8 @@ export interface ComposerQueuedMessagePayload {
   mentionedModels?: UniqueModelId[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
+  /** Canonical provider request tier captured with this queued draft. */
+  serviceTier?: ServiceTierSelection
   /** Whether this queued draft requests Fast processing. */
   fastMode?: boolean
   /** Chat-only target snapshot. Agent-session queues leave this unset. */
@@ -200,6 +202,8 @@ export type AiStreamOpenRequest = {
       appendToLiveGroupMessageId?: never
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
+      /** Canonical provider request tier captured when the composer submitted. */
+      serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
     }
@@ -212,6 +216,8 @@ export type AiStreamOpenRequest = {
       targetMode?: never
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
+      /** Canonical provider request tier captured for this regenerated turn. */
+      serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
     } & AiStreamRegenerateTarget)

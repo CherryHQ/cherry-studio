@@ -47,21 +47,28 @@ export function SkillCatalogPicker({
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [systemSkillOpen, setSystemSkillOpen] = useState(false)
+  const availableSkills = useMemo(() => skills.filter((skill) => skill.isGlobalEnabled), [skills])
 
   const builtinIds = useMemo(
-    () => (mode === 'create' ? skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : []),
-    [mode, skills]
+    () =>
+      mode === 'create' ? availableSkills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : [],
+    [availableSkills, mode]
   )
   const selectableIds = useMemo(
-    () => skills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
-    [mode, skills]
+    () => availableSkills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
+    [availableSkills, mode]
+  )
+  const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds])
+  const preservedHiddenSelectedIds = useMemo(
+    () => (mode === 'edit' ? selectedIds.filter((id) => !selectableIdSet.has(id)) : []),
+    [mode, selectableIdSet, selectedIds]
   )
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const enabledIds = useMemo(() => new Set([...selectedIds, ...builtinIds]), [builtinIds, selectedIds])
   const catalog = useMemo<CatalogItem[]>(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
-    return skills
+    return availableSkills
       .filter((skill) => !normalizedQuery || skill.name.toLowerCase().includes(normalizedQuery))
       .map((skill) => {
         if (mode === 'create' && skill.source === 'builtin') {
@@ -80,7 +87,7 @@ export function SkillCatalogPicker({
           icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-warning" /> : undefined
         }
       })
-  }, [mode, query, skills, t])
+  }, [availableSkills, mode, query, t])
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
 
   const setSelected = (id: string, enabled: boolean) => {
@@ -131,7 +138,11 @@ export function SkillCatalogPicker({
           size="sm"
           checked={allSelected}
           disabled={loading || disabled || selectableIds.length === 0}
-          onCheckedChange={(selected) => onSelectedIdsChange(selected ? selectableIds : [])}
+          onCheckedChange={(selected) =>
+            onSelectedIdsChange(
+              selected ? [...preservedHiddenSelectedIds, ...selectableIds] : preservedHiddenSelectedIds
+            )
+          }
           aria-label={t('library.config.agent.section.tools.skills_enable_all')}
         />
       </div>

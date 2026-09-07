@@ -1,4 +1,5 @@
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,7 +18,10 @@ const assistantContextMock = vi.hoisted(() => ({
   isLoading: false,
   isModelPending: false
 }))
-const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const eventEmitMock = vi.hoisted(() => vi.fn())
+const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
+const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -112,16 +116,45 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: (...args: unknown[]) => {
-    providerHookArgs.push(args)
-    return { providers: [] }
+  useProviders: (_query?: unknown, options?: { enabled?: boolean }) => ({
+    providers: options?.enabled === false ? [] : [{ id: 'provider', name: 'Provider' }]
+  })
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) commandHandlers.delete(command)
+    else commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => activeTabMock.current
+}))
+
+vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
+  useClearTopicMessages: () => clearTopicMessagesMock
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
+  },
+  EventEmitter: {
+    emit: eventEmitMock
   }
 }))
 
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
-  ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
-    <div data-testid="chat-conversation-controls">{assistantName}</div>
-  )
+  ChatConversationControls: ({ assistantName, model, providers }: any) => {
+    const provider = providers.find((currentProvider: any) => currentProvider.id === model?.providerId)
+    return (
+      <div data-testid="chat-conversation-controls">
+        {assistantName}
+        {model && provider ? `${model.name} | ${provider.name}` : null}
+      </div>
+    )
+  }
 }))
 
 vi.mock('react-hotkeys-hook', () => ({
@@ -186,7 +219,39 @@ describe('Chat', () => {
     chatContentProps.current = null
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
-    providerHookArgs.length = 0
+    commandHandlers.clear()
+    activeTabMock.current = true
+  })
+
+  it('clears the active topic once the confirmation is accepted', async () => {
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(popup.confirm).toHaveBeenCalled()
+    expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
+  })
+
+  it('leaves the topic untouched when the confirmation is dismissed', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
+  })
+
+  it('does not register the clear-messages command for a background tab', () => {
+    activeTabMock.current = false
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -218,21 +283,10 @@ describe('Chat', () => {
     expect(chatContentProps.current?.assistantContext?.isModelPending).toBe(true)
   })
 
-  it('loads provider metadata only for multi-model control details', () => {
+  it('loads provider metadata for the single-model trigger', () => {
     render(<Chat activeTopic={topic} />)
 
-    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
-
-    act(() => {
-      chatContentProps.current?.onConversationControlsChange?.({
-        scopeKey: topic.id,
-        mentionedModels: [],
-        mentionedModelSelectorValue: [{ id: 'provider::model-a' }, { id: 'provider::model-b' }],
-        lockedMentionedModels: []
-      })
-    })
-
-    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: true }])
+    expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Model | Provider')
   })
 
   it('preserves the rail gutter while switching topics', async () => {

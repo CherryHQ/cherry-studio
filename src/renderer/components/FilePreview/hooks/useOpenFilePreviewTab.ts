@@ -1,4 +1,4 @@
-import { useTabs } from '@renderer/hooks/tab'
+import { type TabsContextValue, useOptionalTabsContext, useTabs } from '@renderer/hooks/tab'
 import {
   createFilePreviewTabTarget,
   FILE_PREVIEW_REFRESH_KEY,
@@ -7,11 +7,18 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { useCallback } from 'react'
 
-export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?: string) => string {
-  const { openTab, tabs, updateTab } = useTabs()
+type OpenFilePreviewTab = (filePath: AbsoluteFilePath, fileName?: string) => string
+type FilePreviewTabsContext = Pick<TabsContextValue, 'openTab' | 'tabs' | 'updateTab'>
+
+function useOpenFilePreviewTabFromContext(tabsContext: FilePreviewTabsContext | null): OpenFilePreviewTab {
+  const openTab = tabsContext?.openTab
+  const tabs = tabsContext?.tabs
+  const updateTab = tabsContext?.updateTab
 
   return useCallback(
     (filePath: AbsoluteFilePath, fileName?: string) => {
+      if (!openTab || !tabs || !updateTab) throw new Error('File preview tabs are unavailable')
+
       const target = createFilePreviewTabTarget(filePath)
       const title = fileName || target.title
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === target.url)
@@ -34,4 +41,14 @@ export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?:
     },
     [openTab, tabs, updateTab]
   )
+}
+
+export function useOpenFilePreviewTab(): OpenFilePreviewTab {
+  return useOpenFilePreviewTabFromContext(useTabs())
+}
+
+export function useOptionalOpenFilePreviewTab(): OpenFilePreviewTab | undefined {
+  const tabsContext = useOptionalTabsContext()
+  const openFilePreviewTab = useOpenFilePreviewTabFromContext(tabsContext)
+  return tabsContext ? openFilePreviewTab : undefined
 }

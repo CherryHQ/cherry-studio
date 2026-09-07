@@ -18,7 +18,9 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['Escape'],
-      editable: false
+      editable: false,
+      // A MiniApp guest owns Escape (closing its own dialogs); the host must not steal it.
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -104,6 +106,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.input.focus',
+    titleKey: 'settings.shortcuts.focus_input',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'I'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.context.toggle_new',
     titleKey: 'settings.shortcuts.toggle_new_context',
     categoryKey: 'settings.shortcuts.chat',
@@ -184,6 +196,28 @@ export const COMMAND_DEFINITIONS = [
       global: true,
       when: 'feature.selection.enabled',
       supportedPlatforms: ['darwin', 'win32', 'linux']
+    }
+  }),
+  defineCommand({
+    id: 'screenshot.capture',
+    titleKey: 'settings.shortcuts.screenshot_capture',
+    categoryKey: 'settings.shortcuts.feature.screenshot',
+    scope: 'main',
+    enablement: 'feature.screenshot.enabled',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'A'],
+      global: true,
+      when: 'feature.screenshot.enabled',
+      supportedPlatforms: ['darwin', 'win32', 'linux']
+    }
+  }),
+  defineCommand({
+    id: 'topic.clear_messages',
+    titleKey: 'chat.topics.clear.title',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'L']
     }
   }),
   defineCommand({

@@ -10,12 +10,14 @@
  * different pipe than `session.event`, so child events can race it. Unbound
  * child events are therefore buffered (bounded) until a binding arrives.
  *
- * Binding: the connection reports every spawn-capable tool call it streams
- * (`subagent`, `subagent_fork`, `send_message`) as a FIFO anchor. A child's
- * first epoch binds to the oldest anchor; later epochs (send_message wakes,
- * cold resumes) reuse the connection-persistent binding so one child's whole
- * conversation stays under the tool card that introduced it. Descendants of a
- * child flatten into their ancestor's flow.
+ * Binding: the connection reports every spawn-capable tool call it streams as
+ * an anchor. `subagent`/`subagent_fork` anchors are targetless and a child's
+ * first epoch binds to the oldest one; `send_message` anchors carry their
+ * target session id, queue only for unbound targets (cold resumes), and bind
+ * by exact match. A call that fails before any epoch withdraws its queued
+ * anchor. Later epochs reuse the connection-persistent binding so one
+ * child's whole conversation stays under the tool card that introduced it.
+ * Descendants of a child flatten into their ancestor's flow.
  */
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
@@ -71,8 +73,8 @@ interface ChildState {
 
 export class DshSubagentCoordinator {
   private readonly children = new Map<string, ChildState>()
-  /** FIFO of spawn/wake tool calls awaiting their child epoch. */
-  private readonly pendingAnchors: Array<{ callId: string; title?: string }> = []
+  /** Spawn/wake tool calls awaiting their child epoch; send_message anchors carry their target session. */
+  private readonly pendingAnchors: Array<{ callId: string; title?: string; target?: string }> = []
   private workStateActive = false
 
   constructor(
@@ -82,8 +84,24 @@ export class DshSubagentCoordinator {
 
   /** Observe one main-stream chunk: spawn-capable tool calls become binding anchors. */
   noteMainChunk(chunk: CherryUIMessageChunk): void {
+    if (chunk.type === 'tool-output-error') {
+      // A failed call never gets a child epoch; drop its unconsumed anchor so a
+      // later retry for the same target cannot bind to the dead tool card.
+      const stale = this.pendingAnchors.findIndex((anchor) => anchor.callId === chunk.toolCallId)
+      if (stale !== -1) this.pendingAnchors.splice(stale, 1)
+      return
+    }
     if (chunk.type !== 'tool-input-available' || !CHILD_ANCHOR_TOOLS.has(chunk.toolName)) return
-    const description = (chunk.input as { description?: unknown } | null | undefined)?.description
+    const input = chunk.input as { description?: unknown; subagent_id?: unknown } | null | undefined
+    if (chunk.toolName === 'send_message') {
+      // Queued only for unbound targets: a warm wake reuses the persistent
+      // binding, so its anchor would sit unconsumed in the queue forever.
+      const target = typeof input?.subagent_id === 'string' ? input.subagent_id : undefined
+      if (!target || this.children.get(target)?.rootCallId !== undefined) return
+      this.pendingAnchors.push({ callId: chunk.toolCallId, target })
+      return
+    }
+    const description = input?.description
     this.pendingAnchors.push({
       callId: chunk.toolCallId,
       ...(typeof description === 'string' && description ? { title: description } : {})
@@ -164,8 +182,10 @@ export class DshSubagentCoordinator {
   private resolveRoot(childSessionId: string, child: ChildState): void {
     if (!child.parentSessionId) return
     if (child.parentSessionId === this.mainSessionId) {
-      const anchor = this.pendingAnchors.shift()
-      if (!anchor) return
+      const targeted = this.pendingAnchors.findIndex((anchor) => anchor.target === childSessionId)
+      const index = targeted !== -1 ? targeted : this.pendingAnchors.findIndex((anchor) => anchor.target === undefined)
+      if (index === -1) return
+      const [anchor] = this.pendingAnchors.splice(index, 1)
       child.rootCallId = anchor.callId
       if (anchor.title !== undefined) child.title = anchor.title
     } else {

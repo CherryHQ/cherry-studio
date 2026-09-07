@@ -161,6 +161,44 @@ describe('useReorder - move()', () => {
   })
 })
 
+describe('useReorder - template collection paths', () => {
+  it('resolves collection params for cache access and reorder mutations', async () => {
+    const template = '/prompt-bindings/:targetType/:targetId' as const
+    const resolved = '/prompt-bindings/assistant/assistant-1'
+    const initial: Item[] = [{ id: 'a' }, { id: 'b' }]
+    const { Wrapper, cache } = createSWRTestWrapper([[[resolved], initial]])
+    patchMock.mockResolvedValue({})
+
+    const { result } = renderHook(
+      () => {
+        useSWR([resolved], ([path]) => getMock(path, {}) as Promise<Item[]>, {
+          revalidateOnMount: false,
+          revalidateIfStale: false,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: false
+        })
+        return useReorder(template, {
+          params: { targetType: 'assistant', targetId: 'assistant-1' },
+          revalidateOnSuccess: false
+        })
+      },
+      { wrapper: Wrapper }
+    )
+
+    await act(async () => {
+      await result.current.move('b', { position: 'first' })
+    })
+
+    expect(patchMock).toHaveBeenCalledWith(`${resolved}/b/order`, {
+      body: { position: 'first' },
+      query: undefined
+    })
+    const cached = cache.get(unstable_serialize([resolved]))?.data
+    expect(cached).toBeDefined()
+    expect((cached as Item[]).map((item) => item.id)).toEqual(['b', 'a'])
+  })
+})
+
 describe('useReorder - applyReorderedList()', () => {
   it('no-ops when the new list equals the current list (no patch call)', async () => {
     const initial: CollectionValue = { items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }

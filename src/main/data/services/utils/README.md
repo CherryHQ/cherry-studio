@@ -221,6 +221,30 @@ Backs the provider / mini-app logo slots. A *single-file slot* is an association
 - **"Single-file" is a precondition, not a label**: it names the category (opposed to the roled collection ref tables `chat_message_file_ref` / `painting_file_ref`, where one owner holds many rows), and the write path relies on it — it clears before inserting, so passing a table that permits several rows per `sourceId` would delete rows the caller never meant to touch.
 - **Two naming layers, deliberately**: the `SingleFileRef*` helpers are the table-agnostic mechanism; `reconcileLogoSlotTx` / `LogoBindInput` / `LogoColumns` sit above it and are logo-specific, because every single-file slot that exists today is a logo slot. Do not genericize the reconcile layer until a second kind of slot exists — `logoKey` maps to a real column name.
 - **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
+### `registryDataPaths.ts` — provider-registry file path resolution
+
+Resolves provider-registry paths for the v2 runtime. Remote snapshots may override `models.json` and `provider-models.json`; `providers.json` always resolves to the bundle so unsigned branch data cannot change credential-bearing routing. The one-shot v1-to-v2 migrator deliberately bypasses this resolver and stays pinned to bundled data.
+
+**Exports:**
+
+- `OVERRIDE_MANIFEST` — completion marker written last by `providerRegistrySnapshot.ts`.
+- `readActiveOverrideManifest()` — returns a complete, compatible snapshot manifest or `null`.
+- `resolveRegistryPaths()` — builds the mixed-trust `RegistryPaths`: bundled providers plus atomic model metadata.
+
+**Design boundaries:**
+
+- **Stateless, read-only**: this utility only inspects paths and the manifest; snapshot persistence belongs to the updater domain.
+- **Atomic model metadata**: both remote-safe files require a compatible completion manifest. Missing either file falls back to bundled model metadata.
+- **Explicit compatibility range**: `minAppVersion <= appVersion <= sourceAppVersion`, matching schema version, and a valid revision are required on every activation.
+- **Bundled routing**: provider endpoints, model-list URLs, adapter families, and authentication behavior never come from the unsigned branch.
+
+**Example:**
+
+```ts
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+
+const loader = new RegistryLoader(resolveRegistryPaths())
+```
 
 ## Criteria for Adding a New Utility
 

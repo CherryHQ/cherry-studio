@@ -6,6 +6,8 @@ export const RESOURCE_LIST_DEFAULT_ROW_LAYOUT = {
   size: 36
 } as const
 
+export const estimateResourceListDefaultRowSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
+
 export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 
 export type ResourceListPresentation = 'left-panel' | 'right-panel'

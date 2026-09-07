@@ -120,9 +120,15 @@ describe('isValidShortcut', () => {
     expect(isValidShortcut(['Shift', 'Alt', '/'])).toBe(true)
   })
 
-  it('accepts a lone Escape or function key', () => {
+  it('accepts a lone Escape, CapsLock or function key', () => {
     expect(isValidShortcut(['Escape'])).toBe(true)
+    expect(isValidShortcut(['CapsLock'])).toBe(true)
     expect(isValidShortcut(['F5'])).toBe(true)
+  })
+
+  it('rejects other lone non-modifier keys', () => {
+    expect(isValidShortcut(['A'])).toBe(false)
+    expect(isValidShortcut(['Home'])).toBe(false)
   })
 
   it('rejects an empty binding', () => {

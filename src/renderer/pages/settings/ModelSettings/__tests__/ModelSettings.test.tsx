@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,23 +21,33 @@ const harness = vi.hoisted(() => ({
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  Divider: () => <hr />,
-  InfoTooltip: () => null,
-  Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  PageSidePanel: () => null,
-  Switch: ({
-    checked,
-    onCheckedChange,
-    ...props
-  }: ComponentProps<'button'> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
-    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
+const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
+const matchMediaMock = vi.hoisted(() => vi.fn())
+
+Element.prototype.scrollIntoView = vi.fn()
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+    Divider: () => <hr />,
+    InfoTooltip: () => null,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    PageSidePanel: () => null,
+    Switch: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: ComponentProps<'button'> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
+      <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
+    ),
+    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  }
+})
 
 vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => undefined
@@ -93,6 +104,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+vi.mock('@renderer/hooks/useTimer', () => ({
+  useTimer: () => ({ setTimeoutTimer: setTimeoutTimerMock })
+}))
+
 vi.mock('@renderer/pages/translate/TranslateSettings', () => ({
   TranslateSettingsPanelContent: () => null
 }))
@@ -105,12 +120,14 @@ vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => {
+    throw new Error('useSearch must not be called from ModelSettings')
+  }
 }))
 
-vi.mock('../ContextManagementSettings', () => ({
-  ContextManagementSettings: () => null
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../TopicNamingSettings', () => ({
@@ -134,17 +151,16 @@ const createModel = (providerId: string, apiModelId: string): Model =>
 describe('ModelSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: matchMediaMock.mockReturnValue({ matches: false })
+    })
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
     harness.selectorCallbacks = []
     harness.selectorFilters = []
-    harness.preferenceValues = {
-      'chat.retry.enabled': false,
-      'chat.retry.max_attempts': 2,
-      'chat.retry.backoff_enabled': true,
-      'chat.retry.fallback_model_ids': []
-    }
+    harness.preferenceValues = {}
     harness.preferenceSetters = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
     harness.setQuickModel.mockResolvedValue(undefined)
@@ -226,45 +242,41 @@ describe('ModelSettings', () => {
     ).toBe(false)
   })
 
-  it('shows retry controls and restricts fallback selection to chat models', () => {
-    harness.preferenceValues['chat.retry.enabled'] = true
-    harness.preferenceValues['chat.retry.max_attempts'] = 3
-    harness.preferenceValues['chat.retry.fallback_model_ids'] = ['openai::gpt-4o']
+  it.each([
+    ['default', 'settings.models.default_assistant_model'],
+    ['translate', 'settings.models.translate_model']
+  ] as const)('points to the %s model selector requested by the route', (focus, expectedTitle) => {
+    render(<ModelSettings focus={focus} showPaintingModel={false} showSettingsButton={false} />)
 
-    render(
-      <ModelSettings
-        modelFilter={(model) => model.providerId !== 'hidden'}
-        showPaintingModel={false}
-        showSettingsButton={false}
-      />
-    )
+    const scrollTarget = vi.mocked(Element.prototype.scrollIntoView).mock.instances[0]
+    expect(scrollTarget).toHaveTextContent(expectedTitle)
 
-    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue(3)
-    expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
+    const focusGuide = screen.getByTestId('model-settings-focus-guide')
+    expect(focusGuide).toBeInTheDocument()
+    expect(focusGuide).toHaveClass('motion-reduce:!animate-none', 'motion-reduce:-translate-y-1/2')
+    expect(screen.getAllByTestId('model-settings-focus-guide')).toHaveLength(1)
+    expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
 
-    const fallbackFilter = harness.selectorFilters.at(-1)
-    expect(fallbackFilter?.(createModel('openai', 'gpt-4o'))).toBe(true)
-    expect(
-      fallbackFilter?.({
-        ...createModel('openai', 'embed'),
-        capabilities: [MODEL_CAPABILITY.EMBEDDING]
-      })
-    ).toBe(false)
-    expect(fallbackFilter?.(createModel('hidden', 'chat'))).toBe(false)
+    const timerCallback = setTimeoutTimerMock.mock.calls[0][1]
+    act(() => {
+      void timerCallback()
+    })
+    expect(screen.queryByTestId('model-settings-focus-guide')).not.toBeInTheDocument()
   })
 
-  it('writes retry preference changes through the shared preference hook', () => {
-    harness.preferenceValues['chat.retry.enabled'] = true
-    harness.preferenceValues['chat.retry.max_attempts'] = 2
+  it('avoids smooth scrolling when reduced motion is requested', () => {
+    matchMediaMock.mockReturnValue({ matches: true })
 
-    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+    render(<ModelSettings focus="default" showPaintingModel={false} showSettingsButton={false} />)
 
-    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
-    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '99' } })
-    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '' } })
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'auto',
+      block: 'center',
+      inline: 'nearest'
+    })
+  })
 
-    expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
-    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)
-    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(2, 1)
+  it('renders off-router (onboarding compact) without calling useSearch', () => {
+    expect(() => render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)).not.toThrow()
   })
 })

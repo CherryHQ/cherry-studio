@@ -1,3 +1,10 @@
+---
+description: Migrating direct BrowserWindow creation to WindowManager — WindowType enum, registry entry, and open/close call sites
+sources:
+  - src/main/core/window/windowRegistry.ts
+  - src/main/core/window/types.ts
+---
+
 # Window Migration Guide
 
 How to migrate an existing window from direct `BrowserWindow` creation to WindowManager.
@@ -103,11 +110,13 @@ See [Injecting behavior: `onWindowCreated` is the canonical hook](./window-manag
 | `this.window = new BrowserWindow(...)` | `wm.open(WindowType.MyWindow)` |
 | `this.window.show()` | `wm.show(windowId)` |
 | `this.window.hide()` | `wm.hide(windowId)` |
-| `this.window.close()` | `wm.close(windowId)` |
-| `this.window.webContents.send(...)` | `wm.getWindow(windowId)?.webContents.send(...)` or `wm.broadcastToType(...)` |
+| `this.window.close()` | `wm.close(windowId)` — except when a native `close` listener owns the policy (see note) |
+| `this.window.webContents.send(...)` | For a typed product event, `IpcApiService.send(...)` / `broadcastToType(...)`; keep WindowManager's raw broadcast only for a remaining legacy channel |
 | `BrowserWindow.fromWebContents(e.sender)` | `wm.getWindowIdByWebContents(e.sender)` |
 
 Note: there is intentionally no entry for `this.window.destroy()`. `wm.close()` already handles destruction for non-pooled windows and pool-return for pooled windows. `wm.destroy()` is an internal primitive — see [Window API layers](./window-manager-usage.md#window-api-layers-consumer-vs-internal).
+
+Note: `wm.close()` destroys via `window.destroy()` and therefore skips the native `close` event. If your window's close behavior lives in a `close` listener, keep `win.close()` in the owning service and expose it as a method instead — see the [`close`-event carve-out](./window-manager-usage.md#window-api-layers-consumer-vs-internal).
 
 ## Step 5: Handle show behavior
 

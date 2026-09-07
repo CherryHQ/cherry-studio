@@ -6,6 +6,7 @@ import {
   FormMessage,
   InfoTooltip,
   Input,
+  InputNumber,
   RadioGroup,
   RadioGroupItem,
   Select,
@@ -60,6 +61,15 @@ export type McpForm = UseFormReturn<McpFormValues>
 
 export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
   return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
+}
+
+/**
+ * Env reaches the runtime for stdio and in-memory servers. Over HTTP only a built-in that
+ * declares it needs configuration reads it — QVeris turns `QVERIS_API_KEY` into its auth
+ * header — so every other remote server keeps the editor hidden.
+ */
+export function showsEnvEditor(serverType: McpServer['type'], builtinRequiresEnv?: boolean): boolean {
+  return serverType === 'stdio' || serverType === 'inMemory' || Boolean(builtinRequiresEnv)
 }
 
 export function resolveMcpConfigInstallSource(
@@ -249,8 +259,10 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
   } else {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
-    fields.env = parseKeyValueString(values.env ?? '')
   }
+  // Env is not stdio-only: hosted built-ins such as QVeris keep their API key here whatever
+  // transport they use, so it must round-trip instead of being dropped on save.
+  fields.env = parseKeyValueString(values.env ?? '')
 
   return fields
 }
@@ -280,6 +292,8 @@ interface FieldsProps {
   registryState: McpRegistryState
   /** Built-in servers keep their identity while exposing transport-specific configuration. */
   isBuiltin?: boolean
+  /** A built-in that declares `shouldConfig`: its credentials live in env whatever the transport. */
+  builtinRequiresEnv?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
   /** Allows quick-create to render args before the advanced section. */
@@ -437,8 +451,15 @@ export function McpArgsField({ form }: Pick<FieldsProps, 'form'>) {
   )
 }
 
-/** Transport details: headers for remote servers, registry / args / env for stdio. */
-export function McpTransportFields({ form, serverType, registryState, singleColumn, includeArgs = true }: FieldsProps) {
+/** Transport details: headers for remote servers, registry / args for stdio, env where credentials live. */
+export function McpTransportFields({
+  form,
+  serverType,
+  registryState,
+  builtinRequiresEnv,
+  singleColumn,
+  includeArgs = true
+}: FieldsProps) {
   const { t } = useTranslation()
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
 
@@ -505,9 +526,9 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
           )}
         />
       )}
-      {(serverType === 'stdio' || serverType === 'inMemory') && (
+      {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
+      {showsEnvEditor(serverType, builtinRequiresEnv) && (
         <>
-          {includeArgs && <McpArgsField form={form} />}
           <FormField
             control={form.control}
             name="env"
@@ -567,19 +588,21 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
               {t('settings.mcp.timeout')}
               <InfoTooltip content={t('settings.mcp.timeoutTooltip')} />
             </FormLabel>
-            <FormControl>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
+            {/* `FormControl` is a Slot: it puts `id={formItemId}` on its direct child, which is
+                what `FormLabel`'s `htmlFor` points at. Wrapping the row would name the div. */}
+            <div className="flex items-center gap-2">
+              <FormControl>
+                <InputNumber
                   min={1}
+                  step={1}
                   placeholder="60"
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  value={field.value ?? null}
+                  onBlur={(value) => field.onChange(value ?? undefined)}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-tertiary text-xs">s</span>
-              </div>
-            </FormControl>
+              </FormControl>
+              <span className="text-foreground-tertiary text-xs">s</span>
+            </div>
           </FormItem>
         )}
       />

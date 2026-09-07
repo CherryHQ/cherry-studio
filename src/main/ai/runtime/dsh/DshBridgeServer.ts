@@ -6,7 +6,7 @@
  * command) and the plugin→host round-trips (tool calls, interactive approvals).
  */
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
-import { chmod, rm } from 'node:fs/promises'
+import { chmod, rm, stat } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -21,9 +21,9 @@ import type {
 } from '@cherrystudio/dsh-bridge'
 import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { loggerService } from '@logger'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
@@ -41,10 +41,14 @@ export interface DshBridgeServerOptions {
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
+  /** Evaluate one native tool call against Main-owned non-bypassable safety policy. */
+  onGuardCheck: (
+    toolName: string,
+    args: unknown,
+    cwd: string
+  ) => Promise<BridgePluginRequestMap['guard/check']['result']>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
-  /** The streamed `exit_plan_mode` call id, so the plan-review card anchors to its tool row. */
-  getPlanReviewAnchor?: () => string | undefined
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
 }
@@ -244,6 +248,8 @@ export class DshBridgeServer {
     switch (method) {
       case 'tool/call':
         return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
+      case 'guard/check':
+        return this.handleGuardCheck(params as BridgePluginRequestMap['guard/check']['params'])
       case 'approval/ask':
         return this.handleApprovalAsk(params as BridgePluginRequestMap['approval/ask']['params'])
       case 'question/ask':
@@ -265,6 +271,21 @@ export class DshBridgeServer {
     } finally {
       if (this.activeToolCalls.get(call.callId) === controller) this.activeToolCalls.delete(call.callId)
     }
+  }
+
+  private async handleGuardCheck(
+    check: BridgePluginRequestMap['guard/check']['params']
+  ): Promise<BridgePluginRequestMap['guard/check']['result']> {
+    if (check.sessionId !== this.options.sessionId) {
+      return Promise.reject(new Error('dsh bridge guard check used the wrong session'))
+    }
+    if (typeof check.toolName !== 'string' || !check.toolName || typeof check.cwd !== 'string' || !check.cwd) {
+      return Promise.reject(new Error('dsh bridge guard check has invalid tool or cwd'))
+    }
+    if (!path.isAbsolute(check.cwd)) return Promise.reject(new Error('dsh bridge guard check cwd is not absolute'))
+    const cwdStat = await stat(check.cwd).catch(() => undefined)
+    if (!cwdStat?.isDirectory()) return Promise.reject(new Error('dsh bridge guard check cwd is not a directory'))
+    return this.options.onGuardCheck(check.toolName, check.args, check.cwd)
   }
 
   private handleApprovalAsk(
@@ -293,7 +314,9 @@ export class DshBridgeServer {
           if (decision.approved && decision.updatedInput) {
             logger.warn('editing tool input is not supported by the dsh runtime; rejecting', { toolName })
           }
-          resolve({ outcome: decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected' })
+          const outcome = decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected'
+          const rejectionReason = decision.approved ? undefined : decision.reason?.trim()
+          resolve({ outcome, ...(rejectionReason ? { rejectionReason } : {}) })
         }
       })
       // Only surface the approval card when the request is actually pending; a synchronous
@@ -330,12 +353,13 @@ export class DshBridgeServer {
     if (!review || intent?.kind !== 'plan-review' || typeof review.detail !== 'string') {
       return Promise.reject(new Error('only plan-review questions are bridged to the host'))
     }
+    if (!ask.callId) return Promise.reject(new Error('dsh bridge plan review is missing its tool call id'))
     const interactionState = this.options.getInteractionState()
     if (interactionState.userResponse === 'unavailable') {
       return Promise.reject(new Error('no user is available to review the plan'))
     }
     const approvalId = randomUUID()
-    const toolCallId = this.options.getPlanReviewAnchor?.() ?? approvalId
+    const toolCallId = ask.callId
     const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
     const input = { plan: review.detail }
     return new Promise((resolve) => {

@@ -1,16 +1,15 @@
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
-const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
-const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -27,19 +26,39 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
-vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
-  useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
-}))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockTopicStreamState.status,
-    activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
+
+// Mocked as a real external store, so a renderer that re-subscribes to topic
+// stream state re-renders from this source alone — the #19716 fan-out.
+const topicStreamStore = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let snapshot = {
+    status: undefined as string | undefined,
+    activeExecutions: [] as unknown[],
+    awaitingApprovalAnchors: [] as unknown[],
+    isPending: false,
     isFulfilled: false,
-    markSeen: vi.fn()
-  })
-}))
+    markSeen: () => {}
+  }
+  return {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    getSnapshot: () => snapshot,
+    setStatus: (status: string | undefined) => {
+      snapshot = { ...snapshot, status }
+      listeners.forEach((listener) => listener())
+    }
+  }
+})
+vi.mock('@renderer/hooks/useTopicStreamStatus', async () => {
+  const { useSyncExternalStore } = await import('react')
+  return {
+    useTopicStreamStatus: () => useSyncExternalStore(topicStreamStore.subscribe, topicStreamStore.getSnapshot)
+  }
+})
 vi.mock('@renderer/types/file', () => ({
   COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -92,6 +111,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.error') return 'Error'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
+      if (key === 'message.tools.sessionCreate.created') return 'Session created'
+      if (key === 'message.tools.sessionCreate.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'common.expand') return 'Expand'
@@ -263,7 +286,9 @@ vi.mock('../ThinkingBlock', () => ({
 
 vi.mock('../../frame/MessageAttachments', () => ({
   __esModule: true,
-  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
+  default: ({ name, handle }: any) => (
+    <div data-testid="mock-attachments" data-file-name={name ?? ''} data-handle={JSON.stringify(handle)} />
+  )
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
@@ -344,8 +369,12 @@ vi.mock('../CompactBlock', () => ({
 
 vi.mock('../TranslationBlock', () => ({
   __esModule: true,
-  default: ({ content, isStreaming }: any) => (
-    <div data-testid="mock-translation-block" data-streaming={String(!!isStreaming)}>
+  default: ({ content, isStreaming, onDelete }: any) => (
+    <div
+      data-testid="mock-translation-block"
+      data-streaming={String(!!isStreaming)}
+      data-has-delete={String(!!onDelete)}
+      onClick={onDelete}>
       {content}
     </div>
   )
@@ -374,28 +403,32 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
     ...overrides
   }) as MessageListItem
 
+let activityStore: KeyedMessageActivityStore
+
 const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
 ) => {
   const value: MessageListProviderValue = {
     state: {
       topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
-      messages: [message],
-      partsByMessageId: { [message.id]: parts },
+      messages: [...history.map((entry) => entry.message), message],
+      partsByMessageId: Object.fromEntries([
+        ...history.map((entry) => [entry.message.id, entry.parts]),
+        [message.id, parts]
+      ]),
       messageNavigation: 'none',
       estimateSize: 400,
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
       renderConfig,
-      getMessageActivityState: () => ({
-        isProcessing: false,
-        isStreamTarget: false,
-        isApprovalAnchor: false
-      })
+      messageActivityStore: activityStore,
+      getMessageActivityState: activityStore.getSnapshot
     },
     actions,
     meta: { selectionLayer: false }
@@ -404,7 +437,7 @@ const renderPartsTree = (
   return (
     <MessageListProvider value={value}>
       <PartsProvider value={{ [message.id]: parts }}>
-        <MessagePartsRenderer message={message} />
+        <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
       </PartsProvider>
     </MessageListProvider>
   )
@@ -414,12 +447,21 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
+) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistAttachments))
 
-function activateTurn(status?: string): void {
-  mockIsActiveTurnTarget.mockReturnValue(true)
-  mockTopicStreamState.status = status
+function activateTurn(status?: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update(['msg-1'], status === 'awaiting-approval' ? ['msg-1'] : [], status)
+  })
+}
+
+function finishTurn(status: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update([], [], status)
+  })
 }
 
 function expandCollapsedLiveToolGroups(): void {
@@ -476,8 +518,8 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
-    mockIsActiveTurnTarget.mockReturnValue(false)
-    mockTopicStreamState.status = undefined
+    activityStore = new KeyedMessageActivityStore()
+    topicStreamStore.setStatus(undefined)
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -502,6 +544,66 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
+    it('does not rerender unrelated message content when another message becomes active', () => {
+      const firstMessage = msg({ id: 'msg-1' })
+      const secondMessage = msg({ id: 'msg-2' })
+      const messages = [firstMessage, secondMessage]
+      const partsByMessageId = {
+        'msg-1': [{ type: 'text', text: 'First' }] as CherryMessagePart[],
+        'msg-2': [{ type: 'text', text: 'Second' }] as CherryMessagePart[]
+      }
+      const store = new KeyedMessageActivityStore()
+      const updateCommits = new Map<string, number>()
+      const value: MessageListProviderValue = {
+        state: {
+          topic: { id: 't', name: 'Topic' } as MessageListProviderValue['state']['topic'],
+          messages,
+          partsByMessageId,
+          messageNavigation: 'none',
+          estimateSize: 400,
+          overscan: 0,
+          loadOlderDelayMs: 0,
+          loadingResetDelayMs: 0,
+          renderConfig: defaultMessageRenderConfig,
+          messageActivityStore: store,
+          getMessageActivityState: store.getSnapshot
+        },
+        actions: {},
+        meta: { selectionLayer: false }
+      }
+
+      render(
+        <MessageListProvider value={value}>
+          {messages.map((message) => (
+            <React.Profiler
+              key={message.id}
+              id={message.id}
+              onRender={(id, phase) => {
+                if (phase === 'update') updateCommits.set(id, (updateCommits.get(id) ?? 0) + 1)
+              }}>
+              <MessagePartsRenderer message={message} />
+            </React.Profiler>
+          ))}
+        </MessageListProvider>
+      )
+
+      // A topic-level change must reach no leaf at all: renderers read activity
+      // only through the keyed store.
+      act(() => {
+        topicStreamStore.setStatus('streaming')
+      })
+
+      expect(updateCommits.get('msg-1') ?? 0).toBe(0)
+      expect(updateCommits.get('msg-2') ?? 0).toBe(0)
+
+      act(() => {
+        store.update(['msg-1'], [], 'streaming')
+      })
+
+      expect(updateCommits.get('msg-1') ?? 0).toBeGreaterThan(0)
+      expect(updateCommits.get('msg-2') ?? 0).toBe(0)
+    })
+
     it('renders paused feedback for an interrupted empty message', () => {
       renderParts([], msg({ status: 'paused' }))
 
@@ -535,7 +637,8 @@ describe('MessagePartsRenderer', () => {
               loadingResetDelayMs: 0,
               renderConfig: defaultMessageRenderConfig,
               activeTurnStatus,
-              getMessageActivityState: () => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })
+              messageActivityStore: activityStore,
+              getMessageActivityState: activityStore.getSnapshot
             },
             actions: {},
             meta: { selectionLayer: false }
@@ -547,6 +650,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       // Not processing → renderer is not invoked at all.
+      finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -612,44 +716,48 @@ describe('MessagePartsRenderer', () => {
       expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
-    it('hides the duplicate user image when its composer file token is visible', () => {
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: 'Look ',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [
-                    {
-                      id: 'file:source-image',
-                      kind: 'file',
-                      label: 'photo.png',
-                      index: 0,
-                      textOffset: 5
-                    }
-                  ]
+    it('renders a sent user image instead of its composer file token', () => {
+      const persisted = UpdateAgentSessionMessageSchema.parse({
+        data: {
+          parts: [
+            {
+              type: 'text',
+              text: 'Look ',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:source-image',
+                        kind: 'file',
+                        label: 'photo.png',
+                        index: 0,
+                        textOffset: 5
+                      }
+                    ]
+                  }
                 }
               }
-            }
-          } as unknown as CherryMessagePart,
-          {
-            type: 'file',
-            url: 'file:///tmp/photo.png',
-            mediaType: 'image/png',
-            filename: 'photo.png'
-          } as unknown as CherryMessagePart
-        ],
-        msg({ role: 'user' })
-      )
+            } as unknown as CherryMessagePart,
+            {
+              type: 'file',
+              url: 'file:///tmp/photo.png',
+              mediaType: 'image/png',
+              filename: 'photo.png',
+              providerMetadata: { cherry: { fileTokenSourceId: 'source-image' } }
+            } as unknown as CherryMessagePart
+          ]
+        }
+      })
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     })
 
-    it('hides duplicate user images with the same filename by composer file token identity', () => {
+    it('groups sent user images with the same filename by composer file token identity', () => {
       renderParts(
         [
           {
@@ -697,8 +805,11 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(0)
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+        'data-images',
+        '["file:///tmp/first/photo.png","file:///tmp/second/photo.png"]'
+      )
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
         url: 'file:///tmp/first/photo.png',
         mediaType: 'image/png'
@@ -707,6 +818,294 @@ describe('MessagePartsRenderer', () => {
         url: 'file:///tmp/second/photo.png',
         mediaType: 'image/png'
       })
+    })
+
+    it('renders a legacy sent image without its unique matching file token', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:legacy-image', kind: 'file', label: 'legacy.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          { type: 'file', url: 'file:///tmp/legacy.png', mediaType: 'image/png', filename: 'legacy.png' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/legacy.png"]')
+    })
+
+    it('keeps the sent image token when its matching file part has no renderable URL', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:missing-image', kind: 'file', label: 'missing.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            mediaType: 'image/png',
+            filename: 'missing.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'missing-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('missing.png')
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    })
+
+    it('consumes hidden image token prompt text instead of exposing it as message text', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'before internal image context after',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:prompt-image',
+                      kind: 'file',
+                      label: 'photo.png',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'internal image context'
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'prompt-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByText('before after')).toBeInTheDocument()
+      expect(screen.queryByText(/internal image context/)).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('renders sent images while keeping non-image files as tokens', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    { id: 'file:mixed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 },
+                    { id: 'file:mixed-pdf', kind: 'file', label: 'report.pdf', index: 1, textOffset: 0 }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-image' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-pdf' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('keeps sent images rendered when the user text is collapsed', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'one\ntwo\nthree\nfour\nfive\nsix',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:collapsed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'collapsed-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-user-message-content-toggle]')).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    })
+
+    it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'look at this',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('look at this')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists non-image attachments and hides their token chips', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'see the doc',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists attachments that carry no composer token', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'see the doc' },
+          { type: 'file', url: 'file:///tmp/report.pdf', mediaType: 'application/pdf', filename: 'report.pdf' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    // A blank text part stays "substantive" while it carries a token chip, so hoisting every
+    // token away must drop it too — otherwise the bubble renders an empty line.
+    it('renders nothing when hoisted attachments are the only content', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:only-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'only-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('links pasted-text token previews through fileTokenSourceId without rendering a duplicate attachment', () => {
@@ -960,6 +1359,44 @@ describe('MessagePartsRenderer', () => {
       expect(content).not.toContain('[cite:70536f0b-1]')
     })
 
+    // #19771: the follow-up turn re-cites a kb_search result from the previous turn.
+    it('renders a [cite:id] re-cited from an earlier turn as a badge', () => {
+      const earlierTurn = {
+        message: msg({ id: 'msg-0' }),
+        parts: [
+          {
+            type: 'tool-kb_search',
+            toolCallId: 'search-0',
+            state: 'output-available',
+            input: { query: '审计内容', baseIds: ['b'] },
+            output: [
+              {
+                id: '2598d0ab-1',
+                baseId: 'b',
+                conceptId: 'audit/plan.md',
+                title: '审计方案.md',
+                type: 'file',
+                content: '工程立项与审批合规性审计',
+                score: 0.9
+              }
+            ]
+          }
+        ] as unknown as CherryMessagePart[]
+      }
+
+      renderParts(
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-1' }),
+        {},
+        defaultMessageRenderConfig,
+        [earlierTurn]
+      )
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).not.toContain('[cite:')
+    })
+
     it('renders video and error value parts', async () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
@@ -1032,9 +1469,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('child text')).toBeNull()
     })
 
-    it('renders report artifacts after the final message content and not as an inline tool', async () => {
+    it('renders report artifacts after the final message content and not as an inline tool', () => {
       const openArtifactFile = vi.fn()
-      const openPath = vi.fn()
       const { container } = renderParts(
         [
           { type: 'text', text: 'before tool' },
@@ -1052,7 +1488,7 @@ describe('MessagePartsRenderer', () => {
           { type: 'text', text: 'final answer' }
         ] as unknown as CherryMessagePart[],
         msg(),
-        { openArtifactFile, openPath }
+        { openArtifactFile }
       )
 
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
@@ -1063,14 +1499,9 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
-      fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
-      await waitFor(() => {
-        expect(openPath).toHaveBeenCalledWith('dist/report.md')
-      })
     })
 
-    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+    it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -1102,30 +1533,42 @@ describe('MessagePartsRenderer', () => {
         input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
         output: {}
       } as unknown as CherryMessagePart
+      const sessionPart = {
+        ...toolPart('create-session', 'output-available', 'session_create'),
+        input: { title: 'Research session' },
+        output: {
+          content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      } as unknown as CherryMessagePart
       const initialParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: 'A', state: 'streaming' }
       ] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       const finalText = `A${'b'.repeat(100)}`
       const finalParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: finalText, state: 'done' }
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       act(() => tick(50))
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.getByTestId('session-result-cards')).toBeInTheDocument()
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
@@ -1146,8 +1589,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
       expect(screen.queryByText('report.md')).toBeNull()
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1525,8 +1967,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -1538,14 +1979,42 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
     })
 
+    it('places a completed session action after the final answer and opens it directly', () => {
+      const navigateToRoute = vi.fn()
+      renderParts(
+        [
+          {
+            ...toolPart('create-session', 'output-available', 'session_create'),
+            input: { title: 'Research session' },
+            output: {
+              content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          },
+          { type: 'text', text: 'The new session is ready.' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { navigateToRoute }
+      )
+
+      const answer = screen.getByText('The new session is ready.')
+      const resultCards = screen.getByTestId('session-result-cards')
+      expectNodeBefore(answer, resultCards)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open session: Research session' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { sessionId: 'session-research' }
+      })
+    })
+
     it('keeps the final text node mounted across the active-to-terminal frame', () => {
       activateTurn('streaming')
       const parts = [{ type: 'text', text: 'stable answer node' }] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
       const activeAnswerNode = screen.getByText('stable answer node')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
@@ -1562,8 +2031,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'error'
+      finishTurn('error')
       rerender(renderPartsTree(parts, msg({ status: 'error' })))
 
       expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)
@@ -1637,6 +2105,28 @@ describe('MessagePartsRenderer', () => {
           .getAllByTestId('mock-message-tools')
           .filter((node) => node.getAttribute('data-tool-name') === 'mcp__cherry-tools__config')
       ).toHaveLength(1)
+    })
+
+    it('keeps a prepared diagnostic report action outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      const visibleDiagnosticAction = screen.getByTestId('mock-message-tools')
+      expect(visibleDiagnosticAction).toHaveAttribute('data-tool-name', 'mcp__assistant__prepare_diagnostic_report')
+      expect(visibleDiagnosticAction.closest('[data-testid="tool-history-content"]')).toBeNull()
     })
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
@@ -1984,6 +2474,27 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('removes this message translation through the inline delete when the action is available', () => {
+      const removeMessageTranslation = vi.fn()
+      renderParts(
+        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-translated' }),
+        { removeMessageTranslation }
+      )
+
+      const block = screen.getByTestId('mock-translation-block')
+      expect(block).toHaveAttribute('data-has-delete', 'true')
+      fireEvent.click(block)
+      expect(removeMessageTranslation).toHaveBeenCalledWith('msg-translated')
+    })
+
+    it('hides the inline translation delete in read-only embeds without removeMessageTranslation', () => {
+      renderParts([
+        { type: 'data-translation', data: { content: 'translated answer' } }
+      ] as unknown as CherryMessagePart[])
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'false')
     })
   })
 })

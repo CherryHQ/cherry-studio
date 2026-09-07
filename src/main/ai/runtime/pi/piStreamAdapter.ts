@@ -15,8 +15,10 @@
  * Tool parts are stamped with the pi runtime transport tag
  * (D8) so the renderer routes them to the generic pi tool card.
  */
-import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent, AgentToolResult } from '@earendil-works/pi-coding-agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -27,10 +29,13 @@ export interface PiStreamSink {
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+  const parsed = parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: PI_TRANSPORT,
-      tool: { type: 'builtin', name: toolName }
+      tool: parsed
+        ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
+        : { type: 'builtin' as const, name: toolName }
     },
     pi: { toolName, ...extra }
   }
@@ -157,7 +162,7 @@ export class PiStreamAdapter {
     this.sink.enqueue({
       type: 'tool-output-available',
       toolCallId,
-      output: result ?? null,
+      output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
       providerMetadata: toolProviderMetadata(toolName)
@@ -193,6 +198,42 @@ export class PiStreamAdapter {
         }
       }
     })
+  }
+}
+
+type PiToolContent = AgentToolResult<unknown>['content'][number]
+
+function isTextContent(block: PiToolContent): block is Extract<PiToolContent, { type: 'text' }> {
+  return block.type === 'text'
+}
+
+/** pi types `tool_execution_end`'s `result` as `any`, and its builtins may return a bare string. */
+function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
+  const candidate = result as AgentToolResult<unknown> | undefined
+  return candidate && Array.isArray(candidate.content) ? candidate : undefined
+}
+
+function projectPiToolOutput(toolName: string, result: unknown): unknown {
+  const toolResult = asToolResult(result)
+  if (!toolResult) return result ?? null
+  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === PI_TOOL_EXEC_TOOL_NAME) {
+    return toolResult.details ?? toolResult
+  }
+  return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
+}
+
+/**
+ * `tool_call` returns the target tool's MCP result verbatim, hiding an all-text payload inside a
+ * JSON string. Unwrap it the way the Claude Code / dsh adapters do, so tool cards and citation
+ * resolution see one shape across runtimes.
+ */
+function unwrapMcpContent({ content }: AgentToolResult<unknown>): unknown {
+  if (!content.every(isTextContent)) return content
+  const text = content.map((block) => block.text).join('\n')
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
   }
 }
 

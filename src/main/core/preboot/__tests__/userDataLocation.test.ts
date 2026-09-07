@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *     dynamically import the module-under-test in each test, so we can swap
  *     platform values per scenario.
  *   - The global `electron` mock from tests/main.setup.ts lacks `setPath` and
- *     `isPackaged`. We shadow it via `vi.doMock('electron', ...)` per test.
+ *     pins `isPackaged: false`. We shadow it via `vi.doMock('electron', ...)`
+ *     per test.
  *   - The global `node:fs` mock lacks `accessSync` and `cpSync`. We shadow it
  *     per test with a full mock that exposes both.
  *   - `@main/data/bootConfig` is not globally mocked. We mock it per test with
@@ -71,7 +72,10 @@ function stubElectron(opts: ElectronStubOptions = {}) {
     app: {
       isPackaged,
       getPath,
-      setPath: setPathMock
+      setPath: setPathMock,
+      // Consumed by core/paths/constants.ts (now in this module's import
+      // graph via resolveDevUserDataSuffix) when isPackaged is false.
+      setAppLogsPath: vi.fn()
     }
   }))
 }

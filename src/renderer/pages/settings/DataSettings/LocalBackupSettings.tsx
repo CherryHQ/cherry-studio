@@ -189,7 +189,7 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-local-backup-directory" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           <Input

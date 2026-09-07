@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Capability Tests</title>
+    <link rel="stylesheet" href="/__cherry/theme.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1 data-i18n="title"></h1>
+        <p id="app-info" class="hint"></p>
+      </header>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 data-i18n="permissions"></h2>
+          <button id="refresh-permissions" type="button" class="secondary small" data-i18n="refresh"></button>
+        </div>
+        <p class="hint" data-i18n="permissionsHint"></p>
+        <ul id="permissions" class="permissions"></ul>
+        <p id="usage" class="hint"></p>
+      </section>
+
+      <section class="panel">
+        <div class="groups">
+          <div class="group">
+            <h3>storage</h3>
+            <button id="storage-roundtrip" type="button" class="secondary"></button>
+            <button id="storage-limits" type="button" class="secondary"></button>
+            <button id="storage-rate" type="button" class="secondary"></button>
+            <button id="storage-fill" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>file</h3>
+            <button id="file-roundtrip" type="button" class="secondary"></button>
+            <button id="file-limits" type="button" class="secondary"></button>
+            <button id="file-quota" type="button" class="secondary"></button>
+            <button id="file-count" type="button" class="secondary"></button>
+            <button id="file-export" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>ai</h3>
+            <button id="ai-basics" type="button" class="secondary"></button>
+            <button id="ai-cancel" type="button" class="secondary"></button>
+            <button id="ai-limits" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>notification</h3>
+            <button id="notification-all" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>clipboard</h3>
+            <button id="clipboard-all" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>network</h3>
+            <button id="network-basics" type="button" class="secondary"></button>
+            <button id="network-refusals" type="button" class="secondary"></button>
+            <button id="network-limits" type="button" class="secondary"></button>
+          </div>
+          <div class="group">
+            <h3>sandbox</h3>
+            <button id="sandbox-all" type="button" class="secondary"></button>
+            <input id="sandbox-file" type="file" />
+          </div>
+          <div class="group">
+            <h3>&nbsp;</h3>
+            <button id="cleanup" type="button"></button>
+            <button id="clear-log" type="button" class="secondary" data-i18n="clearLog"></button>
+          </div>
+        </div>
+      </section>
+
+      <ol id="log" class="log" aria-live="polite"></ol>
+    </main>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

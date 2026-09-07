@@ -226,13 +226,15 @@ export async function getNormalizedExtension(language: string, languageConfig?: 
   }
 
   // 2. Search for language configuration extensions
+  // @uiw/codemirror-extensions-langs keys are all lowercase, so a language name
+  // that falls through as its own extension (Markdown, TSX, TOML...) must be lowered.
   const linguistExt = getExtensionByLanguage(lang, languageConfig)
   if (linguistExt) {
-    return linguistExt.slice(1)
+    return linguistExt.slice(1).toLowerCase()
   }
 
   // Fallback to language name
-  return lang
+  return lowerLanguage
 }
 
 /**

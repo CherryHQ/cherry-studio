@@ -6,9 +6,11 @@ export type RendererCommandContextKey =
   | 'platform'
   | 'feature.quick_assistant.enabled'
   | 'feature.selection.enabled'
+  | 'feature.screenshot.enabled'
   | 'chat.active'
   | 'topic.exists'
   | 'input.composing'
+  | 'webview.focused'
 
 export type RegisterContextKey = (key: RendererCommandContextKey, value: ContextValue) => () => void
 

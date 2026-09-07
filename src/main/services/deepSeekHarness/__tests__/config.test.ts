@@ -5,7 +5,7 @@ import path from 'node:path'
 import type * as FileUtils from '@main/utils/file'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -64,7 +64,7 @@ const provider = (partial: Partial<Provider> = {}): Provider =>
     authType: 'api-key',
     apiKeys: [{ id: 'key', isEnabled: true }],
     isEnabled: true,
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     settings: {},
     endpointConfigs: {
       [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
@@ -110,10 +110,12 @@ describe('DeepSeek Harness config transaction', () => {
       resolveDeepSeekHarnessEndpoint(
         provider({
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
-          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true },
           endpointConfigs: {
             [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/v1/' },
-            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              baseUrl: 'https://proxy.example/',
+              dialect: { developerRole: true }
+            }
           }
         }),
         model({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
@@ -125,10 +127,7 @@ describe('DeepSeek Harness config transaction', () => {
     })
 
     expect(
-      resolveDeepSeekHarnessEndpoint(
-        provider({ apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true } }),
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
+      resolveDeepSeekHarnessEndpoint(provider(), model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))
     ).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       protocol: 'openai-responses',
@@ -140,12 +139,14 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('has no DeepSeek Harness compatible endpoint')
   })
 
-  it('uses an advertised Anthropic route when the selected endpoint cannot preserve developer-role support', () => {
+  it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example/v1',
+          dialect: { developerRole: false }
+        },
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
       }
     })
@@ -154,17 +155,12 @@ describe('DeepSeek Harness config transaction', () => {
     })
 
     expect(resolveDeepSeekHarnessEndpoint(openAiFirstProvider, openAiFirstModel)).toEqual({
-      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      protocol: 'anthropic-messages',
-      baseUrl: 'https://proxy.example/anthropic'
+      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      protocol: 'openai-completions',
+      baseUrl: 'https://proxy.example/v1'
     })
 
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        { ...openAiFirstProvider, apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true } },
-        openAiFirstModel
-      )
-    ).toEqual({
+    expect(resolveDeepSeekHarnessEndpoint(openAiFirstProvider, model({ endpointTypes: undefined }))).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       protocol: 'openai-completions',
       baseUrl: 'https://proxy.example/v1'
@@ -183,69 +179,9 @@ describe('DeepSeek Harness config transaction', () => {
         model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
       )
     ).toEqual({
-      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      protocol: 'anthropic-messages',
-      baseUrl: 'https://proxy.example/anthropic'
-    })
-  })
-
-  it('rejects direct endpoints whose developer-role limitation cannot be represented by DSH', () => {
-    const providerWithoutDeveloperRole = provider({
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
-      apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' }
-      }
-    })
-
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        providerWithoutDeveloperRole,
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        providerWithoutDeveloperRole,
-        model({ reasoning: undefined, endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
-        model({
-          reasoning: undefined,
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-        })
-      )
-    ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
-  })
-
-  it('uses pi-ai DeepSeek compatibility for reasoning models on the official chat endpoint', () => {
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        provider({
-          id: 'deepseek',
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
-          endpointConfigs: {
-            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' }
-          }
-        }),
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
-      )
-    ).toEqual({
-      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      protocol: 'openai-completions',
-      baseUrl: 'https://api.deepseek.com/v1'
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
     })
   })
 
@@ -292,6 +228,57 @@ describe('DeepSeek Harness config transaction', () => {
     expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
       'external-key': 'value',
       count: 5,
+      [identity.credentialRef]: 'sk-sensitive'
+    })
+  })
+
+  it('nests the managed credential under refs and drops the top-level key DSH 0.1.1 rejects', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    await writeFile(
+      path.join(dir, '.credentials.yaml'),
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n${identity.credentialRef}: sk-stale\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' }
+    })
+  })
+
+  it('heals every stale managed key at top-level of a version: 1 document while preserving user keys', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    const staleHex = 'CHERRY_STUDIO_CODEMATE_AAAAAAAAAAAA_API_KEY'
+    const staleGateway = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
+    await writeFile(
+      path.join(dir, '.credentials.yaml'),
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n${staleHex}: sk-stale-a\n${staleGateway}: sk-stale-b\nDEEPSEEK_API_KEY: sk-user\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' },
+      DEEPSEEK_API_KEY: 'sk-user'
+    })
+  })
+
+  it('keeps the flat layout pre-0.1.1 DSH reads, including a credential named version', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      [identity.credentialRef]: 'sk-sensitive'
+    })
+
+    await writeFile(path.join(dir, '.credentials.yaml'), 'version: sk-legacy\n', { mode: 0o600 })
+    await writeDeepSeekHarnessConfig(dir, projection())
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 'sk-legacy',
       [identity.credentialRef]: 'sk-sensitive'
     })
   })

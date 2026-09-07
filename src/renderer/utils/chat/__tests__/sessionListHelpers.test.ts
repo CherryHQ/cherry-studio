@@ -196,6 +196,19 @@ describe('SessionList helpers', () => {
     expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
   })
 
+  it('keeps pinned sessions inside their agent group', () => {
+    const groupSession = createSessionDisplayGroupResolver({
+      agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
+      labels: SESSION_GROUP_LABELS,
+      mode: 'agent'
+    })
+
+    expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual({
+      id: 'session:agent:agent-1',
+      label: 'Alpha agent'
+    })
+  })
+
   it('groups sessions by agent and workdir', () => {
     const agentGroup = createSessionDisplayGroupResolver({
       agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
@@ -296,7 +309,7 @@ describe('SessionList helpers', () => {
     )
   })
 
-  it('uses workspace rows for workdir labels and ranks independent of session order', () => {
+  it('uses all workspace rows for workdir labels and ranks independent of session order', () => {
     const sessions = [
       createSession({
         id: 'session-a',
@@ -317,6 +330,7 @@ describe('SessionList helpers', () => {
 
     expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
       new Map([
+        ['session:workspace:ws-empty', 'Empty Workspace'],
         ['session:workspace:ws-b', 'DB Beta'],
         ['session:workspace:ws-a', 'DB Alpha']
       ])
@@ -408,6 +422,25 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
+  })
+
+  it('sorts pinned sessions first within each agent group', () => {
+    const sessions = [
+      createSession({ id: 'regular-b', agentId: 'agent-b', orderKey: 'b' }),
+      createSession({ id: 'regular-a', agentId: 'agent-a', orderKey: 'a' }),
+      createSession({ id: 'pinned-b', agentId: 'agent-b', orderKey: 'd', pinned: true }),
+      createSession({ id: 'pinned-a', agentId: 'agent-a', orderKey: 'c', pinned: true })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([
+          ['agent-a', 0],
+          ['agent-b', 1]
+        ]),
+        mode: 'agent'
+      }).map((session) => session.id)
+    ).toEqual(['pinned-a', 'regular-a', 'pinned-b', 'regular-b'])
   })
 
   it('keeps system workspace sessions at the bottom only in workdir mode', () => {

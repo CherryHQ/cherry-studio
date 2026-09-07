@@ -1,8 +1,9 @@
 /**
  * DirectoryWatcher — generic FS-monitoring primitive.
  *
- * Wraps `chokidar@4` with a minimal event surface (`add` / `unlink` /
- * `change` / `ready` / `error`) and auto-wires `add` / `unlink` events into
+ * Wraps `chokidar@4` with a normalized event surface (`add` / `addDir` /
+ * `unlink` / `unlinkDir` / `change` / `ready` / `error`) and auto-wires file
+ * `add` / `unlink` events into
  * the file-module's `DanglingCache` singleton so external-entry presence
  * tracking stays coherent across all watchers.
  *
@@ -17,20 +18,8 @@
  *   `chokidar` with house conventions (built-in OS-junk ignores, optional
  *   debounce window).
  *
- * ## Deviation from `file-manager-architecture.md §8.2`
- *
- * The architecture doc specifies a richer API (separate `onAdd` / `onAddDir`
- * / `onUnlink` / `onUnlinkDir` / `onRename` / `onError` / `onReady` events
- * with rename-detection options). This module currently ships only the
- * events that have a consumer in the current scope:
- * - directory add/remove not surfaced (no consumer needs it)
- * - rename detection deferred (paired with `onRename` deliverable)
- *
- * Future expansions can additively grow the `WatcherEvent` union without
- * breaking existing subscribers.
- *
- * See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md)
- * for the full design.
+ * Rename detection is intentionally absent: chokidar renames remain
+ * `unlink` + `add`. See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md).
  */
 
 import path from 'node:path'
@@ -46,9 +35,8 @@ import { danglingCache } from './danglingCache'
 const logger = loggerService.withContext('file/watcher')
 
 /**
- * Normalized FS event. Rename is represented as `unlink` + `add` — consumers
- * that need "rename" semantics correlate the pair themselves (see
- * §8.3 "Rename Detection Semantics" in file-manager-architecture.md).
+ * Normalized FS event. Rename is represented as `unlink` + `add`; the watcher
+ * does not infer identity across those events.
  *
  * Directory variants `addDir` / `unlinkDir` were added when the
  * `DirectoryTreeBuilder` primitive landed (see

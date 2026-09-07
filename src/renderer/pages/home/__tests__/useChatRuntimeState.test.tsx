@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
+  sendTurn: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -80,7 +81,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: (config: unknown) => {
     mocks.turnControllerConfig = config
-    return { send: vi.fn(), phase: 'idle' }
+    return { send: mocks.sendTurn, phase: 'idle' }
   }
 }))
 
@@ -125,6 +126,8 @@ vi.mock('../hooks/useTopicMessagesCache', () => ({
 
 import { useChatRuntimeState } from '../useChatRuntimeState'
 
+let latestRuntime: ReturnType<typeof useChatRuntimeState> | null = null
+
 function makeTopic(id: string): Topic {
   return {
     id,
@@ -156,7 +159,7 @@ function RuntimeHost({
   messages?: CherryUIMessage[]
 }) {
   const topic = useMemo(() => makeTopic(topicId), [topicId])
-  useChatRuntimeState({
+  latestRuntime = useChatRuntimeState({
     topic,
     isHistoryLoading: false,
     initialMessages: messages,
@@ -190,6 +193,30 @@ describe('useChatRuntimeState', () => {
     mocks.liveMessageIds = []
     mocks.liveAssistants = []
     mocks.overlayOnFinish = null
+    mocks.sendTurn.mockReset()
+    mocks.sendTurn.mockResolvedValue(true)
+    latestRuntime = null
+  })
+
+  it('reports a blocked stream open as not sent', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(false)
+    render(<RuntimeHost topicId="topic-1" />)
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await latestRuntime?.sendMessage('keep this draft')
+    })
+
+    expect(sent).toBe(false)
+  })
+
+  it('keeps sendMessage stable across runtime rerenders', () => {
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    const sendMessage = latestRuntime?.sendMessage
+
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(latestRuntime?.sendMessage).toBe(sendMessage)
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {

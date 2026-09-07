@@ -1,4 +1,4 @@
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import {
   useProviderById,
   useProviderDisplayName,
   useProviderMutations,
+  useProviderPreset,
   useProviders
 } from '../useProvider'
 
@@ -31,6 +32,25 @@ const mockProvider2: any = {
 }
 
 const mockProviderList = [mockProvider1, mockProvider2]
+
+describe('useProviderPreset', () => {
+  it('revalidates registry-backed model projections after a snapshot update', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: { models: [] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useProviderPreset('openai', ['models']))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId/preset' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+})
 
 describe('useProviders', () => {
   beforeEach(() => {
@@ -72,6 +92,42 @@ describe('useProviders', () => {
     rerender()
 
     expect(result.current.providers).toBe(firstProviders)
+  })
+
+  it('exposes a provider list read failure instead of presenting only an empty list', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toEqual([])
+    expect(result.current.hasLoaded).toBe(false)
+    expect(result.current.error).toBe(error)
+  })
+
+  it('marks stale provider data as loaded when background revalidation fails', () => {
+    const error = new Error('Provider registry unavailable')
+    mockUseQuery.mockReturnValue({
+      data: mockProviderList,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useProviders())
+
+    expect(result.current.providers).toBe(mockProviderList)
+    expect(result.current.hasLoaded).toBe(true)
+    expect(result.current.error).toBe(error)
   })
 
   it('should call useQuery with /providers path', () => {
@@ -292,7 +348,9 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     // P0: list + entity + /* wildcard covers useProvider(id) and all sub-resource hooks
-    expect(patchCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
+    expect(patchCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*', '/models', '/models/*']
+    })
 
     expect(deleteCall).toBeDefined()
     expect(deleteCall![2]).toEqual({ refresh: ['/providers', '/providers/openai', '/providers/openai/*'] })
@@ -360,7 +418,7 @@ describe('useProviderMutations', () => {
 
     expect(patchCall).toBeDefined()
     expect(patchCall![2]).toEqual({
-      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*']
+      refresh: ['/providers', '/providers/openai-main', '/providers/openai-main/*', '/models', '/models/*']
     })
   })
 
@@ -560,7 +618,8 @@ describe('useProviderMutations', () => {
   })
 
   it('should log and rethrow addApiKey errors', async () => {
-    const error = new Error('Post failed')
+    const apiKey = 'sk-should-not-reach-logs'
+    const error = new Error(`Post failed for ${apiKey}`)
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger:
@@ -574,10 +633,11 @@ describe('useProviderMutations', () => {
     const { result } = renderHook(() => useProviderMutations('openai'))
 
     await act(async () => {
-      await expect(result.current.addApiKey('sk-test')).rejects.toThrow('Post failed')
+      await expect(result.current.addApiKey(apiKey)).rejects.toThrow(`Post failed for ${apiKey}`)
     })
 
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to add API key', { providerId: 'openai', error })
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to add API key', { providerId: 'openai', errorType: 'Error' })
+    expect(JSON.stringify(loggerSpy.mock.calls)).not.toContain(apiKey)
   })
 
   it('should log and rethrow deleteApiKey errors', async () => {
@@ -625,7 +685,8 @@ describe('useProviderMutations', () => {
   })
 
   it('should log and rethrow updateApiKeys errors', async () => {
-    const error = new Error('API key update failed')
+    const apiKey = 'sk-should-not-reach-logs'
+    const error = new Error(`API key update failed for ${apiKey}`)
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger:
@@ -639,12 +700,16 @@ describe('useProviderMutations', () => {
     const { result } = renderHook(() => useProviderMutations('openai'))
 
     await act(async () => {
-      await expect(
-        result.current.updateApiKeys([{ id: 'k1', key: 'sk-test', isEnabled: true } as any])
-      ).rejects.toThrow('API key update failed')
+      await expect(result.current.updateApiKeys([{ id: 'k1', key: apiKey, isEnabled: true } as any])).rejects.toThrow(
+        `API key update failed for ${apiKey}`
+      )
     })
 
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update API keys', { providerId: 'openai', error })
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update API keys', {
+      providerId: 'openai',
+      errorType: 'Error'
+    })
+    expect(JSON.stringify(loggerSpy.mock.calls)).not.toContain(apiKey)
   })
 
   it('should call updateApiKey trigger with providerId, keyId and body', async () => {
@@ -668,6 +733,35 @@ describe('useProviderMutations', () => {
       params: { providerId: 'openai', keyId: 'key-1' },
       body: { label: 'Primary', isEnabled: false }
     })
+  })
+
+  it('should not log a key echoed by an updateApiKey error', async () => {
+    const apiKey = 'sk-should-not-reach-logs'
+    const error = new Error(`API key update failed for ${apiKey}`)
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PATCH' && path === '/providers/:providerId/api-keys/:keyId'
+          ? vi.fn().mockRejectedValue(error)
+          : vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await expect(result.current.updateApiKey('key-1', { key: apiKey })).rejects.toThrow(
+        `API key update failed for ${apiKey}`
+      )
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update API key', {
+      providerId: 'openai',
+      keyId: 'key-1',
+      errorType: 'Error'
+    })
+    expect(JSON.stringify(loggerSpy.mock.calls)).not.toContain(apiKey)
   })
 
   it('should expose isUpdating and isDeleting loading states', () => {

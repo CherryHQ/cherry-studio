@@ -86,8 +86,18 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+    ({
+      children,
+      closeOnOverlayClick,
+      closeLabel,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+    }) => {
       void closeOnOverlayClick
+      void closeLabel
       return React.createElement(tag, props, children)
     }
 
@@ -119,6 +129,7 @@ vi.mock('@cherrystudio/ui', () => {
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: passthrough('label'),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
@@ -202,7 +213,6 @@ describe('ChannelDetail', () => {
         type: 'telegram',
         name: 'Telegram channel',
         agentId: 'agent-1',
-        sessionId: null,
         workspace: { type: 'system' },
         config: { bot_token: 'token', allowed_chat_ids: [] },
         isActive: true,

@@ -17,7 +17,7 @@ import {
   ParameterSupportSchema,
   ReasoningSupportSchema
 } from './model'
-import { EndpointTypeSchema } from './provider'
+import { EndpointTypeSchema, ServiceTierOptionsSchema } from './provider'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const CapabilityOverrideSchema = z.object({
@@ -84,6 +84,12 @@ export const ProviderModelOverrideSchema = z.object({
   reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
+  /** Model-specific option overrides for endpoint-owned request controls. */
+  requestControls: z
+    .object({
+      serviceTier: z.object({ options: ServiceTierOptionsSchema }).optional()
+    })
+    .optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)

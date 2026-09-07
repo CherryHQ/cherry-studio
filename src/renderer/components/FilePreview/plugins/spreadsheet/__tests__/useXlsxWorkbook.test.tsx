@@ -101,6 +101,31 @@ describe('useXlsxWorkbook', () => {
     expect(result.current).toEqual({ status: 'ready', model })
   })
 
+  it('terminates the worker after a successful parse and not again on unmount', async () => {
+    const model = createMockWorkbookModel()
+    const { result, unmount } = renderHook(() => useXlsxWorkbook('/tmp/book.xlsx', 0))
+
+    await waitFor(() => expect(mocks.requests).toHaveLength(1))
+    const worker = lastWorker()
+    act(() => worker.respond({ id: mocks.requests[0].id, ok: true, model }))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
+    unmount()
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps a worker crash to the error state and terminates the worker', async () => {
+    const { result } = renderHook(() => useXlsxWorkbook('/tmp/book.xlsx', 0))
+
+    await waitFor(() => expect(mocks.requests).toHaveLength(1))
+    const worker = lastWorker()
+    act(() => worker.onerror?.({ message: 'worker exploded' }))
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'worker exploded' }))
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+
   it('terminates the worker and reports a synchronous postMessage failure', async () => {
     const error = new Error('structured clone failed')
     mocks.postMessageError = error
@@ -185,6 +210,7 @@ describe('useXlsxWorkbook', () => {
     act(() => lastWorker().respond({ id: mocks.requests[0].id, ok: false, message: 'not an xlsx' }))
 
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'not an xlsx' }))
+    expect(lastWorker().terminate).toHaveBeenCalledTimes(1)
     // The raw technical message is logged at the failure site so the UI can show a generic translated description.
     expect(mocks.logger.error).toHaveBeenCalledWith('Failed to parse xlsx file: not an xlsx')
   })

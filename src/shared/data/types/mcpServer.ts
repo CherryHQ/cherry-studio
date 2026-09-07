@@ -24,7 +24,7 @@ export const McpServerTypeSchema = z.enum(['stdio', 'sse', 'streamableHttp', 'in
 export type McpServerType = z.infer<typeof McpServerTypeSchema>
 
 /** MCP Server install source */
-export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown'])
+export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'ai_assisted', 'protocol', 'unknown'])
 export type McpServerInstallSource = z.infer<typeof McpServerInstallSourceSchema>
 
 // ============================================================================

@@ -26,6 +26,7 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   editTools: ['edit', 'write'],
   autoApprovedTools: [],
   approvalRequiredTools: [],
+  nonBypassableApprovalTools: [],
   planSafeTools: [],
   ...overrides
 })
@@ -126,9 +127,32 @@ describe('decideToolCall', () => {
     ],
     [
       'bypassPermissions',
-      'approval-required first-party tool still asks',
+      'approval-required first-party tool allows (bypass is the explicit opt-out of per-call approval)',
       policy({
         permissionMode: 'bypassPermissions',
+        autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
+        approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
+      }),
+      'mcp__cherry-tools__kb_manage',
+      {},
+      'allow'
+    ],
+    [
+      'bypassPermissions',
+      'non-bypassable delegation still asks',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'ask'
+    ],
+    [
+      'default',
+      'approval-required beats auto-approval outside bypass',
+      policy({
         autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
         approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
       }),
@@ -218,6 +242,24 @@ describe('decideDelegatedToolCall', () => {
   it.each([
     ['contained read still allows', policy(), 'read', { file_path: 'inside.txt' }, 'allow'],
     ['bypass still allows bash', policy({ permissionMode: 'bypassPermissions' }), 'bash', { command: 'ls' }, 'allow'],
+    [
+      'bypass lifts approval-required for the delegated child too (no dead-end deny)',
+      policy({ permissionMode: 'bypassPermissions', approvalRequiredTools: ['mcp__cherry-tools__kb_manage'] }),
+      'mcp__cherry-tools__kb_manage',
+      {},
+      'allow'
+    ],
+    [
+      'non-bypassable delegation denies in the delegated child under bypass',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'deny'
+    ],
     [
       'acceptEdits contained edit still allows',
       policy({ permissionMode: 'acceptEdits' }),

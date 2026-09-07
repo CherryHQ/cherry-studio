@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { McpTool } from '@renderer/types/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { CreateMcpServerDto, ListMcpServersQuery } from '@shared/data/api/schemas/mcpServers'
@@ -45,10 +46,33 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
 }
 
 /**
- * Single MCP server hook — read + update + delete.
- * Fetches via the list endpoint with an id filter (separate SWR cache entry
- * from the unfiltered list). Mutations use refresh: ['/mcp-servers'] to
- * auto-invalidate all /mcp-servers caches (list, filtered, and detail).
+ * Active MCP servers reachable from one conversation: `'all'` for auto mode, an explicit id list for
+ * manual / agent bindings, `null` when MCP is off (skips the query entirely). Inactive servers are
+ * always dropped — a disabled server can serve neither tools nor prompts nor resources.
+ *
+ * Pass a memoized `boundServerIds` array; it is a dependency of the filter.
+ */
+export const useScopedMcpServers = (
+  boundServerIds: readonly string[] | 'all' | null,
+  options: { enabled?: boolean } = {}
+) => {
+  const { mcpServers, isLoading } = useMcpServers(undefined, {
+    enabled: (options.enabled ?? true) && boundServerIds !== null
+  })
+
+  const servers = useMemo(() => {
+    if (boundServerIds === null) return []
+    const bound = boundServerIds === 'all' ? null : new Set(boundServerIds)
+    return mcpServers.filter((server) => server.isActive && (!bound || bound.has(server.id)))
+  }, [boundServerIds, mcpServers])
+
+  return { servers, isLoading }
+}
+
+/**
+ * Single MCP server hook — read + update. Fetches via the list endpoint with
+ * an id filter (separate SWR cache entry from the unfiltered list). Mutations
+ * use refresh: ['/mcp-servers'] to auto-invalidate all /mcp-servers caches.
  */
 export const useMcpServer = (id: string) => {
   const { data, isLoading } = useQuery('/mcp-servers', {
@@ -56,11 +80,11 @@ export const useMcpServer = (id: string) => {
     enabled: !!id
   })
 
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(id)
+  const { updateMcpServer } = useMcpServerMutations(id)
 
   const server = useMemo(() => data?.items?.[0], [data])
 
-  return { server, isLoading, updateMcpServer, deleteMcpServer }
+  return { server, isLoading, updateMcpServer }
 }
 
 /**
@@ -79,6 +103,9 @@ export const useIsToolAutoApproved = (tool: McpTool): boolean => {
 /**
  * Mutation-only hook for a single MCP server — no query, no N+1.
  * Use when server data is already available from a parent (e.g. from useMcpServers list).
+ *
+ * Removal goes through the `mcp.server.remove` IPC channel (main orchestrates
+ * runtime cleanup + row deletion), not DataApi.
  */
 export const useMcpServerMutations = (id: string) => {
   const path = `/mcp-servers/${id}` as const
@@ -87,9 +114,16 @@ export const useMcpServerMutations = (id: string) => {
     refresh: ['/mcp-servers']
   })
 
-  const { trigger: deleteMcpServer } = useMutation('DELETE', path, {
-    refresh: ['/mcp-servers']
-  })
+  const invalidateCache = useInvalidateCache()
 
-  return { updateMcpServer, deleteMcpServer }
+  const removeMcpServer = useCallback(async () => {
+    await ipcApi.request('mcp.server.remove', { serverId: id })
+    // The delete is committed once the IPC call returns — a failed cache
+    // refresh must not surface as a delete failure.
+    await invalidateCache('/mcp-servers').catch((error) =>
+      loggerService.withContext('useMcpServer').warn('Failed to refresh MCP server cache after delete', error as Error)
+    )
+  }, [id, invalidateCache])
+
+  return { updateMcpServer, removeMcpServer }
 }

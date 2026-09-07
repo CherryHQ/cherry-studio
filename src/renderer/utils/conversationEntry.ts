@@ -48,3 +48,19 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
   const { session } = await dataApiService.get('/agent-sessions/latest')
   return session?.id ?? null
 }
+
+/**
+ * Entity-scoped variants used by the sidebar entries: resolve the most recent
+ * conversation of one specific assistant / agent. They intentionally ignore the
+ * global last-focused caches — a pinned entity entry is about that entity, not
+ * whatever was last focused elsewhere.
+ */
+export async function resolveChatEntryTopicIdForAssistant(assistantId: string): Promise<string | null> {
+  const { topic } = await dataApiService.get('/topics/latest', { query: { assistantId } })
+  return topic?.id ?? null
+}
+
+export async function resolveAgentEntrySessionIdForAgent(agentId: string): Promise<string | null> {
+  const { session } = await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
+  return session?.id ?? null
+}

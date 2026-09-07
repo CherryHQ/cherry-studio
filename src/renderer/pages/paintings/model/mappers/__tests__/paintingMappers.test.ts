@@ -106,6 +106,48 @@ describe('paintingMappers', () => {
     })
   })
 
+  it('starts output and input file-entry batches concurrently', async () => {
+    let resolveOutput!: (value: unknown) => void
+    let resolveInput!: (value: unknown) => void
+    const outputEntry = new Promise((resolve) => {
+      resolveOutput = resolve
+    })
+    const inputEntry = new Promise((resolve) => {
+      resolveInput = resolve
+    })
+    mockDataApiGet.mockImplementation((path: string) => (path.endsWith('/output-file') ? outputEntry : inputEntry))
+
+    const hydration = recordToPaintingData({
+      ...record,
+      files: { output: ['output-file'], input: ['input-file'] }
+    })
+
+    expect(mockDataApiGet).toHaveBeenCalledTimes(2)
+    expect(mockDataApiGet).toHaveBeenNthCalledWith(1, '/files/entries/output-file')
+    expect(mockDataApiGet).toHaveBeenNthCalledWith(2, '/files/entries/input-file')
+
+    resolveOutput({
+      id: 'output-file',
+      origin: 'internal',
+      name: 'output-file',
+      ext: 'png',
+      size: 10,
+      createdAt: 0,
+      updatedAt: 0
+    })
+    resolveInput({
+      id: 'input-file',
+      origin: 'internal',
+      name: 'input-file',
+      ext: 'png',
+      size: 10,
+      createdAt: 0,
+      updatedAt: 0
+    })
+
+    await hydration
+  })
+
   it('round-trips painting through create DTO carrying only the frozen-receipt fields', async () => {
     const paintingDataList = await recordsToPaintingDataList([record])
     const paintingData = paintingDataList[0]

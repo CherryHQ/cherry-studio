@@ -11,6 +11,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
@@ -131,7 +132,13 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
+const {
+  createCustomModel,
+  mergePresetModel,
+  projectRuntimeReasoning,
+  providerRegistryService,
+  resolveReasoningProfileFromRegistry
+} = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -192,6 +199,16 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  describe('createCustomModel', () => {
+    it('does not infer image capability from an unknown model id', () => {
+      const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
+
+      expect(model.capabilities).toEqual([])
+      expect(model.inputModalities).toBeUndefined()
+      expect(model.outputModalities).toBeUndefined()
+    })
   })
 
   describe('getProviderPreset', () => {
@@ -257,6 +274,12 @@ describe('ProviderRegistryService', () => {
   describe('cache reuse', () => {
     it('should only read models.json once across multiple calls', async () => {
       setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0'
+      })
 
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
@@ -266,6 +289,16 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('resolveModels', () => {
+    beforeEach(async () => {
+      await dbh.db.insert(userProviderTable).values([
+        { providerId: 'openai', presetProviderId: 'openai', name: 'OpenAI', orderKey: 'a0' },
+        { providerId: 'tokenhub', presetProviderId: 'tokenhub', name: 'TokenHub', orderKey: 'a1' },
+        { providerId: 'dashscope', presetProviderId: 'dashscope', name: 'DashScope', orderKey: 'a2' },
+        { providerId: 'aws-bedrock', presetProviderId: 'aws-bedrock', name: 'AWS Bedrock', orderKey: 'a3' },
+        { providerId: 'ovms', presetProviderId: 'ovms', name: 'OVMS', orderKey: 'a4' }
+      ])
+    })
+
     it('should merge raw models with registry data including capabilities and limits', async () => {
       setupRegistryData()
 
@@ -319,6 +352,23 @@ describe('ProviderRegistryService', () => {
       })
     })
 
+    it('projects service tier choices to renderer models without exposing native wire configuration', () => {
+      const model = mergePresetModel({ id: 'gpt-oss-120b', name: 'GPT OSS 120B' }, null, 'groq', undefined, undefined, {
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex'],
+        wire: {
+          delivery: { type: 'provider-option', key: 'serviceTier' },
+          values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+        }
+      } as any)
+
+      expect(model.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(model.requestControls?.serviceTier).not.toHaveProperty('wire')
+    })
+
     it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
@@ -345,6 +395,7 @@ describe('ProviderRegistryService', () => {
 
     it('does not apply provider-specific registry data when a custom row collides with a registry id', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
         presetProviderId: null,
@@ -426,6 +477,7 @@ describe('ProviderRegistryService', () => {
 
     it('should fall back to registry defaults when provider is not found in the DB', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
@@ -913,6 +965,7 @@ describe('ProviderRegistryService', () => {
 
     it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
         presetProviderId: 'openai',
@@ -931,5 +984,42 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+  })
+})
+
+describe('projectRuntimeReasoning summary options', () => {
+  const effortSupport = { controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }] }
+
+  // The renderer must not offer a knob the endpoint rejects — Ark 400s on `reasoning.summary`.
+  it('offers summary verbosity only where the wire carries it', () => {
+    const withSummary = projectRuntimeReasoning(effortSupport, {
+      effort: {
+        operations: [
+          { target: 'reasoningEffort', value: { source: 'effort' } },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+        ]
+      }
+    })
+    const withoutSummary = projectRuntimeReasoning(effortSupport, {
+      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+    })
+
+    expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(withoutSummary.summaryOptions).toBeUndefined()
+  })
+
+  it('lets an endpoint override enable or disable the Responses summary wire', () => {
+    const enabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      reasoningSummary: true
+    })
+    const disabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      format: { type: 'openai-responses', wire: enabled.wire },
+      reasoningSummary: false
+    })
+
+    expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
   })
 })

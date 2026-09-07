@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import { getI18n } from '@main/i18n'
+import { t } from '@main/i18n'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
@@ -80,24 +80,21 @@ export class TrayService extends BaseService implements Activatable {
   }
 
   private updateContextMenu() {
-    const i18n = getI18n()
-    const { tray: trayLocale, selection: selectionLocale } = i18n.translation
-
     const preferenceService = application.get('PreferenceService')
     const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
     const selectionAssistantEnabled = preferenceService.get('feature.selection.enabled')
 
     const template = [
       {
-        label: trayLocale.show_window,
+        label: t('tray.show_window'),
         click: () => application.get('MainWindowService').showMainWindow()
       },
       quickAssistantEnabled && {
-        label: trayLocale.show_quick_assistant,
+        label: t('tray.show_quick_assistant'),
         click: () => application.get('QuickAssistantService').showQuickAssistant()
       },
       (isWin || isMac) && {
-        label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
+        label: t('selection.name') + (selectionAssistantEnabled ? ' - On' : ' - Off'),
         click: () => {
           application.get('SelectionService').toggleEnabled()
           this.updateContextMenu()
@@ -105,7 +102,7 @@ export class TrayService extends BaseService implements Activatable {
       },
       { type: 'separator' },
       {
-        label: trayLocale.quit,
+        label: t('tray.quit'),
         click: () => this.quit()
       }
     ].filter(Boolean) as MenuItemConstructorOptions[]

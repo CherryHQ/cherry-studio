@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../../lifecycle/BaseService'
@@ -69,6 +70,7 @@ interface MockBrowserWindow {
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     getURL: ReturnType<typeof vi.fn>
+    mainFrame: { frameTreeNodeId: number }
   }
 }
 
@@ -135,7 +137,8 @@ function createMockBrowserWindow(): MockBrowserWindow {
       isCrashed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
       on: vi.fn(),
-      getURL: vi.fn(() => '')
+      getURL: vi.fn(() => ''),
+      mainFrame: { frameTreeNodeId: 1 }
     }
   }
   return win
@@ -430,6 +433,140 @@ describe('WindowManager', () => {
       expect(win).toBeDefined()
       expect(win.loadFile).not.toHaveBeenCalled()
       expect(win.loadURL).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── will-navigate guard (S13) ──────────────────────────
+
+  describe('will-navigate guard', () => {
+    beforeEach(() => {
+      vi.mocked(shell.openExternal).mockClear()
+    })
+
+    /** The guard WindowManager registers via webContents.on('will-navigate', …). */
+    function getWillNavigateHandler(
+      win: MockBrowserWindow
+    ): (event: { preventDefault: () => void }, url: string) => void {
+      const call = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')
+      if (!call) throw new Error('will-navigate handler was not registered')
+      return call[1] as never
+    }
+
+    it('blocks navigation to non-http(s) URLs instead of letting it pass', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillNavigateHandler(win)
+
+      for (const url of ['file:///etc/passwd', 'cherry://settings', 'about:blank']) {
+        const preventDefault = vi.fn()
+        handler({ preventDefault }, url)
+        expect(preventDefault, `expected navigation to ${url} to be blocked`).toHaveBeenCalledTimes(1)
+      }
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('allows same-origin http(s) navigation unchanged', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://app.local/other.html')
+
+      expect(preventDefault).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('still blocks cross-origin http(s) and routes it to the system browser', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://evil.example.com')
+
+      expect(preventDefault).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
+    })
+  })
+
+  // ─── will-frame-navigate subframe guard ────────────────
+
+  describe('will-frame-navigate subframe guard', () => {
+    /** The guard WindowManager registers via webContents.on('will-frame-navigate', …). */
+    function getWillFrameNavigateHandler(
+      win: MockBrowserWindow
+    ): (event: {
+      preventDefault: () => void
+      url: string
+      isMainFrame: boolean
+      initiator?: { frameTreeNodeId?: number } | null
+    }) => void {
+      const call = win.webContents.on.mock.calls.find(([event]) => event === 'will-frame-navigate')
+      if (!call) throw new Error('will-frame-navigate handler was not registered')
+      return call[1] as never
+    }
+
+    it('blocks subframe navigation initiated from inside a frame (link click)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillFrameNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({
+        preventDefault,
+        url: 'https://evil.example.com/?exfil',
+        isMainFrame: false,
+        initiator: { frameTreeNodeId: 42 }
+      })
+
+      expect(preventDefault).toHaveBeenCalledTimes(1)
+    })
+
+    it('blocks subframe navigation with no initiator identity (fail-closed)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillFrameNavigateHandler(win)
+
+      for (const initiator of [null, undefined, {}]) {
+        const preventDefault = vi.fn()
+        handler({ preventDefault, url: 'https://evil.example.com', isMainFrame: false, initiator })
+        expect(
+          preventDefault,
+          `expected navigation with initiator ${JSON.stringify(initiator)} to be blocked`
+        ).toHaveBeenCalledTimes(1)
+      }
+    })
+
+    it('allows subframe loads the app main frame itself initiated (iframe src/srcdoc)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillFrameNavigateHandler(win)
+
+      // A distinct wrapper instance with the main frame's id: Electron does not
+      // guarantee stable WebFrameMain object identity, only stable frameTreeNodeId.
+      const preventDefault = vi.fn()
+      handler({
+        preventDefault,
+        url: 'file:///resources/privacy-policy.html',
+        isMainFrame: false,
+        initiator: { frameTreeNodeId: win.webContents.mainFrame.frameTreeNodeId }
+      })
+
+      expect(preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('leaves main-frame navigation to the will-navigate guard', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillFrameNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault, url: 'https://evil.example.com', isMainFrame: true, initiator: null })
+
+      expect(preventDefault).not.toHaveBeenCalled()
     })
   })
 
@@ -874,6 +1011,26 @@ describe('WindowManager', () => {
         // close during suspension destroys (not pool)
         wm.close(id)
         expect(win.destroy).toHaveBeenCalled()
+      })
+
+      it('skips eager warmup on boot for a pool suspended beforehand', async () => {
+        // Feature-gated pools (screenshot overlays) suspend themselves during their
+        // owner's onInit when the feature is off. Warming them anyway at onAllReady
+        // would hold a hidden window — and its renderer's memory — for the whole run,
+        // for a feature the user has switched off.
+        wm.suspendPool('eagerPooled' as never)
+
+        await wm._doAllReady()
+
+        expect(wm.getWindowsByType('eagerPooled' as never)).toHaveLength(0)
+      })
+
+      it('eagerly warms a pool that was never suspended', async () => {
+        // Negative control: without this, the assertion above would also pass if
+        // eager warmup had simply stopped working.
+        await wm._doAllReady()
+
+        expect(wm.getWindowsByType('eagerPooled' as never)).toHaveLength(1)
       })
 
       it('resumePool() clears suspended flag', () => {

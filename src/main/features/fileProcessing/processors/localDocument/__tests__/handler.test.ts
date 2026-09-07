@@ -10,7 +10,6 @@ const {
   tempRoot,
   recognizeMock,
   isLocalModelReadyMock,
-  ocrModelPathsMock,
   toMarkdownBytesMock,
   formatFromExtensionMock,
   getTextMock,
@@ -29,7 +28,6 @@ const {
   tempRoot: process.platform === 'win32' ? 'C:\\mock\\file-processing-temp' : '/mock/file-processing-temp',
   recognizeMock: vi.fn(),
   isLocalModelReadyMock: vi.fn(),
-  ocrModelPathsMock: vi.fn(),
   toMarkdownBytesMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
   getTextMock: vi.fn(),
@@ -49,6 +47,7 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   const originalGetPath = result.application.getPath.getMockImplementation()!
@@ -57,14 +56,6 @@ vi.mock('@application', async () => {
   )
   return result
 })
-
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: ocrModelPathsMock
-}))
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
-}))
 
 vi.mock('@firecrawl/anydoc', () => ({
   toMarkdownBytes: toMarkdownBytesMock,
@@ -95,12 +86,6 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
 import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
-  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
-  charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
-}
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 
@@ -146,7 +131,6 @@ describe('localDocumentToMarkdownHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isLocalModelReadyMock.mockReturnValue(true)
-    ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
     formatFromExtensionMock.mockReturnValue('pdf')
     readFileMock.mockResolvedValue(PDF_BYTES)
     getTextMock.mockResolvedValue({
@@ -236,9 +220,9 @@ describe('localDocumentToMarkdownHandler', () => {
         pages: [{ data: new Uint8Array([partial[0]]) }]
       }))
       recognizeMock
-        .mockResolvedValueOnce(' page one \n')
-        .mockResolvedValueOnce('page two')
-        .mockResolvedValueOnce('page three')
+        .mockResolvedValueOnce({ text: ' page one \n', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
       const reportProgress = vi.fn()
 
       await expect(prepared.execute({ signal: new AbortController().signal, reportProgress })).resolves.toEqual({
@@ -253,9 +237,13 @@ describe('localDocumentToMarkdownHandler', () => {
         imageBuffer: true,
         imageDataUrl: false
       })
-      expect(recognizeMock).toHaveBeenNthCalledWith(1, MODEL_PATHS, expect.any(String), expect.anything())
+      expect(recognizeMock).toHaveBeenNthCalledWith(
+        1,
+        { kind: 'path', imagePath: expect.any(String) },
+        expect.anything()
+      )
       // Each job renders into its own directory under the file-processing temp root.
-      const [, firstImagePath] = recognizeMock.mock.calls[0]
+      const firstImagePath = recognizeMock.mock.calls[0][0].imagePath
       expect(path.dirname(path.dirname(firstImagePath))).toBe(tempRoot)
       expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
       expect(path.basename(firstImagePath)).toBe('page-1.png')
@@ -278,9 +266,9 @@ describe('localDocumentToMarkdownHandler', () => {
         pages: [{ data: new Uint8Array([partial[0]]) }]
       }))
       recognizeMock
-        .mockResolvedValueOnce('page one')
-        .mockResolvedValueOnce('page two')
-        .mockResolvedValueOnce('page three')
+        .mockResolvedValueOnce({ text: 'page one', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
 
       await expect(
         prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
@@ -302,7 +290,7 @@ describe('localDocumentToMarkdownHandler', () => {
       getScreenshotMock.mockResolvedValueOnce({ pages: [] }).mockResolvedValueOnce({
         pages: [{ data: new Uint8Array([2]) }]
       })
-      recognizeMock.mockResolvedValueOnce('only page two')
+      recognizeMock.mockResolvedValueOnce({ text: 'only page two', lines: [] })
 
       await expect(
         prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
@@ -335,7 +323,7 @@ describe('localDocumentToMarkdownHandler', () => {
       const controller = new AbortController()
       recognizeMock.mockImplementationOnce(async () => {
         controller.abort()
-        return 'page one'
+        return { text: 'page one', lines: [] }
       })
 
       await expect(prepared.execute({ signal: controller.signal, reportProgress: vi.fn() })).rejects.toThrow()

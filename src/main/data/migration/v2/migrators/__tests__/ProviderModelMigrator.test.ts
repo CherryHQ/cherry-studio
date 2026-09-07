@@ -13,7 +13,12 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryProviderId
+} from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -31,11 +36,16 @@ import { ProviderModelMigrator } from '../ProviderModelMigrator'
 const registryFixtures = {
   models: new Map<string, unknown>(),
   overrides: new Map<string, unknown>(),
-  providers: [] as unknown[]
+  providers: [] as unknown[],
+  loaderPaths: [] as Array<{ models: string; providers: string; providerModels: string }>
 }
 
-vi.mock('@cherrystudio/provider-registry/node', () => {
+vi.mock('@cherrystudio/provider-registry/node', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   class RegistryLoader {
+    constructor(paths: { models: string; providers: string; providerModels: string }) {
+      registryFixtures.loaderPaths.push(paths)
+    }
     findModel(modelId: string) {
       return registryFixtures.models.get(modelId) ?? null
     }
@@ -52,7 +62,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       return []
     }
   }
-  return { RegistryLoader }
+  return { ...actual, RegistryLoader }
 })
 
 function createContext(
@@ -102,6 +112,7 @@ describe('ProviderModelMigrator', () => {
     registryFixtures.models.clear()
     registryFixtures.overrides.clear()
     registryFixtures.providers = []
+    registryFixtures.loaderPaths = []
   })
 
   describe('prepare', () => {
@@ -156,6 +167,24 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
+    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider(providerId, [{ id: 'legacy-model' }]),
+            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
+            makeProvider('openai')
+          ]
+        }
+      })
+
+      const result = await migrator.prepare(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+      expect(result.warnings).toContain('Skipped 2 retired provider(s)')
+    })
+
     it('returns an error ID when preparation fails', async () => {
       const cause = new Error('redux state unreadable')
       const migrationContext = {
@@ -206,8 +235,8 @@ describe('ProviderModelMigrator', () => {
 
       const providers = await dbh.db.select().from(userProviderTable)
       const models = await dbh.db.select().from(userModelTable)
-      const migratedProviders = providers.filter((provider) => provider.providerId !== CHERRYAI_PROVIDER_ID)
-      const migratedModels = models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)
+      const migratedProviders = providers.filter((provider) => !isManagedCherryProviderId(provider.providerId))
+      const migratedModels = models.filter((model) => !isManagedCherryProviderId(model.providerId))
       expect(migratedProviders).toHaveLength(1)
       expect(migratedModels).toHaveLength(2)
       expect(migratedProviders[0].providerId).toBe('openai')
@@ -225,7 +254,12 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       const providers = await dbh.db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
-      expect(providers.map((provider) => provider.providerId)).toEqual([CHERRYAI_PROVIDER_ID, 'openai', 'anthropic'])
+      expect(providers.map((provider) => provider.providerId)).toEqual([
+        CHERRYAI_PROVIDER_ID,
+        CHERRY_CLOUD_PROVIDER_ID,
+        'openai',
+        'anthropic'
+      ])
       expect(new Set(providers.map((provider) => provider.orderKey)).size).toBe(providers.length)
     })
 
@@ -242,7 +276,7 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
 
       const models = await dbh.db.select().from(userModelTable)
-      expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toHaveLength(1)
+      expect(models.filter((model) => !isManagedCherryProviderId(model.providerId))).toHaveLength(1)
     })
 
     it('skips route-unsafe model ids without blocking the remaining provider migration', async () => {
@@ -445,8 +479,7 @@ describe('ProviderModelMigrator', () => {
               reasoningFormat: { type: 'openai-responses' }
             }
           },
-          defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false }
+          defaultChatEndpoint: 'openai-chat-completions'
         }
       ]
 
@@ -484,7 +517,6 @@ describe('ProviderModelMigrator', () => {
       // used https://api.openai.com, so the legacy proxy remains user-owned.
       expect(endpointConfigs).toEqual({ 'openai-responses': { baseUrl: 'https://my-proxy.com/v1' } })
       // Final-v1-equal values are not frozen into the row...
-      expect(providerRow.apiFeatures).toBeNull()
       expect(providerRow.defaultChatEndpoint).toBeNull()
       // ...and the runtime read supplies current catalog facts.
       const runtime = providerService.getByProviderId('openai')
@@ -492,11 +524,10 @@ describe('ProviderModelMigrator', () => {
         'https://api.openai.com/v1'
       )
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
-      expect(runtime.apiFeatures.serviceTier).toBe(false)
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
-    it('stores only a changed API feature from a post-migration v1 provider snapshot', async () => {
+    it('stores only a changed endpoint dialect from a post-migration v1 provider snapshot', async () => {
       registryFixtures.providers = [
         {
           id: 'openai',
@@ -516,9 +547,9 @@ describe('ProviderModelMigrator', () => {
               enabled: true,
               isSystem: true,
               apiHost: 'https://api.openai.com',
-              isNotSupportArrayContent: true,
-              isNotSupportDeveloperRole: false,
-              isNotSupportStreamOptions: false,
+              isNotSupportArrayContent: false,
+              isNotSupportDeveloperRole: true,
+              isNotSupportStreamOptions: true,
               models: []
             }
           ]
@@ -534,23 +565,25 @@ describe('ProviderModelMigrator', () => {
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'openai'))
 
-      expect(providerRow.apiFeatures).toEqual({ arrayContent: false })
+      expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.dialect).toEqual({
+        developerRole: false
+      })
     })
 
     it.each([
       {
         scenario: 'untouched',
         isSupportDeveloperRole: false,
-        expectedApiFeatures: null
+        expectedDialect: undefined
       },
       {
         scenario: 'user-enabled Developer Role',
         isSupportDeveloperRole: true,
-        expectedApiFeatures: { developerRole: true }
+        expectedDialect: { developerRole: true }
       }
     ])(
-      'projects $scenario post-132 custom Azure API features against the custom-provider baseline',
-      async ({ isSupportDeveloperRole, expectedApiFeatures }) => {
+      'projects $scenario post-132 custom Azure dialect against the custom-provider baseline',
+      async ({ isSupportDeveloperRole, expectedDialect }) => {
         registryFixtures.providers = [{ id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {} }]
         const providerId = '0196f996-34fc-7e3f-96d0-10b7f55fd6c8'
         const migrationContext = createContext(dbh.db, {
@@ -584,7 +617,7 @@ describe('ProviderModelMigrator', () => {
           .from(userProviderTable)
           .where(eq(userProviderTable.providerId, providerId))
         expect(providerRow.presetProviderId).toBe('azure-openai')
-        expect(providerRow.apiFeatures).toEqual(expectedApiFeatures)
+        expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toEqual(expectedDialect)
       }
     )
 
@@ -604,8 +637,7 @@ describe('ProviderModelMigrator', () => {
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'custom-provider'))
-      // No registry baseline applied — apiFeatures stays null (transformProvider default)
-      expect(providerRow.apiFeatures).toBeNull()
+      expect(providerRow.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     })
 
     it('promotes a v1 custom provider logo from dexie settings into a WebP file_entry', async () => {
@@ -748,6 +780,11 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
+      expect(registryFixtures.loaderPaths.at(-1)).toEqual({
+        models: '/mock/feature.provider_registry.data/models.json',
+        providers: '/mock/feature.provider_registry.data/providers.json',
+        providerModels: '/mock/feature.provider_registry.data/provider-models.json'
+      })
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db
@@ -1360,11 +1397,11 @@ describe('ProviderModelMigrator', () => {
       expect(
         providers
           .map((p) => p.providerId)
-          .filter((providerId) => providerId !== CHERRYAI_PROVIDER_ID)
+          .filter((providerId) => !isManagedCherryProviderId(providerId))
           .sort()
       ).toEqual(['no-models-null', 'no-models-undef'])
       const models = await dbh.db.select().from(userModelTable)
-      expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toEqual([])
+      expect(models.filter((model) => !isManagedCherryProviderId(model.providerId))).toEqual([])
     })
 
     it('filters providers with missing or empty id and reports a warning', async () => {
@@ -1390,9 +1427,9 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
 
       const providers = await dbh.db.select().from(userProviderTable)
-      expect(providers.map((p) => p.providerId).filter((providerId) => providerId !== CHERRYAI_PROVIDER_ID)).toEqual([
-        'openai'
-      ])
+      expect(providers.map((p) => p.providerId).filter((providerId) => !isManagedCherryProviderId(providerId))).toEqual(
+        ['openai']
+      )
       const emptyIdRows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
       expect(emptyIdRows).toEqual([])
     })

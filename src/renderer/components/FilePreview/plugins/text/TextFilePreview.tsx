@@ -90,12 +90,13 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   if (loadState.status === 'error') return <TextPreviewError />
 
   return (
-    <div className="min-h-full w-full">
+    <div className="flex min-h-full w-full">
+      {/* The composer inset pads inside the viewer, whose shiki theme paints an opaque
+          background — the code surface then runs to the container bottom under the composer. */}
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
-        wrapped={false}
-        className="min-h-full w-full"
+        className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
       />
     </div>
   )
@@ -137,7 +138,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
 
   return (
     <FilePreviewLayout.Frame>
-      <FilePreviewLayout.Content>
+      <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
         <TextPreviewContent filePath={filePath} loadState={loadState} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>

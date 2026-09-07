@@ -20,12 +20,13 @@
  */
 // The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap merges.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { CallId, ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -68,10 +69,15 @@ export interface DshStreamSink {
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+  // Bridged MCP tools keep their `mcp__server__tool` wire name; report the MCP identity behind it
+  // so the renderer routes them to the same cards it gives Claude Code's MCP results.
+  const mcp = parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: DSH_TRANSPORT,
-      tool: { type: 'builtin', name: toolName }
+      tool: mcp
+        ? { type: 'mcp', name: mcp.toolPart, serverId: mcp.serverPart, serverName: mcp.serverPart }
+        : { type: 'builtin', name: toolName }
     },
     dsh: { toolName, ...extra }
   }
@@ -125,6 +131,7 @@ export class DshStreamAdapter {
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
+    this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
   }
@@ -133,6 +140,17 @@ export class DshStreamAdapter {
   abortTurn(): void {
     this.turnActive = false
     this.autonomousTurn = false
+  }
+
+  /**
+   * Emit a call's input parts now, as if its `tool/call` event had already arrived. The bridge
+   * socket can outrun the session-event stream, and an approval chunk with no tool part truncates
+   * the turn accumulator. The real `tool/call` then no-ops on `startedTools`.
+   */
+  ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
+    if (this.startedTools.has(callId)) return
+    this.ensureTurnOpen()
+    this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
   /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
@@ -148,7 +166,9 @@ export class DshStreamAdapter {
       case 'turn/start':
         this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
-        this.startedTools.clear()
+        // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
+        // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
+        if (!this.turnActive) this.startedTools.clear()
         this.resetStepTiming()
         return
       case 'step/start':
@@ -357,7 +377,7 @@ export class DshStreamAdapter {
     this.sink.enqueue({
       type: 'tool-output-available',
       toolCallId,
-      output,
+      output: normalizeToolOutput(output),
       dynamic: true,
       providerExecuted: true,
       providerMetadata: toolProviderMetadata(toolName)
@@ -528,6 +548,23 @@ function parseToolArguments(raw: string): Record<string, unknown> {
     return isRecord(parsed) ? parsed : {}
   } catch {
     return {}
+  }
+}
+
+/**
+ * dsh wraps every tool result in MCP content blocks, so an all-text result hides its payload
+ * inside a JSON string. Unwrap it the way the Claude Code adapter does, so downstream consumers
+ * (tool cards, citation resolution, persisted projection) see one shape across runtimes.
+ */
+function normalizeToolOutput(output: ContentBlock[]): unknown {
+  const texts = output.filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
+  if (texts.length === 0 || texts.length !== output.length) return output
+
+  const text = texts.map((entry) => entry.text).join('\n')
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
   }
 }
 

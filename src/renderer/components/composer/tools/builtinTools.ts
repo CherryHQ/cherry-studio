@@ -1,6 +1,8 @@
 import attachmentTool from './definitions/attachmentTool'
 import generateImageTool from './definitions/generateImageTool'
 import knowledgeBaseTool from './definitions/knowledgeBaseTool'
+import mcpPromptTool from './definitions/mcpPromptTool'
+import mcpResourceTool from './definitions/mcpResourceTool'
 import mcpStatusTool from './definitions/mcpStatusTool'
 import noteReferenceTool from './definitions/noteReferenceTool'
 import permissionModeTool from './definitions/permissionModeTool'
@@ -24,6 +26,8 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   slashCommandsTool,
   permissionModeTool,
   mcpStatusTool,
+  mcpPromptTool,
+  mcpResourceTool,
   noteReferenceTool
 ]
 

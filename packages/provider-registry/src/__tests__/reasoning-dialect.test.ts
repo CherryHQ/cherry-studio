@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { PROVIDERS } from '../providers'
-import { REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
+import { configureOpenAIResponsesSummary, REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
 import type { ModelConfig, ReasoningWireDialect } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 
@@ -37,14 +37,12 @@ describe('native-protocol reasoning dialect', () => {
   })
 
   // Ground truth: the exact set that carried a hand-pinned budget contract
-  // before the dialect became data, plus gemini-robotics (a 2.x-era derivative
-  // that was never pinned and had been taking the level wire by mistake).
+  // before the dialect became data.
   it.each([
     ['gemini-2-5-flash', 'budget'],
     ['gemini-2-5-pro', 'budget'],
     ['gemini-2-5-flash-lite', 'budget'],
     ['gemini-omni-flash-preview', 'budget'],
-    ['gemini-robotics-er-1-6-preview', 'budget'],
     ['gemini-3-flash', 'effort'],
     // Both Nano Banana 2 variants are Gemini 3.1 and declare identical controls
     // (effort [minimal, high], no `none` — thinking can't be disabled), so they
@@ -52,7 +50,7 @@ describe('native-protocol reasoning dialect', () => {
     // reporting its effort control; see the sibling assertion below.
     ['gemini-3-1-flash-image', 'effort'],
     ['gemini-3-1-flash-lite-image', 'effort'],
-    ['gemini-3-pro-preview', 'effort'],
+    ['gemini-3-1-pro-preview', 'effort'],
     ['gemini-flash-latest', 'effort'],
     ['claude-opus-4-5', 'budget'],
     ['claude-haiku-4-5', 'budget'],
@@ -144,5 +142,25 @@ describe('native-protocol reasoning dialect', () => {
       }
     }
     expect(leftovers).toEqual([])
+  })
+})
+
+describe('OpenAI Responses summary compatibility', () => {
+  it('adds and removes summary operations without changing the effort wire', () => {
+    const base = REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const enabled = configureOpenAIResponsesSummary(base, true)
+    const disabled = configureOpenAIResponsesSummary(enabled, false)
+
+    expect(enabled.default?.operations).toContainEqual({
+      target: 'reasoningSummary',
+      value: { source: 'assistant-summary' }
+    })
+    expect(enabled.effort?.operations).toContainEqual({
+      target: 'reasoningEffort',
+      value: { source: 'effort' }
+    })
+    expect(targetsOf(disabled)).not.toContain('reasoningSummary')
+    expect(disabled.default).toBeUndefined()
+    expect(disabled.effort).toEqual(base.effort)
   })
 })

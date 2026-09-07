@@ -372,4 +372,29 @@ describe('Dialog primitive', () => {
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Beta' })).not.toBeInTheDocument())
     expect(handleOpenChange).not.toHaveBeenCalledWith(false)
   })
+
+  it('names the close control Close by default', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+  })
+
+  it('uses a caller-provided closeLabel as the close control name', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined} closeLabel="关闭">
+          <DialogTitle>频道日志</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+  })
 })

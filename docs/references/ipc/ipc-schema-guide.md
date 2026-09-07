@@ -1,3 +1,10 @@
+---
+description: Authoring IpcApi schemas — per-domain files, route and event naming rules, derived types, ESLint key enforcement
+sources:
+  - src/shared/ipc/schemas
+  - src/shared/ipc/define.ts
+---
+
 # IpcApi Schema Guide
 
 ## File Organization
@@ -46,7 +53,7 @@ The dot structure is a naming convention, not type syntax — `IpcRoute` is the 
 | `IpcHandlersFor<S>` | exhaustive, closed handler map for a schema set `S` |
 | `IpcContext` | `{ senderId: WindowId \| null }` — handler's controlled second argument |
 
-`InputFor`/`OutputFor`/`EventPayload`/`IpcRoute`/`IpcEventName` are bound to the *global* registry, so they resolve to `never` until at least one domain is migrated. The reusable inference (`IpcHandlersFor<S>`) is generic and verifiable against any schema set today.
+`InputFor`/`OutputFor`/`EventPayload`/`IpcRoute`/`IpcEventName` are bound to the composed *global* registry. The reusable inference (`IpcHandlersFor<S>`) is generic so each domain handler map can be checked against its own schema object before composition.
 
 ## zod Across Processes (critical)
 

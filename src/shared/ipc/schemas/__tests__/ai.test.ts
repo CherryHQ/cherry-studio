@@ -140,6 +140,19 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
+describe('ai.agent.session.delete IPC schema', () => {
+  const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
+
+  it('bounds one deletion command to the supported SQLite batch size', () => {
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 200 }, (_, i) => `session-${i}`) }).success
+    ).toBe(true)
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
+    ).toBe(false)
+  })
+})
+
 describe('ai.agent.support_session.create IPC schema', () => {
   const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
   const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output

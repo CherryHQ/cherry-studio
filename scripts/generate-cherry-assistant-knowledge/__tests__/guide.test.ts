@@ -155,7 +155,7 @@ describe('Cherry Assistant guide', () => {
     expect(marketplace).toContain('回到原始任务')
   })
 
-  it('bundles a consented and redacted Cherry Studio feedback workflow', () => {
+  it('hands Cherry Studio feedback drafts to the user-owned review dialog', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
       skills: string[]
@@ -166,23 +166,13 @@ describe('Cherry Assistant guide', () => {
     expect(agent.skills).toContain('cherry-studio-feedback')
     expect(agent.instructions['en-US']).toContain('Use `cherry-studio-feedback` unless the user explicitly asks')
     expect(agent.instructions['zh-CN']).toContain('明确要求创建 GitHub Issue')
-    expect(feedback).toContain('mcp__assistant__diagnose({ action: "info" })')
-    expect(feedback).toContain('mcp__assistant__diagnose({ action: "errors", lines: 100 })')
-    expect(feedback).toContain('mcp__assistant-files__save_attachment')
-    expect(feedback).toContain('外部提交前展示最终字段、附件文件名和接收方')
-    expect(feedback).toContain('lark-cli base +form-detail')
-    expect(feedback).toContain('auth status --json --verify')
-    expect(feedback).toContain('--as user --json ... --yes')
-    expect(feedback).not.toContain('不存在的 `--yes`')
-    expect(feedback).toContain('返回 `ok == true`')
-    expect(feedback).toContain('不要安装、升级或重新配置 `lark-cli`')
-    expect(feedback).toContain('匿名反馈包上传')
-    expect(feedback).toContain('未明确提及 GitHub 时，不要调用 `gh`')
-    expect(feedback).toContain('不盲目解压整个压缩包')
-    expect(feedback).toContain('“上传错误信息”按钮属于客户端/服务端功能')
-    expect(feedback).not.toContain('cherrystudio.sqlite')
-    expect(feedback).not.toContain('~/Documents/Cherry')
-    expect(feedback).not.toContain('UqjTbBFGWapnOrsJaDgcuyEbnUg')
+    expect(feedback).toContain('mcp__assistant__prepare_diagnostic_report')
+    expect(feedback).toContain('不会打开弹窗、勾选知晓确认或上传')
+    expect(feedback).toContain('“问题反馈”入口中的“提交诊断报告”')
+    expect(feedback).not.toContain('固定的“报告问题”入口')
+    expect(feedback).not.toContain('lark-cli base +form-submit')
+    expect(feedback).not.toContain('飞书表单提交')
+    expect(feedback).not.toContain('自动提交')
     expect(issueReporter).toContain('只有用户明确要求提交到 GitHub')
     expect(issueReporter).toContain('不得运行 `gh auth status`')
   })

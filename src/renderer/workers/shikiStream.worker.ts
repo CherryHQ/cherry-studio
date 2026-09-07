@@ -11,7 +11,7 @@ import { ShikiStreamTokenizer } from '../services/ShikiStreamTokenizer'
 const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 
 // Worker 消息类型
-type WorkerMessageType = 'init' | 'highlight' | 'cleanup' | 'dispose'
+type WorkerMessageType = 'init' | 'highlight' | 'highlight-html' | 'cleanup' | 'dispose'
 
 interface WorkerRequest {
   id: number
@@ -38,6 +38,8 @@ interface HighlightChunkResult {
 
 // Worker 全局变量
 let highlighter: HighlighterCore | null = null
+const languageLoadPromises = new Map<string, Promise<string>>()
+const themeLoadPromises = new Map<string, Promise<string>>()
 
 // 保存以 callerId-language-theme 为键的 tokenizer map
 const tokenizerMap = new LRUCache<string, ShikiStreamTokenizer>({
@@ -56,6 +58,81 @@ async function initHighlighter(themes: string[], languages: string[]): Promise<v
     langs: languages,
     themes: themes
   })
+  languageLoadPromises.clear()
+  themeLoadPromises.clear()
+}
+
+async function ensureLanguageLoaded(language: string): Promise<string> {
+  if (!highlighter) {
+    throw new Error('Highlighter not initialized')
+  }
+  const currentHighlighter = highlighter
+
+  if (currentHighlighter.getLoadedLanguages().includes(language)) return language
+
+  const pendingLoad = languageLoadPromises.get(language)
+  if (pendingLoad) return pendingLoad
+
+  const loadPromise = (async () => {
+    try {
+      if (['text', 'ansi'].includes(language)) {
+        await currentHighlighter.loadLanguage(language as SpecialLanguage)
+      } else {
+        const { bundledLanguages } = await import('shiki')
+        const languageImportFn = bundledLanguages[language]
+        const langData = await languageImportFn()
+        await currentHighlighter.loadLanguage(langData)
+      }
+    } catch (error) {
+      // 回退到 text
+      await currentHighlighter.loadLanguage('text')
+      return 'text'
+    }
+    return language
+  })()
+
+  languageLoadPromises.set(language, loadPromise)
+  try {
+    return await loadPromise
+  } finally {
+    if (languageLoadPromises.get(language) === loadPromise) languageLoadPromises.delete(language)
+  }
+}
+
+async function ensureThemeLoaded(theme: string): Promise<string> {
+  if (!highlighter) {
+    throw new Error('Highlighter not initialized')
+  }
+  const currentHighlighter = highlighter
+
+  if (currentHighlighter.getLoadedThemes().includes(theme)) return theme
+
+  const pendingLoad = themeLoadPromises.get(theme)
+  if (pendingLoad) return pendingLoad
+
+  const loadPromise = (async () => {
+    try {
+      const { bundledThemes } = await import('shiki')
+      const themeImportFn = bundledThemes[theme]
+      const themeData = await themeImportFn()
+      await currentHighlighter.loadTheme(themeData)
+    } catch (error) {
+      // 回退到 one-light
+      logger.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
+      const { bundledThemes } = await import('shiki')
+      const oneLightTheme = await bundledThemes['one-light']()
+      await currentHighlighter.loadTheme(oneLightTheme)
+      return 'one-light'
+    }
+    return theme
+  })()
+
+  themeLoadPromises.set(theme, loadPromise)
+  try {
+    return await loadPromise
+  } finally {
+    if (themeLoadPromises.get(theme) === loadPromise) themeLoadPromises.delete(theme)
+  }
 }
 
 // 确保语言和主题已加载
@@ -63,48 +140,7 @@ async function ensureLanguageAndThemeLoaded(
   language: string,
   theme: string
 ): Promise<{ actualLanguage: string; actualTheme: string }> {
-  if (!highlighter) {
-    throw new Error('Highlighter not initialized')
-  }
-
-  let actualLanguage = language
-  let actualTheme = theme
-
-  // 加载语言
-  if (!highlighter.getLoadedLanguages().includes(language)) {
-    try {
-      if (['text', 'ansi'].includes(language)) {
-        await highlighter.loadLanguage(language as SpecialLanguage)
-      } else {
-        const { bundledLanguages } = await import('shiki')
-        const languageImportFn = bundledLanguages[language]
-        const langData = await languageImportFn()
-        await highlighter.loadLanguage(langData)
-      }
-    } catch (error) {
-      // 回退到 text
-      await highlighter.loadLanguage('text')
-      actualLanguage = 'text'
-    }
-  }
-
-  // 加载主题
-  if (!highlighter.getLoadedThemes().includes(theme)) {
-    try {
-      const { bundledThemes } = await import('shiki')
-      const themeImportFn = bundledThemes[theme]
-      const themeData = await themeImportFn()
-      await highlighter.loadTheme(themeData)
-    } catch (error) {
-      // 回退到 one-light
-      logger.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
-      const { bundledThemes } = await import('shiki')
-      const oneLightTheme = await bundledThemes['one-light']()
-      await highlighter.loadTheme(oneLightTheme)
-      actualTheme = 'one-light'
-    }
-  }
-
+  const [actualLanguage, actualTheme] = await Promise.all([ensureLanguageLoaded(language), ensureThemeLoaded(theme)])
   return { actualLanguage, actualTheme }
 }
 
@@ -210,6 +246,22 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         }
         break
 
+      case 'highlight-html': {
+        if (!highlighter) {
+          throw new Error('Highlighter not initialized')
+        }
+
+        const { chunk, language, theme } = e.data
+        if (typeof chunk !== 'string' || !language || !theme) {
+          throw new Error('Missing required highlight-html parameters')
+        }
+
+        const { actualLanguage, actualTheme } = await ensureLanguageAndThemeLoaded(language, theme)
+        const html = highlighter.codeToHtml(chunk, { lang: actualLanguage, theme: actualTheme })
+        self.postMessage({ id, type: 'highlight-html-result', result: html } as WorkerResponse)
+        break
+      }
+
       case 'cleanup':
         if (e.data.callerId) {
           cleanupTokenizer(e.data.callerId)
@@ -221,6 +273,8 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 
       case 'dispose':
         tokenizerMap.clear()
+        languageLoadPromises.clear()
+        themeLoadPromises.clear()
         highlighter?.dispose()
         highlighter = null
         self.postMessage({ id, type: 'dispose-result', result: { success: true } } as WorkerResponse)

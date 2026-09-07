@@ -11,13 +11,7 @@
  */
 
 import type { EndpointType } from '@shared/data/types/model'
-import type {
-  ApiFeatures,
-  ApiKeyEntry,
-  AuthConfig,
-  EndpointConfigOverride,
-  ProviderSettings
-} from '@shared/data/types/provider'
+import type { ApiKeyEntry, AuthConfig, EndpointConfigOverride, ProviderSettings } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex } from './_columnHelpers'
@@ -55,12 +49,7 @@ export const userProviderTable = sqliteTable(
      */
     logoKey: text('logo_key'),
 
-    /**
-     * Per-endpoint-type USER overrides only (baseUrl), plus a main-only legacy
-     * adapterFamily hint for migrated custom relay rows. Registry-owned connection facts (adapterFamily,
-     * modelsApiUrls, the endpoint key set) resolve from the registry at read
-     * time — persisting them freezes a snapshot that goes stale (#17096).
-     */
+    /** User endpoint overrides plus the legacy adapter-family hint. Registry facts resolve at read time. */
     endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<
       Partial<Record<EndpointType, StoredEndpointConfigOverride>>
     >(),
@@ -73,9 +62,6 @@ export const userProviderTable = sqliteTable(
 
     /** Unified auth configuration for different auth methods */
     authConfig: text({ mode: 'json' }).$type<AuthConfig>(),
-
-    /** API feature support (null = use preset default) */
-    apiFeatures: text('api_features', { mode: 'json' }).$type<ApiFeatures>(),
 
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),

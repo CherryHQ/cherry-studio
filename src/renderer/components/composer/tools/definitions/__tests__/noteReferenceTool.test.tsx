@@ -11,14 +11,21 @@ const mocks = vi.hoisted(() => ({
   files: [] as ComposerAttachment[],
   isLoading: false,
   open: vi.fn(),
+  openRoute: vi.fn(),
   projectNotesTree: vi.fn(),
-  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
+  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[], footerActions?: unknown[]) => () => void>(
+    () => () => undefined
+  ),
   resolveNotesPath: vi.fn(),
   root: null as object | null,
   notesPath: '/notes',
   setFiles: vi.fn(),
   updateList: vi.fn(),
   version: 0
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: (...args: unknown[]) => mocks.openRoute(...args)
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -121,6 +128,10 @@ describe('noteReferenceTool', () => {
         symbol: ComposerPanelSymbol.Notes
       })
     )
+    expect(mocks.open.mock.calls.at(-1)?.[0]).not.toHaveProperty('footerActions')
+    const footerAction = mocks.registerLaunchers.mock.calls.at(-1)?.[1]?.[0] as { action: () => void }
+    await act(async () => footerAction.action())
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/notes')
     await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/notes' }))
     expect(mocks.directoryTreeCalls.at(-1)?.options).toMatchObject({ extensions: ['.md'] })
     await waitFor(() => {

@@ -39,6 +39,8 @@ export interface ClaudeToolDescriptorDef {
   mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
   /** Tool is unavailable unless the agent has at least one bound knowledge base. */
   requiresKnowledgeScope?: true
+  /** The tool cannot complete meaningfully without a live user's response. */
+  requiresUserInteraction?: true
 }
 
 /**
@@ -129,20 +131,23 @@ const CLAUDE_TOOL_REGISTRY = {
     name: 'ExitPlanMode',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Exits plan mode and presents the plan'
+    description: 'Exits plan mode and presents the plan',
+    requiresUserInteraction: true
   },
   EnterPlanMode: {
     name: 'EnterPlanMode',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Enters plan mode'
+    description: 'Enters plan mode',
+    requiresUserInteraction: true
   },
   // Condition-gated (workspace has .git) — see toolConditions.ts in main.
   EnterWorktree: {
     name: 'EnterWorktree',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Switches into a git worktree'
+    description: 'Switches into a git worktree',
+    requiresUserInteraction: true
   },
   ExitWorktree: {
     name: 'ExitWorktree',
@@ -154,7 +159,8 @@ const CLAUDE_TOOL_REGISTRY = {
     name: 'AskUserQuestion',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Asks the user a structured question'
+    description: 'Asks the user a structured question',
+    requiresUserInteraction: true
   },
   // Meta tool surfaced via ENABLE_TOOL_SEARCH; not a member of the SDK tool union.
   ToolSearch: {
@@ -353,7 +359,7 @@ const CLAUDE_TOOL_REGISTRY = {
     mcpServer: 'cherry-tools'
   },
   // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
-  // "configure a painting model" note at runtime when none is set (see cherryBuiltinApproval.ts).
+  // "configure a painting model" note at runtime when none is set (see builtinToolPolicy.ts).
   CherryGenerateImage: {
     name: 'mcp__cherry-tools__generate_image',
     category: 'media',
@@ -389,6 +395,13 @@ const CLAUDE_TOOL_REGISTRY = {
 export type ClaudeToolKey = keyof typeof CLAUDE_TOOL_REGISTRY
 
 export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.values(CLAUDE_TOOL_REGISTRY)
+
+const CLAUDE_TOOL_DEF_BY_NAME = new Map(CLAUDE_TOOL_DEFS.map((def) => [def.name, def]))
+
+/** Intrinsic tool capability used by the runtime's headless guard; no parallel name list. */
+export function claudeToolRequiresUserInteraction(toolName: string): boolean {
+  return CLAUDE_TOOL_DEF_BY_NAME.get(toolName)?.requiresUserInteraction === true
+}
 
 /** A tool is an in-process MCP tool iff it declares a hosting server. */
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined

@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
 import { GroupIdSchema, GroupNameSchema } from '../../types/group'
+import { PromptContentSchema, PromptTitleSchema } from '../../types/prompt'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -46,6 +47,15 @@ const ASSISTANT_MUTABLE_FIELDS = {
 export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
+export const DuplicateAssistantSchema = AssistantSchema.pick({ name: true })
+export type DuplicateAssistantDto = z.infer<typeof DuplicateAssistantSchema>
+
+export const ImportAssistantPhraseSchema = z.strictObject({
+  title: PromptTitleSchema,
+  content: PromptContentSchema
+})
+export type ImportAssistantPhraseDto = z.infer<typeof ImportAssistantPhraseSchema>
+
 /**
  * Legacy assistant import payload.
  *
@@ -62,7 +72,8 @@ export const ImportAssistantSchema = CreateAssistantSchema.pick({
   description: true,
   settings: true
 }).extend({
-  groupName: GroupNameSchema.optional()
+  groupName: GroupNameSchema.optional(),
+  regularPhrases: z.array(ImportAssistantPhraseSchema).optional()
 })
 export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 
@@ -179,6 +190,15 @@ export type AssistantSchemas = {
   '/assistants:import': {
     POST: {
       body: ImportAssistantDto
+      response: Assistant
+    }
+  }
+
+  /** Atomically duplicate an Assistant and every owned relation. */
+  '/assistants/:id/duplicate': {
+    POST: {
+      params: { id: string }
+      body: DuplicateAssistantDto
       response: Assistant
     }
   }

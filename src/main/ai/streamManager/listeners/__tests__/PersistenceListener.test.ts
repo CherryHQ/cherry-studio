@@ -355,6 +355,15 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('does not create an empty successful ordinary-chat reply', async () => {
+    const listener = makeMessageServiceListener()
+
+    await listener.onDone({ finalMessage: undefined, status: 'success' })
+
+    expect(messageFinalizeMock).not.toHaveBeenCalled()
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
@@ -377,7 +386,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       topicId: 'topic-1',
       backend: new MessageServiceBackend({
         assistantMessageId: 'assistant-1',
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       }),
       onPersistFailed: vi.fn()
     })
@@ -387,7 +396,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: {
         parts: makeFinalMessage().parts,
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
       },
       status: 'success',
       runtimeStats: undefined

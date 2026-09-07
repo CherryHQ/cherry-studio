@@ -1,3 +1,4 @@
+import type * as CherryUiModule from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -11,10 +12,11 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock } = vi.hoisted(() => ({
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
-  updateAssistantMock: vi.fn()
+  updateAssistantMock: vi.fn(),
+  updateSkillGlobalEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -45,13 +47,16 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.all_groups': '全部分组',
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
-          'library.type.skill': '技能'
+          'library.type.skill': '技能',
+          'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   const React = await vi.importActual<typeof ReactModule>('react')
   const PopoverContext = React.createContext<{
     open: boolean
@@ -337,6 +342,7 @@ vi.mock('@cherrystudio/ui', async () => {
       </div>
     ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
+    Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>
@@ -346,6 +352,10 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
+  }),
+  useSkillMutationsById: () => ({
+    updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    isUpdating: false
   })
 }))
 
@@ -412,7 +422,7 @@ function createAgentResource(): ResourceItem {
   }
 }
 
-function createSkillResource(version: string | null = null): ResourceItem {
+function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -421,7 +431,7 @@ function createSkillResource(version: string | null = null): ResourceItem {
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -517,6 +527,35 @@ describe('ResourceGrid empty state copy', () => {
       expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
+    }
+  })
+
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
     }
   })
 
@@ -780,6 +819,27 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('toggles a Skill globally from its settings card without opening the card', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    updateSkillGlobalEnabledMock.mockResolvedValueOnce({})
+
+    render(
+      <ResourceCard
+        resource={createSkillResource(null, true)}
+        variant="settings"
+        {...getResourceCardProps({ onEdit })}
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: '全局启用技能' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await user.click(toggle)
+
+    expect(updateSkillGlobalEnabledMock).toHaveBeenCalledWith(false)
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
   it('shows the Skill version tag only when a version is available', () => {
     const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
 
@@ -788,29 +848,6 @@ describe('ResourceGrid card actions', () => {
     rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
 
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
-  })
-
-  it('uses the neutral settings treatment without changing library Skill cards', () => {
-    const { rerender } = render(
-      <ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />
-    )
-
-    const settingsCard = screen.getByRole('button', { name: 'Skill' })
-    expect(settingsCard).toHaveClass('rounded-xl', 'border-border')
-    expect(settingsCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-secondary',
-      'text-secondary-foreground'
-    )
-    expect(settingsCard.querySelector('[aria-hidden="true"]')).toHaveClass('text-foreground-tertiary')
-
-    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
-
-    const libraryCard = screen.getByRole('button', { name: 'Skill' })
-    expect(libraryCard).toHaveClass('rounded-lg', 'border-border-subtle')
-    expect(libraryCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-warning-subtle',
-      'text-warning'
-    )
   })
 
   it('shows the overflow menu only for assistant cards', () => {

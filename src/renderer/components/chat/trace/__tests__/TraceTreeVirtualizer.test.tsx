@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,6 +35,7 @@ describe('TraceTree with TanStack Virtual', () => {
   })
 
   it('moves the bounded render window when the real scroller moves', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
     const originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth')
     Object.defineProperties(HTMLElement.prototype, {
@@ -71,6 +72,9 @@ describe('TraceTree with TanStack Virtual', () => {
       expect(screen.getAllByRole('treeitem').length).toBeLessThan(30)
     } finally {
       view?.unmount()
+      // virtual-core's isScrolling reset debounce survives unmount and would fire after jsdom teardown.
+      vi.clearAllTimers()
+      vi.useRealTimers()
       if (originalOffsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalOffsetHeight)
       else Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight')
       if (originalOffsetWidth) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth)

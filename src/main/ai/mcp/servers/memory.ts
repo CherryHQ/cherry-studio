@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { TraceMethod } from '@mcp-trace/trace-core'
+import { TraceMethod } from '@main/ai/observability'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex' // 引入 Mutex

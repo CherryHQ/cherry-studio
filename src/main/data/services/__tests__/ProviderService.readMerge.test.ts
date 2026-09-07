@@ -4,10 +4,13 @@ import '@data/services/ProviderRegistryService'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
+import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 // Stub the registry loader with CherryIN plus a future `my-relay` preset.
 // `google-generate-content` is deliberately present for CherryIN but ABSENT
@@ -30,8 +33,9 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false },
-          reportedCostCurrency: 'USD'
+          reportsActualCost: false,
+          reportedCostCurrency: 'USD',
+          availableInEditions: ['global', 'cn']
         },
         {
           id: 'my-relay',
@@ -65,6 +69,70 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it.each(['github', 'yi'])(
+    'makes retired %s providers and copies unavailable without deleting data',
+    async (retiredId) => {
+      await dbh.db.insert(userProviderTable).values([
+        {
+          providerId: retiredId,
+          presetProviderId: null,
+          name: 'Retired Provider',
+          apiKeys: [{ id: `${retiredId}-key`, key: 'secret', isEnabled: true }],
+          orderKey: 'a0'
+        },
+        {
+          providerId: `${retiredId}-copy`,
+          presetProviderId: retiredId,
+          name: 'Retired Provider Copy',
+          apiKeys: [{ id: `${retiredId}-copy-key`, key: 'copy-secret', isEnabled: true }],
+          orderKey: 'a1'
+        },
+        {
+          providerId: 'custom-relay',
+          presetProviderId: null,
+          name: 'Custom Relay',
+          orderKey: 'a2'
+        }
+      ])
+
+      const originalRows = dbh.db.select().from(userProviderTable).all()
+
+      expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-relay'])
+      expect(() => providerService.getByProviderId(retiredId)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(() => providerService.getByProviderId(`${retiredId}-copy`)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+
+      for (const { providerId, keyId } of [
+        { providerId: retiredId, keyId: `${retiredId}-key` },
+        { providerId: `${retiredId}-copy`, keyId: `${retiredId}-copy-key` }
+      ]) {
+        const operations = [
+          () => providerService.assertAvailable(providerId),
+          () => providerService.update(providerId, { name: 'Still retired' }),
+          () => providerService.resolveApiKey(providerId),
+          () => providerService.getApiKeys(providerId),
+          () => providerService.getAuthConfig(providerId),
+          () => providerService.addApiKey(providerId, 'new-secret'),
+          () =>
+            providerService.replaceApiKeys(providerId, [
+              { id: 'replacement-key', key: 'replacement-secret', isEnabled: true }
+            ]),
+          () => providerService.updateApiKey(providerId, keyId, { label: 'updated' }),
+          () => providerService.deleteApiKey(providerId, keyId),
+          () => providerService.delete(providerId)
+        ]
+
+        for (const operation of operations) {
+          expect(operation).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+        }
+      }
+      expect(dbh.db.select().from(userProviderTable).all()).toEqual(originalRows)
+    }
+  )
 
   it('surfaces a registry-added endpoint type absent from the persisted row', async () => {
     // Stale seed: only openai-chat persisted; google-generate-content added to
@@ -163,37 +231,53 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     const provider = providerService.getByProviderId('cherryin')
 
     // Registry baseline over app defaults; nothing frozen in the row.
-    expect(provider.apiFeatures.serviceTier).toBe(false)
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
+    expect(provider.availableInEditions).toEqual(['global', 'cn'])
   })
 
-  it('persists apiFeatures as a delta: single-key PATCH merges, baseline echoes vanish', async () => {
+  it('keeps providers absent from the current registry edition-neutral', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'hyperbolic',
+        presetProviderId: 'hyperbolic',
+        name: 'Hyperbolic',
+        orderKey: 'a0'
+      },
+      {
+        providerId: 'custom-provider',
+        presetProviderId: null,
+        name: 'Custom Provider',
+        orderKey: 'a1'
+      }
+    ])
+
+    expect(providerService.getByProviderId('hyperbolic').availableInEditions).toBeUndefined()
+    expect(providerService.getByProviderId('custom-provider').availableInEditions).toBeUndefined()
+  })
+
+  it('persists an endpoint dialect as a delta: deviations stick, registry echoes vanish', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',
       presetProviderId: 'cherryin',
       name: 'CherryIN',
       orderKey: 'a0'
     })
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 
-    // Toggle one flag away from the baseline (registry says serviceTier: false).
-    providerService.update('cherryin', { apiFeatures: { serviceTier: true } })
+    // A deviation from the registry (which declares no dialect, so developerRole defaults false).
+    providerService.update('cherryin', { endpointConfigs: { [chat]: { dialect: { developerRole: true } } } })
     let [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.apiFeatures).toEqual({ serviceTier: true })
-    expect(providerService.getByProviderId('cherryin').apiFeatures.serviceTier).toBe(true)
-
-    // A full-snapshot echo that matches the baseline reduces the row to null.
-    providerService.update('cherryin', {
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      }
+    expect(row.endpointConfigs?.[chat]?.dialect).toEqual({ developerRole: true })
+    expect(providerService.getByProviderId('cherryin').endpointConfigs?.[chat]?.dialect).toEqual({
+      developerRole: true
     })
+
+    // Echoing the registry's own value is not an override — the row keeps no dialect.
+    providerService.update('cherryin', { endpointConfigs: { [chat]: { dialect: { developerRole: false } } } })
     ;[row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.apiFeatures).toBeNull()
+    expect(row.endpointConfigs?.[chat]?.dialect).toBeUndefined()
   })
 
   it('drops a defaultChatEndpoint echo that matches the registry baseline', async () => {

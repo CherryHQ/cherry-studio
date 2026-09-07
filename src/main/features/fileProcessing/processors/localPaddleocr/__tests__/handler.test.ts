@@ -2,10 +2,9 @@ import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recognizeMock, isLocalModelReadyMock, ocrModelPathsMock } = vi.hoisted(() => ({
+const { recognizeMock, isLocalModelReadyMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),
-  isLocalModelReadyMock: vi.fn(),
-  ocrModelPathsMock: vi.fn()
+  isLocalModelReadyMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -14,26 +13,13 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result
 })
 
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: ocrModelPathsMock
-}))
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
-}))
-
 import { localPaddleocrImageToTextHandler } from '../imageToText/handler'
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
-  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
-  charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
-}
 
 const imageFile = FileInfoSchema.parse({
   path: '/tmp/input.png',
@@ -63,7 +49,6 @@ describe('localPaddleocrImageToTextHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isLocalModelReadyMock.mockReturnValue(true)
-    ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
   })
 
   it('recognizes text from an image off the main thread', async () => {
@@ -72,14 +57,14 @@ describe('localPaddleocrImageToTextHandler', () => {
       throw new Error('Expected local PaddleOCR handler to prepare a background task')
     }
 
-    recognizeMock.mockResolvedValueOnce('hello world')
+    recognizeMock.mockResolvedValueOnce({ text: 'hello world', lines: [] })
     const signal = new AbortController().signal
 
     await expect(prepared.execute({ signal, reportProgress: vi.fn() })).resolves.toEqual({
       kind: 'text',
       text: 'hello world'
     })
-    expect(recognizeMock).toHaveBeenCalledWith(MODEL_PATHS, '/tmp/input.png', signal)
+    expect(recognizeMock).toHaveBeenCalledWith({ kind: 'path', imagePath: '/tmp/input.png' }, signal)
   })
 
   it('rejects non-image files', () => {

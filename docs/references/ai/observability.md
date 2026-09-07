@@ -1,3 +1,9 @@
+---
+description: OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks
+sources:
+  - src/main/ai/observability
+---
+
 # Observability
 
 The `src/main/ai/observability/` subsystem: OTel tracing, the local span
@@ -6,8 +12,8 @@ user-facing surface; this doc covers the whole subsystem.
 
 ## What's instrumented
 
-Every AI SDK call run through Cherry produces an OpenTelemetry span
-tree:
+When developer mode is enabled and a topic trace context exists, an AI SDK call
+run through Cherry produces an OpenTelemetry span tree:
 
 ```
 chat.turn                                      (root, created by context provider)
@@ -96,6 +102,11 @@ Pi has no native OTel exporter. Its runtime connection creates Cherry-owned
 agent-session trace context supplied by the host and flow through the existing
 `NodeTraceService` and `TraceStorageService`; parallel tool calls are tracked by
 tool-call id and unfinished spans are closed when the connection ends.
+
+DSH likewise uses Cherry-owned spans instead of an external OTLP adapter.
+`DshTraceRecorder` records `dsh.generate_content`, tool, compaction, and child
+runtime spans under the agent-session trace root, refreshes its trace context
+between turns, and closes unfinished spans when the connection ends.
 
 ## Sensitive data capture & redaction
 

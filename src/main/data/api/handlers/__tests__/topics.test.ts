@@ -110,6 +110,23 @@ describe('topicHandlers', () => {
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
     })
+
+    it('narrows the latest lookup to one assistant when assistantId is given', async () => {
+      const topic = { id: 'topic-assistant' }
+      getLatestActiveMock.mockReturnValueOnce(topic)
+
+      await expect(
+        topicHandlers['/topics/latest'].GET({ query: { assistantId: 'assistant-1' } } as never)
+      ).resolves.toEqual({ topic })
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    })
+
+    it('rejects an empty assistantId', async () => {
+      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: '' } } as never)).rejects.toThrow()
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/topics/reusable-placeholder', () => {

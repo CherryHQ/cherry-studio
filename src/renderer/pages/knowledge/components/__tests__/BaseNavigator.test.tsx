@@ -29,6 +29,7 @@ vi.mock('@cherrystudio/ui', () => {
   const AccordionItemContext = React.createContext<string | null>(null)
 
   return {
+    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     Accordion: ({
       children,
       defaultValue,

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages } from '../before-pack'
+import { assertPrebuiltPackages, keepPackages } from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -42,5 +42,28 @@ describe('assertPrebuiltPackages', () => {
       expect(packageManifest.optionalDependencies[packageName]).toBe(legacyMacOcrVersion)
       expect(workspaceConfig.overrides[packageName]).toBe(legacyMacOcrVersion)
     }
+  })
+})
+
+describe('keepPackages', () => {
+  it.each([
+    ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
+    ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
+  ] as const)('keeps only the Linux %s Landlock executable', (arch, matchingPackage, otherArchPackage) => {
+    const keptPackages = keepPackages('linux', arch)
+
+    expect(keptPackages).toContain(matchingPackage)
+    expect(keptPackages).not.toContain(otherArchPackage)
+  })
+
+  // The name matcher keys off arch and platform tokens, and this package name carries
+  // neither. Left to it, a Mac build would drop the module the permission prompt needs,
+  // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.
+  it.each(['arm64', 'x64'])('keeps the arch-agnostic macOS permission module on darwin %s', (arch) => {
+    expect(keepPackages('darwin', arch)).toContain('node-mac-permissions')
+  })
+
+  it.each(['win32', 'linux'])('drops it on %s, which is what excludes it from the package', (platform) => {
+    expect(keepPackages(platform, 'x64')).not.toContain('node-mac-permissions')
   })
 })

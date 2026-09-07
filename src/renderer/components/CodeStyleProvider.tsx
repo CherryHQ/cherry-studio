@@ -1,9 +1,9 @@
 import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
+import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
-import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
+import { getMarkdownIt, getShiki } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type React from 'react'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
@@ -73,7 +73,13 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     theme === ThemeMode.light ? 'light' : 'dark'
   )
 
+  // The themes-all catalog is only resolved after an editor boundary demands a theme, so
+  // windows that never render a CodeMirror editor never load it.
+  const [cmThemeRequested, setCmThemeRequested] = useState(false)
+  const requestCmTheme = useCallback(() => setCmThemeRequested(true), [])
+
   useEffect(() => {
+    if (!cmThemeRequested) return
     // Every CodeMirror consumer (Notes, MCP editors, ArtifactPane, previews) reads this, so it must
     // not depend on the chat-editor flag. getCmThemeByName already falls back for unknown names.
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
@@ -91,7 +97,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return () => {
       cancelled = true
     }
-  }, [theme, codeEditorThemeLight, codeEditorThemeDark])
+  }, [cmThemeRequested, theme, codeEditorThemeLight, codeEditorThemeDark])
 
   // 自定义 shiki 语言别名
   const languageAliases = useMemo(() => {
@@ -146,15 +152,14 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
+  // Static one-shot highlight; routed through the worker to keep the main thread free
   const highlightCode = useCallback(
     async (code: string, language: string) => {
       await loadShikiThemesInfo()
-      const highlighter = await getHighlighter()
-      await loadLanguageIfNeeded(highlighter, language)
-      const loadedTheme = await loadThemeIfNeeded(highlighter, activeShikiTheme)
-      return highlighter.codeToHtml(code, { lang: language, theme: loadedTheme })
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.highlightCodeToHtml(code, normalizedLang, activeShikiTheme)
     },
-    [activeShikiTheme, loadShikiThemesInfo]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
   // 使用 Shiki 和 Markdown-it 渲染代码
@@ -178,11 +183,10 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      loadThemeNames,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme
+      activeCmTheme,
+      requestCmTheme
     }),
     [
       highlightCodeChunk,
@@ -191,13 +195,24 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      loadThemeNames,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme
+      activeCmTheme,
+      requestCmTheme
     ]
   )
 
-  return <CodeStyleContext value={contextValue}>{children}</CodeStyleContext>
+  const themeCatalogContextValue = useMemo(
+    () => ({
+      loadThemeNames,
+      themeNames
+    }),
+    [loadThemeNames, themeNames]
+  )
+
+  return (
+    <CodeStyleContext value={contextValue}>
+      <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>{children}</CodeStyleThemeCatalogContext>
+    </CodeStyleContext>
+  )
 }

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import {
   type AgentChannelRow as ChannelRow,
+  agentChannelSessionTable as channelSessionsTable,
   agentChannelTable as channelsTable,
   agentChannelTaskTable as channelTaskSubscriptionsTable,
   type InsertAgentChannelRow as InsertChannelRow
@@ -89,8 +90,54 @@ export class AgentChannelService {
 
   findBySessionId(sessionId: string): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
-    const result = database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1).all()
-    return result[0] ? this.rowToEntity(result[0]) : null
+    const result = database
+      .select({ channel: channelsTable })
+      .from(channelSessionsTable)
+      .innerJoin(channelsTable, eq(channelSessionsTable.channelId, channelsTable.id))
+      .where(eq(channelSessionsTable.sessionId, sessionId))
+      .limit(1)
+      .all()
+    return result[0] ? this.rowToEntity(result[0].channel) : null
+  }
+
+  getActiveSessionId(channelId: string, conversationId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const [row] = database
+      .select({ sessionId: channelSessionsTable.sessionId })
+      .from(channelSessionsTable)
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, channelId),
+          eq(channelSessionsTable.conversationId, conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .limit(1)
+      .all()
+    return row?.sessionId ?? null
+  }
+
+  activateSessionTx(
+    tx: DbOrTx,
+    input: {
+      channelId: string
+      conversationId: string
+      sessionId: string
+    }
+  ): void {
+    tx.update(channelSessionsTable)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(channelSessionsTable.channelId, input.channelId),
+          eq(channelSessionsTable.conversationId, input.conversationId),
+          eq(channelSessionsTable.isActive, true)
+        )
+      )
+      .run()
+    tx.insert(channelSessionsTable)
+      .values({ ...input, isActive: true })
+      .run()
   }
 
   listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {
@@ -156,10 +203,9 @@ export class AgentChannelService {
   updateChannel(
     id: string,
     updates: Partial<
-      Pick<
-        ChannelRow,
-        'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'
-      > & { workspace: AgentSessionWorkspaceSource }
+      Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
+        workspace: AgentSessionWorkspaceSource
+      }
     >
   ): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()

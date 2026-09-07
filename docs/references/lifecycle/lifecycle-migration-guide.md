@@ -1,3 +1,10 @@
+---
+description: Converting legacy singleton, raw-new, and free-function services to lifecycle decorators and registry entries
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application/serviceRegistry.ts
+---
+
 # Lifecycle Migration Guide
 
 This guide walks you through converting existing **infrastructure services** to the lifecycle system. Services that manage resources, require ordered initialization, or need cleanup belong here. Stateless business-logic services (repositories, data-access layers) should remain as simple singletons — see [Decision Guide](./lifecycle-decision-guide.md).
@@ -57,7 +64,7 @@ import { BaseService, Injectable, ServicePhase, DependsOn, Phase } from '@main/c
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)          // needs Electron API → WhenReady
-@DependsOn(['PreferenceService'])       // reads preferences on startup
+@DependsOn(['WindowManager'])           // same-phase ordering dependency
 export class MainWindowService extends BaseService {
   protected async onInit() {
     // ← what was in init() / constructor logic
@@ -129,9 +136,9 @@ windowService.createMainWindow()
 > menuService?.buildMenu()
 > ```
 
-### Step 5: Replace dependencies with `@DependsOn`
+### Step 5: Declare only ordering dependencies with `@DependsOn`
 
-If the old service imported other service singletons at the top level, convert those to `@DependsOn` and access them via `application.get()` inside methods:
+Replace imported lifecycle singletons with `application.get()` inside lifecycle hooks or methods. Add `@DependsOn` only when the other service is in the same phase and must finish initialization first. Cross-phase readiness is automatic, and a runtime-only call does not by itself require an ordering edge.
 
 ```typescript
 // OLD — tight coupling via top-level import
@@ -181,7 +188,7 @@ export function registerShortcuts(mainWindow: BrowserWindow) { ... }
 // NEW
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService', 'PreferenceService'])
+@DependsOn(['MainWindowService'])
 export class ShortcutService extends BaseService {
   private accelerator: string | null = null
 
@@ -197,9 +204,9 @@ export class ShortcutService extends BaseService {
 }
 ```
 
-### Step 8: Migrate IPC handlers to BaseService tracking
+### Step 8: Route IPC by subsystem
 
-If your service registers `ipcMain.handle()` or `ipcMain.on()` calls, replace them with `this.ipcHandle()` / `this.ipcOn()` and remove the manual unregister method:
+New business commands migrate to [IpcApi](../ipc/ipc-migration-guide.md): shared schema, thin main handler, and typed renderer call. If an infrastructure or deliberately retained legacy channel must remain on the lifecycle service, replace bare `ipcMain.handle()` / `ipcMain.on()` with `this.ipcHandle()` / `this.ipcOn()` and remove the manual unregister method:
 
 ```typescript
 // OLD — channel appears twice (register + unregister)
@@ -261,11 +268,12 @@ If the field is never read (e.g., fire-and-forget from `onInit`), drop it entire
 | Singleton      | `private static instance` + `getInstance()` | `@Injectable('Name')` — container manages it |
 | Init           | Manual `init()` called from `index.ts`      | `onInit()` — called automatically            |
 | Cleanup        | Manual cleanup in `will-quit` / `before-quit` handler | `onStop()` / `onDestroy()` — automatic |
-| Dependencies   | `import { otherService } from '...'`        | `@DependsOn([...])` + `application.get()`    |
+| Service access | imported lifecycle singleton                 | `application.get()` inside hooks/methods     |
+| Dependencies   | implicit manual initialization order          | same-phase `@DependsOn([...])` only when ordering is required |
 | Access         | `import { myService } from '...'`           | `application.get('MyService')`               |
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
 | Error handling | try/catch in `index.ts`                     | `@ErrorHandling('fail-fast' \| 'graceful')`  |
-| IPC handlers   | Manual `ipcMain.handle()` + `removeHandler()` | `this.ipcHandle()` — auto-cleanup on stop |
+| IPC handlers   | Scattered legacy `ipcMain.handle()` calls | IpcApi for business commands; tracked BaseService helpers only for retained legacy/infrastructure channels |
 | Recurring timers | Manual `setInterval()` + `clearInterval()` + `unref()` | `this.registerInterval()` — auto-cleanup, auto-unref, exception-isolated |
 
 ### Step 9: Migrate ad-hoc event communication to Emitter/Event

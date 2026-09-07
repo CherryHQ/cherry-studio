@@ -26,11 +26,11 @@ const pageSiblingZones = PAGE_DOMAINS.map((p) => ({
   target: `src/renderer/pages/${p}`,
   from: 'src/renderer/pages',
   except: [`./${p}`],
-  message: 'A page must not import another page (cross-page coupling). renderer-architecture.md §7.'
+  message: 'A page must not import another page (cross-page coupling). architecture/renderer.md §7.'
 }))
 
 // Topic barrels under services/: a services/<topic>/ exposes exactly one curated index.ts as its sole
-// external entry (renderer-architecture.md §3.1/§5). Auto-discovered from the filesystem so a new topic dir
+// external entry (architecture/renderer.md §3.1/§5). Auto-discovered from the filesystem so a new topic dir
 // needs zero rule edits — mirrors pageSiblingZones above. A topic's own subtree is excluded from `target`
 // (extglob negation), so internal `./sibling` imports stay legal while every outside importer is limited to
 // the barrel. Applied in every renderer importer region via blocks L/P/B below.
@@ -51,7 +51,7 @@ const serviceBarrelZones = serviceTopics.map((topic) => ({
     `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
     `src/renderer/services/${topic}/!(index)/**/*`
   ],
-  message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
+  message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. architecture/renderer.md §3.1/§5.`
 }))
 
 // Each block's `files` is scoped so the three no-restricted-paths instances (L/P/B) never both apply to one
@@ -82,7 +82,7 @@ const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
 const BAN_RENDERER_FROM_MAIN = {
   group: ['@renderer', '@renderer/**', '**/renderer/**'],
   message:
-    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/architecture/shared-layer.md.'
 }
 // Only reaches src/main + src/preload (below). `tests/**` is globally ignored by this
 // config, so the out-of-src harness is not covered — it goes through applyMigrations by
@@ -91,6 +91,41 @@ const BAN_DRIZZLE_MIGRATOR = {
   group: ['drizzle-orm/*/migrator'],
   message:
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
+}
+
+// Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
+// separate process that has no lifecycle container, no logger, and no database. Importing a
+// main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
+// child bundle. A resolved-path zone, so relative and aliased specifiers are judged alike;
+// the smoke build's entry-graph guard (scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts)
+// is the transitive backstop (docs/references/utility-process/README.md).
+const UTILITY_CHILD_FILES = [
+  'src/main/core/utilityProcess/protocol/**/*.ts',
+  'src/main/core/utilityProcess/runtime/**/*.ts',
+  'src/main/**/utilityEntries/**/*.ts',
+  'scripts/utility-process-smoke/harness/utilityEntries/**/*.ts'
+]
+const UTILITY_CHILD_ZONE = {
+  target: UTILITY_CHILD_FILES,
+  from: [
+    'src/main/core/application',
+    'src/main/core/lifecycle',
+    'src/main/core/logger',
+    'src/main/core/paths',
+    'src/main/data',
+    'src/main/ipc',
+    'src/main/services/proxy',
+    'src/main/core/utilityProcess/host',
+    'src/main/core/utilityProcess/UtilityProcessManager.ts'
+  ],
+  message:
+    'Utility-process child code runs without the main process singletons. Use the child runtime (serveUtilityProcess) and the protocol layer instead; keep host-only code out of the entry graph.'
+}
+// Resolved against the node project: tsconfig.web.json maps @logger / @data/* to renderer files.
+const mainBoundarySettings = {
+  'import-x/resolver-next': [
+    createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.node.json'), alwaysTryTypes: true })
+  ]
 }
 
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
@@ -148,7 +183,7 @@ const BARREL_RESOLVE_CACHE = new Map()
 // Unresolved specs are skipped — misses only, never false positives. Deliberately unresolved:
 // `@logger` (single-file target, cannot hide a deep import), `@application` (bare-only usage,
 // zero `@application/` deep paths in src), `@test-helpers`/`@test-mocks` (tests are exempt),
-// `@cherrystudio/*`/`@mcp-trace/*` (packages/*, outside src).
+// `@cherrystudio/*` (packages/*, outside src).
 const resolveBarrelSpec = (spec, fromFile) => {
   const key = `${fromFile}\0${spec}`
   if (BARREL_RESOLVE_CACHE.has(key)) return BARREL_RESOLVE_CACHE.get(key)
@@ -455,7 +490,7 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
         }
       ]
     }
@@ -547,7 +582,7 @@ export default defineConfig([
               },
               messages: {
                 restricted:
-                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/en/references/lifecycle/application-overview.md'
+                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/references/lifecycle/application-overview.md'
               }
             },
             create(context) {
@@ -688,6 +723,18 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }
   },
+  {
+    // Child-safe zone: everything that is bundled into a utility process entry. Must come
+    // after the src/main block — flat config replaces a rule wholesale, so the main bans are
+    // repeated here; the child-only fence is the resolved-path zone.
+    files: UTILITY_CHILD_FILES,
+    plugins: { 'import-x': importX },
+    settings: mainBoundarySettings,
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }],
+      'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
+    }
+  },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
   // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
   {
@@ -709,12 +756,12 @@ export default defineConfig([
                 'src/renderer/utils'
               ],
               from: ['src/renderer/pages', 'src/renderer/windows'],
-              message: 'Shared buckets must not import pages/windows (reverse layer edge). renderer-architecture.md §7.'
+              message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
             },
             {
               target: 'src/renderer/utils',
               from: ['src/renderer/components', 'src/renderer/hooks'],
-              message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
+              message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. architecture/renderer.md §3.'
             },
             // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
             {
@@ -723,7 +770,7 @@ export default defineConfig([
                 'src/renderer/services/!(LoggerService).{ts,tsx,js,jsx}',
                 'src/renderer/services/!(LoggerService)/**/*'
               ],
-              message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
+              message: 'utils/ must not import renderer services (except @logger). architecture/renderer.md §3.'
             },
             ...serviceBarrelZones
           ]
@@ -748,7 +795,7 @@ export default defineConfig([
             {
               target: 'src/renderer/pages',
               from: 'src/renderer/windows',
-              message: 'A page must not import a window (reverse edge). renderer-architecture.md §2/§7.'
+              message: 'A page must not import a window (reverse edge). architecture/renderer.md §2/§7.'
             },
             ...pageSiblingZones,
             ...serviceBarrelZones

@@ -685,4 +685,134 @@ describe('useMiniAppPopup', () => {
       })
     })
   })
+
+  describe('split pane', () => {
+    const getSplitId = () => MockUseCacheUtils.getCacheValue('mini_app.split_id')
+    const getSplitOpen = () => MockUseCacheUtils.getCacheValue('mini_app.split_open')
+
+    beforeEach(() => {
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'left-app')
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [createMiniApp('left-app')])
+    })
+
+    it('should load the picked app into the pool without claiming the active pane', async () => {
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+
+      expect(isInKeepAlive('right-app')).toBe(true)
+      expect(getSplitId()).toBe('right-app')
+      expect(getSplitOpen()).toBe(true)
+      // The split pane sits *beside* the active app. Claiming currentMiniAppId
+      // would swap out the app the user is reading in the other pane.
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('left-app')
+    })
+
+    it('should keep the active app loaded when filling the split on a full pool', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+
+      // Making room by evicting the active app would blank the pane right next
+      // to the one just opened.
+      expect(isInKeepAlive('left-app')).toBe(true)
+      expect(isInKeepAlive('right-app')).toBe(true)
+      expect(mockClearWebviewState).not.toHaveBeenCalledWith('left-app')
+    })
+
+    it('should not evict the split app when another app opens under cap pressure', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 2)
+
+      const { result, rerender } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+      // The mock cache writes through without re-rendering; re-render so the
+      // hook reads back the split id it just stored.
+      rerender()
+
+      await act(async () => {
+        result.current.openMiniApp(createMiniApp('third-app'), true)
+      })
+
+      // The split pane owns no tab, so nothing else stops the cap from evicting
+      // the webview the user is reading beside the active one.
+      expect(isInKeepAlive('right-app')).toBe(true)
+      expect(mockClearWebviewState).not.toHaveBeenCalledWith('right-app')
+    })
+
+    it('should drop the split pane when its app is closed', async () => {
+      const { result, rerender } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+      rerender()
+
+      await act(async () => {
+        result.current.closeMiniApp('right-app')
+      })
+
+      // A split id pointing at an unpooled app leaves the pane blank, and a
+      // still-open pane swaps that app for a picker nobody asked for.
+      expect(getSplitId()).toBe('')
+      expect(getSplitOpen()).toBe(false)
+    })
+
+    it('should keep the split pane when the app closed is not the one in it', async () => {
+      const { result, rerender } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+      rerender()
+
+      await act(async () => {
+        result.current.closeMiniApp('left-app')
+      })
+
+      // Only the pane whose app disappeared collapses; the other pane still
+      // holds valid content for whichever mini app the user opens next.
+      expect(getSplitId()).toBe('right-app')
+      expect(getSplitOpen()).toBe(true)
+    })
+
+    it('should collapse the split when every mini app closes', async () => {
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+
+      await act(async () => {
+        result.current.closeAllMiniApps()
+      })
+
+      expect(getSplitId()).toBe('')
+      expect(getSplitOpen()).toBe(false)
+    })
+
+    it('should keep both apps pooled when only the split view closes', async () => {
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+      await act(async () => {
+        result.current.closeSplit()
+      })
+
+      expect(getSplitOpen()).toBe(false)
+      expect(getSplitId()).toBe('')
+      expect(isInKeepAlive('left-app')).toBe(true)
+      expect(isInKeepAlive('right-app')).toBe(true)
+    })
+  })
 })

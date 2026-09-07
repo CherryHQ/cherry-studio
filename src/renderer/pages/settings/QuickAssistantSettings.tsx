@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
 import {
   SettingDivider,
   SettingGroup,
@@ -33,10 +34,11 @@ import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
+import { useNavigate } from '@tanstack/react-router'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QuickAssistantSettings: FC = () => {
@@ -54,7 +56,10 @@ const QuickAssistantSettings: FC = () => {
   const { theme } = useTheme()
   const { assistants, hasLoaded: haveAssistantsLoaded } = useAssistants()
   const { defaultModel } = useDefaultModel()
+  const navigate = useNavigate()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
+  const usageMethodTitleId = useId()
+  const configurationTitleId = useId()
 
   const assistantOptions = assistants
   const firstAssistantId = assistantOptions[0]?.id
@@ -105,7 +110,7 @@ const QuickAssistantSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-quick-assistant-enable-quick-assistant" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
             <InfoTooltip
@@ -137,17 +142,45 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <SettingRow className="min-h-8.5 flex-nowrap gap-3">
-            <SettingRowTitle className="gap-2.5">
-              {t('settings.models.quick_assistant_model')}
-              <InfoTooltip
-                content={t('selection.settings.user_modal.model.tooltip')}
-                showArrow
-                iconProps={{ className: 'cursor-pointer' }}
-              />
+          <SettingTitle>{t('settings.models.quick_assistant_response_settings')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow role="group" aria-labelledby={usageMethodTitleId} className="min-h-8.5 gap-3">
+            <SettingRowTitle id={usageMethodTitleId}>
+              {t('settings.models.quick_assistant_usage_method')}
             </SettingRowTitle>
-            <RowFlex className="items-center gap-2.5">
-              {!quickAssistantId || !selectedAssistant ? null : (
+            <SegmentedControl<'assistant' | 'model'>
+              aria-label={t('settings.models.quick_assistant_usage_method')}
+              size="sm"
+              value={isAssistantMode ? 'assistant' : 'model'}
+              options={[
+                {
+                  value: 'assistant',
+                  label: t('settings.models.use_assistant'),
+                  disabled: assistantOptions.length === 0
+                },
+                { value: 'model', label: t('settings.models.use_model') }
+              ]}
+              onValueChange={(value) => void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow role="group" aria-labelledby={configurationTitleId} className="min-h-8.5 flex-nowrap gap-3">
+            <SettingRowTitle id={configurationTitleId} className={isAssistantMode ? 'gap-2.5' : undefined}>
+              {t(
+                isAssistantMode
+                  ? 'settings.models.quick_assistant_selection'
+                  : 'settings.models.default_assistant_model'
+              )}
+              {isAssistantMode && (
+                <InfoTooltip
+                  content={t('selection.settings.user_modal.model.tooltip')}
+                  showArrow
+                  iconProps={{ className: 'cursor-pointer' }}
+                />
+              )}
+            </SettingRowTitle>
+            {isAssistantMode ? (
+              selectedAssistant ? (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -199,23 +232,13 @@ const QuickAssistantSettings: FC = () => {
                     </PopoverContent>
                   </Popover>
                 </RowFlex>
-              )}
-              <SegmentedControl<'assistant' | 'model'>
-                size="sm"
-                value={isAssistantMode ? 'assistant' : 'model'}
-                options={[
-                  {
-                    value: 'assistant',
-                    label: t('settings.models.use_assistant'),
-                    disabled: assistantOptions.length === 0
-                  },
-                  { value: 'model', label: t('settings.models.use_model') }
-                ]}
-                onValueChange={(value) =>
-                  void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')
-                }
+              ) : null
+            ) : (
+              <ModelSettingsNavigation
+                model={defaultModel}
+                onNavigate={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}
               />
-            </RowFlex>
+            )}
           </SettingRow>
         </SettingGroup>
       )}

@@ -1,3 +1,11 @@
+---
+description: buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request
+sources:
+  - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
+  - src/main/ai/runtime/aiSdk/params/feature.ts
+  - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+---
+
 # Params Pipeline
 
 ## What it is

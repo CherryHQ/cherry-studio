@@ -31,46 +31,58 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
-function renderFallbackAssistantIcon(emoji?: string | null) {
+const RESOURCE_ICON_SIZE = 24
+
+function renderFallbackAssistantIcon(emoji: string | null | undefined, size: number) {
   return emoji ? (
-    <EmojiIcon emoji={emoji} size={24} fontSize={14} className="mr-0" />
+    <EmojiIcon emoji={emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />
   ) : (
-    <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle">
-      <Bot size={14} />
+    <span
+      className="flex items-center justify-center rounded-full bg-background-subtle"
+      style={{ width: size, height: size }}>
+      <Bot size={Math.round(size * 0.58)} />
     </span>
   )
 }
 
+/**
+ * @param size - Rendered icon size; the sidebar renders smaller rows than the rails.
+ */
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
   assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
-  fallbackModelId?: string | null
+  fallbackModelId?: string | null,
+  size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
   if (iconType === 'model' && modelAvatarModel) {
-    return <ModelAvatar model={modelAvatarModel} size={24} className="border border-border-subtle" />
+    return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
   }
 
-  return renderFallbackAssistantIcon(assistant.emoji)
+  return renderFallbackAssistantIcon(assistant.emoji, size)
 }
 
+/**
+ * @param size - Rendered icon size; the sidebar renders smaller rows than the rails.
+ */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
   agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
-  fallbackModelId?: string | null
+  fallbackModelId?: string | null,
+  size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
   return (
     <EmojiIcon
       emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
-      size={24}
-      fontSize={14}
+      size={size}
+      fontSize={Math.round(size * 0.58)}
       className="mr-0"
     />
   )

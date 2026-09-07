@@ -1,7 +1,8 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CherryInOauth from '../ProviderSpecific/CherryInOauth'
 
@@ -27,6 +28,8 @@ const DEFAULT_BALANCE = {
     group: 'Pro'
   }
 }
+
+const TOPPED_UP_BALANCE = { ...DEFAULT_BALANCE, balance: 256 }
 
 vi.mock('@renderer/services/oauth', () => ({
   oauthWithCherryIn: vi.fn()
@@ -55,6 +58,10 @@ describe('CherryInOauth', () => {
       if (route === 'oauth.has_token') return Promise.resolve(true)
       return Promise.resolve(undefined)
     })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('renders the logged-in card with balance and footer attribution', async () => {
@@ -209,5 +216,48 @@ describe('CherryInOauth', () => {
     })
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('refreshes the balance once after returning from top-up', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        apiKeys: [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }],
+        isEnabled: true
+      },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey: vi.fn()
+    })
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    render(<CherryInOauth providerId="cherryin" />)
+    await screen.findByText('$128.50')
+
+    ipcApiRequestMock.mockClear()
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_balance') return Promise.resolve(TOPPED_UP_BALANCE)
+      if (route === 'oauth.has_token') return Promise.resolve(true)
+      return Promise.resolve(undefined)
+    })
+
+    fireEvent.focus(window)
+    expect(ipcApiRequestMock).not.toHaveBeenCalled()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /充值|Top Up/i }))
+    expect(openSpy).toHaveBeenCalledWith('https://open.cherryin.ai/console/topup', '_blank')
+
+    fireEvent.focus(window)
+    await screen.findByText('$256.00')
+    expect(ipcApiRequestMock).toHaveBeenCalledTimes(1)
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', {
+      apiHost: 'https://open.cherryin.ai'
+    })
+
+    ipcApiRequestMock.mockClear()
+    fireEvent.focus(window)
+    expect(ipcApiRequestMock).not.toHaveBeenCalled()
   })
 })

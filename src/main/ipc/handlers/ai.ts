@@ -190,7 +190,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
   'ai.stream.abort': async ({ topicId }) => {
-    application.get('AiStreamManager').abort(topicId, 'user-requested')
+    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
@@ -206,6 +206,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.delete': ({ agentId, deleteSessions }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.sessions.delete': ({ agentId }) =>
+    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -220,6 +224,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  'ai.agent.session.delete': ({ sessionIds }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.reuse_or_create': (input) =>
+    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
+  'ai.agent.workspace.delete': ({ workspaceId }) =>
+    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

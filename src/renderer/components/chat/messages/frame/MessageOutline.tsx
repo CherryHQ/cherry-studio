@@ -11,6 +11,7 @@ import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {
+  getMessageElement(messageId: string): HTMLElement | null
   message: MessageListItem
   multiModelMessageStyle: MultiModelMessageStyle
   onNavigateToElement(element: HTMLElement): void
@@ -22,7 +23,12 @@ interface HeadingItem {
   text: string
 }
 
-const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle, onNavigateToElement }) => {
+const MessageOutline: FC<MessageOutlineProps> = ({
+  getMessageElement,
+  message,
+  multiModelMessageStyle,
+  onNavigateToElement
+}) => {
   const messageParts = useMessageParts(message.id)
 
   const headings: HeadingItem[] = useMemo(() => {
@@ -76,7 +82,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
   }, [headings])
 
   const scrollToHeading = (id: string) => {
-    const messageElement = document.getElementById(`message-${message.id}`)
+    const messageElement = getMessageElement(message.id)
     const messageContentContainer = messageElement?.querySelector('.message-content-container')
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)

@@ -12,7 +12,6 @@
  * back to the local API Gateway when the model is gateway-routable.
  */
 
-import { MODALITY } from '@cherrystudio/provider-registry'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -21,7 +20,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
- * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.6).
+ * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
  * OpenAI and Anthropic use hand-declared protocol routes; Google Generate
  * Content reuses pi-ai's built-in `google` catalog provider. Azure and signed
  * Bedrock/Vertex routes cannot be expressed by this composition contract.
@@ -82,20 +81,9 @@ export function resolveDshApi(provider: Provider, model: Model): DshApi | undefi
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }
 
-/** dsh's route config requires a per-model context window, so an unknown value is not safely drivable. */
-export function hasKnownDshContextWindow(model: Model): model is Model & { contextWindow: number } {
-  return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-}
-
-/** DSH rc.6 always requires text input; undeclared modalities retain the existing chat-model default. */
-export function hasDshTextInput(model: Model): boolean {
-  return model.inputModalities === undefined || model.inputModalities.includes(MODALITY.TEXT)
-}
-
 /** Whether a dsh agent can use this provider+model. Used for renderer filtering. */
 export function isDshCompatibleModel(provider: Provider, model: Model): boolean {
   // No native wire family → the local API Gateway can still front any gateway-routable
   // model as OpenAI-compatible (claude's picker rule); everything else stays fail-closed.
-  if (resolveDshApi(provider, model) === undefined && !isGatewayRoutableModel(model)) return false
-  return hasKnownDshContextWindow(model) && hasDshTextInput(model)
+  return resolveDshApi(provider, model) !== undefined || isGatewayRoutableModel(model)
 }

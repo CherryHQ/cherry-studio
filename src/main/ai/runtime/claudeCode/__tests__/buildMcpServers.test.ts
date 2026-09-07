@@ -62,6 +62,10 @@ vi.mock('@application', async () => {
     ...module,
     application: {
       ...module.application,
+      get: (name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getTurnTrustedNotifyChannels: () => undefined }
+          : module.application.get(name as never),
       getPath: mockGetPath
     }
   }
@@ -94,7 +98,7 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -125,6 +129,7 @@ const {
   buildMcpServers,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
+const { resolveMountedMcpServers } = await import('@main/ai/agents/builtin/builtinAgentCapabilities')
 
 const agent = { id: 'agent-1', mcps: [] } as unknown as AgentEntity
 const session = {
@@ -159,9 +164,40 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
   } as unknown as AgentSessionEntity
 }
 
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
+const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+
+describe('resolveMountedMcpServers', () => {
+  it('mounts skills but no host servers for an ordinary Agent', () => {
+    const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
+      channelLinked: false
+    })
+    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
+  })
+
+  it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
+    const mounted = resolveMountedMcpServers(
+      { type: 'claude-code', configuration: { builtin_role: 'support' } } as never,
+      {
+        channelLinked: false
+      }
+    )
+    expect(mounted.has('skills')).toBe(false)
+    // A sealed Agent must not register MCP servers into the user's environment either.
+    expect(mounted.has('mcp-manager')).toBe(false)
+    expect(mounted.has('assistant')).toBe(true)
+  })
+
+  it('withdraws Cherry Assistant host servers once the session is channel-linked', () => {
+    const agentRef = { type: 'claude-code', configuration: { builtin_role: 'assistant' } } as never
+    expect(resolveMountedMcpServers(agentRef, { channelLinked: false }).has('assistant')).toBe(true)
+    expect(resolveMountedMcpServers(agentRef, { channelLinked: true }).has('assistant')).toBe(false)
+  })
+})
+
 describe('adjustAllowedToolsForMcp', () => {
   it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
-    const allowed = adjustAllowedToolsForMcp(false, [])
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
@@ -179,10 +215,12 @@ describe('adjustAllowedToolsForMcp', () => {
     // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
     expect(allowed).toContain('mcp__skills__search_skills')
     expect(allowed).not.toContain('mcp__skills__install_skill')
+    // install_mcp_server can launch an arbitrary local command — never pre-approved.
+    expect(allowed).not.toContain('mcp__mcp-manager__install_mcp_server')
   })
 
   it('auto-approves only read-only Assistant tools', () => {
-    const allowed = adjustAllowedToolsForMcp(true, [])
+    const allowed = adjustAllowedToolsForMcp(WITH_HOST_TOOLS, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
@@ -205,25 +243,25 @@ describe('adjustAllowedToolsForMcp', () => {
   })
 
   it('removes an exact disabled tool without affecting sibling auto-approvals', () => {
-    const allowed = adjustAllowedToolsForMcp(false, ['mcp__cherry-tools__web_fetch'])
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__cherry-tools__web_fetch'])
 
     expect(allowed).not.toContain('mcp__cherry-tools__web_fetch')
     expect(allowed).toContain('mcp__cherry-tools__web_search')
   })
 
   it.each(['mcp__cherry-tools', 'mcp__cherry-tools__*'])('removes server-wide disabled tools for %s', (rule) => {
-    const allowed = adjustAllowedToolsForMcp(false, [rule])
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [rule])
 
     expect(allowed.some((toolName) => toolName.startsWith('mcp__cherry-tools__'))).toBe(false)
     expect(allowed).toContain('mcp__agent-memory__memory')
   })
 
   it('removes every MCP auto-approval for the global disabled rule', () => {
-    expect(adjustAllowedToolsForMcp(true, ['mcp__*'])).toEqual([])
+    expect(adjustAllowedToolsForMcp(WITH_HOST_TOOLS, ['mcp__*'])).toEqual([])
   })
 
   it('does not let the memory auto-approval override an exact disabled tool', () => {
-    const allowed = adjustAllowedToolsForMcp(false, ['mcp__agent-memory__memory'])
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__agent-memory__memory'])
 
     expect(allowed).not.toContain('mcp__agent-memory__memory')
   })
@@ -236,13 +274,19 @@ describe('buildMcpServers', () => {
   })
 
   it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
+    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
   })
 
+  it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
+    expect(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)?.['mcp-manager']).toBeDefined()
+    const sealed = new Set([...WITHOUT_HOST_TOOLS].filter((name) => name !== 'mcp-manager'))
+    expect(buildMcpServers(session, agent, sealed)?.['mcp-manager']).toBeUndefined()
+  })
+
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
-    const result = buildMcpServers(session, agent, false)
+    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.cherry).toBeUndefined()
     expect(result?.exa).toBeUndefined()
@@ -267,7 +311,7 @@ describe('buildMcpServers', () => {
 
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
     mockGetAgent.mockReturnValue(agent)
-    const names = await cherryToolNames(buildMcpServers(session, agent, false))
+    const names = await cherryToolNames(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS))
     expect(names).toContain('web_search')
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_manage')
@@ -276,14 +320,14 @@ describe('buildMcpServers', () => {
   it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
-    const names = await cherryToolNames(buildMcpServers(session, boundAgent, false))
+    const names = await cherryToolNames(buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS))
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
   })
 
   it('exposes the kb_* tools from a frozen composer selection when the Agent has no binding', async () => {
     mockGetAgent.mockReturnValue(agent)
     const names = await cherryToolNames(
-      buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
+      buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-selected'])
     )
 
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
@@ -298,7 +342,7 @@ describe('buildMcpServers', () => {
     } as unknown as AgentEntity
     mockGetAgent.mockReturnValue(assistant)
 
-    const names = await cherryToolNames(buildMcpServers(session, assistant, true))
+    const names = await cherryToolNames(buildMcpServers(session, assistant, WITH_HOST_TOOLS))
 
     expect(names).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
@@ -313,7 +357,7 @@ describe('buildMcpServers', () => {
       configuration: { builtin_role: 'assistant' }
     } as unknown as AgentEntity
     mockGetAgent.mockReturnValue(assistant)
-    const servers = buildMcpServers(session, assistant, true)
+    const servers = buildMcpServers(session, assistant, WITH_HOST_TOOLS)
 
     expect(await cherryToolNames(servers)).toContain('kb_search')
 
@@ -347,7 +391,7 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
-      buildMcpServers(session, boundAgent, false, undefined, undefined, undefined, ['kb-a'])
+      buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-a'])
     )
 
     expect(scope).toEqual(['kb-a'])
@@ -358,7 +402,7 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
-      buildMcpServers(session, boundAgent, false, undefined, undefined, undefined, ['kb-selected'])
+      buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-selected'])
     )
 
     expect(scope).toEqual(['kb-bound'])
@@ -367,7 +411,9 @@ describe('buildMcpServers', () => {
 
   it('fails closed when the Agent backing a frozen composer selection is deleted', async () => {
     mockGetAgent.mockReturnValueOnce(agent).mockReturnValueOnce(undefined)
-    const servers = buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
+    const servers = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, [
+      'kb-selected'
+    ])
 
     expect(await cherryToolNames(servers)).toContain('kb_search')
     expect(await cherryToolNames(servers)).not.toContain('kb_search')
@@ -376,15 +422,15 @@ describe('buildMcpServers', () => {
   it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
-    const servers = buildMcpServers(session, boundAgent, false)
+    const servers = buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS)
 
     expect(await cherryToolNames(servers)).toContain('kb_read')
     expect(await cherryToolNames(servers)).not.toContain('kb_read')
   })
 
   it('injects assistant file tools only for Cherry Assistant sessions', () => {
-    const plain = buildMcpServers(session, agent, false)
-    const assistant = buildMcpServers(session, agent, true)
+    const plain = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
+    const assistant = buildMcpServers(session, agent, WITH_HOST_TOOLS)
 
     expect(plain?.['assistant-files']).toBeUndefined()
     expect(assistant?.assistant).toBeDefined()

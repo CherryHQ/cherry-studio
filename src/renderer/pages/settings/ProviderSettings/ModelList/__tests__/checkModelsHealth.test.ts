@@ -1,18 +1,18 @@
 import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
-import { aggregateApiKeyResults } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApiKeyWithStatus, ModelCheckCredential } from '../../types/healthCheck'
+import { HealthStatus } from '../../types/healthCheck'
 import { checkModelsHealth } from '../checkModelsHealth'
 
-const checkApiMock = vi.fn()
+const checkModelWithMultipleKeysMock = vi.fn()
 
 vi.mock('../../utils/healthCheck', async () => {
   const actual = await vi.importActual<typeof HealthCheckUtils>('../../utils/healthCheck')
   return {
     ...actual,
-    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults),
-    checkApi: (...args: unknown[]) => checkApiMock(...args)
+    checkModelWithMultipleKeys: (...args: unknown[]) => checkModelWithMultipleKeysMock(...args)
   }
 })
 
@@ -24,123 +24,88 @@ function deferred<T = void>() {
   return { promise, resolve }
 }
 
-// checkApi resolves to `{ latency }`; tests gate on the underlying call count
-// + per-iteration deferreds, so most use a default latency of 0.
-const okResult = { latency: 0 }
+const credentials = [
+  { kind: 'api-key', entry: { id: 'key-1', key: 'sk-1', label: 'Primary', isEnabled: true } },
+  { kind: 'api-key', entry: { id: 'key-2', key: 'sk-2', label: 'Backup', isEnabled: true } },
+  { kind: 'api-key', entry: { id: 'key-3', key: 'sk-3', isEnabled: true } }
+] satisfies ModelCheckCredential[]
+
+function okKeyResult(credential: ModelCheckCredential, latency = 0): ApiKeyWithStatus {
+  return {
+    kind: 'ok',
+    credential,
+    status: HealthStatus.SUCCESS,
+    checking: false,
+    latency
+  }
+}
 
 describe('checkModelsHealth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    checkModelWithMultipleKeysMock.mockResolvedValue([okKeyResult(credentials[0])])
   })
 
   it('does not start the next model check until the current one finishes when concurrency is disabled', async () => {
-    const first = deferred<typeof okResult>()
-    const second = deferred<typeof okResult>()
-    checkApiMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const first = deferred<ApiKeyWithStatus[]>()
+    const second = deferred<ApiKeyWithStatus[]>()
+    checkModelWithMultipleKeysMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
 
     const run = checkModelsHealth({
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
+      credentials: credentials.slice(0, 1),
       isConcurrent: false,
       timeout: 1000
     })
 
-    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(1))
 
-    first.resolve(okResult)
-    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
+    first.resolve([okKeyResult(credentials[0], 10)])
+    await waitFor(() => expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(2))
 
-    second.resolve(okResult)
+    second.resolve([okKeyResult(credentials[0], 20)])
     await run
   })
 
-  it('probes each configured API key for a model', async () => {
-    checkApiMock.mockResolvedValue(okResult)
+  it('starts every model concurrently and preserves model order when completion order differs', async () => {
+    const first = deferred<ApiKeyWithStatus[]>()
+    const second = deferred<ApiKeyWithStatus[]>()
+    checkModelWithMultipleKeysMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
 
-    const results = await checkModelsHealth({
-      models: [{ id: 'model-a' }] as never,
-      apiKeys: ['sk-1', 'sk-2', 'sk-3'],
+    const run = checkModelsHealth({
+      models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
+      credentials: credentials.slice(0, 1),
       isConcurrent: true,
       timeout: 1000
     })
 
-    expect(checkApiMock).toHaveBeenCalledTimes(3)
-    expect(checkApiMock).toHaveBeenNthCalledWith(1, 'model-a', expect.objectContaining({ apiKey: 'sk-1' }))
-    expect(checkApiMock).toHaveBeenNthCalledWith(2, 'model-a', expect.objectContaining({ apiKey: 'sk-2' }))
-    expect(checkApiMock).toHaveBeenNthCalledWith(3, 'model-a', expect.objectContaining({ apiKey: 'sk-3' }))
-    expect(results[0].kind).toBe('ok')
-    expect(results[0].keyResults).toHaveLength(3)
-  })
+    await waitFor(() => expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(2))
+    second.resolve([okKeyResult(credentials[0], 20)])
+    first.resolve([okKeyResult(credentials[0], 10)])
+    const results = await run
 
-  it('rejects when the health check pipeline fails outside per-key results', async () => {
-    checkApiMock.mockResolvedValue(okResult)
-    vi.mocked(aggregateApiKeyResults).mockImplementationOnce(() => {
-      throw new Error('aggregation failed')
-    })
-
-    await expect(
-      checkModelsHealth({
-        models: [{ id: 'model-a' }] as never,
-        apiKeys: ['sk-test'],
-        isConcurrent: true,
-        timeout: 1000
-      })
-    ).rejects.toThrow('aggregation failed')
+    expect(results.map((result) => result.model.id)).toEqual(['model-a', 'model-b'])
+    expect(results.map((result) => result.latency)).toEqual([10, 20])
   })
 
   it('aborts between sequential models when the signal fires mid-iteration', async () => {
-    // Pin the three signal?.throwIfAborted() guards in sequential mode.
-    // After model-a resolves, aborting the controller must drop model-b
-    // before any work happens — not finish all then abort.
-    const firstResolved = deferred()
+    const first = deferred<ApiKeyWithStatus[]>()
     const controller = new AbortController()
-    checkApiMock.mockImplementation(async () => {
-      firstResolved.resolve()
-      return okResult
-    })
+    checkModelWithMultipleKeysMock.mockReturnValueOnce(first.promise)
 
     const run = checkModelsHealth({
       models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
+      credentials: credentials.slice(0, 1),
       isConcurrent: false,
       timeout: 1000,
       signal: controller.signal
     })
 
-    await firstResolved.promise
+    await waitFor(() => expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(1))
     controller.abort()
+    first.resolve([okKeyResult(credentials[0])])
 
     await expect(run).rejects.toThrow()
-    expect(checkApiMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('concurrent mode preserves index-correct slot assignment under partial abort', async () => {
-    // In concurrent mode results[index] is assigned (not push), so even if
-    // some models reject via abort the surviving result lands at its own index.
-    const slowB = deferred<typeof okResult>()
-    // checkApi is now called with (uniqueModelId, options) — read the id from
-    // the first arg to decide which call should hang.
-    checkApiMock.mockImplementation(async (uniqueModelId: string) => {
-      if (uniqueModelId === 'model-a') {
-        return okResult
-      }
-      return slowB.promise
-    })
-
-    const controller = new AbortController()
-    const run = checkModelsHealth({
-      models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
-      apiKeys: ['sk-test'],
-      isConcurrent: true,
-      timeout: 1000,
-      signal: controller.signal
-    })
-
-    // Let model-a complete its slot, then abort before model-b finishes.
-    await waitFor(() => expect(checkApiMock).toHaveBeenCalledTimes(2))
-    controller.abort()
-    slowB.resolve(okResult)
-
-    await expect(run).rejects.toThrow()
+    expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(1)
   })
 })

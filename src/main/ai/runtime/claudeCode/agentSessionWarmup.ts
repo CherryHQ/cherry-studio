@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -12,11 +11,16 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import {
+  type AgentNotificationContext,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -27,7 +31,8 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -37,7 +42,7 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
-import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -84,6 +89,15 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
+  /**
+   * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
+   * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
+   * (settingsBuilder). False means `mergeRuntimeSettings` must strip that env var, or providers
+   * that reject the injected blocks (Moonshot's Anthropic endpoint on non-K3 models) fail every
+   * turn with `400 Invalid request: tokenization failed`. Computed from the effective connection
+   * model in `deriveRouteFacts`, not `agent.model` — a per-turn connection can override it.
+   */
+  toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
 }
@@ -110,10 +124,11 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
-  linkedChannelId: string | null
+  notificationContext: AgentNotificationContext
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  effectiveLanguage?: string | null
 }
 
 /**
@@ -122,6 +137,7 @@ interface ConnectionMaterializationFacts {
  * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
  * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
+
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
@@ -171,6 +187,7 @@ function buildUsageModels(
   const byModelId = new Map<
     string,
     {
+      apiModelId: string
       modelName: string | null
       pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
       aliases: Set<string>
@@ -178,6 +195,7 @@ function buildUsageModels(
   >()
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
+      apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
       pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
       aliases: new Set<string>()
@@ -189,6 +207,7 @@ function buildUsageModels(
   }
   return [...byModelId].map(([modelId, snapshot]) => ({
     modelId,
+    apiModelId: snapshot.apiModelId,
     modelName: snapshot.modelName,
     pricingSnapshot: snapshot.pricingSnapshot,
     aliases: [...snapshot.aliases]
@@ -294,7 +313,8 @@ export async function deriveConnectionConfig(
         connectionModelId ?? agent.model,
         reasoningEffort,
         fastMode,
-        selectedKnowledgeBaseIds
+        selectedKnowledgeBaseIds,
+        undefined
       )
     }
   } catch (error) {
@@ -356,11 +376,8 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
   }
-  const builtinRole = agent.configuration?.builtin_role as string | undefined
-  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd, builtinRole))
-  const linkedChannelId = materialized
-    ? materialized.linkedChannelId
-    : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
+  const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
@@ -371,7 +388,12 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
-    language: getAppLanguage(),
+    // Rebuild fact: language change invalidates the warm connection so the new
+    // language instruction is baked into the next prompt and prompt cache. This
+    // trades cache preservation for correctness — first turn after change pays
+    // full input-token cost until the new prefix is cached.
+    language:
+      materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -387,7 +409,7 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
-    linkedChannelId
+    notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
@@ -457,7 +479,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
-  const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
+  const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
+  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
@@ -499,6 +522,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -509,9 +533,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
+        notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code'
+        fastMode: fastModeTransport === 'claude-code',
+        effectiveLanguage
       },
       agent
     ),
@@ -532,12 +559,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
-      })
+      }),
+      effectiveLanguage
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -556,6 +584,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
+    notificationContext,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
@@ -630,6 +659,13 @@ function deriveRouteFacts(
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
+  // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
+  // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
+  // primary model must parse. Sub-models are pinned to the primary whenever they differ from
+  // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
+  // per-turn model override.
+  const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
+
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A
   // plan/small model pointing at another provider can't run on that login — and
@@ -654,6 +690,7 @@ function deriveRouteFacts(
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
+      toolSearchCompatible,
       modelIds,
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
@@ -665,7 +702,10 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
+    (ref) =>
+      requiresAgentGateway(ref.providerId) ||
+      ref.providerId !== primaryProvider.id ||
+      !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -673,17 +713,11 @@ function deriveRouteFacts(
     const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
-    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
-    // persist one). Before the gateway's first activation the preference is empty — the signature
-    // changes once when the key is generated, costing a single extra rebuild. Accepted.
-    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
       branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([
-        typeof gatewayKey === 'string' ? gatewayKey : '',
-        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-      ]),
+      baseUrl: gatewayClientOrigin(host, port),
+      credentialsFingerprint: gatewayCredentialsFingerprint(),
+      toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -717,6 +751,7 @@ function deriveRouteFacts(
       ...enabledKeys.map((key) => `api-key:${key}`),
       ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
     ]),
+    toolSearchCompatible,
     modelIds,
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
@@ -762,7 +797,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
+        credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
     case 'direct': {
@@ -792,6 +827,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     branch: route.branch,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
+    toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
     usageModels: route.usageModels
   }
@@ -875,6 +911,13 @@ function mergeRuntimeSettings(
   const env = mergeAgentLoopbackProxyBypass(
     {
       ...settings.env,
+      ...(route.branch === 'gateway'
+        ? {
+            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
+            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
+            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+          }
+        : {}),
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
@@ -885,6 +928,14 @@ function mergeRuntimeSettings(
     },
     { additionalBypassRule: gatewayBypassRule(route) }
   )
+  // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
+  // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
+  // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
+  // other than K3 on Moonshot's Anthropic endpoint → `400 Invalid request: tokenization failed`),
+  // drop it here so the SDK falls back to loading every tool upfront.
+  if (!route.toolSearchCompatible) {
+    delete env.ENABLE_TOOL_SEARCH
+  }
   return {
     ...settings,
     env
@@ -900,8 +951,10 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
-    knowledgeBaseIds: request.knowledgeBaseIds
+    knowledgeBaseIds: request.knowledgeBaseIds,
+    notificationContext: request.notificationContext
   }
 }

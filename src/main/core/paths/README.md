@@ -25,7 +25,7 @@ application.getPath('invalid.key')
 | `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
-**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
+**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
 ## Top-Level Namespaces
 
@@ -89,6 +89,7 @@ Type-checked via `satisfies` — typos and stale references fail at compile time
 |-----|-------------------|------|
 | `feature.mcp.oauth` | `~/.cherrystudio/config/mcp/oauth` | Under `config/`, not `mcp/` |
 | `feature.agents.skills.install.temp` | `{app.temp}/skill-install` | Sibling `feature.agents.skills` lives at `{userData}/Data/Skills` |
+| `feature.pdf_translation.babeldoc` | `{userData}/Runtime/models/babeldoc` | Grouped with the other downloaded model caches, not under a `pdf_translation/` dir |
 
 **Never assume filesystem nesting from key nesting.** Consult `pathRegistry.ts` directly.
 

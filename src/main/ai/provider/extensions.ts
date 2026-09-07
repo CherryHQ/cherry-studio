@@ -37,6 +37,7 @@ import type { NewApiProviderSettings } from './custom/newapiProvider'
 import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
+import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
@@ -144,6 +145,30 @@ export const MistralExtension = ProviderExtension.create({
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/mistral')).createMistral(settings)
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
+
+/** Local mirror of the package's unexported settings type (TS4023 otherwise). */
+export interface OpenResponsesProviderSettings {
+  /** Full POST endpoint URL (`<base>/responses`). */
+  url: string
+  /** providerOptions namespace + `provider` string prefix (`<name>.responses`). */
+  name: string
+  apiKey?: string
+  headers?: Record<string, string>
+  fetch?: typeof globalThis.fetch
+}
+
+/**
+ * Spec-neutral Responses dialect (openresponses.org) for third-party providers.
+ * NOT named `openai-responses`: that id would be picked up by `resolveProviderVariant`
+ * and silently reroute every `adapterFamily: 'openai'` responses endpoint.
+ */
+export const OpenResponsesExtension = ProviderExtension.create({
+  name: 'open-responses',
+  supportsImageGeneration: false,
+  // `url`/`name` are required and always supplied by the config builder.
+  create: async (options?: OpenResponsesProviderSettings): Promise<ProviderV3> =>
+    (await import('@ai-sdk/open-responses')).createOpenResponses(options!)
+} as const satisfies ProviderExtensionConfig<OpenResponsesProviderSettings, ProviderV3, 'open-responses'>)
 
 export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
@@ -333,6 +358,16 @@ export const DashScopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
+ * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
+ * `/v1/wand/*` endpoints (hunyuan / seedream sync, vidu submit+poll).
+ */
+export const TokenhubExtension = ProviderExtension.create({
+  name: 'tokenhub',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/tokenhub/tokenhubProvider')).createTokenhubProvider(settings)
+} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -365,6 +400,7 @@ export const extensions = [
   BedrockExtension,
   PerplexityExtension,
   MistralExtension,
+  OpenResponsesExtension,
   HuggingFaceExtension,
   GatewayExtension,
   CerebrasExtension,
@@ -381,6 +417,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,

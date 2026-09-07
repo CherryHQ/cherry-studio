@@ -23,7 +23,9 @@ export interface AssistantGroupActionContext {
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
   onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
+  onToggleSidebar: (assistantId: string) => void
   pinned: boolean
+  sidebarPinned: boolean
   t: TFunction
 }
 
@@ -42,6 +44,11 @@ assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.toggle-pin',
   availability: ({ disabled }) => ({ enabled: !disabled }),
   run: ({ assistantId, onTogglePin }) => onTogglePin(assistantId)
+})
+
+assistantGroupActionRegistry.registerCommand({
+  id: 'assistant-group.toggle-sidebar',
+  run: ({ assistantId, onToggleSidebar }) => onToggleSidebar(assistantId)
 })
 
 assistantGroupActionRegistry.registerCommand({
@@ -85,6 +92,17 @@ assistantGroupActionRegistry.registerAction(
     label: ({ pinned, t }) => (pinned ? t('assistants.unpin.title') : t('assistants.pin.title')),
     icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
     order: 20
+  })
+)
+
+assistantGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'assistant-group.toggle-sidebar',
+    commandId: 'assistant-group.toggle-sidebar',
+    label: ({ sidebarPinned, t }) =>
+      sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
+    order: 22
   })
 )
 

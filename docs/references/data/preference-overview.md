@@ -1,180 +1,110 @@
+---
+description: Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync
+sources:
+  - src/main/data/PreferenceService.ts
+  - src/renderer/data/PreferenceService.ts
+  - src/renderer/data/hooks/usePreference.ts
+  - src/shared/data/preference
+  - src/main/data/db/schemas/preference.ts
+---
+
 # Preference System Overview
 
-The Preference system provides centralized management for user configuration and application settings with cross-window synchronization.
+Preference stores small, fixed-key user settings that must persist and converge
+across windows. It is not for user-created records, large collections, or
+regenerable UI state.
 
-## Purpose
+## Contract
 
-PreferenceService handles data that:
+- DB-backed keys and defaults are generated in
+  `src/shared/data/preference/preferenceSchemas.ts`.
+- `PreferenceKeyType` covers SQLite-backed keys.
+- `UnifiedPreferenceKeyType` also includes public BootConfig keys under the
+  `BootConfig.` prefix.
+- Every key has a generated default. Callers observe a value even before a
+  renderer cache miss finishes loading.
+- Keys are fixed by the schema; users modify values, not the key set.
 
-- Is a **user-modifiable setting that affects app behavior**
-- Has a **fixed key structure** with stable value types
-- Needs to **persist permanently** until explicitly changed
-- Should **sync automatically** across all application windows
+The adding-key workflow is documented in
+[Preference Schema Guide](./preference-schema-guide.md). The generated file is
+not edited directly.
 
-## Key Characteristics
+## Storage and Routing
 
-### Fixed Key Structure
+The `preference` table uses `(scope, key)` as its primary key and stores JSON
+values. The current runtime scope is `default`.
 
-- Predefined keys in the schema (users modify values, not keys)
-- Supports 158 configuration items
-- Nested key paths supported (e.g., `app.theme.mode`)
+Main `PreferenceService.resolveKey()` routes each unified key:
 
-### Atomic Values
+| Key | Store |
+|---|---|
+| Ordinary generated key, such as `ui.theme_mode` | SQLite preference row |
+| Public `BootConfig.app.*` key | File-backed `bootConfigService` |
+| Internal `BootConfig.temp.*` key | Rejected at the unified Preference boundary |
 
-- Each preference item represents one logical setting
-- Values are typically: boolean, string, number, or simple array/object
-- Changes are independent (updating one doesn't affect others)
+A mixed `setMultiple` validates every route before writing. BootConfig writes
+and the SQLite transaction are separate stores and therefore are not one atomic
+cross-store commit.
 
-### Cross-Window Synchronization
+## Process Responsibilities
 
-- Changes automatically broadcast to all windows
-- Consistent state across main window, quick assistant, etc.
-- Conflict resolution handled by Main process
+### Main
+
+The lifecycle-managed Main service loads DB-backed preferences into memory,
+serves reads, persists writes, and broadcasts changes to subscribed renderer
+windows. Ordinary `get()` and `getMultiple()` reads are synchronous memory
+lookups. `set()` and `setMultiple()` are asynchronous because notification may
+cross process boundaries even though the better-sqlite3 write itself is
+synchronous.
+
+### Renderer
+
+The renderer singleton caches values lazily. A read fetches an uncached key from
+Main and establishes the matching subscription. Main broadcasts later changes;
+the renderer updates its cache and notifies hook subscribers.
+
+`usePreference` and `useMultiplePreferences` use `useSyncExternalStore`, expose
+generated defaults while an uncached value loads, and return Promise-based
+setters.
 
 ## Update Strategies
 
-### Optimistic Updates (Default)
+Renderer writes are optimistic by default:
 
-```typescript
-// UI updates immediately, then syncs to database
-await preferenceService.set("app.theme.mode", "dark");
-```
+1. Update the local cache and notify React.
+2. Persist through Main.
+3. Confirm on success or restore the protected original value on failure.
 
-- Best for: frequent, non-critical settings
-- Behavior: Local state updates first, then persists
-- Rollback: Automatic revert if persistence fails
+With `{ optimistic: false }`, the renderer waits for Main to confirm persistence
+before changing its cache. Use this when the UI must not present an unconfirmed
+setting as saved.
 
-### Pessimistic Updates
+Batch operations apply the same choice to every key in the batch. Main skips
+unchanged values and publishes notifications only after successful writes.
 
-```typescript
-// Waits for database confirmation before updating UI
-await preferenceService.set("api.key", "secret", { optimistic: false });
-```
+## Data-System Boundary
 
-- Best for: critical settings (API keys, security options)
-- Behavior: Persists first, then updates local state
-- No rollback needed: UI only updates on success
+| Data | Owner |
+|---|---|
+| Theme, language, feature toggles, shortcuts | Preference |
+| Process flags needed before lifecycle | BootConfig, exposed later through `BootConfig.*` |
+| Regenerable window/UI state | Cache |
+| Providers, conversations, notes, other business rows | DataApi/SQLite entity services |
 
-## Architecture Diagram
+API credentials attached to providers are provider business data, not a generic
+Preference key.
 
-```
-┌─────────────────────────────────────────────────────┐
-│ Renderer Process                                    │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ usePreference Hook                              │ │
-│ │ - Subscribe to preference changes               │ │
-│ │ - Optimistic/pessimistic update support         │ │
-│ └──────────────────────┬──────────────────────────┘ │
-│                        ▼                            │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ PreferenceService (Renderer)                    │ │
-│ │ - Local cache for fast reads                    │ │
-│ │ - IPC proxy to Main process                     │ │
-│ │ - Subscription management                       │ │
-│ └──────────────────────┬──────────────────────────┘ │
-└────────────────────────┼────────────────────────────┘
-                         │ IPC
-┌────────────────────────┼────────────────────────────┐
-│ Main Process           ▼                            │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ PreferenceService (Main)                        │ │
-│ │ - Full memory cache of all preferences          │ │
-│ │ - SQLite persistence via Drizzle ORM            │ │
-│ │ - Cross-window broadcast                        │ │
-│ └──────────────────────┬──────────────────────────┘ │
-│                        ▼                            │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ SQLite Database (preference table)              │ │
-│ │ - scope + key structure                         │ │
-│ │ - JSON value storage                            │ │
-│ └─────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────┘
-```
+## Debugging
 
-All `Preference_*` IPC channels are sender-gated by `validateSender` (untrusted senders are rejected) — see [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
+Main `PreferenceService.getStats(details?)` reports key and subscription counts.
+The detailed form is intended for diagnostics because it includes per-key
+subscription data.
 
-## Main vs Renderer Responsibilities
-
-### Main Process PreferenceService
-
-- **Source of truth** for all preferences
-- Full memory cache for fast access
-- SQLite persistence via preference table
-- Broadcasts changes to all renderer windows
-- Handles batch operations and transactions
-
-### Renderer Process PreferenceService
-
-- Local cache for read performance
-- Proxies write operations to Main
-- Manages React hook subscriptions
-- Handles optimistic update rollbacks
-- Listens for cross-window updates
-
-### Statistics (Debug)
-
-Main process provides `getStats(details?)` for debugging subscription status:
-
-- Returns total keys, main process subscriptions, and window subscriptions
-- Pass `details=true` for per-key breakdown
-- **Warning**: Resource-intensive, recommended for development only
-
-```typescript
-import { application } from '@application'
-
-const preferenceService = application.get('PreferenceService')
-const stats = preferenceService.getStats(true);
-```
-
-## Database Schema
-
-Preferences are stored in the `preference` table:
-
-```typescript
-// Simplified schema
-{
-  scope: string; // e.g., 'default', 'user'
-  key: string; // e.g., 'app.theme.mode'
-  value: json; // The preference value
-  createdAt: number;
-  updatedAt: number;
-}
-```
-
-## Preference Categories
-
-### Application Settings
-
-- Theme mode, language, font sizes
-- Window behavior, startup options
-
-### Feature Toggles
-
-- Show/hide UI elements
-- Enable/disable features
-
-### User Customization
-
-- Keyboard shortcuts
-- Default values for operations
-
-### Provider Configuration
-
-- AI provider settings
-- API endpoints and tokens
-
-## Usage Summary
-
-For detailed code examples and API usage, see [Preference Usage Guide](./preference-usage.md).
-
-| Operation      | Hook                        | Service Method                             |
-| -------------- | --------------------------- | ------------------------------------------ |
-| Read single    | `usePreference(key)`        | `preferenceService.get(key)`               |
-| Write single   | `setPreference(value)`      | `preferenceService.set(key, value)`        |
-| Read multiple  | `usePreferences([...keys])` | `preferenceService.getMultiple([...keys])` |
-| Write multiple | -                           | `preferenceService.setMultiple({...})`     |
+All `Preference_*` IPC entry points are sender-gated. Renderer code uses
+the service and hooks rather than calling those channels directly.
 
 ## Related Documentation
 
-- [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
-- [Preference Usage Guide](./preference-usage.md) - Hooks and service API
+- [Preference Usage](./preference-usage.md)
+- [Preference Schema Guide](./preference-schema-guide.md)
+- [Boot Config Overview](./boot-config-overview.md)

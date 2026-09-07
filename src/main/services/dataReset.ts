@@ -30,6 +30,7 @@ export const USER_DATA_WIPE = [
   'cherrystudio.sqlite-shm',
   'Data',
   'Data.restore',
+  'Credentials',
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
@@ -338,6 +339,7 @@ export function runDataReset(): void {
       wipeV1RemigrationData(failures)
     } else {
       wipeDirectoryEntries(userData, shouldWipe, failures)
+      wipeNestedUserDataTargets(failures)
       // Temporary cache removal is best-effort.
       try {
         fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
@@ -428,6 +430,19 @@ function wipeV1RemigrationData(failures: string[]): void {
       logger.warn('Failed to remove v2 data during v1 remigration cleanup', { target, error: String(error) })
       failures.push(target)
       return
+    }
+  }
+}
+
+/** Wipe feature data nested below a retained top-level runtime directory. */
+function wipeNestedUserDataTargets(failures: string[]): void {
+  const targets = [application.getPath('feature.provider_registry.override')]
+  for (const target of targets) {
+    try {
+      fs.rmSync(target, RM_OPTIONS)
+    } catch (error) {
+      logger.warn('Failed to remove nested user data during reset', { target, error: String(error) })
+      failures.push(target)
     }
   }
 }

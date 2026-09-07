@@ -8,7 +8,6 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
-import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
@@ -174,7 +173,7 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
-export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
@@ -211,4 +210,18 @@ export type WindowBoundsState = {
    *  window back onto the same display (clamping into it if the saved rect no
    *  longer fits), instead of resetting to the primary display. */
   displayBounds: { x: number; y: number; width: number; height: number }
+}
+
+/**
+ * Why a mini app's tile carries a dot. Derived by main, identical in every window; an
+ * entry exists only while at least one reason does.
+ */
+export type CacheMiniAppAttention = {
+  appId: string
+  /** The version the last update check found, or null. */
+  updateVersion: string | null
+  /** Leaves a Cherry release added under a namespace the app declared, still awaiting the user. */
+  pendingPermissions: string[]
+  /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
+  updating: { version: string; fraction: number | null } | null
 }

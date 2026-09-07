@@ -52,13 +52,14 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source without line wrapping', async () => {
+  it('renders highlighted source with line wrapping', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'TypeScript', value: 'const answer = 42', wrapped: false })
+      // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
+      expect.not.objectContaining({ wrapped: false })
     )
   })
 

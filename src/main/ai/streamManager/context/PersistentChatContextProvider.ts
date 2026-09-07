@@ -13,8 +13,7 @@ import { loggerService } from '@logger'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
@@ -224,6 +223,7 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
 
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
+  readonly isPersistentConversation = true
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
   canHandle(): boolean {
@@ -239,7 +239,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {
@@ -303,6 +302,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerServiceTier: req.serviceTier,
         pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)]
       }
@@ -315,6 +315,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
 
@@ -483,6 +484,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
+          turnOptions.serviceTier,
           turnOptions.fastMode === true,
           retainedContext
         ),
@@ -547,6 +549,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
     }
     const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
@@ -571,6 +574,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         target.id,
         getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
         turnOptions.reasoningEffort,
+        turnOptions.serviceTier,
         turnOptions.fastMode === true,
         retainedContext
       )
@@ -722,6 +726,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.id,
               knowledgeBaseIds,
               anchor.data.turnOptions?.reasoningEffort,
+              anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
               retainedContext
             ),
@@ -760,6 +765,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode
     }
 
@@ -821,6 +827,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
+              req.serviceTier,
               req.fastMode,
               retainedContext
             ),
@@ -966,12 +973,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
-    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
+    if (this.estimateContext(effective, dialect) <= trigger) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
+    const keepIdx = planKeepBoundary(recent, Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER), dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
@@ -1077,6 +1085,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
+    serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
     retainedContext?: RetainedContext
   ): AiStreamRequest {
@@ -1089,6 +1098,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
+      serviceTier,
       fastMode,
       ...(retainedContext ? { retainedContext } : {})
     }

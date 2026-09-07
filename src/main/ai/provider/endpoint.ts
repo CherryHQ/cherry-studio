@@ -113,11 +113,14 @@ export function resolveProviderOptionsKey(
   if (context?.gatewayProviderOptionsKey) return context.gatewayProviderOptionsKey
 
   switch (providerId) {
+    // open-responses included: `createOpenResponses({ name: 'openai' })` keeps
+    // the wire namespace 'openai'.
     case 'openai':
     case 'openai-chat':
     case 'azure':
     case 'azure-responses':
     case 'huggingface':
+    case 'open-responses':
       return 'openai'
     case 'anthropic':
     case 'azure-anthropic':

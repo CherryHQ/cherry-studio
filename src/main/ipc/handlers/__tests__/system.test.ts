@@ -10,7 +10,10 @@ const {
   openExternalMock,
   isSafeMock,
   nativeThemeMock,
-  platform
+  platform,
+  screenCaptureStatusMock,
+  requestScreenCaptureMock,
+  openScreenCaptureSettingsMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
@@ -21,7 +24,10 @@ const {
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
   nativeThemeMock: { shouldUseDarkColors: false },
-  platform: { isMac: true }
+  platform: { isMac: true },
+  screenCaptureStatusMock: vi.fn(),
+  requestScreenCaptureMock: vi.fn(),
+  openScreenCaptureSettingsMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
@@ -39,6 +45,13 @@ vi.mock('electron', () => ({
   shell: { openPath: openPathMock, openExternal: openExternalMock }
 }))
 vi.mock('font-list', () => ({ default: { getFonts: getFontsMock } }))
+// The TCC gate is its own module, not the screenshot barrel: answering a permission
+// query must not drag the overlay service into every app launch.
+vi.mock('@main/utils/screenCapturePermission', () => ({
+  getScreenCapturePermissionStatus: screenCaptureStatusMock,
+  requestScreenCapturePermission: requestScreenCaptureMock,
+  openScreenCaptureSettings: openScreenCaptureSettingsMock
+}))
 
 import { systemHandlers } from '../system'
 
@@ -113,6 +126,23 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.mac.is_process_trusted'](undefined, ctx('w1'))).toBe(false)
     expect(await systemHandlers['system.mac.request_process_trust'](undefined, ctx('w1'))).toBe(false)
     expect(isTrustedMock).not.toHaveBeenCalled()
+  })
+
+  it('mac.screen_capture_status reports the OS permission state to the renderer', async () => {
+    screenCaptureStatusMock.mockReturnValue('denied')
+    expect(await systemHandlers['system.mac.screen_capture_status'](undefined, ctx('w1'))).toBe('denied')
+  })
+
+  // The settings UI branches on this to choose between "restart to apply", "open System Settings"
+  // and "the prompt never appeared"; a PRE-prompt status (or void) makes those indistinguishable.
+  it('mac.request_screen_capture answers with the status observed after prompting', async () => {
+    requestScreenCaptureMock.mockResolvedValue('authorized')
+    expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('authorized')
+  })
+
+  it('mac.request_screen_capture reports denial rather than swallowing it', async () => {
+    requestScreenCaptureMock.mockResolvedValue('denied')
+    expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('denied')
   })
 
   it('shell.open_path delegates straight to shell.openPath', async () => {

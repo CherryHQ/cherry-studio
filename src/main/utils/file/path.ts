@@ -58,6 +58,19 @@ export function isSameOrInside(candidate: string, container: string): boolean {
   )
 }
 
+/**
+ * True iff an already-computed `path.relative()` result escapes its base.
+ *
+ * Distinct from `!isSameOrInside`: it takes the relative path the caller
+ * already has, treats `''` (the base itself) as inside, and matches `..` only
+ * as a whole segment — so a child directory literally named `..archive` is not
+ * mistaken for an escape. It also compares exactly what was passed, without the
+ * platform case folding `isPathInside` applies.
+ */
+export function isOutsidePath(relativePath: string): boolean {
+  return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
+}
+
 /** Check if a path is writable for the current process. */
 export async function canWrite(target: AbsoluteFilePath): Promise<boolean> {
   try {

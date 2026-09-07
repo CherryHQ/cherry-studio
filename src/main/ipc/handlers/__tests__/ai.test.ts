@@ -43,6 +43,7 @@ const aiStreamManager = {
   attach: vi.fn(),
   detach: vi.fn(),
   abort: vi.fn(),
+  abortAndDrain: vi.fn(),
   getDeferredToolOutput: vi.fn()
 }
 
@@ -60,6 +61,13 @@ const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
+const agentSessionDeliveryService = {
+  deleteSessions: vi.fn(),
+  reuseOrCreateSession: vi.fn(),
+  deleteAgent: vi.fn(),
+  deleteAgentSessions: vi.fn(),
+  deleteWorkspace: vi.fn()
+}
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -95,6 +103,8 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
+      case 'AgentSessionDeliveryService':
+        return agentSessionDeliveryService
       case 'ClaudeCodeTraceBridgeService':
         return claudeCodeTraceBridgeService
       case 'AgentJobsService':
@@ -114,6 +124,60 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates mixed-effect Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
+    const response = {
+      session: { id: 'session-retained' },
+      created: false,
+      deletedDuplicateSessionIds: ['session-duplicate']
+    }
+    agentSessionDeliveryService.reuseOrCreateSession.mockResolvedValue(response)
+
+    await expect(
+      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
+    ).resolves.toBe(response)
+    expect(agentSessionDeliveryService.reuseOrCreateSession).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      workspace: { type: 'system' }
+    })
+  })
+
+  it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.delete']({ agentId: 'agent-1', deleteSessions: true }, ctx)).resolves.toEqual({
+      deleted: true,
+      deletedSessionIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+  })
+
+  it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1')
+  })
+
+  it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.workspace.delete']({ workspaceId: 'workspace-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
   it('delegates Support-session creation and returns its id', async () => {
     const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
 
@@ -274,10 +338,27 @@ describe('aiHandlers — streaming', () => {
     expect(aiStreamManager.detach).not.toHaveBeenCalled()
   })
 
-  it('stream_abort aborts the topic without resolving a WebContents', async () => {
-    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
-    expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
+  it('stream_abort resolves only after the topic has drained without resolving a WebContents', async () => {
+    let finishDrain!: () => void
+    aiStreamManager.abortAndDrain.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDrain = resolve
+      })
+    )
+
+    const aborting = aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+    let settled = false
+    void aborting.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+
+    finishDrain()
+    await expect(aborting).resolves.toBeUndefined()
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

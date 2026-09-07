@@ -7,7 +7,6 @@ const {
   getByIdMock,
   getReferencesMock,
   updateMock,
-  deleteWorkspaceCascadeMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
@@ -16,7 +15,6 @@ const {
   getByIdMock: vi.fn(),
   getReferencesMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteWorkspaceCascadeMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -30,12 +28,6 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
     update: updateMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    deleteWorkspaceCascade: deleteWorkspaceCascadeMock
   }
 }))
 
@@ -120,19 +112,6 @@ describe('agentWorkspaceHandlers', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
     expect(updateMock).not.toHaveBeenCalled()
-  })
-
-  it('delegates workspace deletion cascade to AgentSessionService', async () => {
-    const result = { deletedIds: ['session-1'] }
-    deleteWorkspaceCascadeMock.mockReturnValueOnce(result)
-
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
-        params: { workspaceId: workspace.id }
-      } as never)
-    ).resolves.toBe(result)
-
-    expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
   })
 
   it('delegates workspace reference lookup to AgentWorkspaceService', async () => {

@@ -147,6 +147,23 @@ describe('buildPersistedEndpointConfigs', () => {
     expect(result).toBeNull()
   })
 
+  it('projects summary support from the main-only wire into the endpoint dialect', () => {
+    const result = buildPersistedEndpointConfigs({
+      'openai-responses': {
+        reasoningFormat: {
+          type: 'openai-responses',
+          wire: {
+            default: {
+              operations: [{ target: 'reasoningSummary', value: { source: 'assistant-summary' } }]
+            }
+          }
+        }
+      }
+    } as Record<string, RegistryEndpointConfig>)
+
+    expect(result?.['openai-responses'].dialect).toEqual({ reasoningSummary: true })
+  })
+
   it('all fields present', () => {
     const urls = {
       default: 'https://api.example.com/models',

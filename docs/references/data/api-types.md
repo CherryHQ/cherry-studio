@@ -1,3 +1,12 @@
+---
+description: DataApi type system reference - request/response types, path resolution, pagination types, and error handling
+sources:
+  - src/shared/data/api/types.ts
+  - src/shared/data/api/paths.ts
+  - src/shared/data/api/errors.ts
+  - src/shared/data/api/schemas/apiSchemas.ts
+---
+
 # Data API Type System
 
 This directory contains the type definitions and utilities for Cherry Studio's Data API system, which provides type-safe IPC communication between renderer and main processes.

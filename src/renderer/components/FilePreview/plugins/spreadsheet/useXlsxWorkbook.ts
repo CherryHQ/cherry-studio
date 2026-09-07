@@ -29,8 +29,8 @@ type XlsxWorker = Pick<Worker, 'postMessage' | 'terminate'> & {
 /**
  * Reads file bytes with window.api.fs.read, parses them in a Worker, and exposes a state machine.
  * Handles size limits, request ids for stale-response discards, and refreshKey reparsing. Each request owns a
- * dedicated worker that is terminated when the request is superseded or the component unmounts, so a slow parse
- * can't pin a shared worker (queuing the next file behind it) or leak its crash onto the next request.
+ * dedicated worker that is terminated as soon as it reaches a terminal state (response, crash, supersession, or
+ * unmount), so a slow parse can't pin a shared worker and an idle preview doesn't hold a parser isolate alive.
  */
 export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize?: number): XlsxWorkbookState {
   const [state, setState] = useState<XlsxWorkbookState>({ status: 'idle' })
@@ -89,6 +89,9 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
 
       worker.onmessage = (event: MessageEvent<XlsxParseResponse>) => {
         if (cancelled || event.data.id !== requestIdRef.current) return
+        // The response is this worker's only job — free the isolate now instead of holding it until cleanup.
+        worker.terminate()
+        if (workerRef.current === worker) workerRef.current = null
         if (event.data.ok) {
           for (const warning of event.data.model.warnings) {
             if (loggedWarningsRef.current.has(warning)) continue
@@ -103,6 +106,8 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
       }
       worker.onerror = (event: ErrorEvent) => {
         if (cancelled || requestId !== requestIdRef.current) return
+        worker.terminate()
+        if (workerRef.current === worker) workerRef.current = null
         logger.error(
           'xlsx parser worker crashed',
           event.error instanceof Error ? event.error : new Error(event.message)

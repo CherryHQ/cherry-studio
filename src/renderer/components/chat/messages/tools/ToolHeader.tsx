@@ -1,6 +1,7 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
@@ -31,6 +32,7 @@ import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToo
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
+const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
 export interface ToolActivity {
   label: string
   description?: string
@@ -393,6 +395,12 @@ export function getReadableToolActivity(
       return {
         label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
         description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
+      }
+    case SESSION_CREATE_TOOL_NAME:
+    case SESSION_CREATE_RUNTIME_TOOL_NAME:
+      return {
+        label: t(active ? 'message.tools.sessionCreate.creating' : 'message.tools.sessionCreate.created'),
+        description: getStringArg(args, 'title') ?? t('message.tools.sessionCreate.untitled')
       }
     case AgentToolsType.TaskCreate:
       return {

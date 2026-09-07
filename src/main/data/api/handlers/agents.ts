@@ -12,7 +12,6 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
-  DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
@@ -74,16 +73,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
-    },
-
-    DELETE: async ({ params, query }) => {
-      const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const result = agentService.deleteAgent(params.agentId, {
-        deleteSessions: parsed.data.deleteSessions === true
-      })
-      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
-      return result
     }
   },
 

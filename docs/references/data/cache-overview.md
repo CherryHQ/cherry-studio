@@ -1,3 +1,12 @@
+---
+description: Three-tier cache architecture (memory, shared, persist) - key types, design invariants, process responsibilities
+sources:
+  - src/main/data/CacheService.ts
+  - src/renderer/data/CacheService.ts
+  - src/renderer/data/hooks/useCache.ts
+  - src/shared/data/cache
+---
+
 # Cache System Overview
 
 Three-tier cache for regenerable data. In-process memory, cross-window shared state, and localStorage-backed persistence.
