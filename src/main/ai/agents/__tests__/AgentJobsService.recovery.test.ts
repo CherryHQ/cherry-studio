@@ -1,8 +1,9 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getAgent: vi.fn(),
+  agentExists: vi.fn(),
   notifyReadModelChange: vi.fn(),
   onAgentDeleted: vi.fn(() => ({ dispose: vi.fn() })),
   registerHandler: vi.fn(),
@@ -27,7 +28,7 @@ vi.mock('@application', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
-    getAgent: mocks.getAgent,
+    agentExists: mocks.agentExists,
     onAgentDeleted: mocks.onAgentDeleted
   }
 }))
@@ -69,12 +70,20 @@ function schedule(id: string, agentId: string) {
 describe('AgentJobsService startup reconciliation', () => {
   beforeEach(() => {
     BaseService.resetInstances()
-    mocks.getAgent.mockReset()
+    ServiceContainer.reset()
+    mocks.agentExists.mockReset()
     mocks.notifyReadModelChange.mockReset()
     mocks.onAgentDeleted.mockClear()
     mocks.registerHandler.mockReset()
     mocks.schedules = []
     mocks.unregisterJobScheduleById.mockReset()
+  })
+
+  it('is fail-fast so cleanup failure cannot fall through to startup recovery', () => {
+    const container = ServiceContainer.getInstance()
+    container.register(AgentJobsService)
+
+    expect(container.getMetadata('AgentJobsService')?.errorStrategy).toBe('fail-fast')
   })
 
   it('removes orphaned agent tasks during service startup and keeps valid schedules', async () => {
@@ -83,7 +92,7 @@ describe('AgentJobsService startup reconciliation', () => {
       schedule('orphan', 'agent-missing'),
       { id: 'malformed', jobInputTemplate: { agentId: 'agent-missing' } }
     ]
-    mocks.getAgent.mockImplementation((agentId: string) => (agentId === 'agent-live' ? { id: agentId } : null))
+    mocks.agentExists.mockImplementation((agentId: string) => agentId === 'agent-live')
     mocks.unregisterJobScheduleById.mockResolvedValue(true)
 
     const service = new AgentJobsService()
@@ -94,9 +103,19 @@ describe('AgentJobsService startup reconciliation', () => {
     expect(mocks.notifyReadModelChange).toHaveBeenCalledWith(['orphan'])
   })
 
+  it('rejects initialization when orphan cleanup fails', async () => {
+    mocks.schedules = [schedule('orphan', 'agent-missing')]
+    mocks.agentExists.mockReturnValue(false)
+    mocks.unregisterJobScheduleById.mockRejectedValue(new Error('schedule delete failed'))
+
+    const service = new AgentJobsService()
+
+    await expect(service._doInit()).rejects.toThrow('schedule delete failed')
+  })
+
   it('is idempotent after the orphan has been removed', async () => {
     mocks.schedules = [schedule('orphan', 'agent-missing')]
-    mocks.getAgent.mockReturnValue(null)
+    mocks.agentExists.mockReturnValue(false)
     mocks.unregisterJobScheduleById.mockImplementation(async (scheduleId: string) => {
       mocks.schedules = mocks.schedules.filter((candidate) => candidate.id !== scheduleId)
       return true
@@ -111,7 +130,7 @@ describe('AgentJobsService startup reconciliation', () => {
 
   it('does not finish initialization until orphan cleanup settles', async () => {
     mocks.schedules = [schedule('orphan', 'agent-missing')]
-    mocks.getAgent.mockReturnValue(null)
+    mocks.agentExists.mockReturnValue(false)
 
     let releaseCleanup: (() => void) | undefined
     mocks.unregisterJobScheduleById.mockImplementation(
