@@ -79,6 +79,8 @@ import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
+import { getHandoffTarget, useAgentHandoff } from './chat/useAgentHandoff'
+import { useAgentHandoffMentionSource } from './chat/useAgentHandoffMentionSource'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -1507,6 +1509,27 @@ const ChatComposerInner = ({
     inputHistoryToolsRef.current = null
   }, [resetHistoryIndex, setFiles, setText])
 
+  const agentHandoffSources = useAgentHandoffMentionSource()
+  const mergedMentionSources = useMemo(() => {
+    const entitySource = entityReferenceSources[0]
+    const agentSource = agentHandoffSources[0]
+    if (!entitySource || !agentSource) return entityReferenceSources
+    return [
+      {
+        ...entitySource,
+        items: async (args: Parameters<typeof entitySource.items>[0]) => {
+          const [entityItems, agentItems] = await Promise.all([entitySource.items(args), agentSource.items(args)])
+          const filteredEntityItems = agentItems.length
+            ? entityItems.filter((item) => item.id !== 'entity-reference:no-results')
+            : entityItems
+          return [...filteredEntityItems, ...agentItems]
+        }
+      }
+    ]
+  }, [agentHandoffSources, entityReferenceSources])
+  const handoffTarget = getHandoffTarget(surfaceGetDraftRef.current().tokens)
+  const agentHandoff = useAgentHandoff({ onStarted: clearCurrentDraft, sourceId: topicId })
+
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
   const {
@@ -1711,6 +1734,12 @@ const ChatComposerInner = ({
         return
       }
 
+      const target = getHandoffTarget(draft.tokens)
+      if (target && topicId) {
+        agentHandoff.open(draft, target, { kind: 'topic', id: topicId }, files)
+        return
+      }
+
       if (missingAssistantMessage) {
         toast.error(selectAssistantMessage)
         return
@@ -1777,7 +1806,10 @@ const ChatComposerInner = ({
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
-      t
+      t,
+      agentHandoff,
+      files,
+      topicId
     ]
   )
 
@@ -1879,12 +1911,12 @@ const ChatComposerInner = ({
             isKnowledgeBaseDraftHydrated ? CHAT_MANAGED_TOKEN_KINDS : CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
           }
           onTokensChange={handleTokensChange}
-          suggestionSources={entityReferenceSources}
+          suggestionSources={mergedMentionSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
-            (text.trim().length === 0 && files.length === 0) ||
+            (text.trim().length === 0 && files.length === 0 && !handoffTarget) ||
             (loading && !canSteer) ||
             isSavingEdit ||
             isDirectSending ||
@@ -1892,9 +1924,9 @@ const ChatComposerInner = ({
             searching ||
             runtimeModelPending ||
             hasPendingReference ||
-            !!missingAssistantMessage ||
-            !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            (!!missingAssistantMessage && !handoffTarget) ||
+            (!!missingModelMessage && !handoffTarget) ||
+            (!!missingSelectedModelMessage && !handoffTarget)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -1969,6 +2001,7 @@ const ChatComposerInner = ({
           compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
+        {agentHandoff.dialog}
       </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )

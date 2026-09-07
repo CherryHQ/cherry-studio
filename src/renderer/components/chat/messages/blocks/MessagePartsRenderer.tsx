@@ -68,6 +68,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
+import HandoffBlock from './HandoffBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
@@ -536,7 +537,9 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
   if (partType === 'file') return !!(part as { url?: string }).url
-  if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
+  if (partType === 'data-video' || partType === 'data-error' || partType === 'data-handoff') {
+    return 'data' in part && !!part.data
+  }
   return true
 }
 
@@ -709,6 +712,12 @@ function renderPart(
       const errorPart = part
       if (!errorPart.data) return null
       return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
+    }
+
+    case 'data-handoff': {
+      const handoffData = 'data' in part ? part.data : undefined
+      if (!handoffData) return null
+      return <HandoffBlock key={partId} data={handoffData} />
     }
 
     case 'data-video': {

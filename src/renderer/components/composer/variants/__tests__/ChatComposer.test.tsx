@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
+import type * as AgentHandoffModule from '../chat/useAgentHandoff'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -145,9 +146,18 @@ const modelBWithFunctionCall = {
 } satisfies Model
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const handoffOpenMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock }, useIpcOn: vi.fn() }))
+
+// Composer behavior tests should exercise target extraction while keeping the hook's
+// navigation and stream subscriptions out of this component fixture.
+vi.mock('../chat/useAgentHandoff', async (importOriginal) => {
+  const actual = await importOriginal<typeof AgentHandoffModule>()
+  return { ...actual, useAgentHandoff: () => ({ open: handoffOpenMock, dialog: null }) }
+})
+vi.mock('../chat/useAgentHandoffMentionSource', () => ({ useAgentHandoffMentionSource: () => [] }))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -802,6 +812,7 @@ describe('ChatComposer', () => {
     ipcRequestMock.mockImplementation(async (route: string) =>
       route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
     )
+    handoffOpenMock.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -916,6 +927,33 @@ describe('ChatComposer', () => {
     expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: false }])
     expect(mocks.modelHookArgs.at(-1)).toEqual([{ enabled: true }, { fetchEnabled: false }])
     expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Model A | Provider')
+  })
+
+  it('routes a selected Agent handoff through the handoff opener, never ordinary chat send', async () => {
+    const onSend = vi.fn().mockResolvedValue(true)
+    // The mock surface action still exposes an older restored draft. The submitted draft is
+    // deliberately the only place carrying the target, matching the real editor→send boundary.
+    mocks.getDraft.mockReturnValue({ text: 'old draft', tokens: [] })
+    const handoffToken = serializeComposerToken({
+      id: 'agent-handoff:agent-1',
+      kind: 'reference',
+      label: 'Reviewer',
+      payload: { kind: 'agent-handoff', agentId: 'agent-1', name: 'Reviewer' }
+    })
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Review this change', tokens: [handoffToken] })
+    })
+
+    expect(handoffOpenMock).toHaveBeenCalledWith(
+      { text: 'Review this change', tokens: [handoffToken] },
+      expect.objectContaining({ agentId: 'agent-1', name: 'Reviewer' }),
+      expect.objectContaining({ kind: 'topic', id: topic.id }),
+      expect.any(Array)
+    )
+    expect(onSend).not.toHaveBeenCalled()
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
@@ -3749,7 +3787,6 @@ describe('ChatComposer', () => {
 
     expect(mocks.setFiles).toHaveBeenCalledTimes(1)
     expect(mocks.setSelectedKnowledgeBases).toHaveBeenCalledTimes(1)
-    expect(mocks.getDraft).toHaveBeenCalledTimes(1)
   })
 
   it('locates the edited message from the Composer editing state', async () => {

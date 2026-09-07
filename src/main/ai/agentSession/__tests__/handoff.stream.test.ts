@@ -70,19 +70,6 @@ describe('handoff draft stream', () => {
     mocks.streamPrompt.mockReturnValue({ mode: 'started', activeExecutions: [] })
   })
 
-  it('rejects unknown model capacity and does not start a model stream', async () => {
-    mocks.getModelByKey.mockReturnValue({ id: 'provider::model', providerId: 'provider' })
-    await expect(
-      prepareHandoffDraft({
-        sourceSessionId: 'source-1',
-        task: 'continue',
-        target: { agentId: 'agent-1', name: 'Builder' },
-        summaryModelId: 'provider::model'
-      })
-    ).rejects.toMatchObject({ code: 'MODEL_CAPACITY_UNKNOWN' })
-    expect(mocks.streamPrompt).not.toHaveBeenCalled()
-  })
-
   it('rejects an oversized task before reading source material or resolving a model', async () => {
     await expect(
       prepareHandoffDraft({

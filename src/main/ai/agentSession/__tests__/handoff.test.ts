@@ -33,7 +33,7 @@ describe('handoff material', () => {
     stream.abort.mockReset()
   })
 
-  function createSummaryModel(contextWindow = 100_000) {
+  function createSummaryModel(contextWindow: number | null = 100_000) {
     dbh.db
       .insert(userProviderTable)
       .values({
@@ -90,6 +90,25 @@ describe('handoff material', () => {
     handle.cancel()
     expect(dbh.db.select().from(messageTable).all()).toEqual(beforeMessages)
     expect(dbh.db.select().from(sessionTable).all()).toEqual(beforeSessions)
+  })
+
+  it('preserves the full source when a custom model has no declared context window', async () => {
+    const summaryModelId = createSummaryModel(null)
+    const topic = topicService.create({ name: 'Custom model' })
+    const history = 'Keep the exact source evidence E_HANDOFF_CUSTOM_42.'
+    messageService.create(topic.id, {
+      role: 'user',
+      status: 'success',
+      data: { parts: [{ type: 'text', text: history }] }
+    })
+    const draft = await prepareHandoffDraft({
+      sourceSessionId: topic.id,
+      task: 'continue',
+      target: { agentId: 'target', name: 'Builder' },
+      summaryModelId
+    })
+    expect(draft.prompt).toContain(history)
+    expect(draft.inputTokenRoom).toBeNull()
   })
 
   it('rejects over-capacity history without truncating it or starting a stream', async () => {

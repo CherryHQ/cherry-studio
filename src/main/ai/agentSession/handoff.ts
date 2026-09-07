@@ -47,7 +47,6 @@ export type HandoffDraftErrorCode =
   | 'INVALID_INPUT'
   | 'SOURCE_NOT_FOUND'
   | 'MODEL_UNAVAILABLE'
-  | 'MODEL_CAPACITY_UNKNOWN'
   | 'PROMPT_TOO_LARGE'
   | 'PROMPT_OVER_CAPACITY'
 
@@ -108,7 +107,7 @@ export interface HandoffDraft {
   material: HandoffMaterial
   modelId: UniqueModelId
   estimatedInputTokens: number
-  inputTokenRoom: number
+  inputTokenRoom: number | null
   outputReservation: number
   generatedAt: string
 }
@@ -191,11 +190,11 @@ function handoffPart(
 
 function findHandoffPart(message: AgentSessionMessageEntity): HandoffPartData | undefined {
   const part = (message.data.parts ?? []).find((candidate) => candidate.type === 'data-handoff')
-  return part && typeof part.data === 'object' && part.data !== null ? (part.data as HandoffPartData) : undefined
+  return part && typeof part.data === 'object' && part.data !== null ? part.data : undefined
 }
 
 function messageData(message: Message | AgentSessionMessageEntity): MessageData {
-  return message.data as MessageData
+  return message.data
 }
 
 function materializePart(part: Record<string, unknown>): Record<string, unknown> {
@@ -231,7 +230,7 @@ function collectUserAttachments(messages: Array<Message | AgentSessionMessageEnt
     if (message.role !== 'user') continue
     for (const rawPart of messageData(message).parts ?? []) {
       if (rawPart.type !== 'file') continue
-      const part = rawPart as FileUIPart
+      const part = rawPart
       // FileEntryId is the stable handle. URL is the existing fallback for external files;
       // filenames are intentionally excluded so same-named files remain distinct.
       const handle = readCherryMeta(part)?.fileEntryId ?? part.url
@@ -411,9 +410,6 @@ export async function prepareHandoffDraft(input: HandoffDraftInput): Promise<Han
   const prompt = buildHandoffPrompt({ task: input.task, target: input.target, material })
   const summaryModel = resolveHandoffSummaryModel(input.summaryModelId, material)
   const contextWindow = resolveContextWindow(summaryModel.model.contextWindow)
-  if (contextWindow === null) {
-    throw new HandoffDraftError('MODEL_CAPACITY_UNKNOWN', 'The selected summary model has no known context window')
-  }
   const dialect = resolveModelTokenDialect(summaryModel.provider, summaryModel.model)
   const tokenizer = await getTextTokenizer(dialect)
   const modelMessages: ModelMessage[] = [{ role: 'user', content: prompt }]
@@ -422,8 +418,8 @@ export async function prepareHandoffDraft(input: HandoffDraftInput): Promise<Han
     HANDOFF_OUTPUT_RESERVATION,
     resolveOutputReservation(undefined, [summaryModel.model]) ?? 0
   )
-  const inputTokenRoom = resolveInputRoom(contextWindow, reservation)
-  if (estimatedInputTokens > inputTokenRoom) {
+  const inputTokenRoom = contextWindow === null ? null : resolveInputRoom(contextWindow, reservation)
+  if (inputTokenRoom !== null && estimatedInputTokens > inputTokenRoom) {
     throw new HandoffDraftError('PROMPT_OVER_CAPACITY', 'Handoff material exceeds the selected model input capacity', {
       estimatedInputTokens,
       inputTokenRoom,
