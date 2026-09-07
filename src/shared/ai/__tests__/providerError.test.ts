@@ -95,6 +95,36 @@ describe('getSafeProviderErrorMessage', () => {
     }
   )
 
+  it.each(PROVIDER_TEXT_FIELDS)('ignores malformed unquoted objects and scalar arrays in %s', (_field, payloadFor) => {
+    for (const privatePayload of [
+      'Provider failed: {prompt:"private user prompt",trace:"internal trace"',
+      'Provider failed: [400, "private user prompt"'
+    ]) {
+      const message = getSafeProviderErrorMessage({
+        message: 'Bad Request',
+        responseBody: JSON.stringify(payloadFor(privatePayload))
+      })
+
+      expect(message).toBe('Bad Request')
+      expect(message).not.toMatch(/private user prompt|internal trace/)
+    }
+  })
+
+  it.each(PROVIDER_TEXT_FIELDS)('ignores HTML documents in %s', (_field, payloadFor) => {
+    for (const privatePayload of [
+      '<!doctype html><html><body>private user prompt</body></html>',
+      '<html><body>internal trace</body></html>'
+    ]) {
+      const message = getSafeProviderErrorMessage({
+        message: 'Bad Request',
+        responseBody: JSON.stringify(payloadFor(privatePayload))
+      })
+
+      expect(message).toBe('Bad Request')
+      expect(message).not.toMatch(/private user prompt|internal trace/)
+    }
+  })
+
   it('ignores an oversized provider payload before decoding it', () => {
     const message = getSafeProviderErrorMessage({
       message: 'Bad Request',

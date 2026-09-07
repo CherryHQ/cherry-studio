@@ -8,6 +8,9 @@ const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
 const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
 const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
+const HTML_DOCUMENT_PATTERN = /^(?:<!doctype\s+html\b|<html(?:\s|>))/i
+const JSON_CONTAINER_PATTERN =
+  /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|(?:-?(?:\d+(?:\.\d+)?|\.\d+)|true\b|false\b|null\b)\s*,)/i
 
 interface ProviderErrorSource {
   message?: unknown
@@ -40,7 +43,7 @@ function containsEncodedContainer(text: string): boolean {
   while (candidate.startsWith('"') || candidate.startsWith("'") || candidate.startsWith('\\')) {
     candidate = candidate.slice(1).trimStart()
   }
-  return /\{\s*(?:["'{[]|\})|\[\s*(?:["'{[]|\])/.test(candidate)
+  return JSON_CONTAINER_PATTERN.test(candidate) || HTML_DOCUMENT_PATTERN.test(candidate)
 }
 
 function providerPayloadText(value: unknown): string {
