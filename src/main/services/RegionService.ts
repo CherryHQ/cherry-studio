@@ -78,7 +78,9 @@ class RegionService {
   private async detectAndCache(proxyKey: string | null): Promise<string> {
     try {
       const country = await this.fetchCountry()
-      application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
+      if (application.get('ProxyService').appliedProxyKey === proxyKey) {
+        application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
+      }
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)

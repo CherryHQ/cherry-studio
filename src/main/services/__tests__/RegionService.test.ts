@@ -199,6 +199,29 @@ describe('RegionService', () => {
     expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('does not let a stale proxy completion overwrite the active proxy cache', async () => {
+    const proxyA = createDeferred<ReturnType<typeof fetchResponse>>()
+    const proxyB = createDeferred<ReturnType<typeof fetchResponse>>()
+    netFetchMock
+      .mockReturnValueOnce(proxyA.promise)
+      .mockReturnValueOnce(proxyB.promise)
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'DE' }))
+
+    proxyState.appliedProxyKey = 'proxy-a'
+    const firstA = regionService.getCountry()
+    proxyState.appliedProxyKey = 'proxy-b'
+    const firstB = regionService.getCountry()
+
+    proxyB.resolve(fetchResponse({ country_code: 'JP' }))
+    await expect(firstB).resolves.toBe('JP')
+
+    proxyA.resolve(fetchResponse({ country_code: 'US' }))
+    await expect(firstA).resolves.toBe('US')
+
+    await expect(regionService.getCountry()).resolves.toBe('JP')
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('does not let stale completion clear a newer in-flight detection', async () => {
     const proxyA = createDeferred<ReturnType<typeof fetchResponse>>()
     const proxyB = createDeferred<ReturnType<typeof fetchResponse>>()
