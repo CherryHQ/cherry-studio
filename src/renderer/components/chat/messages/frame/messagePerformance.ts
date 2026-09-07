@@ -21,6 +21,17 @@ export interface MessagePerformanceViewModel {
   intervals: MessagePerformanceInterval[]
 }
 
+export function getMessageTokenUsage(stats: MessageStats) {
+  const inputTokens = stats.inputTokens
+  const outputTokens = stats.outputTokens
+  const componentTotal =
+    inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined
+  const totalTokens = stats.totalTokens !== undefined && stats.totalTokens > 0 ? stats.totalTokens : componentTotal
+
+  if (![inputTokens, outputTokens, totalTokens].some((value) => value !== undefined && value > 0)) return {}
+  return { inputTokens, outputTokens, totalTokens }
+}
+
 function intervalFromRuntimeSpan(span: MessageRuntimeSpan, rangeEnd: number): MessagePerformanceInterval | undefined {
   const completedAt = span.completedAt ?? rangeEnd
   if (completedAt <= span.startedAt) return undefined
@@ -114,14 +125,18 @@ function buildRuntimeViewModel(
   )
   const timeFirstTokenMs = firstTokenRecord?.timeFirstTokenMs ?? undefined
   const modelTokensPerSecond =
-    measuredOutputTokens !== undefined && generationDuration !== undefined && generationDuration > 0
+    measuredOutputTokens !== undefined &&
+    measuredOutputTokens > 0 &&
+    generationDuration !== undefined &&
+    generationDuration > 0
       ? measuredOutputTokens / (generationDuration / 1000)
       : undefined
   const totalDurationMs =
     runtime.completedAt !== undefined ? Math.max(0, runtime.completedAt - runtime.startedAt) : undefined
+  const outputTokens = getMessageTokenUsage(stats).outputTokens
   const endToEndTokensPerSecond =
-    totalDurationMs !== undefined && totalDurationMs > 0 && stats.outputTokens !== undefined
-      ? stats.outputTokens / (totalDurationMs / 1000)
+    totalDurationMs !== undefined && totalDurationMs > 0 && outputTokens !== undefined && outputTokens > 0
+      ? outputTokens / (totalDurationMs / 1000)
       : undefined
   const measuredIntervals = [...modelIntervals, ...runtimeIntervals]
 
@@ -204,7 +219,7 @@ export function getMessageModelTokensPerSecond(stats: MessageStats): number | un
   if (stats.runtimeTiming) {
     const outputTokens = stats.providerPerformance?.measuredOutputTokens
     const durationMs = stats.providerPerformance?.generationDurationMs
-    return outputTokens !== undefined && durationMs !== undefined && durationMs > 0
+    return outputTokens !== undefined && outputTokens > 0 && durationMs !== undefined && durationMs > 0
       ? outputTokens / (durationMs / 1000)
       : undefined
   }
