@@ -96,6 +96,7 @@ const baseProps = (): BarProps => ({
   detectedLanguage: null,
   isBidirectional: false,
   showSourceControls: true,
+  languageControlsDisabled: false,
   bidirectionalPair: [english.langCode, chinese.langCode],
   couldExchange: false,
   onExchange: vi.fn()

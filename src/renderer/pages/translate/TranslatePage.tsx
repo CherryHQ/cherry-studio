@@ -270,6 +270,7 @@ const TranslatePage: FC = () => {
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
   const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
+  const [isExchangePending, setIsExchangePending] = useState(false)
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
   const isTranslationRunning = isTranslating || pdfStatus.running
@@ -543,6 +544,7 @@ const TranslatePage: FC = () => {
   }, [isProcessing, isTranslating, pdfFile, selectedModelId, smoothReset, t, translateTextContent])
 
   const onTranslate = useCallback(async () => {
+    if (exchangePendingRef.current) return
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
@@ -603,6 +605,7 @@ const TranslatePage: FC = () => {
     )
       return
     exchangePendingRef.current = true
+    setIsExchangePending(true)
     try {
       const persisted = await safePersist(
         setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
@@ -615,6 +618,7 @@ const TranslatePage: FC = () => {
       setTranslateOutput(input)
     } finally {
       exchangePendingRef.current = false
+      setIsExchangePending(false)
     }
   }, [
     isDetecting,
@@ -923,14 +927,21 @@ const TranslatePage: FC = () => {
     babelDoc.availability === 'available'
       ? pdfHandleReady && isSelectedPdfModelRoutable
       : babelDoc.availability === 'missing' && !!selectedModelId
-  const couldTranslate = isPdfMode
-    ? pdfModelReady &&
-      !babelDoc.installing &&
-      targetLanguage !== UNKNOWN_LANG_CODE &&
-      !pdfStatus.running &&
-      !isTranslating &&
-      !isProcessing
-    : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
+  const couldTranslate =
+    !isExchangePending &&
+    (isPdfMode
+      ? pdfModelReady &&
+        !babelDoc.installing &&
+        targetLanguage !== UNKNOWN_LANG_CODE &&
+        !pdfStatus.running &&
+        !isTranslating &&
+        !isProcessing
+      : !isEmpty(translateInput) &&
+        !!selectedModelId &&
+        !isTranslating &&
+        !isDetecting &&
+        !isProcessing &&
+        !isOcrRunning)
   const couldExchange =
     !isPdfMode &&
     sourceLanguage !== 'auto' &&
@@ -960,12 +971,21 @@ const TranslatePage: FC = () => {
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
-            onSourceChange={(language) => void safePersist(setSourceLanguage(language), 'translate source language')}
+            onSourceChange={(language) => {
+              if (!exchangePendingRef.current) {
+                void safePersist(setSourceLanguage(language), 'translate source language')
+              }
+            }}
             targetLanguage={targetLanguage}
-            onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
+            onTargetChange={(language) => {
+              if (!exchangePendingRef.current) {
+                void safePersist(setTargetLanguage(language), 'translate target language')
+              }
+            }}
             detectedLanguage={detectedLanguage}
             isBidirectional={isPdfMode ? false : isBidirectional}
             showSourceControls={isPdfMode}
+            languageControlsDisabled={isExchangePending}
             bidirectionalPair={bidirectionalPair}
             couldExchange={couldExchange}
             onExchange={handleExchange}

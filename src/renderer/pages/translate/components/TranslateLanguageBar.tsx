@@ -22,6 +22,7 @@ type Props = {
   detectedLanguage: TranslateLangCode | null
   isBidirectional: boolean
   showSourceControls: boolean
+  languageControlsDisabled: boolean
   bidirectionalPair: TranslateBidirectionalPair
   couldExchange: boolean
   onExchange: () => void
@@ -47,6 +48,7 @@ const TranslateLanguageBar: FC<Props> = ({
   detectedLanguage,
   isBidirectional,
   showSourceControls,
+  languageControlsDisabled,
   bidirectionalPair,
   couldExchange,
   onExchange
@@ -155,6 +157,7 @@ const TranslateLanguageBar: FC<Props> = ({
             size="default"
             options={sourceOptions}
             value={sourceLanguage}
+            disabled={languageControlsDisabled}
             onChange={(value) => handleSourceSelect(Array.isArray(value) ? value[0] : value)}
             placeholder={t('translate.source_language')}
             searchable={false}
@@ -218,6 +221,7 @@ const TranslateLanguageBar: FC<Props> = ({
             size="default"
             options={targetOptions}
             value={targetLanguage}
+            disabled={languageControlsDisabled}
             onChange={(value) => handleTargetSelect(Array.isArray(value) ? value[0] : value)}
             placeholder={t('translate.target_language')}
             searchable={false}

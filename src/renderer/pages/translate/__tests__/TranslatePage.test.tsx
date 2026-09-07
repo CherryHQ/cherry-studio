@@ -367,6 +367,7 @@ vi.mock('../components/TranslateLanguageBar', () => ({
     isBidirectional: boolean
     showSourceControls: boolean
     couldExchange: boolean
+    languageControlsDisabled: boolean
     onSourceChange: (language: string) => void
     onTargetChange: (language: string) => void
     onExchange: () => void
@@ -377,12 +378,22 @@ vi.mock('../components/TranslateLanguageBar', () => ({
         <span data-testid="translate-source-language">{props.sourceLanguage}</span>
         <span data-testid="translate-target-language">{props.targetLanguage}</span>
         {!props.isBidirectional && props.showSourceControls && (
-          <button type="button" aria-label="translate.source_language" onClick={() => props.onSourceChange('zh-cn')} />
+          <button
+            type="button"
+            aria-label="translate.source_language"
+            disabled={props.languageControlsDisabled}
+            onClick={() => props.onSourceChange('zh-cn')}
+          />
         )}
         {props.couldExchange && (
           <button type="button" aria-label="translate.exchange.label" onClick={props.onExchange} />
         )}
-        <button type="button" aria-label="translate.target_language" onClick={() => props.onTargetChange('en-us')} />
+        <button
+          type="button"
+          aria-label="translate.target_language"
+          disabled={props.languageControlsDisabled}
+          onClick={() => props.onTargetChange('en-us')}
+        />
       </div>
     )
   }
@@ -1104,7 +1115,7 @@ describe('TranslatePage', () => {
     })
   })
 
-  it('ignores a second language exchange while the first exchange is pending', async () => {
+  it('blocks language actions while the first exchange is pending', async () => {
     const user = userEvent.setup()
     let resolvePersist!: () => void
     const persistLanguages = vi.fn(
@@ -1120,6 +1131,7 @@ describe('TranslatePage', () => {
         })
     )
     MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'en-us',
       'feature.translate.page.target_language': 'zh-cn'
     })
@@ -1139,11 +1151,20 @@ describe('TranslatePage', () => {
       async () => {
         const { rerender } = render(<TranslatePage />)
         const exchangeButton = screen.getByRole('button', { name: 'translate.exchange.label' })
+        const sourceChange = languageBarMock.mock.calls.at(-1)?.[0].onSourceChange as (language: string) => void
+        const targetChange = languageBarMock.mock.calls.at(-1)?.[0].onTargetChange as (language: string) => void
 
         await user.click(exchangeButton)
         await user.click(exchangeButton)
+        expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
+
+        act(() => sourceChange('ja-jp'))
+        act(() => targetChange('en-us'))
+        fireEvent.keyDown(screen.getByLabelText('translate.input.placeholder'), { key: 'Enter', ctrlKey: true })
 
         expect(persistLanguages).toHaveBeenCalledTimes(1)
+        expect(translateCoreMock.translateText).not.toHaveBeenCalled()
 
         await act(async () => resolvePersist())
         rerender(<TranslatePage />)
