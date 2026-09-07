@@ -42,7 +42,11 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity, UpdateAgentSessionDto } from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_SESSION_ROUTING_UPDATE_FIELDS,
+  type AgentSessionEntity,
+  type UpdateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import {
@@ -719,11 +723,7 @@ export class AgentSessionRuntimeService extends BaseService {
     updates: UpdateAgentSessionDto,
     session: AgentSessionEntity
   ): Promise<void> {
-    if (
-      !Object.prototype.hasOwnProperty.call(updates, 'modelId') &&
-      !Object.prototype.hasOwnProperty.call(updates, 'agentId') &&
-      !Object.prototype.hasOwnProperty.call(updates, 'agentType')
-    ) {
+    if (!AGENT_SESSION_ROUTING_UPDATE_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(updates, field))) {
       return
     }
 

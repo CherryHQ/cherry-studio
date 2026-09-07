@@ -21,15 +21,17 @@ import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type {
-  AgentSessionEntity,
-  CreateAgentSessionDto,
-  DeleteAgentSessionsResult,
-  LatestAgentSessionQuery,
-  ListAgentSessionsQuery,
-  ReusableAgentSessionPlaceholdersResponse,
-  ReuseOrCreateAgentSessionDto,
-  UpdateAgentSessionDto
+import {
+  AGENT_SESSION_ROUTING_UPDATE_FIELDS,
+  type AgentSessionEntity,
+  type AgentSessionRouting,
+  type CreateAgentSessionDto,
+  type DeleteAgentSessionsResult,
+  type LatestAgentSessionQuery,
+  type ListAgentSessionsQuery,
+  type ReusableAgentSessionPlaceholdersResponse,
+  type ReuseOrCreateAgentSessionDto,
+  type UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -120,6 +122,73 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
 
 function normalizeSessionAgentType(type: string): AgentType {
   return (type === 'cherry-claw' ? 'claude-code' : type) as AgentType
+}
+
+type AgentSessionRoutingDefaultSource = {
+  type: string
+  model: string | null
+}
+
+const AGENT_SESSION_ROUTING_POLICY = {
+  agentType: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => normalizeSessionAgentType(agent.type),
+    requiresEmptySession: true,
+    clearWhenChanged: ['modelId']
+  },
+  modelId: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => agent.model as UniqueModelId | null,
+    requiresEmptySession: false,
+    clearWhenChanged: []
+  }
+} as const satisfies {
+  [Field in keyof AgentSessionRouting]: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => AgentSessionRouting[Field]
+    requiresEmptySession: boolean
+    clearWhenChanged: readonly (keyof AgentSessionRouting)[]
+  }
+}
+
+function routingDefaultsFromAgent(agent: AgentSessionRoutingDefaultSource): AgentSessionRouting {
+  return {
+    agentType: AGENT_SESSION_ROUTING_POLICY.agentType.defaultFromAgent(agent),
+    modelId: AGENT_SESSION_ROUTING_POLICY.modelId.defaultFromAgent(agent)
+  }
+}
+
+function resolveSessionRoutingUpdate(
+  current: AgentSessionRouting & { agentId: string | null },
+  dto: UpdateAgentSessionDto,
+  reboundAgent?: AgentSessionRoutingDefaultSource
+): { patch: Partial<AgentSessionRouting>; requiresEmptySession: boolean } {
+  const inherited =
+    dto.agentId !== undefined && dto.agentId !== current.agentId && reboundAgent
+      ? routingDefaultsFromAgent(reboundAgent)
+      : undefined
+  const agentType = dto.agentType ?? inherited?.agentType
+  let modelId = dto.modelId !== undefined ? dto.modelId : inherited?.modelId
+  const agentTypeChanged = agentType !== undefined && agentType !== current.agentType
+
+  if (
+    agentTypeChanged &&
+    dto.modelId === undefined &&
+    (!inherited || agentType !== inherited.agentType) &&
+    AGENT_SESSION_ROUTING_POLICY.agentType.clearWhenChanged.includes('modelId')
+  ) {
+    modelId = null
+  }
+
+  const patch: Partial<AgentSessionRouting> = {}
+  if (agentType !== undefined) patch.agentType = agentType
+  if (modelId !== undefined) patch.modelId = modelId
+
+  const changedFields: (keyof AgentSessionRouting)[] = []
+  if (agentTypeChanged) changedFields.push('agentType')
+  if (modelId !== undefined && modelId !== current.modelId) changedFields.push('modelId')
+
+  return {
+    patch,
+    requiresEmptySession: changedFields.some((field) => AGENT_SESSION_ROUTING_POLICY[field].requiresEmptySession)
+  }
 }
 
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
@@ -294,11 +363,11 @@ export class AgentSessionService {
       }
     }
 
+    const routing = routingDefaultsFromAgent(agent)
     this.insertTx(tx, {
       id,
       agentId: dto.agentId,
-      agentType: normalizeSessionAgentType(agent.type),
-      modelId: agent.model as UniqueModelId | null,
+      ...routing,
       name: dto.name,
       description: dto.description,
       workspaceId,
@@ -751,36 +820,48 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
-    if (dto.agentType !== undefined) patch.agentType = dto.agentType
-    if (dto.modelId !== undefined) patch.modelId = dto.modelId
-    if (Object.keys(patch).length === 0) return this.getById(id)
+    const hasRoutingUpdate = AGENT_SESSION_ROUTING_UPDATE_FIELDS.some((field) => dto[field] !== undefined)
+    if (Object.keys(patch).length === 0 && !hasRoutingUpdate) return this.getById(id)
 
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
-            throw DataApiErrorFactory.validation(
-              { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
-              `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
+          if (hasRoutingUpdate) {
+            const [current] = tx
+              .select({
+                agentId: sessionsTable.agentId,
+                agentType: sessionsTable.agentType,
+                modelId: sessionsTable.modelId
+              })
+              .from(sessionsTable)
+              .where(eq(sessionsTable.id, id))
+              .limit(1)
+              .all()
+            if (!current) throw DataApiErrorFactory.notFound('Session', id)
+
+            if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
+              throw DataApiErrorFactory.validation(
+                { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
+                `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
+              )
+            }
+            let reboundAgent: AgentSessionRoutingDefaultSource | undefined
+            if (dto.agentId !== undefined) {
+              reboundAgent = this.assertAgentExistsTx(tx, dto.agentId)
+            }
+            const routingUpdate = resolveSessionRoutingUpdate(
+              {
+                agentId: current.agentId,
+                agentType: current.agentType,
+                modelId: current.modelId as UniqueModelId | null
+              },
+              dto,
+              reboundAgent
             )
-          }
-          const [current] = tx
-            .select({ agentId: sessionsTable.agentId, agentType: sessionsTable.agentType })
-            .from(sessionsTable)
-            .where(eq(sessionsTable.id, id))
-            .limit(1)
-            .all()
-          if (dto.agentId !== undefined) {
-            const agent = this.assertAgentExistsTx(tx, dto.agentId)
-            if (current && current.agentId !== dto.agentId && dto.modelId === undefined) {
-              patch.modelId = agent.model as UniqueModelId | null
+            Object.assign(patch, routingUpdate.patch)
+            if (routingUpdate.requiresEmptySession) {
+              this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
             }
-            if (current && current.agentId !== dto.agentId && dto.agentType === undefined) {
-              patch.agentType = normalizeSessionAgentType(agent.type)
-            }
-          }
-          if (current && patch.agentType !== undefined && patch.agentType !== current.agentType) {
-            this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
           }
           return this.updateTx(tx, id, patch)
         }),

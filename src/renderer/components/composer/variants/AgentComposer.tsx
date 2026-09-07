@@ -1364,7 +1364,7 @@ const AgentComposerInner = ({
   const handleAgentTypeChange = useCallback(
     async (agentType: AgentType) => {
       if (!sessionData || agentType === sessionData.agentType) return
-      await updateSession({ id: sessionId, agentType, modelId: null }, { showSuccessToast: false })
+      await updateSession({ id: sessionId, agentType }, { showSuccessToast: false })
     },
     [sessionData, sessionId, updateSession]
   )

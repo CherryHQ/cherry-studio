@@ -837,9 +837,9 @@ describe('AgentSessionService', () => {
     expect(first.agentType).toBe('claude-code')
     expect(second.agentType).toBe('claude-code')
 
-    const updated = agentSessionService.update(first.id, { modelId: alternateModelId, agentType: 'pi' })
+    const updated = agentSessionService.update(first.id, { agentType: 'pi' })
 
-    expect(updated.modelId).toBe(alternateModelId)
+    expect(updated.modelId).toBeNull()
     expect(updated.agentType).toBe('pi')
     expect(agentSessionService.getById(second.id).modelId).toBe(defaultModelId)
     expect(agentSessionService.getById(second.id).agentType).toBe('claude-code')
@@ -848,14 +848,51 @@ describe('AgentSessionService', () => {
     expect(agent.type).toBe('claude-code')
   })
 
+  it('preserves an explicit model in an atomic runtime update', async () => {
+    await seedAgentModels()
+    const session = await createSession('Atomic routing session')
+
+    const updated = agentSessionService.update(session.id, {
+      agentType: 'pi',
+      modelId: alternateModelId
+    })
+
+    expect(updated).toMatchObject({ agentType: 'pi', modelId: alternateModelId })
+  })
+
+  it('inherits both routing defaults when a session is reassigned', async () => {
+    await seedAgentModels()
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-routing-target',
+      type: 'pi',
+      name: 'Routing Target Agent',
+      instructions: '',
+      model: alternateModelId,
+      orderKey: 'b0'
+    })
+    const session = await createSession('Reassigned routing session')
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-session-routing-target' })
+
+    expect(updated).toMatchObject({
+      agentId: 'agent-session-routing-target',
+      agentType: 'pi',
+      modelId: alternateModelId
+    })
+  })
+
   it('rejects runtime changes after messages are sent', async () => {
+    await seedAgentModels()
     const session = await createSession('Locked runtime session')
     await insertSessionMessage(session.id, 'message-locks-runtime')
 
     expect(captureError(() => agentSessionService.update(session.id, { agentType: 'pi' }))).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
-    expect(agentSessionService.getById(session.id).agentType).toBe('claude-code')
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      agentType: 'claude-code',
+      modelId: defaultModelId
+    })
   })
 
   it('rejects an unregistered session model without changing the stored model', async () => {

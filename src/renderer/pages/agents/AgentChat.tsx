@@ -314,10 +314,7 @@ const AgentChat = ({
   const handleSessionAgentTypeChange = useCallback(
     async (nextAgentType: AgentType) => {
       if (!sessionSnapshot || !isEmptyConversation || nextAgentType === sessionSnapshot.agentType) return
-      await updateSession(
-        { id: sessionSnapshot.id, agentType: nextAgentType, modelId: null },
-        { showSuccessToast: false }
-      )
+      await updateSession({ id: sessionSnapshot.id, agentType: nextAgentType }, { showSuccessToast: false })
     },
     [isEmptyConversation, sessionSnapshot, updateSession]
   )

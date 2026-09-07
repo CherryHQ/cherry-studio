@@ -627,14 +627,14 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('switches the runtime only for an empty session and clears its model', async () => {
+  it('requests a runtime switch only for an empty session', async () => {
     const user = userEvent.setup()
     renderAgentChat()
 
     await user.click(screen.getByRole('button', { name: 'change topbar runtime' }))
 
     expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
-      { id: 'session-1', agentType: 'pi', modelId: null },
+      { id: 'session-1', agentType: 'pi' },
       { showSuccessToast: false }
     )
   })
