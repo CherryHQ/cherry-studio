@@ -64,7 +64,6 @@ export function buildAgentMcpServers(
       const serverSnapshot = mcpServerSnapshots?.get(mcpId)
       const legacyServer = mcpServerSnapshots ? serverSnapshot : mcpServerService.findByIdOrName(mcpId)
       if (
-        mountedServers.has(CHERRY_MCP_SERVER.BROWSER) &&
         legacyServer &&
         isInMemoryBuiltinMcpServer(legacyServer) &&
         legacyServer.name === BuiltinMcpServerNames.browser

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { createMockApplication } from '@test-mocks/main/application'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,6 +46,7 @@ const {
     'app.use_system_title_bar': false
   }
   const windowManagerMock = {
+    getWindowsByType: vi.fn(() => []),
     getWindow: vi.fn(),
     getWindowId: vi.fn(),
     getWindowIdByWebContents: vi.fn(),
@@ -99,7 +101,7 @@ const {
       if (name === 'WindowManager') {
         return windowManagerMock
       }
-      throw new Error(`unexpected service: ${name}`)
+      return createMockApplication().get(name)
     }),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
@@ -178,10 +180,12 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 import { WindowType } from '@main/core/window/types'
+import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { app, session } from 'electron'
+import { app, session, shell } from 'electron'
 
 import { contextMenu } from '../ContextMenu'
 import { MainWindowService } from '../MainWindowService'
@@ -312,6 +316,45 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('website links', () => {
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof ExternalUrlSafety>('@main/utils/externalUrlSafety')
+      vi.mocked(isSafeExternalUrl).mockImplementation(actual.isSafeExternalUrl)
+    })
+    afterEach(() => vi.mocked(isSafeExternalUrl).mockReturnValue(false))
+    afterEach(() => {
+      delete prefValues['app.browser.open_links_in_browser']
+    })
+    it('opens an encoded shared-browser route when enabled, even with Agent control off', async () => {
+      prefValues['app.browser.open_links_in_browser'] = true
+      const url = 'http://192.168.1.2:8080/page?q=a&lang=zh#part'
+      await svc.openWebsite(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({
+            type: 'route',
+            title: '192.168.1.2',
+            url: `/app/browser?${new URLSearchParams({ url })}`
+          })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+    it('preserves explicit external opening and non-website schemes', async () => {
+      prefValues['app.browser.open_links_in_browser'] = true
+      await svc.openWebsite('https://example.com', true)
+      await svc.openWebsite('mailto:test@example.com')
+      await svc.openWebsite('javascript:alert(1)')
+      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([['https://example.com'], ['mailto:test@example.com']])
+    })
+    it('uses the system browser by default', async () => {
+      await svc.openWebsite('https://example.com')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com')
+    })
   })
 
   describe('spell check', () => {
@@ -535,7 +578,7 @@ describe('MainWindowService', () => {
       listener({}, guestWebContents)
 
       const windowOpenHandler = guestWebContents.setWindowOpenHandler.mock.calls[0]?.[0]
-      expect(windowOpenHandler?.()).toEqual({ action: 'deny' })
+      expect(windowOpenHandler?.({ url: 'https://example.com' })).toEqual({ action: 'deny' })
     })
 
     it('denies permissions, downloads, local targets, and identifying user-agent tokens', () => {

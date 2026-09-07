@@ -488,7 +488,7 @@ describe('WindowManager', () => {
       handler({ preventDefault }, 'https://evil.example.com')
 
       expect(preventDefault).toHaveBeenCalledTimes(1)
-      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
+      expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledWith('https://evil.example.com')
     })
   })
 

@@ -107,6 +107,7 @@ export async function captureDshConnectionSnapshot(
           linkedChannel,
           notificationContext,
           browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+          browserPermissions: application.get('PreferenceService').get('app.browser.tool_permissions'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           gatewayCredentials
         })

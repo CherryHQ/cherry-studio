@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
@@ -7,6 +9,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
+import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
 import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -450,7 +453,12 @@ export class MainWindowService extends BaseService {
         webContents.session === agentDevSession ||
         webContents.session === agentArtifactSession
       ) {
-        webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+        webContents.setWindowOpenHandler(({ url }) => {
+          if (webContents.session === agentBrowserSession) {
+            void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
+          }
+          return { action: 'deny' }
+        })
         webContents.on('destroyed', () => {
           this.agentDevPreviewRequestPolicy.forget(webContents.id)
           this.agentHtmlArtifactRequestPolicy.forget(webContents.id)
@@ -506,6 +514,29 @@ export class MainWindowService extends BaseService {
     }
   }
 
+  async openWebsite(url: string, external = false): Promise<void> {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn('Blocked website URL with an unsupported scheme')
+      return
+    }
+    const parsed = new URL(url)
+    if (
+      !external &&
+      ['http:', 'https:'].includes(parsed.protocol) &&
+      application.get('PreferenceService').get('app.browser.open_links_in_browser')
+    ) {
+      const normalized = normalizeBrowserUrl(url)
+      openTabInMainWindow({
+        id: randomUUID(),
+        type: 'route',
+        url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
+        title: parsed.hostname
+      })
+      return
+    }
+    await shell.openExternal(url)
+  }
+
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
@@ -521,7 +552,7 @@ export class MainWindowService extends BaseService {
 
       event.preventDefault()
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
@@ -568,7 +599,7 @@ export class MainWindowService extends BaseService {
           shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
-        void shell.openExternal(details.url)
+        void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }

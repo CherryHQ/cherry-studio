@@ -21,6 +21,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
+import { BROWSER_TOOL_NAMES, browserToolFromRuntimeName } from '@shared/ai/browserTools'
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
@@ -36,6 +37,8 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+
+import { resolveBrowserToolPermission } from './browserToolPolicy'
 
 export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
@@ -130,7 +133,10 @@ export interface BuiltinToolPolicyQuery {
 
 /** Query entries without exposing a mutable registry or a maintained name list. */
 export function listBuiltinToolPolicies(query: BuiltinToolPolicyQuery = {}): BuiltinToolPolicyEntry[] {
-  return BUILTIN_TOOL_POLICY_ENTRIES.filter(
+  const entries = query.mountedServers?.has(CHERRY_MCP_SERVER.BROWSER)
+    ? [...BUILTIN_TOOL_POLICY_ENTRIES, ...BROWSER_TOOL_NAMES.map((name) => browserPolicy(name))]
+    : BUILTIN_TOOL_POLICY_ENTRIES
+  return entries.filter(
     (entry) =>
       (query.approval === undefined || entry.approval === query.approval) &&
       (query.bypassApproval === undefined || entry.bypassApproval === query.bypassApproval) &&
@@ -143,6 +149,8 @@ export function findBuiltinToolPolicy(
   runtimeName: string,
   mountedServers: ReadonlySet<string>
 ): BuiltinToolPolicyEntry | undefined {
+  const browserTool = browserToolFromRuntimeName(runtimeName)
+  if (browserTool && mountedServers.has(CHERRY_MCP_SERVER.BROWSER)) return browserPolicy(browserTool)
   const entry = BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME.get(runtimeName)
   return entry && mountedServers.has(entry.serverName) ? entry : undefined
 }
@@ -155,4 +163,12 @@ export function toMcpRuntimeName(ref: Pick<BuiltinToolPolicyEntry, 'serverName' 
 /** Convenience for the non-policy citation call site. */
 export function toCherryBuiltinRuntimeName(toolName: string): string {
   return toMcpRuntimeName({ serverName: 'cherry-tools', toolName })
+}
+
+function browserPolicy(name: string): BuiltinToolPolicyEntry {
+  return tool(
+    CHERRY_MCP_SERVER.BROWSER,
+    name,
+    resolveBrowserToolPermission(`mcp__browser__${name}`) === 'allow' ? 'auto' : 'required'
+  )
 }

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { Mutex } from 'async-mutex'
 
@@ -30,6 +32,8 @@ export class AgentBrowserController extends BrowserPageController {
 
   assertAvailable(): void {
     this.signal.throwIfAborted()
+    const agent = agentService.getAgent(this.context.agentId)
+    if (!agent || agent.disabledTools?.includes(BROWSER_TOOL_GROUP)) throw new BrowserSessionError('not_allowed')
     if (!application.get('PreferenceService').get('app.browser.agent_control.enabled'))
       throw new BrowserSessionError('not_allowed')
   }

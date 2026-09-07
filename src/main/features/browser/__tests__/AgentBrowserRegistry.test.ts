@@ -8,6 +8,7 @@ import { BaseService, Signal } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { session, webContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,6 +74,18 @@ describe('Agent browser authority and control lifetime', () => {
     await controller.dispose()
     await service._doStop()
     vi.restoreAllMocks()
+  })
+
+  it('revokes control after the built-in tool is disabled without closing the page', async () => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    expect((await controller.getSession(false, tabId)).session.guest).toBe(fixture.guest)
+    dbh.db
+      .update(agentTable)
+      .set({ disabledTools: ['mcp__browser'] })
+      .where(eq(agentTable.id, agentId))
+      .run()
+    await expect(controller.getSession(false, tabId)).rejects.toMatchObject({ code: 'not_allowed' })
+    expect(fixture.guest.isDestroyed()).toBe(false)
   })
 
   it('rejects foreign hosts, unsupported profiles and cross-session target IDs', async () => {

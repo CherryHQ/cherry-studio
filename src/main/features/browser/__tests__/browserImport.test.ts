@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as os from 'node:os'
 import path from 'node:path'
@@ -12,6 +12,7 @@ import { session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as keyStore from '../import/browserCookieKey'
+import { listBrowserProfiles } from '../import/browserProfiles'
 import { CookieImportError } from '../import/CookieImportError'
 import { importBrowserData } from '../import/importBrowserData'
 import { ImportedCookieSchema, matchesImportDomain, parsePortableBrowserData } from '../import/portableBrowserData'
@@ -88,29 +89,132 @@ describe('Foreign browser SQLite import', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('includes uncheckpointed WAL visits, preserves timestamps, deduplicates reimports and cleans snapshots', async () => {
-    source = new Database(path.join(root, 'chrome', 'Default', 'History'))
-    source.pragma('journal_mode = WAL')
-    source.pragma('wal_autocheckpoint = 0')
-    // These are external Chromium tables, not a substitute for production migrations.
-    source.exec(
-      'CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT, title TEXT); CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER)'
-    )
-    source.prepare('INSERT INTO urls VALUES (?, ?, ?)').run(1, 'https://example.com/report', 'Imported report')
-    source.prepare('INSERT INTO visits VALUES (?, ?, ?)').run(1, 1, 11644473600000000 + 1234000)
-    const options = { sourceId: 'chrome:Default', history: true, cookies: true, localStorage: false, domains: [] }
-    const result = await importBrowserData(options, undefined, new AbortController().signal)
-    expect(result.history).toEqual({ imported: 1, skipped: 0, failed: 0, unsupported: false })
-    expect(result.cookies.unsupported).toBe(true)
-    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toMatchObject([
-      { url: 'https://example.com/report', title: 'Imported report', visitedAt: 1234, source: 'chrome:Default' }
+  it('discovers Chrome, Dia and Comet independently even when their profile names match', async () => {
+    vi.spyOn(os, 'platform').mockReturnValue('darwin')
+    for (const browser of ['chrome', 'dia', 'comet']) {
+      await mkdir(path.join(root, browser, 'Default'), { recursive: true })
+      await writeFile(path.join(root, browser, 'Default', 'History'), '')
+      await writeFile(path.join(root, browser, 'Default', 'Cookies'), '')
+    }
+    expect(await listBrowserProfiles()).toMatchObject([
+      { id: 'chrome:Default', browser: 'chrome', history: true, cookies: 'requires_authorization' },
+      { id: 'dia:Default', browser: 'dia', history: true, cookies: 'requires_authorization' },
+      { id: 'comet:Default', browser: 'comet', history: true, cookies: 'requires_authorization' }
     ])
-    expect((await importBrowserData(options, undefined, new AbortController().signal)).history).toMatchObject({
-      imported: 0,
-      skipped: 1
-    })
-    expect(await readdir(path.join(root, 'temp'))).toEqual([])
   })
+
+  it('detects Opera root and named profiles without treating cache folders as profiles', async () => {
+    await mkdir(path.join(root, 'opera', 'Default', 'Network'), { recursive: true })
+    await mkdir(path.join(root, 'opera', 'Cache'), { recursive: true })
+    await writeFile(path.join(root, 'opera', 'History'), '')
+    await writeFile(path.join(root, 'opera', 'Default', 'Network', 'Cookies'), '')
+    await writeFile(path.join(root, 'opera', 'Cache', 'Cookies'), '')
+    expect((await listBrowserProfiles()).map(({ id, history, cookies }) => ({ id, history, cookies }))).toEqual([
+      { id: 'opera:root', history: true, cookies: 'unavailable' },
+      { id: 'opera:Default', history: false, cookies: 'requires_authorization' }
+    ])
+  })
+
+  it('reads profile names and accounts without changing source identity or exposing other metadata', async () => {
+    vi.spyOn(os, 'platform').mockReturnValue('darwin')
+    await writeFile(path.join(root, 'chrome', 'Default', 'History'), '')
+    const stateFile = path.join(root, 'chrome', 'Local State')
+    await writeFile(
+      stateFile,
+      JSON.stringify({
+        profile: {
+          info_cache: {
+            Default: { name: ' Work ', user_name: ' user@example.com ', gaia_name: 'Full Name', gaia_id: 'private-id' }
+          }
+        },
+        os_crypt: { encrypted_key: 'private-key' }
+      })
+    )
+    const [before] = await listBrowserProfiles()
+    expect(before).toMatchObject({
+      id: 'chrome:Default',
+      profile: 'Default',
+      displayName: 'Work',
+      account: 'user@example.com'
+    })
+    expect(JSON.stringify(before)).not.toContain('private-')
+    await writeFile(stateFile, JSON.stringify({ profile: { info_cache: { Default: { name: 'Personal' } } } }))
+    const [after] = await listBrowserProfiles()
+    expect(after).toMatchObject({ id: before.id, profile: 'Default', displayName: 'Personal' })
+    expect(after.account).toBeUndefined()
+  })
+
+  it.each(['{invalid', '{}', '{"profile":{"info_cache":{"Default":null}}}'])(
+    'keeps profiles available when optional metadata is malformed: %s',
+    async (metadata) => {
+      await writeFile(path.join(root, 'chrome', 'Default', 'History'), '')
+      await writeFile(path.join(root, 'chrome', 'Local State'), metadata)
+      const [profile] = await listBrowserProfiles()
+      expect(profile).toMatchObject({ id: 'chrome:Default', profile: 'Default', history: true })
+      expect(profile.displayName).toBeUndefined()
+      expect(profile.account).toBeUndefined()
+    }
+  )
+
+  it.each([
+    ['win32', ['comet:Default']],
+    ['linux', []]
+  ] as const)('only discovers supported new browser sources on %s', async (platform, expected) => {
+    vi.spyOn(os, 'platform').mockReturnValue(platform)
+    for (const browser of ['dia', 'comet']) {
+      await mkdir(path.join(root, browser, 'Default'), { recursive: true })
+      await writeFile(path.join(root, browser, 'Default', 'History'), '')
+    }
+    expect((await listBrowserProfiles()).map((profile) => profile.id)).toEqual(expected)
+  })
+
+  it.each([
+    ['chrome', 'Default'],
+    ['dia', 'Default'],
+    ['comet', 'Default'],
+    ['vivaldi', 'Default'],
+    ['chromium', 'Profile 1'],
+    ['opera', ''],
+    ['opera', 'Default']
+  ])(
+    'imports %s/%s WAL history with source identity, timestamps and reimport deduplication',
+    async (browser, profile) => {
+      vi.spyOn(os, 'platform').mockReturnValue('darwin')
+      await mkdir(path.join(root, browser, profile), { recursive: true })
+      source = new Database(path.join(root, browser, profile, 'History'))
+      source.pragma('journal_mode = WAL')
+      source.pragma('wal_autocheckpoint = 0')
+      // These are external Chromium tables, not a substitute for production migrations.
+      source.exec(
+        'CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT, title TEXT); CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER)'
+      )
+      source.prepare('INSERT INTO urls VALUES (?, ?, ?)').run(1, 'https://example.com/report', 'Imported report')
+      source.prepare('INSERT INTO visits VALUES (?, ?, ?)').run(1, 1, 11644473600000000 + 1234000)
+      const options = {
+        sourceId: `${browser}:${profile || 'root'}`,
+        history: true,
+        cookies: true,
+        localStorage: false,
+        domains: []
+      }
+      const result = await importBrowserData(options, undefined, new AbortController().signal)
+      expect(result.history).toEqual({ imported: 1, skipped: 0, failed: 0, unsupported: false })
+      expect(result.cookies.unsupported).toBe(true)
+      expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toMatchObject([
+        {
+          url: 'https://example.com/report',
+          title: 'Imported report',
+          visitedAt: 1234,
+          source: `${browser}:${profile || 'root'}`
+        }
+      ])
+      expect((await importBrowserData(options, undefined, new AbortController().signal)).history).toMatchObject({
+        imported: 0,
+        skipped: 1
+      })
+      expect(await readdir(path.join(root, 'temp'))).toEqual([])
+    }
+  )
 
   it('cleans a snapshot on cancellation or reader failure without modifying the source', async () => {
     source = new Database(path.join(root, 'chrome', 'Default', 'History'))

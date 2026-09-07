@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events'
 
+import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
-import { shell } from 'electron'
 import type * as FsModule from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,24 +23,30 @@ const {
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
   siteSession: {
+    on: vi.fn(),
+    removeListener: vi.fn(),
     getUserAgent: vi.fn(() => 'CherryStudio/1.0 Electron/1.0 Browser/1.0'),
     setUserAgent: vi.fn(),
     setSpellCheckerEnabled: vi.fn(),
     webRequest: { onBeforeSendHeaders: vi.fn() }
   },
-  localSession: { setSpellCheckerEnabled: vi.fn() }
+  localSession: { setSpellCheckerEnabled: vi.fn(), removeListener: vi.fn() }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    getPath,
-    get: (name: string) => {
-      if (name === 'BrowserSessionService') return getBrowserService()
-      if (name === 'WindowManager') return { getWindow }
-      throw new Error(`Unexpected service: ${name}`)
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const defaults = mockApplicationFactory().application
+  return {
+    application: {
+      getPath,
+      get: (name: string) => {
+        if (name === 'BrowserSessionService') return getBrowserService()
+        if (name === 'WindowManager') return { getWindow }
+        return defaults.get(name)
+      }
     }
   }
-}))
+})
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
@@ -72,7 +78,7 @@ vi.mock('electron', () => ({
       if (partition === 'persist:webview') return siteSession
       // Agent browser partitions are annotation-capable and must stay distinct
       // from the local mini app session the non-site rejection cases use.
-      if (partition.startsWith('agent-')) {
+      if (partition.startsWith('agent-') || partition === 'persist:agent-browser') {
         let agentSession = agentSessions.get(partition)
         if (!agentSession) {
           agentSession = { setSpellCheckerEnabled: vi.fn() }
@@ -370,9 +376,9 @@ describe('WebviewService webview ownership', () => {
     expect(guest.setWindowOpenHandler).toHaveBeenCalledOnce()
     const externalHandler = guest.setWindowOpenHandler.mock.calls[0][0]
     expect(externalHandler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'deny' })
-    expect(shell.openExternal).toHaveBeenCalledWith('https://cherrystudio.com/page')
+    expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledWith('https://cherrystudio.com/page')
     expect(externalHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
-    expect(shell.openExternal).toHaveBeenCalledOnce()
+    expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledOnce()
 
     service.setOpenLinkExternal(7, false, 'owner')
     const inAppHandler = guest.setWindowOpenHandler.mock.calls[1][0]

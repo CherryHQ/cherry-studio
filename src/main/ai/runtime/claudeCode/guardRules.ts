@@ -15,6 +15,7 @@
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -130,6 +131,16 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
 }
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  {
+    id: 'browser-tool-disabled',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) =>
+        ctx.mountedServers.has('browser') && resolveBrowserToolPermission(ctx.toolName) === 'deny' ? {} : null
+    },
+    effect: 'deny',
+    reason: 'This browser tool is disabled in Browser settings.'
+  },
   {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',

@@ -1,6 +1,8 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { BROWSER_TOOL_NAMES } from '@shared/ai/browserTools'
 import { Mutex } from 'async-mutex'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
@@ -41,7 +43,7 @@ export class BrowserServer {
     this.server = new McpServer({ name: '@cherry/browser', version: '0.1.0' })
 
     const definitions = controller
-      ? toolDefinitions.filter((tool) => !['switch_tab', 'close_tab', 'reset'].includes(tool.name))
+      ? toolDefinitions.filter((tool) => BROWSER_TOOL_NAMES.some((name) => name === tool.name))
       : toolDefinitions
     for (const { name, description, inputSchema } of definitions) {
       this.server.registerTool(
@@ -65,6 +67,13 @@ export class BrowserServer {
           const signal = this.controller.signal ? AbortSignal.any([extra.signal, this.controller.signal]) : extra.signal
           const invoke = () => {
             signal.throwIfAborted()
+            if (
+              controller &&
+              application.get('PreferenceService').get('app.browser.tool_permissions')[
+                name as (typeof BROWSER_TOOL_NAMES)[number]
+              ] === 'deny'
+            )
+              throw new BrowserSessionError('not_allowed')
             this.controller.assertAvailable?.()
             return toolHandlers[name](this.controller, args, signal)
           }

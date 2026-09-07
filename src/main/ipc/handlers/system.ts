@@ -64,11 +64,14 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.shell.open_path': async (path) => {
     await shell.openPath(path)
   },
+  'system.shell.open_external_website': async (url) => {
+    if (isSafeExternalUrl(url)) await shell.openExternal(url)
+  },
   'system.shell.open_website': async (url) => {
     if (!isSafeExternalUrl(url)) {
       logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       return
     }
-    await shell.openExternal(url)
+    await application.get('MainWindowService').openWebsite(url)
   }
 }

@@ -36,6 +36,9 @@ export const isInMemoryBuiltinMcpServer = (server: McpServer): server is Builtin
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
 
+export const isBrowserMcpServer = (server: Pick<McpServer, 'type' | 'name'>): boolean =>
+  server.type === 'inMemory' && server.name === BuiltinMcpServerNames.browser
+
 /**
  * Spec-aligned guard for a single MCP `CallToolResult` content block
  * (text / image / audio / resource_link / embedded resource).

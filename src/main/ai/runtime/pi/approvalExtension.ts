@@ -28,6 +28,7 @@ import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -118,7 +119,8 @@ export type PiToolAuthorizer = (
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
-    if (ctx.isDisabled(toolName)) {
+    const browserPermission = resolveBrowserToolPermission(toolName)
+    if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
     }
 
@@ -136,7 +138,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     const mode = ctx.getPermissionMode() ?? 'default'
-    const approvalRequired = ctx.approvalRequiredTools.has(toolName)
+    const approvalRequired = browserPermission === 'ask' || ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
@@ -168,7 +170,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     // (6) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+    if ((browserPermission === 'allow' || ctx.autoApprovedTools.has(toolName)) && !approvalRequired) return
     if (
       !(await requiresApproval(
         mode,

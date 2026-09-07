@@ -99,10 +99,12 @@ export class BrowserSessionService extends BaseService {
   }
 
   async listImportSources() {
-    return (await listBrowserProfiles()).map(({ id, browser, profile, history, cookies }) => ({
+    return (await listBrowserProfiles()).map(({ id, browser, profile, displayName, account, history, cookies }) => ({
       id,
       browser,
       profile,
+      displayName,
+      account,
       history,
       cookies
     }))

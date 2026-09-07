@@ -5,6 +5,7 @@ import en from '@renderer/i18n/locales/en-us.json'
 import { ipcApi } from '@renderer/ipc'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
@@ -47,6 +48,10 @@ const renderSettings = () =>
   )
 
 beforeAll(async () => {
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
   await i18n.init({
     lng: 'en',
     resources: { en: { translation: en } },
@@ -94,6 +99,82 @@ describe('Browser settings workflows', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+
+  it.each([
+    ['dia', 'Dia'],
+    ['comet', 'Comet'],
+    ['vivaldi', 'Vivaldi'],
+    ['opera', 'Opera'],
+    ['chromium', 'Chromium']
+  ] as const)('imports the selected %s source when Chrome has the same profile name', async (browser, label) => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+      route === 'browser.import.sources'
+        ? [
+            chrome,
+            { ...chrome, id: 'dia:Default', browser: 'dia' },
+            { ...chrome, id: 'comet:Default', browser: 'comet' },
+            { ...chrome, id: 'vivaldi:Default', browser: 'vivaldi' },
+            { ...chrome, id: 'opera:root', browser: 'opera', profile: 'Opera' },
+            { ...chrome, id: 'chromium:Default', browser: 'chromium' }
+          ]
+        : emptyResult()
+    )
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Import Import browser data' }))
+    const select = await screen.findByRole('combobox', { name: 'Browser' })
+    select.focus()
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: label }))
+    expect(select).toHaveTextContent(label)
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await screen.findByText('Import complete')
+    expect(ipcApi.request).toHaveBeenCalledWith('browser.import.run', {
+      sourceId: `${browser}:${browser === 'opera' ? 'root' : 'Default'}`,
+      history: true,
+      cookies: true,
+      localStorage: false,
+      domains: []
+    })
+  })
+
+  it('shows profile names and accounts, disambiguates duplicates and imports by the unchanged source ID', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+      route === 'browser.import.sources'
+        ? [
+            { ...chrome, displayName: 'Work', account: 'user@example.com' },
+            {
+              ...chrome,
+              id: 'chrome:Profile 1',
+              profile: 'Profile 1',
+              displayName: 'Work',
+              account: 'user@example.com'
+            },
+            { ...chrome, id: 'chrome:Profile 2', profile: 'Profile 2', displayName: 'Personal' },
+            { ...chrome, id: 'chrome:Profile 3', profile: 'Profile 3' }
+          ]
+        : emptyResult()
+    )
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Import Import browser data' }))
+    const select = await screen.findByRole('combobox', { name: 'Profile' })
+    expect(select).toHaveTextContent('Work · user@example.com (Default)')
+    select.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('option', { name: 'Personal' })).toBeVisible()
+    expect(screen.getByRole('option', { name: 'Profile 3' })).toBeVisible()
+    await user.click(screen.getByRole('option', { name: 'Work · user@example.com (Profile 1)' }))
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await screen.findByText('Import complete')
+    expect(ipcApi.request).toHaveBeenCalledWith('browser.import.run', {
+      sourceId: 'chrome:Profile 1',
+      history: true,
+      cookies: true,
+      localStorage: false,
+      domains: []
+    })
   })
 
   it('imports a cookie-only profile without requiring an unavailable history choice', async () => {
@@ -251,6 +332,33 @@ describe('Browser settings workflows', () => {
     expect(historyDeleted).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the previous history page visible and prevents stale actions while the next page loads', async () => {
+    const user = userEvent.setup()
+    const previousPage = {
+      items: [
+        { id: 'visit-1', title: 'First page', url: 'https://example.com/first', visitedAt: 1, source: 'local' as const }
+      ],
+      hasMore: true
+    }
+    MockUseDataApiUtils.mockQueryData('/browser-visits', previousPage)
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Manage History' }))
+    expect(await screen.findByText('First page')).toBeVisible()
+
+    MockUseDataApiUtils.mockQueryResult('/browser-visits', {
+      data: previousPage,
+      isLoading: true,
+      isRefreshing: true
+    })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(screen.getByText('First page')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Open in new tab' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
   it('opens history in a new browser tab without an Agent pane, preserving the complete URL', async () => {
     const user = userEvent.setup()
     const url = 'http://internal.test/dashboard?q=a%26b&lang=zh#section'
@@ -270,5 +378,34 @@ describe('Browser settings workflows', () => {
       { title: 'Dashboard', forceNew: true }
     )
     expect(ipcApi.request).not.toHaveBeenCalled()
+  })
+})
+
+describe('Browser preferences', () => {
+  it('persists website routing independently of Agent control', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('switch', { name: en['settings.browser.openLinks'] }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.open_links_in_browser']).toBe(true)
+    )
+    expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).not.toBe(true)
+  })
+
+  it('changes one tool permission while preserving the others', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.tool_permissions', { execute: 'deny' })
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Manage Tool permissions' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Tool permissions' })
+    within(dialog).getByRole('combobox', { name: 'Click' }).focus()
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: 'Allow' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.tool_permissions']).toEqual({
+        execute: 'deny',
+        click: 'allow'
+      })
+    )
   })
 })

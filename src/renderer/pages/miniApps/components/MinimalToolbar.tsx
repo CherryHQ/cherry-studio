@@ -280,7 +280,7 @@ const MinimalToolbar: FC<Props> = ({
   }, [setOpenLinkExternal, openLinkExternal])
 
   const handleOpenLink = useCallback(() => {
-    void ipcApi.request('system.shell.open_website', currentPageUrl)
+    void ipcApi.request('system.shell.open_external_website', currentPageUrl)
   }, [currentPageUrl])
 
   const handleAddressSubmit = useCallback(

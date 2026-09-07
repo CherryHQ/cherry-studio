@@ -20,6 +20,10 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import {
+  browserRuntimeNamesWithPermission,
+  resolveBrowserToolPermission
+} from '@main/ai/toolApproval/browserToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -358,6 +362,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
         onGuardCheck: async (toolName, args, cwd) => {
+          const browserPermission = resolveBrowserToolPermission(toolName)
+          if (browserPermission === 'deny')
+            return {
+              kind: 'deny',
+              ruleId: 'browser-tool-disabled',
+              reason: 'This browser tool is disabled in Browser settings.'
+            }
+          if (browserPermission === 'ask' && this.effectivePermissionMode() !== 'bypassPermissions')
+            return { kind: 'ask', reason: 'This browser tool requires user approval.' }
           const decision = await evaluateUserDataSqliteGuard({
             runtime: 'dsh',
             toolName,
@@ -674,7 +687,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
-      autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
+      autoApprovedTools: [
+        ...DSH_AUTO_APPROVED_BUILTIN_TOOLS,
+        ...DSH_AUTO_APPROVED_BRIDGED_TOOLS,
+        ...browserRuntimeNamesWithPermission('allow')
+      ],
       approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
       nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved

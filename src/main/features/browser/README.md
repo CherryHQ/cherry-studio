@@ -62,7 +62,10 @@ See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limit
 
 `AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP
 controllers borrow those guests and share actions with the standalone controller. Browser settings
-controls Agent access; bindings and manual browsing survive control-off. Ordinary pages use
+controls Agent access; bindings and manual browsing survive control-off. The Agent built-in tool catalog
+exposes a browser group opt-out. Old browser MCP bindings are excluded from the Agent server set;
+Browser settings owns per-tool ask/allow/deny permissions. Runtime approval gates enforce these
+permissions, and dispatch rechecks denial before executing queued actions. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
 lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and

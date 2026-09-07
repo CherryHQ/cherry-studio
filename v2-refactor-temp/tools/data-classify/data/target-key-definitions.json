@@ -13,6 +13,20 @@
       "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.browser.open_links_in_browser",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Open website links in shared built-in browser tabs"
+    },
+    {
+      "targetKey": "app.browser.tool_permissions",
+      "type": "PreferenceTypes.BrowserToolPermissions",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Browser tool permissions; unspecified tools require approval"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,

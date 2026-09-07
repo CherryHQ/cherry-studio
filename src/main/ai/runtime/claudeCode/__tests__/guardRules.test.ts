@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -577,5 +578,27 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         evaluate(makeCtx({ cwd, agentDataPath, input: { command: `cat ${path.join(root, 'outside.txt')}` } }))
       ).resolves.toBeUndefined()
     })
+  })
+})
+
+describe('Browser tool permissions', () => {
+  it('lets Full Access bypass ask while keeping disabled browser tools blocked', async () => {
+    const pref = application.get('PreferenceService')
+    await pref.set('app.browser.agent_control.enabled', true)
+    const context = makeCtx({
+      toolName: 'mcp__browser__click',
+      mountedServers: new Set(['browser']),
+      permissionMode: 'bypassPermissions'
+    })
+    await pref.set('app.browser.tool_permissions', { click: 'allow' })
+    expect(await evaluate(context)).toBeUndefined()
+    await pref.set('app.browser.tool_permissions', { click: 'ask' })
+    expect(await evaluate(context)).toBeUndefined()
+    expect(await evaluate({ ...context, permissionMode: 'default' })).toMatchObject({ effect: 'ask' })
+    await pref.set('app.browser.tool_permissions', { click: 'deny' })
+    expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    await pref.set('app.browser.tool_permissions', { click: 'allow' })
+    await pref.set('app.browser.agent_control.enabled', false)
+    expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
   })
 })

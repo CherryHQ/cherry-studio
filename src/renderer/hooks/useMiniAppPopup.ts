@@ -74,7 +74,7 @@ function openExternalMiniAppUrl(url: string) {
     // Fall through to openWebsite so the existing main-process URL guard handles it.
   }
 
-  void ipcApi.request('system.shell.open_website', url)
+  void ipcApi.request('system.shell.open_external_website', url)
 }
 
 /**

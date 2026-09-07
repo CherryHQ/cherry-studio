@@ -140,6 +140,48 @@ describe('buildPathRegistry', () => {
     )
   })
 
+  it('keeps Dia and Comet profiles separate from Chrome without creating external directories', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.browser.dia']).toBe(path.join(os.homedir(), 'Library/Application Support/Dia/User Data'))
+    expect(registry['external.browser.comet']).toBe(
+      process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData/Local'), 'Perplexity/Comet/User Data')
+        : path.join(os.homedir(), 'Library/Application Support/Comet')
+    )
+    for (const browser of ['dia', 'comet'] as const) {
+      expect(registry[`external.browser.${browser}`]).not.toBe(registry['external.browser.chrome'])
+      expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    }
+  })
+
+  it('locates standard Vivaldi, Opera and Chromium data in their platform directories', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue('/browser-owner')
+    vi.stubEnv('LOCALAPPDATA', '/local')
+    vi.stubEnv('APPDATA', '/roaming')
+    vi.stubEnv('XDG_CONFIG_HOME', '/config')
+    try {
+      const expected =
+        process.platform === 'darwin'
+          ? [
+              '/browser-owner/Library/Application Support/Vivaldi',
+              '/browser-owner/Library/Application Support/com.operasoftware.Opera',
+              '/browser-owner/Library/Application Support/Chromium'
+            ]
+          : process.platform === 'win32'
+            ? ['/local/Vivaldi/User Data', '/roaming/Opera Software/Opera Stable', '/local/Chromium/User Data']
+            : ['/config/vivaldi', '/config/opera', '/config/chromium']
+      const registry = buildPathRegistry()
+      expect(
+        (['vivaldi', 'opera', 'chromium'] as const).map((browser) => registry[`external.browser.${browser}`])
+      ).toEqual(expected.map((directory) => path.normalize(directory)))
+      for (const browser of ['vivaldi', 'opera', 'chromium'] as const)
+        expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))

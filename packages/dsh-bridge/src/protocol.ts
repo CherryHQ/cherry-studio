@@ -132,7 +132,10 @@ export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
-    result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
+    result:
+      | { kind: 'allow' }
+      | { kind: 'ask'; reason: string }
+      | { kind: 'deny'; ruleId: 'user-data-sqlite-write' | 'browser-tool-disabled'; reason: string }
   }
   'approval/ask': {
     params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }

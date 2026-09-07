@@ -27,6 +27,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
     data,
     error: historyError,
     isLoading,
+    isRefreshing,
     refetch
   } = useQuery('/browser-visits', { query: { search, offset, limit: 25 } })
   const { trigger: deleteVisit } = useMutation('DELETE', '/browser-visits/:id')
@@ -71,8 +72,8 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
           </p>
         )}
       </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain" aria-busy={isLoading}>
-        {isLoading ? (
+      <div className="min-h-0 overflow-y-auto overscroll-contain" aria-busy={isRefreshing}>
+        {isLoading && !data ? (
           <p role="status" className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-sm">
             <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
             {t('common.loading')}
@@ -117,7 +118,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={busy}
+                    disabled={busy || isRefreshing}
                     onClick={() =>
                       void run(async () => {
                         openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
@@ -132,7 +133,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={busy}
+                    disabled={busy || isRefreshing}
                     onClick={() =>
                       void run(async () => {
                         await deleteVisit({ params: { id: visit.id } })
@@ -152,13 +153,13 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
         <div className="flex gap-2">
           <Button
             variant="outline"
-            disabled={offset === 0 || busy || isLoading}
+            disabled={offset === 0 || busy || isRefreshing}
             onClick={() => setOffset(Math.max(0, offset - 25))}>
             {t('common.previous')}
           </Button>
           <Button
             variant="outline"
-            disabled={!data?.hasMore || busy || isLoading}
+            disabled={!data?.hasMore || busy || isRefreshing}
             onClick={() => setOffset(offset + 25)}>
             {t('common.next')}
           </Button>

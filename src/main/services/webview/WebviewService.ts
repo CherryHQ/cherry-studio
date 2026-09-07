@@ -5,7 +5,7 @@ import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { app, dialog, session, shell, webContents } from 'electron'
+import { app, dialog, session, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
@@ -43,9 +43,12 @@ interface ExportAnnotationsInput {
  */
 function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean) {
   webview.setWindowOpenHandler(({ url }) => {
-    if (isExternal) {
+    if (isExternal || application.get('PreferenceService').get('app.browser.open_links_in_browser')) {
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       }

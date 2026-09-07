@@ -93,7 +93,8 @@ vi.mock('electron', async () => {
   return {
     BrowserWindow: Window,
     BrowserView: View,
-    app: { isReady: vi.fn(() => true), whenReady: vi.fn(async () => undefined) },
+    app: Object.assign(new EventEmitter(), { isReady: vi.fn(() => true), whenReady: vi.fn(async () => undefined) }),
+    webContents: { getAllWebContents: vi.fn(() => []) },
     nativeTheme: Object.assign(new EventEmitter(), { shouldUseDarkColors: false })
   }
 })

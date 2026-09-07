@@ -1,3 +1,4 @@
+import type { BrowserToolName } from '@shared/ai/browserTools'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
@@ -31,6 +32,8 @@ export type PreferenceShortcutType = {
 
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
+
+export type BrowserToolPermissions = Partial<Record<BrowserToolName, 'ask' | 'allow' | 'deny'>>
 
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 

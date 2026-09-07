@@ -75,6 +75,17 @@ describe('hostToolsEnabled', () => {
 })
 
 describe('Agent browser mounting', () => {
+  it.each(AGENT_TYPES)('honors the built-in browser opt-out on %s', (type) => {
+    expect(
+      resolveMountedMcpServers(
+        { type, configuration: {}, disabledTools: ['mcp__browser'] },
+        {
+          channelLinked: false,
+          browserEnabled: true
+        }
+      ).has('browser')
+    ).toBe(false)
+  })
   it.each(AGENT_TYPES)('requires enabled control and an interactive open environment on %s', (type) => {
     expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('browser')).toBe(
       true

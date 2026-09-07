@@ -22,6 +22,7 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -125,6 +126,7 @@ const McpServersList: FC = () => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
 
     return mcpServers.filter((server) => {
+      if (isBrowserMcpServer(server)) return false
       if (filter === 'enabled' && !server.isActive) return false
       if (filter === 'disabled' && server.isActive) return false
       if (filter === 'stdio' && server.type !== 'stdio') return false

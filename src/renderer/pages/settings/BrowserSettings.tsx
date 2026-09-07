@@ -7,8 +7,15 @@ import { useTranslation } from 'react-i18next'
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
 import { BrowserHistoryDialog } from './BrowserSettings/BrowserHistoryDialog'
 import { BrowserImportDialog } from './BrowserSettings/BrowserImportDialog'
+import { BrowserToolPermissionsDialog } from './BrowserSettings/BrowserToolPermissionsDialog'
 
 const sections = [
+  {
+    kind: 'permissions',
+    title: 'settings.browser.permissions',
+    help: 'settings.browser.permissionsHelp',
+    action: 'settings.browser.manage'
+  },
   {
     kind: 'import',
     title: 'settings.browser.import',
@@ -26,10 +33,11 @@ const sections = [
 
 export function BrowserSettings() {
   const { t } = useTranslation()
+  const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
-  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
+  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | 'permissions' | null>(null)
 
   return (
     <SettingsContentColumn>
@@ -61,6 +69,32 @@ export function BrowserSettings() {
             }}
           />
         </SettingRow>
+        <SettingRow className="mt-5 flex-nowrap items-start">
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="browser-open-links">{t('settings.browser.openLinks')}</Label>
+            <p id="browser-open-links-help" className="max-w-xl text-muted-foreground text-sm leading-relaxed">
+              {t('settings.browser.openLinksHelp')}
+            </p>
+          </div>
+          <Switch
+            id="browser-open-links"
+            aria-describedby="browser-open-links-help"
+            className="mt-0.5"
+            checked={openLinks}
+            disabled={saving}
+            onCheckedChange={async (value) => {
+              setSaving(true)
+              setError(false)
+              try {
+                await setOpenLinks(value)
+              } catch {
+                setError(true)
+              } finally {
+                setSaving(false)
+              }
+            }}
+          />
+        </SettingRow>
         {error && (
           <p role="alert" className="mt-2 text-error text-sm">
             {t('settings.browser.error')}
@@ -84,7 +118,9 @@ export function BrowserSettings() {
               </DialogTrigger>
             </SettingRow>
             {dialog === kind &&
-              (kind === 'import' ? (
+              (kind === 'permissions' ? (
+                <BrowserToolPermissionsDialog />
+              ) : kind === 'import' ? (
                 <BrowserImportDialog onDone={() => setDialog(null)} />
               ) : kind === 'history' ? (
                 <BrowserHistoryDialog onOpenPage={() => setDialog(null)} />

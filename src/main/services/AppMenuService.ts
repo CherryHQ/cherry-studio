@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
@@ -15,7 +16,9 @@ import {
   resolveMenu
 } from '@shared/utils/command'
 import type { BrowserWindow } from 'electron'
-import { app, Menu, shell } from 'electron'
+import { app, Menu } from 'electron'
+
+const logger = loggerService.withContext('AppMenuService')
 
 const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
 
@@ -150,28 +153,40 @@ export class AppMenuService extends BaseService {
             type: 'custom',
             label: t('appMenu.website'),
             click: () => {
-              void shell.openExternal('https://cherry-ai.com')
+              void application
+                .get('MainWindowService')
+                .openWebsite('https://cherry-ai.com')
+                .catch((error) => logger.warn('Failed to open website', { error }))
             }
           },
           {
             type: 'custom',
             label: t('appMenu.documentation'),
             click: () => {
-              void shell.openExternal('https://cherry-ai.com/docs')
+              void application
+                .get('MainWindowService')
+                .openWebsite('https://cherry-ai.com/docs')
+                .catch((error) => logger.warn('Failed to open website', { error }))
             }
           },
           {
             type: 'custom',
             label: t('appMenu.feedback'),
             click: () => {
-              void shell.openExternal('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
+              void application
+                .get('MainWindowService')
+                .openWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
+                .catch((error) => logger.warn('Failed to open website', { error }))
             }
           },
           {
             type: 'custom',
             label: t('appMenu.releases'),
             click: () => {
-              void shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
+              void application
+                .get('MainWindowService')
+                .openWebsite('https://github.com/CherryHQ/cherry-studio/releases')
+                .catch((error) => logger.warn('Failed to open website', { error }))
             }
           }
         ]

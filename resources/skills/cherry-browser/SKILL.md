@@ -9,7 +9,8 @@ version: 1.0.0
 Use the live `mcp__browser__*` tools to operate the browser in this Agent Session's
 right pane. Read their current schemas; names may be adapted by the runtime. If
 these tools are missing, explain that the user can enable Agent control in Browser
-settings. A skill cannot grant access or override session tool restrictions.
+settings and enable Browser in the Agent’s built-in tools. Per-tool permissions are
+configured in Browser settings. A skill cannot grant access or override session tool restrictions.
 
 ## Observe, act, verify
 

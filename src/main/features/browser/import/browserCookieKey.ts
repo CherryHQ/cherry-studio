@@ -12,8 +12,13 @@ type ChromiumBrowser = Exclude<BrowserImportSource['browser'], 'firefox'>
 const storageNames = {
   chrome: { mac: 'Chrome', linux: 'Chrome', application: 'chrome' },
   edge: { mac: 'Microsoft Edge', linux: 'Chromium', application: 'chromium' },
-  brave: { mac: 'Brave', linux: 'Brave', application: 'brave' }
-} satisfies Record<ChromiumBrowser, { mac: string; linux: string; application: string }>
+  brave: { mac: 'Brave', linux: 'Brave', application: 'brave' },
+  dia: { mac: 'Dia' },
+  comet: { mac: 'Comet' },
+  vivaldi: { mac: 'Vivaldi', linux: 'Chrome', application: 'chrome' },
+  opera: { mac: 'Opera', linux: 'Chromium', application: 'chromium' },
+  chromium: { mac: 'Chromium', linux: 'Chromium', application: 'chromium' }
+} satisfies Record<ChromiumBrowser, { mac: string; linux?: string; application?: string }>
 
 async function readSecret(command: string, args: string[], signal: AbortSignal, input?: string): Promise<Buffer> {
   signal.throwIfAborted()
@@ -74,6 +79,7 @@ export async function readBrowserCookiePassword(browser: ChromiumBrowser, signal
     return password
   }
 
+  if (!('application' in names)) throw new CookieImportError('key_store_unavailable')
   const secretService = () => readSecret('secret-tool', ['lookup', 'application', names.application], signal)
   const kwallet = async () => {
     const version = process.env.KDE_SESSION_VERSION === '6' ? '6' : '5'

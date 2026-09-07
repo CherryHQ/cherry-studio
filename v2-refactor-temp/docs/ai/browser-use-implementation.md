@@ -723,7 +723,7 @@ Two import paths (the settings dialog defaults to the detected browser):
    and Netscape `cookies.txt` (what curl, yt-dlp and the "Get cookies.txt" extensions emit). Works on every
    OS and every browser, including ones we cannot decrypt.
 2. **Profile read** from a detected installed browser: Chromium family (Chrome, Edge, Brave, Chromium,
-   Arc) and Firefox. Detect support separately for history and cookies: encrypted cookies must not
+   Vivaldi, Opera, Dia, Comet) and Firefox. Detect support separately for history and cookies: encrypted cookies must not
    disable an otherwise readable history source. Use a consistent read-only SQLite snapshot (including
    WAL state), or report that the browser must be closed; copying only the main database can omit visits.
    Decrypt cookies only through a supported, user-authorized path, then apply.
@@ -753,7 +753,7 @@ export interface ImportedCookie {
 }
 export interface ImportSource {
   id: string            // "chrome:Default", "firefox:abcd.default-release", "file"
-  browser: 'chrome' | 'edge' | 'brave' | 'chromium' | 'arc' | 'firefox' | 'file'
+  browser: 'chrome' | 'edge' | 'brave' | 'chromium' | 'vivaldi' | 'opera' | 'dia' | 'comet' | 'firefox' | 'file'
   profileName: string
   capabilities: Partial<Record<'cookies' | 'localStorage' | 'history', {
     supported: boolean
@@ -790,7 +790,7 @@ marks httpOnly. sameSite defaults to `unspecified`.
 
 | OS | Profile root | Cookie file |
 |---|---|---|
-| macOS | `~/Library/Application Support/{Google/Chrome, Microsoft Edge, BraveSoftware/Brave-Browser, Chromium, Arc/User Data}/<Profile>` | `<Profile>/Network/Cookies` (older builds: `<Profile>/Cookies`) |
+| macOS | `~/Library/Application Support/{Google/Chrome, Microsoft Edge, BraveSoftware/Brave-Browser, Chromium, Vivaldi, Dia/User Data, Comet}/<Profile>` | `<Profile>/Network/Cookies` (older builds: `<Profile>/Cookies`) |
 | Windows | `%LOCALAPPDATA%\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium}\User Data\<Profile>` | same |
 | Linux | `~/.config/{google-chrome, microsoft-edge, BraveSoftware/Brave-Browser, chromium}/<Profile>` | same |
 
@@ -1052,7 +1052,7 @@ intentionally excluded under this workspace's local validation override.
 
 ### 12.7 Delivered import support and validation
 
-The implementation discovers standard Chrome, Edge, Brave and Firefox profile directories on the
+The implementation discovers standard Chrome, Edge, Brave, Vivaldi, Opera, Chromium and Firefox profile directories on the
 current platform. Profile history uses SQLite's online backup API, including committed WAL data,
 and bounded 500-visit transactions. Source databases are opened read-only and private temporary
 snapshots are removed on success, failure and cancellation. Search uses literal URL/title matching
@@ -1060,7 +1060,7 @@ with a time/id pagination index; it does not add an FTS engine.
 
 | Source | History | Login state |
 |---|---|---|
-| Chrome / Edge / Brave standard profiles | Visit timestamps and stable source-key deduplication | Plaintext cookies and the encrypted formats below; partitioned cookies are skipped |
+| Chrome / Edge / Brave / Vivaldi / Opera / Chromium standard profiles; Dia on macOS and Comet on macOS/Windows | Visit timestamps and stable source-key deduplication | Plaintext cookies and the encrypted formats below; partitioned cookies are skipped |
 | Firefox standard profiles | Places visit timestamps and stable source-key deduplication | Ordinary cookies; container/partitioned origin attributes are skipped |
 | JSON storage state | Not supported | Cookies and selected origins' localStorage; partitioned cookies are skipped |
 | Netscape cookies file | Not supported | Host-only/domain scope, secure/HTTP-only flags and expiry preserved |
@@ -1108,9 +1108,55 @@ key refusal, helper cancellation/exit, DPAPI stdin framing, source preservation 
 A synthetic native DPAPI round-trip test runs only on Windows. These tests do not prove every
 installed browser/OS combination; unsupported input is reported without claiming complete migration.
 
+Dia and Comet retain separate browser/source IDs even when their profile names are identical to
+Chrome's. Chromium profile choices use the display name and available account identifier from
+`Local State` → `profile.info_cache`; missing or malformed metadata falls back to the directory name.
+Identical labels include the profile directory to distinguish them. Source IDs remain directory-based
+so renaming a profile does not break selection or history deduplication. Dia reads `~/Library/Application Support/Dia/User Data`; Comet reads
+`~/Library/Application Support/Comet` on macOS and `%LOCALAPPDATA%/Perplexity/Comet/User Data` on
+Windows. macOS uses `Dia Safe Storage` / account `Dia` and `Comet Safe Storage` / account `Comet`;
+Windows reads Comet's own `Local State` for DPAPI keys. No Chrome-key fallback is attempted.
+Dia Windows and both Linux sources are not advertised until native layouts and key storage are verified.
+The macOS catalog agrees with [SweetCookieKit's browser metadata](https://github.com/steipete/SweetCookieKit/blob/main/Sources/SweetCookieKit/BrowserCatalog.swift).
+Comet's installed macOS bundle and profile layout were inspected without reading cookie values or keys.
+Synthetic tests cover source separation, history import, per-browser Keychain selection and Windows key
+selection; native Dia import and Windows Comet import have not been exercised on this Mac.
+
+Vivaldi, Opera and Chromium use separate source identities on macOS, Windows and Linux, with the
+same profile display-name/account presentation. Opera discovery checks both its root-level data
+(`opera:root`) and `Default`/`Profile N` subdirectories; arbitrary cache directories are not profiles.
+Windows Opera uses `%APPDATA%/Opera Software/Opera Stable`, while Vivaldi and Chromium use their
+respective `%LOCALAPPDATA%/<browser>/User Data` directories. Linux uses the XDG config directory.
+macOS key names are Vivaldi, Opera and Chromium; Linux Vivaldi uses Chrome/chrome and Opera uses
+Chromium/chromium for KWallet/Secret Service. These native layouts and key identities agree with
+[yt-dlp's browser settings](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/cookies.py) and
+[browser_cookie3's adapters](https://github.com/borisbabic/browser_cookie3/blob/master/browser_cookie3/__init__.py).
+Tests use synthetic profiles and key helpers; these three browsers are not installed on the validation
+Mac. Arc is intentionally excluded. Custom, portable, Snap and Flatpak profile roots remain outside
+automatic discovery; portable file import is still available.
+
 Format references: [Chromium macOS OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_mac.mm),
 [Linux OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_linux.cc),
 [Windows OSCrypt](https://raw.githubusercontent.com/chromium/chromium/131.0.6778.85/components/os_crypt/sync/os_crypt_win.cc),
 [Chrome app-bound encryption](https://security.googleblog.com/2024/07/improving-security-of-chrome-cookies-on.html),
 [KWallet query](https://github.com/KDE/kwallet/tree/master/src/runtime/kwallet-query) and
 [Firefox expiry migration](https://github.com/mozilla-firefox/firefox/commit/5869af852cd20425165837f6c2d9971f3efba83d).
+
+
+## 13. Browser feature settings
+
+Browser is an Agent built-in capability rather than a selectable third-party MCP server. Its per-Agent
+group switch uses the existing `disabledTools` opt-out (`mcp__browser`). The runtime excludes legacy
+in-memory browser bindings from the Agent MCP set, including when browser control is off.
+
+Browser settings owns `app.browser.tool_permissions`: each visible-host tool can ask, allow or deny.
+The default is ask; Full Access skips approval but does not enable disabled tools. Existing runtime approval UIs present requests in other modes. Claude
+and Pi re-evaluate approval at call time. DSH’s host guard tightens approval live; relaxing to allow is
+included in its next connection snapshot. Tool dispatch also rechecks denied tools and the Agent switch
+before queued work executes. Disabling Agent control leaves manual browsing available.
+
+`app.browser.open_links_in_browser` defaults false. When enabled, ordinary HTTP(S) website links open
+`/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
+IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
+external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
+their existing handling.

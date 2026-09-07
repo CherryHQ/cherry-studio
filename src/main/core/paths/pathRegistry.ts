@@ -285,6 +285,25 @@ export function buildPathRegistry() {
             'BraveSoftware/Brave-Browser/User Data'
           )
         : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'BraveSoftware/Brave-Browser'),
+    'external.browser.vivaldi': isMac
+      ? path.join(sysHome, 'Library/Application Support/Vivaldi')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Vivaldi/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'vivaldi'),
+    'external.browser.opera': isMac
+      ? path.join(sysHome, 'Library/Application Support/com.operasoftware.Opera')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Opera Software/Opera Stable')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'opera'),
+    'external.browser.chromium': isMac
+      ? path.join(sysHome, 'Library/Application Support/Chromium')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Chromium/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'chromium'),
+    'external.browser.dia': path.join(sysHome, 'Library/Application Support/Dia/User Data'),
+    'external.browser.comet': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Perplexity/Comet/User Data')
+      : path.join(sysHome, 'Library/Application Support/Comet'),
     'external.browser.firefox': isMac
       ? path.join(sysHome, 'Library/Application Support/Firefox/Profiles')
       : isWin

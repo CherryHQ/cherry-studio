@@ -1,8 +1,10 @@
-import { access, readdir } from 'node:fs/promises'
+import { access, readdir, readFile } from 'node:fs/promises'
+import { platform } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import type { BrowserImportSource } from '@shared/ipc/schemas/browserImport'
+import { type BrowserImportSource, BrowserImportSourceSchema } from '@shared/ipc/schemas/browserImport'
+import * as z from 'zod'
 
 export interface BrowserProfile extends BrowserImportSource {
   directory: string
@@ -23,36 +25,75 @@ async function existingFile(directory: string, candidates: string[]): Promise<st
   return undefined
 }
 
-export async function listBrowserProfiles(): Promise<BrowserProfile[]> {
+const profileInfoSchema = z
+  .object({
+    name: z.string().trim().catch(''),
+    user_name: z.string().trim().catch(''),
+    gaia_name: z.string().trim().catch('')
+  })
+  .catch({ name: '', user_name: '', gaia_name: '' })
+const localStateSchema = z.object({
+  profile: z.object({ info_cache: z.record(z.string(), profileInfoSchema) })
+})
+
+async function readProfileInfo(file: string): Promise<Record<string, z.infer<typeof profileInfoSchema>>> {
+  try {
+    return localStateSchema.parse(JSON.parse(await readFile(file, 'utf8'))).profile.info_cache
+  } catch {
+    return {}
+  }
+}
+
+const platformRestrictions: Partial<Record<BrowserImportSource['browser'], readonly NodeJS.Platform[]>> = {
+  dia: ['darwin'],
+  comet: ['darwin', 'win32']
+}
+
+async function scanBrowserProfiles(browser: BrowserImportSource['browser']): Promise<BrowserProfile[]> {
+  const root = application.getPath(`external.browser.${browser}`)
+  let entries
+  try {
+    entries = await readdir(root, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const isFirefox = browser === 'firefox'
+  const profileInfo = isFirefox
+    ? {}
+    : await readProfileInfo(application.getPath(`external.browser.${browser}`, 'Local State'))
+  const directories = entries
+    .filter((entry) => entry.isDirectory() && (isFirefox || /^(Default|Profile \d+)$/.test(entry.name)))
+    .map((entry) => entry.name)
+  if (browser === 'opera') directories.unshift('')
+
+  const historyCandidates = isFirefox ? ['places.sqlite'] : ['History']
+  const cookieCandidates = isFirefox ? ['cookies.sqlite'] : ['Network/Cookies', 'Cookies']
   const profiles: BrowserProfile[] = []
-  for (const browser of ['chrome', 'edge', 'brave', 'firefox'] as const) {
-    const root = application.getPath(`external.browser.${browser}`)
-    let entries
-    try {
-      entries = await readdir(root, { withFileTypes: true })
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || (browser !== 'firefox' && !/^(Default|Profile \d+)$/.test(entry.name))) continue
-      const directory = path.join(root, entry.name)
-      const historyFile = await existingFile(directory, browser === 'firefox' ? ['places.sqlite'] : ['History'])
-      const cookiesFile = await existingFile(
-        directory,
-        browser === 'firefox' ? ['cookies.sqlite'] : ['Network/Cookies', 'Cookies']
-      )
-      if (!historyFile && !cookiesFile) continue
-      profiles.push({
-        id: `${browser}:${entry.name}`,
-        browser,
-        profile: entry.name,
-        directory,
-        historyFile,
-        cookiesFile,
-        history: !!historyFile,
-        cookies: !cookiesFile ? 'unavailable' : browser === 'firefox' ? 'supported' : 'requires_authorization'
-      })
-    }
+  for (const name of directories) {
+    const directory = path.join(root, name)
+    const historyFile = await existingFile(directory, historyCandidates)
+    const cookiesFile = await existingFile(directory, cookieCandidates)
+    if (!historyFile && !cookiesFile) continue
+    profiles.push({
+      id: `${browser}:${name || 'root'}`,
+      browser,
+      profile: name || 'Opera',
+      displayName: profileInfo[name]?.name || profileInfo[name]?.gaia_name || undefined,
+      account: profileInfo[name]?.user_name || undefined,
+      directory,
+      historyFile,
+      cookiesFile,
+      history: !!historyFile,
+      cookies: !cookiesFile ? 'unavailable' : isFirefox ? 'supported' : 'requires_authorization'
+    })
   }
   return profiles
+}
+
+export async function listBrowserProfiles(): Promise<BrowserProfile[]> {
+  const currentPlatform = platform()
+  const browsers = BrowserImportSourceSchema.shape.browser.options.filter(
+    (browser) => platformRestrictions[browser]?.includes(currentPlatform) ?? true
+  )
+  return (await Promise.all(browsers.map(scanBrowserProfiles))).flat()
 }

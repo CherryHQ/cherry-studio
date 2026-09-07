@@ -2,8 +2,10 @@ import * as z from 'zod'
 
 export const BrowserImportSourceSchema = z.object({
   id: z.string(),
-  browser: z.enum(['chrome', 'edge', 'brave', 'firefox']),
+  browser: z.enum(['chrome', 'edge', 'brave', 'firefox', 'dia', 'comet', 'vivaldi', 'opera', 'chromium']),
   profile: z.string(),
+  displayName: z.string().optional(),
+  account: z.string().optional(),
   history: z.boolean(),
   cookies: z.enum(['supported', 'requires_authorization', 'unavailable'])
 })

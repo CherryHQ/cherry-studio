@@ -20,7 +20,17 @@ import { Check, ChevronRight, FileUp, LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const browserNames = { chrome: 'Google Chrome', edge: 'Microsoft Edge', brave: 'Brave', firefox: 'Firefox' }
+const browserNames = {
+  chrome: 'Google Chrome',
+  edge: 'Microsoft Edge',
+  brave: 'Brave',
+  firefox: 'Firefox',
+  dia: 'Dia',
+  comet: 'Comet',
+  vivaldi: 'Vivaldi',
+  opera: 'Opera',
+  chromium: 'Chromium'
+} satisfies Record<BrowserImportSource['browser'], string>
 const reasonKeys = {
   expired: 'settings.browser.cookieExpired',
   partitioned: 'settings.browser.cookiePartitioned',
@@ -32,6 +42,10 @@ const reasonKeys = {
   decryption_failed: 'settings.browser.cookieDecryptionFailed',
   source_unavailable: 'settings.browser.cookieSourceUnavailable'
 } as const satisfies Record<BrowserImportReason, string>
+
+function profileLabel(source: BrowserImportSource): string {
+  return [...new Set([source.displayName || source.profile, source.account].filter(Boolean))].join(' · ')
+}
 
 export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
@@ -190,6 +204,9 @@ export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
                   ))}
                 </SelectContent>
               </Select>
+              {profiles.length === 1 && source && (source.displayName || source.account) && (
+                <p className="break-words text-muted-foreground text-sm">{profileLabel(source)}</p>
+              )}
               {profiles.length > 1 && (
                 <div className="space-y-2 pt-2">
                   <Label htmlFor="browser-import-profile">{t('settings.browser.profile')}</Label>
@@ -201,11 +218,18 @@ export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {profiles.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.profile}
-                        </SelectItem>
-                      ))}
+                      {profiles.map((item) => {
+                        const label = profileLabel(item)
+                        const duplicate = profiles.some(
+                          (other) => other.id !== item.id && profileLabel(other) === label
+                        )
+                        return (
+                          <SelectItem key={item.id} value={item.id}>
+                            {label}
+                            {duplicate ? ` (${item.profile})` : ''}
+                          </SelectItem>
+                        )
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

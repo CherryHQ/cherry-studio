@@ -30,7 +30,7 @@ import {
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
@@ -1363,7 +1363,10 @@ export class WindowManager extends BaseService {
     // Intercept external links: open in system browser
     window.webContents.setWindowOpenHandler(({ url }) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       }
       return { action: 'deny' }
     })
@@ -1373,7 +1376,10 @@ export class WindowManager extends BaseService {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
+          void application
+            .get('MainWindowService')
+            .openWebsite(url)
+            .catch((error) => logger.warn('Failed to open website', { error }))
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window

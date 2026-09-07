@@ -650,3 +650,25 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     })
   })
 })
+
+describe('Browser tool permissions', () => {
+  it('rechecks permission changes on an existing gate, including Full Access', async () => {
+    const pref = application.get('PreferenceService')
+    await pref.set('app.browser.agent_control.enabled', true)
+    let mode: AgentPermissionMode = 'bypassPermissions'
+    const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+    const call = () => handler(toolEvent('mcp__browser__click', {}), extCtx)
+    await pref.set('app.browser.tool_permissions', { click: 'allow' })
+    await expect(call()).resolves.toBeUndefined()
+    await pref.set('app.browser.tool_permissions', { click: 'deny' })
+    await expect(call()).resolves.toMatchObject({ block: true })
+    await pref.set('app.browser.tool_permissions', { click: 'ask' })
+    await expect(call()).resolves.toBeUndefined()
+    mode = 'default'
+    const pending = call()
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+})

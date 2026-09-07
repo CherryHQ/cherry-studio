@@ -1,5 +1,5 @@
 import * as childProcess from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import * as os from 'node:os'
 import path from 'node:path'
 
@@ -64,7 +64,12 @@ describe('Browser encryption keys', () => {
   it.each([
     ['chrome', 'Chrome'],
     ['edge', 'Microsoft Edge'],
-    ['brave', 'Brave']
+    ['brave', 'Brave'],
+    ['dia', 'Dia'],
+    ['comet', 'Comet'],
+    ['vivaldi', 'Vivaldi'],
+    ['opera', 'Opera'],
+    ['chromium', 'Chromium']
   ] as const)('reads only the %s Safe Storage item and preserves password whitespace', async (browser, name) => {
     respond = () => "process.stdout.write(' password with spaces \\n')"
     expect((await readBrowserCookiePassword(browser, new AbortController().signal)).toString()).toBe(
@@ -75,10 +80,31 @@ describe('Browser encryption keys', () => {
     ])
   })
 
-  it('uses the browser-specific Secret Service attributes on Linux', async () => {
+  it.each([
+    ['brave', 'brave'],
+    ['vivaldi', 'chrome'],
+    ['opera', 'chromium'],
+    ['chromium', 'chromium']
+  ] as const)('uses the %s Secret Service identity on Linux', async (browser, applicationName) => {
     vi.mocked(os.platform).mockReturnValue('linux')
-    expect((await readBrowserCookiePassword('brave', new AbortController().signal)).toString()).toBe('fixture-password')
-    expect(commands).toEqual([{ command: 'secret-tool', args: ['lookup', 'application', 'brave'] }])
+    expect((await readBrowserCookiePassword(browser, new AbortController().signal)).toString()).toBe('fixture-password')
+    expect(commands).toEqual([{ command: 'secret-tool', args: ['lookup', 'application', applicationName] }])
+  })
+
+  it.each([
+    ['vivaldi', 'Chrome'],
+    ['opera', 'Chromium'],
+    ['chromium', 'Chromium']
+  ] as const)('uses the %s KWallet entry on Linux', async (browser, keyringName) => {
+    vi.mocked(os.platform).mockReturnValue('linux')
+    vi.stubEnv('XDG_CURRENT_DESKTOP', 'KDE')
+    respond = (command, args) =>
+      command === 'dbus-send'
+        ? "process.stdout.write('wallet')"
+        : args.includes(`${keyringName} Safe Storage`) && args.includes(`${keyringName} Keys`)
+          ? "process.stdout.write('correct-key')"
+          : 'process.exit(1)'
+    expect((await readBrowserCookiePassword(browser, new AbortController().signal)).toString()).toBe('correct-key')
   })
 
   it.each(['5', '6'])('reads the configured KDE %s wallet instead of assuming its name', async (version) => {
@@ -173,6 +199,27 @@ describe('Browser encryption keys', () => {
     expect(commands[0].args.join(' ')).toContain('DataProtectionScope]::CurrentUser')
     expect(commands[0].args).toContain('-NoProfile')
   })
+
+  it.each(['comet', 'vivaldi', 'opera', 'chromium'] as const)(
+    'uses %s Local State instead of another browser key on Windows',
+    async (selectedBrowser) => {
+      vi.mocked(os.platform).mockReturnValue('win32')
+      vi.mocked(application.getPath).mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+      for (const browser of ['chrome', selectedBrowser]) {
+        await mkdir(path.join(root, `external.browser.${browser}`))
+        await writeFile(
+          path.join(root, `external.browser.${browser}`, 'Local State'),
+          JSON.stringify({
+            os_crypt: { encrypted_key: Buffer.from(`DPAPI${browser}`).toString('base64') }
+          })
+        )
+      }
+      const key = Buffer.alloc(32, 17)
+      respond = () =>
+        `let input = ''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => { if (input !== '${Buffer.from(selectedBrowser).toString('base64')}') process.exit(1); process.stdout.write('${key.toString('base64')}') })`
+      expect(await readWindowsCookieKey(selectedBrowser, new AbortController().signal)).toEqual(key)
+    }
+  )
 
   it('rejects missing, malformed and app-bound-only Local State without invoking DPAPI', async () => {
     for (const state of [

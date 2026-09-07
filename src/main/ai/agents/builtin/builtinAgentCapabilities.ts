@@ -13,6 +13,7 @@
 
 import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
@@ -99,12 +100,13 @@ export function hostToolsEnabled(
  * and the tool-approval policy derived from it cannot disagree.
  */
 export function resolveMountedMcpServers(
-  agent: Pick<AgentEntity, 'type' | 'configuration'>,
+  agent: Pick<AgentEntity, 'type' | 'configuration' | 'disabledTools'>,
   { channelLinked, browserEnabled = false }: { channelLinked: boolean; browserEnabled?: boolean }
 ): ReadonlySet<string> {
   const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
   if (resolveAgentCapabilities(agent).environment === 'open') {
-    if (browserEnabled && !channelLinked) mounted.add(CHERRY_MCP_SERVER.BROWSER)
+    if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
+      mounted.add(CHERRY_MCP_SERVER.BROWSER)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
     mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)

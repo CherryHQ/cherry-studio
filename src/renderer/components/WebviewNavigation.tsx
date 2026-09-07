@@ -268,7 +268,7 @@ export function WebviewNavigation({
   }, [onReload, target.id, webviewRef])
 
   const handleOpenExternal = useCallback(() => {
-    void ipcApi.request('system.shell.open_website', currentPageUrl)
+    void ipcApi.request('system.shell.open_external_website', currentPageUrl)
   }, [currentPageUrl])
 
   const navigateToAddress = useCallback(

@@ -6,6 +6,7 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { Check, ExternalLink, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -25,6 +26,7 @@ const BuiltinMcpServerList: FC = () => {
     const keyword = searchText.trim().toLowerCase()
 
     return PRESET_MCP_SERVERS.filter((server) => {
+      if (isBrowserMcpServer(server)) return false
       const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
       if (filter === 'installed' && !isInstalled) return false
