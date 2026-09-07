@@ -101,7 +101,9 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
   const contexts: Context[] = []
   const events: AgentSessionEvent[] = []
   session.subscribe((event) => events.push(event))
-  session.agent.streamFn = (_model, context) => {
+  // pi-agent-core resolves its own @earendil-works/pi-ai copy, so its AssistantMessageEventStream
+  // is a nominally distinct class from ours; the runtime object is the same shape.
+  session.agent.streamFn = ((_model: Model<'openai-completions'>, context: Context) => {
     contexts.push(structuredClone(context))
     const message = responses[contexts.length - 1]
     if (!message) throw new Error('Unexpected extra provider request')
@@ -110,7 +112,7 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     stream.push({ type: 'done', reason: message.stopReason, message })
     stream.end()
     return stream
-  }
+  }) as unknown as typeof session.agent.streamFn
   return { session, contexts, events }
 }
 
