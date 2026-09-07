@@ -35,7 +35,16 @@ describe('OpenAI catalog', () => {
         input: { currency: 'USD', perMillionTokens: 10 },
         cacheRead: { currency: 'USD', perMillionTokens: 1 },
         cacheWrite: { currency: 'USD', perMillionTokens: 12.5 },
-        output: { currency: 'USD', perMillionTokens: 50 }
+        output: { currency: 'USD', perMillionTokens: 50 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 20 },
+            cacheRead: { currency: 'USD', perMillionTokens: 2 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 25 },
+            output: { currency: 'USD', perMillionTokens: 75 }
+          }
+        ]
       },
       parameterSupport: {
         frequencyPenalty: false,
@@ -61,6 +70,31 @@ describe('OpenAI catalog', () => {
       }
     })
     expect(loader.findOverride('openai', 'gpt-6-astra')).toBeNull()
+  })
+
+  it('offers GPT-6 Astra through ChatGPT Codex with its subscription limits and controls', () => {
+    expect(loader.findOverride('openai-codex', 'gpt-6-astra')).toMatchObject({
+      apiModelId: 'gpt-6-astra',
+      endpointTypes: ['openai-responses'],
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      modelId: 'gpt-6-astra',
+      providerId: 'openai-codex',
+      reasoningContracts: {
+        'openai-responses': {
+          support: {
+            controls: [
+              {
+                default: 'low',
+                kind: 'effort',
+                values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+              }
+            ],
+            defaultEffort: 'low'
+          }
+        }
+      },
+      supportsFastMode: true
+    })
   })
 
   it('enables OpenAI web search for GPT-6 Astra', () => {

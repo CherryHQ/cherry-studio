@@ -11,7 +11,10 @@ import { describe, expect, it } from 'vitest'
  * That restriction is a fact about OpenAI's own models, so it stays keyed on
  * the model id.
  */
-async function capture(modelId: string, options: { includeOnly?: boolean; withoutLogprobs?: boolean } = {}) {
+async function capture(
+  modelId: string,
+  options: { includeOnly?: boolean; reasoningEffort?: string; withoutLogprobs?: boolean } = {}
+) {
   let body: any
   const model = createOpenAI({
     apiKey: 'sk-test',
@@ -38,7 +41,7 @@ async function capture(modelId: string, options: { includeOnly?: boolean; withou
     topP: 0.9,
     providerOptions: {
       openai: {
-        reasoningEffort: 'low',
+        reasoningEffort: options.reasoningEffort ?? 'low',
         forceReasoning: true,
         store: false,
         ...(options.withoutLogprobs
@@ -73,13 +76,24 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     }
   )
 
+  it('sends Ultra reasoning for GPT-6 Astra', async () => {
+    const { body, warnings } = await capture('gpt-6-astra', {
+      reasoningEffort: 'ultra',
+      withoutLogprobs: true
+    })
+
+    expect(body.reasoning).toEqual({ effort: 'ultra' })
+    expect(warnings).not.toContainEqual(expect.objectContaining({ feature: 'reasoningEffort' }))
+  })
+
   it('removes top_logprobs for GPT-6 Astra', async () => {
     const { body, warnings } = await capture('gpt-6-astra')
 
     expect(body.top_logprobs).toBeUndefined()
     expect(warnings).toContainEqual({
-      type: 'other',
-      message: 'topLogprobs is not supported for GPT-6 Astra'
+      type: 'unsupported',
+      feature: 'logprobs',
+      details: 'logprobs is not supported for reasoning models'
     })
   })
 
@@ -90,8 +104,9 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     expect(body.include).toEqual(expect.arrayContaining(['file_search_call.results', 'reasoning.encrypted_content']))
     expect(body.include).not.toContain('message.output_text.logprobs')
     expect(warnings).toContainEqual({
-      type: 'other',
-      message: 'topLogprobs is not supported for GPT-6 Astra'
+      type: 'unsupported',
+      feature: 'logprobs',
+      details: 'logprobs is not supported for reasoning models'
     })
   })
 
@@ -101,8 +116,9 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     expect(body.top_logprobs).toBeUndefined()
     expect(body.include).toEqual(['reasoning.encrypted_content'])
     expect(warnings).not.toContainEqual({
-      type: 'other',
-      message: 'topLogprobs is not supported for GPT-6 Astra'
+      type: 'unsupported',
+      feature: 'logprobs',
+      details: 'logprobs is not supported for reasoning models'
     })
   })
 })

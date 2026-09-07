@@ -13,7 +13,7 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { CANONICAL_PARAM_KEY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -399,12 +399,23 @@ export const ParameterSupportSchema = z.object({
  * - perImage: DALL-E (per-image), Midjourney (per-image)
  * - perMinute: Whisper, ElevenLabs (per-minute audio billing)
  */
-export const ModelPricingSchema = z.object({
+const ModelPricingObjectSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
 
   cacheRead: PricePerTokenSchema.optional(),
   cacheWrite: PricePerTokenSchema.optional(),
+  inputTokenTiers: z
+    .array(
+      z.object({
+        minInputTokens: z.number().int().positive().refine(Number.isSafeInteger),
+        input: PricePerTokenSchema,
+        output: PricePerTokenSchema,
+        cacheRead: PricePerTokenSchema.optional(),
+        cacheWrite: PricePerTokenSchema.optional()
+      })
+    )
+    .optional(),
 
   perImage: z
     .object({
@@ -421,6 +432,45 @@ export const ModelPricingSchema = z.object({
     })
     .optional()
 })
+
+function validateInputTokenPricingTiers(
+  pricing: Partial<z.infer<typeof ModelPricingObjectSchema>>,
+  ctx: z.RefinementCtx
+): void {
+  for (let index = 1; index < (pricing.inputTokenTiers?.length ?? 0); index++) {
+    if (pricing.inputTokenTiers![index].minInputTokens <= pricing.inputTokenTiers![index - 1].minInputTokens) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inputTokenTiers', index, 'minInputTokens'],
+        message: 'minInputTokens must be strictly increasing'
+      })
+    }
+  }
+
+  if (!pricing.inputTokenTiers?.length) return
+
+  const rates = [
+    ...(pricing.input ? [{ rate: pricing.input, path: ['input'] }] : []),
+    ...(pricing.output ? [{ rate: pricing.output, path: ['output'] }] : []),
+    ...(pricing.cacheRead ? [{ rate: pricing.cacheRead, path: ['cacheRead'] }] : []),
+    ...(pricing.cacheWrite ? [{ rate: pricing.cacheWrite, path: ['cacheWrite'] }] : []),
+    ...pricing.inputTokenTiers.flatMap((tier, index) => [
+      { rate: tier.input, path: ['inputTokenTiers', index, 'input'] },
+      { rate: tier.output, path: ['inputTokenTiers', index, 'output'] },
+      ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
+      ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
+    ])
+  ]
+  const currency = rates[0]?.rate.currency ?? CURRENCY.USD
+  for (const { rate, path } of rates) {
+    if ((rate.currency ?? CURRENCY.USD) !== currency) {
+      ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
+    }
+  }
+}
+
+export const ModelPricingSchema = ModelPricingObjectSchema.superRefine(validateInputTokenPricingTiers)
+export const PartialModelPricingSchema = ModelPricingObjectSchema.partial().superRefine(validateInputTokenPricingTiers)
 
 // Model configuration schema
 export const ModelConfigSchema = z.object({

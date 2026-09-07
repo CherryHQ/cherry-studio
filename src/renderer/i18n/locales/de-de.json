@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Überlegt",
   "assistants.settings.reasoning_effort.minimal": "Minimal",
   "assistants.settings.reasoning_effort.off": "Aus",
+  "assistants.settings.reasoning_effort.ultra": "Ultra",
   "assistants.settings.reasoning_effort.xhigh": "Extra hoch",
   "assistants.title": "Assistent",
   "assistants.unpin.title": "Assistenten lösen",

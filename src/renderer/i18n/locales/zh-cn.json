@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "斟酌",
   "assistants.settings.reasoning_effort.minimal": "微念",
   "assistants.settings.reasoning_effort.off": "关闭",
+  "assistants.settings.reasoning_effort.ultra": "究极",
   "assistants.settings.reasoning_effort.xhigh": "穷究",
   "assistants.title": "助手",
   "assistants.unpin.title": "取消置顶助手",

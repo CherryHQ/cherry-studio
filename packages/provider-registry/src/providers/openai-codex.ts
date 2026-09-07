@@ -29,6 +29,27 @@ export default defineProvider({
     }
   },
   overrides: [
+    {
+      modelId: 'gpt-6-astra',
+      apiModelId: 'gpt-6-astra',
+      supportsFastMode: true,
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      endpointTypes: ['openai-responses'],
+      reasoningContracts: {
+        'openai-responses': {
+          support: {
+            controls: [
+              {
+                kind: 'effort',
+                values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+                default: 'low'
+              }
+            ],
+            defaultEffort: 'low'
+          }
+        }
+      }
+    },
     // Codex backend serves the gpt-5.6 family with a 372k context window
     // (per upstream `codex-rs/models-manager/models.json`), smaller than the
     // platform-API figure the base catalog carries.

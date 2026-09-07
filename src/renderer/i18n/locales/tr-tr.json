@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Orta",
   "assistants.settings.reasoning_effort.minimal": "Asgari",
   "assistants.settings.reasoning_effort.off": "Kapalı",
+  "assistants.settings.reasoning_effort.ultra": "Ultra",
   "assistants.settings.reasoning_effort.xhigh": "Çok Yüksek",
   "assistants.title": "Asistanlar",
   "assistants.unpin.title": "Asistanın Sabitlemesini Kaldır",

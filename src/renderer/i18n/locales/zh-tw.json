@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "正常思考",
   "assistants.settings.reasoning_effort.minimal": "最少思考",
   "assistants.settings.reasoning_effort.off": "關閉",
+  "assistants.settings.reasoning_effort.ultra": "極限思考",
   "assistants.settings.reasoning_effort.xhigh": "極力思考",
   "assistants.title": "助理",
   "assistants.unpin.title": "取消釘選助理",

@@ -13,8 +13,8 @@ import {
   ImageGenerationSupportSchema,
   ModalitySchema,
   ModelCapabilityTypeSchema,
-  ModelPricingSchema,
   ParameterSupportSchema,
+  PartialModelPricingSchema,
   ReasoningSupportSchema
 } from './model'
 import { EndpointTypeSchema, ServiceTierOptionsSchema } from './provider'
@@ -79,7 +79,7 @@ export const ProviderModelOverrideSchema = z.object({
       maxInputTokens: z.number().optional()
     })
     .optional(),
-  pricing: ModelPricingSchema.partial().optional(),
+  pricing: PartialModelPricingSchema.optional(),
   /** Exact reasoning behavior keyed by the endpoint used for this provider-model pair. */
   reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */

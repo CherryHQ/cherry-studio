@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Medium",
   "assistants.settings.reasoning_effort.minimal": "Minimal",
   "assistants.settings.reasoning_effort.off": "Off",
+  "assistants.settings.reasoning_effort.ultra": "Ultra",
   "assistants.settings.reasoning_effort.xhigh": "Extra High",
   "assistants.title": "Assistants",
   "assistants.unpin.title": "Unpin Assistant",

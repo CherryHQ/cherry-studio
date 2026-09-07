@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "普通の思考",
   "assistants.settings.reasoning_effort.minimal": "最小限の思考",
   "assistants.settings.reasoning_effort.off": "オフ",
+  "assistants.settings.reasoning_effort.ultra": "ウルトラ",
   "assistants.settings.reasoning_effort.xhigh": "超高",
   "assistants.title": "アシスタント",
   "assistants.unpin.title": "アシスタントの固定を解除",

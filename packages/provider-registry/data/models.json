@@ -16894,6 +16894,27 @@
           "currency": "USD",
           "perMillionTokens": 10
         },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 25
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 20
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 75
+            }
+          }
+        ],
         "output": {
           "currency": "USD",
           "perMillionTokens": 50
@@ -21934,11 +21955,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.17
+          "perMillionTokens": 1.12
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.9600000000000004
+          "perMillionTokens": 3.52
         }
       }
     },
@@ -21975,5 +21996,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "eb4b77f7d296c7ce"
+  "version": "7e351e461e8f2323"
 }

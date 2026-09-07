@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Μεσαίο",
   "assistants.settings.reasoning_effort.minimal": "ελάχιστος",
   "assistants.settings.reasoning_effort.off": "Απενεργοποίηση",
+  "assistants.settings.reasoning_effort.ultra": "Υπέρτατο",
   "assistants.settings.reasoning_effort.xhigh": "Εξαιρετικά Υψηλή",
   "assistants.title": "Βοηθός",
   "assistants.unpin.title": "Κατάργηση Βοηθού από την κορυφή",

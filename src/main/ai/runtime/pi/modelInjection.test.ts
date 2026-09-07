@@ -1,3 +1,4 @@
+import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -743,8 +744,20 @@ describe('pi thinking level ladder', () => {
       }
     })
 
-  const piModelFrom = (model: Model) =>
-    buildPiProviderInjection(relay(), model, REAL_KEY).providerConfig.models?.[0] as never
+  const piModelFrom = (model: Model, provider = relay()): PiModel<PiApi> => {
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+    const modelConfig = injection.providerConfig.models?.[0]
+    const api = modelConfig?.api ?? injection.providerConfig.api
+    const baseUrl = modelConfig?.baseUrl ?? injection.providerConfig.baseUrl
+    if (!modelConfig || !api || !baseUrl) throw new Error('Pi model configuration is incomplete')
+
+    return {
+      ...modelConfig,
+      api,
+      provider: injection.providerName,
+      baseUrl
+    }
+  }
 
   it("clamps pi's medium default onto a tier Kimi K3 actually offers", async () => {
     const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
@@ -778,6 +791,55 @@ describe('pi thinking level ladder', () => {
     )
 
     expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
+  })
+
+  it('preserves the provider-specific ultra tier for GPT-6 Astra', async () => {
+    const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const { streamSimple: streamOpenAIResponses } = await import('@earendil-works/pi-ai/api/openai-responses')
+    const piModel = piModelFrom(
+      makeModel({
+        id: 'openai-codex::gpt-6-astra',
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-6-astra',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] }],
+          selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+        }
+      } as Partial<Model>),
+      makeProvider({
+        id: 'openai-codex',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: {
+          'openai-responses': { adapterFamily: 'openai-compatible', baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+    if (piModel.api !== 'openai-responses') throw new Error('Expected an OpenAI Responses model')
+
+    expect(getSupportedThinkingLevels(piModel)).toContain('ultra')
+    expect(clampThinkingLevel(piModel, 'ultra')).toBe('ultra')
+
+    let requestBody: any
+    const stream = streamOpenAIResponses(
+      { ...piModel, api: 'openai-responses' },
+      { messages: [{ role: 'user', content: 'hello', timestamp: 1 }] },
+      {
+        apiKey: REAL_KEY,
+        reasoning: 'ultra',
+        fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+          requestBody = JSON.parse(init?.body as string)
+          return new Response(JSON.stringify({ error: { message: 'expected test rejection' } }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' }
+          })
+        },
+        maxRetries: 0
+      }
+    )
+    await stream.result()
+
+    expect(requestBody.reasoning).toMatchObject({ effort: 'ultra' })
   })
 
   // A toggle model expresses on/off through the wire, not a ladder; an all-null map would read as

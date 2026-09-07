@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Moyen",
   "assistants.settings.reasoning_effort.minimal": "minimal",
   "assistants.settings.reasoning_effort.off": "Désactivé",
+  "assistants.settings.reasoning_effort.ultra": "Ultra",
   "assistants.settings.reasoning_effort.xhigh": "Très élevée",
   "assistants.title": "Assistants",
   "assistants.unpin.title": "Désépingler l'assistant",

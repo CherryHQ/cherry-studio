@@ -537,6 +537,7 @@
   "assistants.settings.reasoning_effort.medium": "Mediu",
   "assistants.settings.reasoning_effort.minimal": "Minim",
   "assistants.settings.reasoning_effort.off": "Oprit",
+  "assistants.settings.reasoning_effort.ultra": "Ultra",
   "assistants.settings.reasoning_effort.xhigh": "Extra ridicat",
   "assistants.title": "Asistenți",
   "assistants.unpin.title": "Anulați fixarea asistentului",

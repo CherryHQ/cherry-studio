@@ -20348,6 +20348,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6-astra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-astra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "deepseek-v4-flash",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
@@ -22891,15 +22916,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.007
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.66
+          "perMillionTokens": 1.32
         }
       },
       "providerId": "openrouter",
@@ -39253,5 +39278,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2c5b9778e31d4ddd"
+  "version": "ce24dfb71cd68d13"
 }

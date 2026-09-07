@@ -85,7 +85,16 @@ export default defineCreator({
         input: { currency: 'USD', perMillionTokens: 10 },
         cacheRead: { currency: 'USD', perMillionTokens: 1 },
         cacheWrite: { currency: 'USD', perMillionTokens: 12.5 },
-        output: { currency: 'USD', perMillionTokens: 50 }
+        output: { currency: 'USD', perMillionTokens: 50 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 20 },
+            cacheRead: { currency: 'USD', perMillionTokens: 2 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 25 },
+            output: { currency: 'USD', perMillionTokens: 75 }
+          }
+        ]
       },
       parameterSupport: {
         temperature: { supported: false },
