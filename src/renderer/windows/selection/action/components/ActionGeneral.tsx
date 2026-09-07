@@ -49,8 +49,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   )
   const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
   const waitingForConfiguredAssistant =
-    (Boolean(action.assistantId) && isChosenLoading) ||
-    (shouldUseFallback && isFallbackLoading)
+    (Boolean(action.assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
   const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
