@@ -3,7 +3,6 @@ import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
   ComposerToolProvider,
-  type ComposerToolsRegistryApi,
   type ComposerToolState,
   useComposerToolProviderDispatch,
   useComposerToolProviderLaunchers,
@@ -74,7 +73,6 @@ interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProp
   toolState: ComposerToolState
   toolActions: ToolActionMap
   launcher: AnyToolRenderContext['launcher']
-  toolsRegistry: ComposerToolsRegistryApi
   t: ReturnType<typeof useTranslation>['t']
 }
 
@@ -83,7 +81,6 @@ const ComposerToolRuntimeEntry = ({
   toolState,
   toolActions,
   launcher,
-  toolsRegistry,
   scope,
   assistant,
   model,
@@ -125,8 +122,8 @@ const ComposerToolRuntimeEntry = ({
 
   useEffect(() => {
     if (!tool.composer?.menuItems) return
-    return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
-  }, [context, tool, toolsRegistry])
+    return effectiveLauncher.registerLaunchers(tool.composer.menuItems.createItems(context))
+  }, [context, effectiveLauncher, tool])
 
   const Runtime = tool.composer?.runtime
   return Runtime ? <Runtime context={context} /> : null
@@ -136,7 +133,6 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
   if (
     previous.tool !== next.tool ||
     previous.launcher !== next.launcher ||
-    previous.toolsRegistry !== next.toolsRegistry ||
     previous.scope !== next.scope ||
     previous.assistant !== next.assistant ||
     previous.model !== next.model ||
@@ -170,6 +166,17 @@ export const ComposerToolRuntimeHost = ({
     useComposerToolProviderDispatch()
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
+  const addNewTopicFromTool = useCallback(() => {
+    if (disabledRef.current) return
+    addNewTopic()
+  }, [addNewTopic])
+  const onTextChangeFromTool = useCallback<ComposerToolDispatch['onTextChange']>(
+    (updater) => {
+      if (disabledRef.current) return
+      onTextChange(updater)
+    },
+    [onTextChange]
+  )
   const setFilesFromTool = useCallback<ComposerToolDispatch['setFiles']>(
     (nextFiles) => {
       if (disabledRef.current) return
@@ -177,17 +184,37 @@ export const ComposerToolRuntimeHost = ({
     },
     [setFiles]
   )
+  const setMentionedModelsFromTool = useCallback<ComposerToolDispatch['setMentionedModels']>(
+    (nextModels) => {
+      if (disabledRef.current) return
+      setMentionedModels(nextModels)
+    },
+    [setMentionedModels]
+  )
+  const setSelectedKnowledgeBasesFromTool = useCallback<ComposerToolDispatch['setSelectedKnowledgeBases']>(
+    (nextBases) => {
+      if (disabledRef.current) return
+      setSelectedKnowledgeBases(nextBases)
+    },
+    [setSelectedKnowledgeBases]
+  )
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({
-      addNewTopic,
-      onTextChange,
+      addNewTopic: addNewTopicFromTool,
+      onTextChange: onTextChangeFromTool,
       setFiles: setFilesFromTool,
-      setMentionedModels,
-      setSelectedKnowledgeBases
+      setMentionedModels: setMentionedModelsFromTool,
+      setSelectedKnowledgeBases: setSelectedKnowledgeBasesFromTool
     }),
-    [addNewTopic, onTextChange, setFilesFromTool, setMentionedModels, setSelectedKnowledgeBases]
+    [
+      addNewTopicFromTool,
+      onTextChangeFromTool,
+      setFilesFromTool,
+      setMentionedModelsFromTool,
+      setSelectedKnowledgeBasesFromTool
+    ]
   )
 
   const availableTools = useMemo(() => {
@@ -219,7 +246,6 @@ export const ComposerToolRuntimeHost = ({
           toolState={toolState}
           toolActions={toolActions}
           launcher={getLauncherApiForTool(tool.key)}
-          toolsRegistry={toolsRegistry}
           scope={scope}
           assistant={assistant}
           model={model}
