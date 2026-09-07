@@ -258,4 +258,4 @@ export type FollowupQueueState = {
 }
 
 /** Per-conversation follow-up queues, keyed by the composer's conversation scope key. */
-export type FollowupQueues = Record<string, FollowupQueueState>
+export type FollowupQueues = Record<string, FollowupQueueState | null>
