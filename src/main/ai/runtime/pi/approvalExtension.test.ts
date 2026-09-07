@@ -2,10 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { application } from '@application'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PiApprovalContext } from './approvalExtension'
+import { createPiCodeModeTools } from './piCodeMode'
+import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
@@ -24,6 +29,8 @@ let workspace: string
 let agentData: string
 let outside: string
 let skillRoot: string
+let userData: string
+let databaseFile: string
 
 beforeAll(() => {
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
@@ -31,15 +38,19 @@ beforeAll(() => {
   agentData = join(testRoot, 'agent-data')
   outside = join(testRoot, 'outside')
   skillRoot = join(testRoot, 'skills', 'test-skill')
+  userData = join(testRoot, 'user data')
+  databaseFile = join(userData, 'Data', 'cherrystudio.sqlite')
   mkdirSync(workspace)
   mkdirSync(agentData)
   mkdirSync(outside)
   mkdirSync(skillRoot, { recursive: true })
+  mkdirSync(join(userData, 'Data'), { recursive: true })
   writeFileSync(join(workspace, 'inside.txt'), 'inside')
   writeFileSync(join(agentData, 'SOUL.md'), 'soul')
   writeFileSync(join(agentData, 'USER.md'), 'user')
   writeFileSync(join(outside, 'secret.txt'), 'outside')
   writeFileSync(join(skillRoot, 'SKILL.md'), 'skill')
+  writeFileSync(databaseFile, '')
   symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 })
 
@@ -95,6 +106,17 @@ const flush = () => vi.waitFor(() => expect(toolApprovalRegistry.size()).toBeGre
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(application.getPath).mockImplementation((key, filename) => {
+    const base =
+      key === 'app.userdata'
+        ? userData
+        : key === 'app.database.file'
+          ? databaseFile
+          : key === 'sys.home'
+            ? testRoot
+            : `/mock/${key}`
+    return filename ? join(base, filename) : base
+  })
   mocks.rtkRewrite.mockResolvedValue(null)
   toolApprovalRegistry.clear('test-reset')
 })
@@ -194,6 +216,80 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       reason: expect.stringContaining('disabled')
     })
     expect(disabled.emitted).toHaveLength(0)
+  })
+
+  it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+    'blocks a native SQLite write before permission handling in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      await expect(handler(toolEvent('write', { path: databaseFile, content: 'x' }), extCtx)).resolves.toEqual({
+        block: true,
+        reason: expect.stringContaining('SQLite')
+      })
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+    'blocks Pi-native path spellings before permission handling in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ userResponse: 'unavailable' })
+      })
+      const unicodeSpacePath = databaseFile.replace('user data', 'user\u00a0data')
+
+      for (const toolName of ['write', 'edit']) {
+        for (const protectedPath of [`@${databaseFile}`, unicodeSpacePath]) {
+          await expect(handler(toolEvent(toolName, { path: protectedPath }), extCtx)).resolves.toEqual({
+            block: true,
+            reason: expect.stringContaining('SQLite')
+          })
+        }
+      }
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it('blocks an interpreter inline reference to protected SQLite before bypass handling', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      handler(toolEvent('bash', { command: `node -e "require('better-sqlite3')('${databaseFile}')"` }), extCtx)
+    ).resolves.toEqual({
+      block: true,
+      reason: expect.stringContaining('SQLite')
+    })
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('applies the same SQLite guard through the reusable nested authorizer', async () => {
+    const { authorizeTool, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    const execute = vi.fn<ToolDefinition['execute']>(async () => ({
+      content: [{ type: 'text', text: 'unexpected' }],
+      details: undefined
+    }))
+    const nestedWrite = {
+      name: 'write',
+      label: 'write',
+      description: 'write a file',
+      parameters: { type: 'object' },
+      execute
+    } as PiMcpToolDefinition
+    const exec = createPiCodeModeTools([nestedWrite], () => false, authorizeTool).find(
+      (tool) => tool.name === PI_TOOL_EXEC_TOOL_NAME
+    )!
+
+    await expect(
+      exec.execute(
+        'outer-write',
+        { code: `return tools.invoke('write', { path: ${JSON.stringify(databaseFile)} })` },
+        undefined,
+        undefined,
+        {} as never
+      )
+    ).rejects.toThrow('SQLite')
+    expect(execute).not.toHaveBeenCalled()
+    expect(emitted).toHaveLength(0)
   })
 
   it('still blocks a global install under bypassPermissions — it protects the shared cross-agent environment', async () => {

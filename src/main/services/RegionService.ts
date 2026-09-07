@@ -33,6 +33,24 @@ class RegionService {
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
+    try {
+      return await this.getDetectedCountry()
+    } catch {
+      return DEFAULT_COUNTRY
+    }
+  }
+
+  /** True only when the egress country is successfully detected as China. */
+  async isInChina(): Promise<boolean> {
+    try {
+      const country = await this.getDetectedCountry()
+      return country.toLowerCase() === 'cn'
+    } catch {
+      return false
+    }
+  }
+
+  private async getDetectedCountry(): Promise<string> {
     const proxyKey = application.get('ProxyService').appliedProxyKey
     const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
     if (cached && cached.proxyKey === proxyKey) {
@@ -46,12 +64,6 @@ class RegionService {
     return this.inflight
   }
 
-  /** True when the egress country resolves to China. */
-  async isInChina(): Promise<boolean> {
-    const country = await this.getCountry()
-    return country.toLowerCase() === 'cn'
-  }
-
   private async detectAndCache(proxyKey: string | null): Promise<string> {
     try {
       const country = await this.fetchCountry()
@@ -59,7 +71,7 @@ class RegionService {
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)
-      return DEFAULT_COUNTRY
+      throw error
     }
   }
 

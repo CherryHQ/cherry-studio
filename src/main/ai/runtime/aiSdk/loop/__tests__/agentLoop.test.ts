@@ -54,6 +54,33 @@ describe('Agent', () => {
     vi.clearAllMocks()
   })
 
+  it('forwards provider-native URL sources to the UI stream', async () => {
+    const source = {
+      type: 'source-url' as const,
+      sourceId: 'citation-0',
+      url: 'https://example.com/source',
+      title: 'Example source'
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: ({ sendSources }: { sendSources?: boolean }) =>
+          new ReadableStream({
+            start(controller) {
+              if (sendSources) controller.enqueue(source)
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const agent = await makeAgent()
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toEqual({ value: source, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
+  })
+
   describe('generate', () => {
     it('routes a trusted terminal tool failure through onError without calling onFinish', async () => {
       const output = markTrustedLocalToolTerminalFailure({
