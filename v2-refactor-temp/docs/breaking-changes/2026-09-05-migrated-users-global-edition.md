@@ -2,7 +2,7 @@
 title: Migrated users keep global-edition features
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#20151"
 date: 2026-09-05
 ---
 

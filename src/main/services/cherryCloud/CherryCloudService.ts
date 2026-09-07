@@ -5,7 +5,6 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getPackageEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -946,8 +945,7 @@ export class CherryCloudService extends BaseService {
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
 
-    const sessionOrigin = stored.session?.apiOrigin ?? resolveApiOrigin(getPackageEdition())
-    const session = sessionOrigin === resolveApiOrigin() ? stored.session : null
+    const session = stored.session?.apiOrigin === resolveApiOrigin() ? stored.session : null
 
     this.cloudState = {
       device,
