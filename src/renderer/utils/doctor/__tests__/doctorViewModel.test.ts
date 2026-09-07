@@ -61,6 +61,7 @@ describe('buildDoctorViewModel', () => {
 
     const viewModel = buildDoctorViewModel(state, NOW)
 
+    expect(viewModel.runId).toBe('run-1')
     expect(viewModel.rows.map((row) => row.id)).toEqual(DOCTOR_CHECK_IDS)
     expect(viewModel.rows[0]).toMatchObject({ id: 'install-version-channel', status: 'pass' })
     expect(viewModel.rows[1]).toMatchObject({ id: 'install-update-available', status: 'pending' })
@@ -104,6 +105,7 @@ describe('buildDoctorViewModel', () => {
 
     const viewModel = buildDoctorViewModel(state, NOW)
 
+    expect(viewModel.runId).toBe('run-1')
     expect(viewModel.rows[0]?.actions).toEqual([])
     expect(viewModel.rows[1]?.actions).toEqual([])
     expect(viewModel.problemCount).toBe(1)

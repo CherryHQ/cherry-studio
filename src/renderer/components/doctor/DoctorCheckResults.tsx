@@ -182,7 +182,9 @@ function DoctorCheckEvidence({
 }) {
   const { t } = useTranslation()
   const result = row.result
-  const isEvidenceRevealed = controller.session.revealedEvidence.includes(row.id)
+  const evidenceGrant = controller.session.evidenceGrant
+  const isEvidenceRevealed =
+    !!evidenceGrant && evidenceGrant.runId === controller.viewModel.runId && evidenceGrant.checkIds.includes(row.id)
   const publicEvidence = result?.evidence?.filter((item) => item.dataClass === 'public') ?? []
   const localEvidence = result?.evidence?.filter((item) => item.dataClass === 'local_only') ?? []
   const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []

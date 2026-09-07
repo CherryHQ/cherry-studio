@@ -14,6 +14,7 @@ describe('doctorSessionReducer', () => {
     const initial = createDoctorSession({ initialPanel: 'checks' })
     const confirming = doctorSessionReducer(initial, {
       type: 'confirm-evidence',
+      runId: 'run-1',
       checkId: 'runtime-claude-login'
     })
 
@@ -21,15 +22,47 @@ describe('doctorSessionReducer', () => {
     expect(doctorSessionReducer(initial, { type: 'cancel-confirmation' })).toBe(initial)
   })
 
-  it('reveals consent-required evidence once', () => {
+  it('accumulates consent-required evidence once within the same run', () => {
     const initial = createDoctorSession({ initialPanel: 'checks' })
     const revealed = doctorSessionReducer(initial, {
       type: 'reveal-evidence',
+      runId: 'run-1',
+      checkId: 'runtime-claude-login'
+    })
+    const expanded = doctorSessionReducer(revealed, {
+      type: 'reveal-evidence',
+      runId: 'run-1',
+      checkId: 'logs-recent-findings'
+    })
+
+    expect(expanded.evidenceGrant).toEqual({
+      runId: 'run-1',
+      checkIds: ['runtime-claude-login', 'logs-recent-findings']
+    })
+    expect(
+      doctorSessionReducer(expanded, {
+        type: 'reveal-evidence',
+        runId: 'run-1',
+        checkId: 'runtime-claude-login'
+      })
+    ).toBe(expanded)
+  })
+
+  it('replaces consent grants when a different run is revealed', () => {
+    const initial = createDoctorSession({ initialPanel: 'checks' })
+    const firstRun = doctorSessionReducer(initial, {
+      type: 'reveal-evidence',
+      runId: 'run-1',
       checkId: 'runtime-claude-login'
     })
 
-    expect(revealed.revealedEvidence).toEqual(['runtime-claude-login'])
-    expect(doctorSessionReducer(revealed, { type: 'reveal-evidence', checkId: 'runtime-claude-login' })).toBe(revealed)
+    const secondRun = doctorSessionReducer(firstRun, {
+      type: 'reveal-evidence',
+      runId: 'run-2',
+      checkId: 'runtime-claude-login'
+    })
+
+    expect(secondRun.evidenceGrant).toEqual({ runId: 'run-2', checkIds: ['runtime-claude-login'] })
   })
 
   it('keeps one report draft while switching panels', () => {
