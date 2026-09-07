@@ -553,6 +553,10 @@
         "name": "TokenDance"
       },
       {
+        "id": "hubris",
+        "name": "Hubris"
+      },
+      {
         "id": "new-api",
         "name": "New API"
       },
