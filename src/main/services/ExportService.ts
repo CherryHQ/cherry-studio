@@ -30,6 +30,7 @@ export class ExportService {
     const elements: any[] = []
     let listLevel = 0
     let quoteLevel = 0
+    const quoteBorder = { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
     let currentTable: Table | null = null
     let currentRowCells: TableCell[] = []
     let isHeaderRow = false
@@ -130,13 +131,7 @@ export class ExportService {
 
         case 'paragraph_open':
           const inlineTokens = tokens[i + 1].children || []
-          const quoteStyle =
-            quoteLevel > 0
-              ? {
-                  indent: { left: quoteLevel * 720 },
-                  border: { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
-                }
-              : {}
+          const quoteStyle = quoteLevel > 0 ? { indent: { left: quoteLevel * 720 }, border: quoteBorder } : {}
           elements.push(
             new Paragraph({
               children: processInlineTokens(inlineTokens, false, quoteLevel > 0),
@@ -169,11 +164,10 @@ export class ExportService {
               children: [
                 new TextRun({ text: '•', bold: true }),
                 new TextRun({ text: '\t' }),
-                ...processInlineTokens(itemInlineTokens, false)
+                ...processInlineTokens(itemInlineTokens, false, quoteLevel > 0)
               ],
-              indent: {
-                left: listLevel * 720
-              }
+              indent: { left: (listLevel + quoteLevel) * 720 },
+              ...(quoteLevel > 0 ? { border: quoteBorder } : {})
             })
           )
           i += 3

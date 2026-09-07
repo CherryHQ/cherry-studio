@@ -151,6 +151,24 @@ describe('ExportService.exportToWord', () => {
       })
 
       it.each([
+        ['> - item', 1440],
+        ['> > - item', 2160]
+      ])('styles the list item in %j as a quote', async (markdown, indent) => {
+        const xml = await exportXml(`${markdown}\n\nafter`)
+        const paragraphs = xml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
+        const item = paragraphs.find((value) => value.includes('>item</w:t>'))
+        expect(item).toBeDefined()
+        expect(item).toContain('>•</w:t>')
+        expect(item).toContain(`<w:ind w:left="${indent}"`)
+        expect(item).toContain('<w:pBdr>')
+        expect(item).toContain('<w:i/>')
+        const followingParagraph = paragraphs.find((value) => value.includes('>after</w:t>'))
+        expect(followingParagraph).toBeDefined()
+        expect(followingParagraph).not.toContain('<w:ind')
+        expect(followingParagraph).not.toContain('<w:i/>')
+      })
+
+      it.each([
         ['soft break', '\n', 'first second'],
         ['two-space hard break', '  \n', 'first\nsecond'],
         ['backslash hard break', '\\\n', 'first\nsecond']
