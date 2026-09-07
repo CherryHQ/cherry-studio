@@ -6,7 +6,8 @@ import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseWriteInfiniteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { Cache } from 'swr'
+import type * as SWRModule from 'swr'
+import type { Cache, ScopedMutator } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
@@ -17,6 +18,21 @@ import { createSWRTestWrapper as makeWrapper } from './testUtils'
 // Tests exercise the real implementation; the global renderer setup otherwise
 // replaces this module with a mock for consuming components.
 vi.unmock('@data/hooks/useDataApi')
+
+const scopedMutateWrapper = vi.hoisted(() => ({
+  current: undefined as ((mutate: ScopedMutator) => ScopedMutator) | undefined
+}))
+
+vi.mock('swr', async (importOriginal) => {
+  const actual = await importOriginal<typeof SWRModule>()
+  return {
+    ...actual,
+    useSWRConfig: () => {
+      const config = actual.useSWRConfig()
+      return { ...config, mutate: scopedMutateWrapper.current?.(config.mutate) ?? config.mutate }
+    }
+  }
+})
 
 // `isDev` reads `window.electron.process.env.NODE_ENV`, which isn't populated
 // in the Vitest environment. Force it to true so the dev-only pattern
@@ -804,6 +820,7 @@ describe('useInfiniteQuery integration', () => {
   }
 
   afterEach(() => {
+    scopedMutateWrapper.current = undefined
     vi.restoreAllMocks()
   })
 
@@ -1113,6 +1130,73 @@ describe('useInfiniteQuery integration', () => {
     const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
     const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
     expect(cache.get(infiniteKey)).toMatchObject({ data: latestPages, _l: 2 })
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
+  })
+
+  it('does not let older undefined cleanup remove page caches from a newer commit', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const firstPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10 }])
+    let releaseOlderCleanup!: () => void
+    const olderCleanupRelease = new Promise<void>((resolve) => {
+      releaseOlderCleanup = resolve
+    })
+    let noteOlderCleanupStarted!: () => void
+    const olderCleanupStarted = new Promise<void>((resolve) => {
+      noteOlderCleanupStarted = resolve
+    })
+    scopedMutateWrapper.current = (mutate) => {
+      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
+      return (async (...args: unknown[]) => {
+        const mutation = invoke(...args)
+        if (Array.isArray(args[0]) && unstable_serialize(args[0]) === firstPageKey && args[1] === undefined) {
+          noteOlderCleanupStarted()
+          await olderCleanupRelease
+        }
+        return mutation
+      }) as ScopedMutator
+    }
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+    let olderWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      olderWrite = result.current.writeCache(() => undefined)
+    })
+    await olderCleanupStarted
+    await act(async () => {
+      await result.current.writeCache(latestPages)
+    })
+    releaseOlderCleanup()
+    await act(async () => {
+      await olderWrite
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: latestPages, _l: 2 })
+    expect((cache.get(firstPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe('latest-newest')
     expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
       'latest-older'
     )
