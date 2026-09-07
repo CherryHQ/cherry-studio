@@ -2,7 +2,7 @@ import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shar
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
-import { RetryError } from 'ai'
+import { APICallError, RetryError } from 'ai'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -34,6 +34,7 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
+  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)

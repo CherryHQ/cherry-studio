@@ -83,6 +83,37 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
+    it('preserves only safe details from a direct APICallError', () => {
+      const providerError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat/completions?token=url-secret',
+        requestBodyValues: { messages: [{ content: 'private user prompt' }] },
+        statusCode: 403,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({
+          error: { message: 'account is not authorized for this model' },
+          trace: 'response-secret'
+        }),
+        data: { apiKey: 'data-secret' },
+        cause: new Error('Authorization: Bearer cause-secret'),
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError)
+
+      expect(result).toEqual({
+        name: 'AI_APICallError',
+        message: 'account is not authorized for this model',
+        stack: null,
+        cause: null,
+        statusCode: 403,
+        isRetryable: false
+      })
+      expect(JSON.stringify(result)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+      )
+    })
+
     it('preserves only safe nested provider details in a RetryError', () => {
       const providerError = new APICallError({
         message: 'Forbidden',

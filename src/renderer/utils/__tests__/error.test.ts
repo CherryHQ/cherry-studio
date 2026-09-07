@@ -389,6 +389,30 @@ describe('error', () => {
       expect(JSON.stringify(serialized)).not.toMatch(/message-secret|cause-secret/)
     })
 
+    it('preserves the terminal provider message through a nested retry error', () => {
+      const providerError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat',
+        requestBodyValues: {},
+        statusCode: 429,
+        responseHeaders: {},
+        responseBody: JSON.stringify({ error: { message: 'provider concurrency limit reached' } }),
+        isRetryable: true
+      })
+      const nestedRetryError = new RetryError({
+        message: 'Nested retry failed',
+        reason: 'maxRetriesExceeded',
+        errors: [providerError]
+      })
+      const outerRetryError = new RetryError({
+        message: 'Outer retry failed',
+        reason: 'maxRetriesExceeded',
+        errors: [nestedRetryError]
+      })
+
+      expect(providerErrorText(serializeError(outerRetryError))).toBe('provider concurrency limit reached')
+    })
+
     it('drops unknown nested retry values instead of serializing credentials', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',

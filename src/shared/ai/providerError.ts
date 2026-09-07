@@ -1,4 +1,4 @@
-import { AISDKError, APICallError } from 'ai'
+import { AISDKError, APICallError, RetryError } from 'ai'
 
 import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
@@ -7,10 +7,11 @@ import { redactSecretText } from '../utils/redaction'
 const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
 const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
 const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
+const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
-const HTML_DOCUMENT_PATTERN = /^(?:<!doctype\s+html\b|<html(?:\s|>))/i
+const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
 const JSON_CONTAINER_PATTERN =
-  /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|(?:-?(?:\d+(?:\.\d+)?|\.\d+)|true\b|false\b|null\b)\s*,)/i
+  /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^,\]\r\n]+,\s*(?=[^\]\r\n]*$))/i
 
 interface ProviderErrorSource {
   message?: unknown
@@ -118,18 +119,26 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
   return discriminants
 }
 
-function serializeNestedAiSdkError(error: AISDKError): SerializedError {
+function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
   const source = error as unknown as Record<string, unknown>
-  return {
+  const serialized: SerializedError = {
     name: getSafeProviderErrorMessage({ message: error.name }),
     message: getSafeProviderErrorMessage({ message: error.message }),
     stack: null,
     cause: null,
     ...getSafeAiSdkErrorDiscriminants(source)
   }
+
+  if (RetryError.isInstance(error)) {
+    serialized.lastError = serializeNestedProviderErrorAtDepth(error.lastError, depth + 1)
+    serialized.errors = error.errors.map((nested) => serializeNestedProviderErrorAtDepth(nested, depth + 1))
+  }
+
+  return serialized
 }
 
-export function serializeNestedProviderError(value: unknown): Serializable {
+function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
+  if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
   if (APICallError.isInstance(value)) {
     return {
       name: value.name,
@@ -140,7 +149,7 @@ export function serializeNestedProviderError(value: unknown): Serializable {
       isRetryable: value.isRetryable
     }
   }
-  if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value)
+  if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value, depth)
   if (value instanceof Error) {
     return {
       name: getSafeProviderErrorMessage({ message: value.name }),
@@ -150,4 +159,8 @@ export function serializeNestedProviderError(value: unknown): Serializable {
     }
   }
   return null
+}
+
+export function serializeNestedProviderError(value: unknown): Serializable {
+  return serializeNestedProviderErrorAtDepth(value, 0)
 }

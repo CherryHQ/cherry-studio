@@ -1,6 +1,7 @@
+import { APICallError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { getSafeProviderErrorMessage } from '../providerError'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '../providerError'
 
 const PROVIDER_TEXT_FIELDS = [
   ['message', (value: string) => ({ message: value })],
@@ -98,7 +99,8 @@ describe('getSafeProviderErrorMessage', () => {
   it.each(PROVIDER_TEXT_FIELDS)('ignores malformed unquoted objects and scalar arrays in %s', (_field, payloadFor) => {
     for (const privatePayload of [
       'Provider failed: {prompt:"private user prompt",trace:"internal trace"',
-      'Provider failed: [400, "private user prompt"'
+      'Provider failed: [400, "private user prompt"',
+      'Provider failed: [private user prompt, internal trace'
     ]) {
       const message = getSafeProviderErrorMessage({
         message: 'Bad Request',
@@ -113,7 +115,9 @@ describe('getSafeProviderErrorMessage', () => {
   it.each(PROVIDER_TEXT_FIELDS)('ignores HTML documents in %s', (_field, payloadFor) => {
     for (const privatePayload of [
       '<!doctype html><html><body>private user prompt</body></html>',
-      '<html><body>internal trace</body></html>'
+      '<html><body>internal trace</body></html>',
+      'Provider failed: <!doctype html><html><body>private user prompt</body></html>',
+      'Upstream response: <html><body>internal trace</body></html>'
     ]) {
       const message = getSafeProviderErrorMessage({
         message: 'Bad Request',
@@ -152,7 +156,7 @@ describe('getSafeProviderErrorMessage', () => {
     ).toBe('Service temporarily unavailable')
   })
 
-  it.each(['Template variable {name} is required', 'Input [0] must be a string'])(
+  it.each(['Template variable {name} is required', 'Input [0] must be a string', 'Input indexes [0,1] must be unique'])(
     'keeps ordinary provider text containing braces or brackets: %s',
     (providerMessage) => {
       expect(
@@ -165,5 +169,38 @@ describe('getSafeProviderErrorMessage', () => {
     for (const value of ['"quoted provider message"', '400', 'true']) {
       expect(getSafeProviderErrorMessage({ responseBody: JSON.stringify(payloadFor(value)) })).toBe(value)
     }
+  })
+
+  it('preserves the terminal provider error inside a nested RetryError', () => {
+    const terminalError = new APICallError({
+      message: 'Forbidden',
+      url: 'https://api.example.com/chat?token=url-secret',
+      requestBodyValues: { prompt: 'private user prompt' },
+      statusCode: 429,
+      responseHeaders: { 'set-cookie': 'session=header-secret' },
+      responseBody: JSON.stringify({ error: { message: 'provider concurrency limit reached' } }),
+      data: { apiKey: 'data-secret' },
+      isRetryable: true
+    })
+    const retryError = new RetryError({
+      message: 'Nested retry failed',
+      reason: 'maxRetriesExceeded',
+      errors: [terminalError]
+    })
+
+    const serialized = serializeNestedProviderError(retryError)
+
+    expect(serialized).toMatchObject({
+      name: 'AI_RetryError',
+      reason: 'maxRetriesExceeded',
+      lastError: {
+        name: 'AI_APICallError',
+        message: 'provider concurrency limit reached',
+        statusCode: 429,
+        isRetryable: true
+      }
+    })
+    expect(serialized).toHaveProperty('errors.0.message', 'provider concurrency limit reached')
+    expect(JSON.stringify(serialized)).not.toMatch(/url-secret|private user prompt|header-secret|data-secret/)
   })
 })
