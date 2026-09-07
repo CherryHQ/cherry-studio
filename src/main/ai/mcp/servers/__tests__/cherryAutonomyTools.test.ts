@@ -12,6 +12,7 @@ const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
 const mockSendFile = vi.fn()
 const mockGetAgent = vi.fn()
+const mockListAgents = vi.fn()
 const mockUpdateAgent = vi.fn()
 const mockSyncChannel = vi.fn()
 const mockDisconnectChannel = vi.fn()
@@ -44,6 +45,7 @@ vi.mock('@data/services/AgentTaskService', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
+    listAgents: mockListAgents,
     updateAgent: mockUpdateAgent
   }
 }))
@@ -171,6 +173,8 @@ describe('CherryAutonomyTools', () => {
     vi.clearAllMocks()
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockGetAgent.mockReturnValue({ id: 'agent_test', name: 'Agent A', model: 'provider::model' })
+    mockListAgents.mockReturnValue({ agents: [], total: 0 })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
     mockSearchSessionMessages.mockReturnValue([])
@@ -181,6 +185,7 @@ describe('CherryAutonomyTools', () => {
   it('advertises the read contract, search limit and configured notification recipient', () => {
     const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
+    expect(tools.map((tool) => tool.name)).toContain('agent_list')
     const readSchema = tools.find((tool) => tool.name === 'session_read')?.inputSchema
     expect(readSchema?.required).toContain('session_id')
     expect(readSchema?.properties).not.toHaveProperty('type')
@@ -208,31 +213,66 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
-    it.each(['session_list', 'session_search', 'session_read', 'session_deliveries', 'session_create', 'session_send'])(
-      'denies %s from a headless turn before reading or mutating another Session',
-      async (toolName) => {
-        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
-        const args =
-          toolName === 'session_search'
-            ? { query: 'secret' }
-            : toolName === 'session_create'
-              ? { message: 'delegate' }
-              : toolName === 'session_send'
-                ? { target_session_id: 'session_b', message: 'delegate' }
-                : {}
+    it('lists public Agent identity and runtime readiness without configuration', async () => {
+      mockListAgents.mockReturnValue({
+        agents: [
+          { id: 'agent-a', name: 'Builder', description: 'Builds things', type: 'claude-code', model: 'p::m' },
+          { id: 'agent-b', name: 'Unconfigured', description: '', type: 'pi', model: null }
+        ],
+        total: 2
+      })
 
-        const result = await callTool(createServer(), args, toolName)
+      const result = await callTool(createServer(), {}, 'agent_list')
 
-        expect(result.isError).toBe(true)
-        expect(JSON.parse(result.content[0].text)).toMatchObject({
-          ok: false,
-          error: { code: 'SESSION_TOOL_FORBIDDEN' }
-        })
-        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
-        expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
-        expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
-      }
-    )
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        agents: [
+          {
+            id: 'agent-a',
+            name: 'Builder',
+            description: 'Builds things',
+            runtime: { type: 'claude-code', available: false },
+            modelConfigured: true
+          },
+          {
+            id: 'agent-b',
+            name: 'Unconfigured',
+            description: '',
+            runtime: { type: 'pi', available: false },
+            modelConfigured: false
+          }
+        ]
+      })
+    })
+    it.each([
+      'agent_list',
+      'session_list',
+      'session_search',
+      'session_read',
+      'session_deliveries',
+      'session_create',
+      'session_send'
+    ])('denies %s from a headless turn before reading or mutating another Session', async (toolName) => {
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const args =
+        toolName === 'session_search'
+          ? { query: 'secret' }
+          : toolName === 'session_create'
+            ? { message: 'delegate' }
+            : toolName === 'session_send'
+              ? { target_session_id: 'session_b', message: 'delegate' }
+              : {}
+
+      const result = await callTool(createServer(), args, toolName)
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SESSION_TOOL_FORBIDDEN' }
+      })
+      expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+      expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+    })
 
     it('reads a conversation through the unified session_read facade', async () => {
       mockReadConversation.mockReturnValue({
@@ -557,6 +597,42 @@ describe('CherryAutonomyTools', () => {
         sessionId: 'session-new',
         delivery: { id: 'delivery-1', status: 'accepted' }
       })
+    })
+
+    it('creates a Session for an explicit target Agent while retaining the trusted sender', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(createServer(), { message: 'Delegate this', target_agent_id: 'agent-target' }, 'session_create')
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        targetAgentId: 'agent-target',
+        sessionName: '',
+        workspace: WORKSPACE_SOURCE,
+        content: 'Delegate this'
+      })
+    })
+
+    it('rejects a missing explicit target Agent with a target-owned error', async () => {
+      mockGetAgent.mockReturnValue(null)
+
+      const result = await callTool(
+        createServer(),
+        { message: 'Delegate this', target_agent_id: 'missing' },
+        'session_create'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+      expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
     })
   })
 

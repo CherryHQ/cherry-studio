@@ -24,6 +24,7 @@ import {
   type ReadConversationInput
 } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -43,6 +44,8 @@ import QRCode from 'qrcode'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+const AGENT_LIST_TOOL_NAME = 'agent_list'
 
 /** Per-session agent context the autonomy tools act on behalf of. */
 export interface CherryAgentContext {
@@ -293,6 +296,12 @@ const SESSION_LIST_TOOL: Tool = {
   }
 }
 
+const AGENT_LIST_TOOL: Tool = {
+  name: AGENT_LIST_TOOL_NAME,
+  description: 'List available Cherry Agents with their public identity and runtime readiness.',
+  inputSchema: { type: 'object', properties: {} }
+}
+
 const SESSION_SEARCH_TOOL: Tool = {
   name: SESSION_SEARCH_TOOL_NAME,
   description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
@@ -357,12 +366,13 @@ const SESSION_DELIVERIES_TOOL: Tool = {
 const SESSION_CREATE_TOOL: Tool = {
   name: SESSION_CREATE_TOOL_NAME,
   description:
-    'Create a new Session for the current Agent and send its first durable message. The new Session inherits the current workspace policy and uses the Agent model.',
+    'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
   inputSchema: {
     type: 'object',
     properties: {
       message: { type: 'string', description: 'First message for the new Session.' },
-      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' }
+      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' },
+      target_agent_id: { type: 'string', description: 'Optional target Agent id.' }
     },
     required: ['message']
   }
@@ -395,6 +405,7 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  AGENT_LIST_TOOL,
   SESSION_SEARCH_TOOL,
   SESSION_READ_TOOL,
   SESSION_CREATE_TOOL,
@@ -464,6 +475,8 @@ export class CherryAutonomyTools {
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case AGENT_LIST_TOOL_NAME:
+          return this.listAgents()
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
         case SESSION_READ_TOOL_NAME:
@@ -550,6 +563,22 @@ export class CherryAutonomyTools {
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
     }
+  }
+
+  private listAgents() {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const agents = agentService.listAgents().agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description ?? '',
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      modelConfigured: agent.model !== null
+    }))
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ agents }) }] }
   }
 
   private searchSessions(args: Record<string, unknown>) {
@@ -695,12 +724,24 @@ export class CherryAutonomyTools {
     }
     if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
 
+    let targetAgentId: string | undefined
+    if (args.target_agent_id !== undefined) {
+      if (typeof args.target_agent_id !== 'string' || !args.target_agent_id.trim()) {
+        throw new McpError(ErrorCode.InvalidParams, "'target_agent_id' must be a non-empty string")
+      }
+      targetAgentId = args.target_agent_id.trim()
+      if (!agentService.getAgent(targetAgentId)) {
+        throw new AgentSessionDeliveryRoutingError('TARGET_AGENT_DELETED', `Target Agent not found: ${targetAgentId}`)
+      }
+    }
+
     const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       sessionName: title,
       workspace: this.workspace,
-      content
+      content,
+      ...(targetAgentId ? { targetAgentId } : {})
     })
     return {
       content: [

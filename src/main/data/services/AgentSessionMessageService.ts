@@ -1036,10 +1036,11 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  /** Atomically create a same-Agent Session and persist its first durable delivery. */
+  /** Atomically create a Session and persist its first durable delivery. */
   createSessionWithDelivery(input: {
     senderAgentId: string
     senderSessionId: string
+    targetAgentId?: string
     sessionName: string
     workspace: AgentSessionWorkspaceSource
     content: string
@@ -1052,7 +1053,7 @@ export class AgentSessionMessageService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           agentSessionService.createTx(tx, sessionId, {
-            agentId: input.senderAgentId,
+            agentId: input.targetAgentId ?? input.senderAgentId,
             name: input.sessionName,
             workspace: input.workspace
           })
