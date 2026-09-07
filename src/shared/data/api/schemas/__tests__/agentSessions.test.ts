@@ -34,7 +34,7 @@ describe('AgentSession schemas', () => {
     })
   })
 
-  it('accepts a session-owned model id update', () => {
+  it('defines the session-owned model update boundary', () => {
     expect(
       UpdateAgentSessionSchema.parse({
         modelId: 'anthropic::claude-sonnet-4-5'
@@ -42,6 +42,19 @@ describe('AgentSession schemas', () => {
     ).toEqual({
       modelId: 'anthropic::claude-sonnet-4-5'
     })
+    expect(UpdateAgentSessionSchema.parse({ modelId: null })).toEqual({ modelId: null })
+    expect(UpdateAgentSessionSchema.parse({})).toEqual({})
+    expect(UpdateAgentSessionSchema.safeParse({ modelId: null, unknown: true }).success).toBe(false)
+
+    const create = {
+      agentId: 'agent-1',
+      name: 'Session',
+      workspace: { type: 'system' }
+    } as const
+    expect(CreateAgentSessionSchema.safeParse({ ...create, modelId: 'anthropic::claude-sonnet-4-5' }).success).toBe(
+      false
+    )
+    expect(CreateAgentSessionSchema.safeParse({ ...create, agentType: 'pi' }).success).toBe(false)
   })
 
   it('accepts only supported session runtime updates', () => {

@@ -2,7 +2,11 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import '@data/services/AgentSessionService'
+
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -96,6 +100,38 @@ function modelRow(providerId: string, modelId: string, values: Partial<InsertUse
     orderKey: generateOrderKeyBetween(null, null),
     ...values
   }
+}
+
+async function seedSessionUsingModel(
+  db: ReturnType<typeof setupTestDatabase>['db'],
+  sessionId: string,
+  modelId: string
+): Promise<void> {
+  const workspaceId = `workspace-${sessionId}`
+  await db.insert(agentWorkspaceTable).values({
+    id: workspaceId,
+    name: workspaceId,
+    path: `/tmp/${workspaceId}`,
+    type: 'user',
+    orderKey: workspaceId
+  })
+  await db.insert(agentSessionTable).values({
+    id: sessionId,
+    agentType: 'claude-code',
+    modelId,
+    name: sessionId,
+    workspaceId,
+    orderKey: sessionId
+  })
+}
+
+function expectSessionModelProjectionChange(sessionIds: string[]): void {
+  expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+    { endpoint: '/agent-sessions', kind: 'projection', entityIds: sessionIds },
+    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: sessionIds },
+    { endpoint: '/agent-sessions/:sessionId', entityIds: sessionIds },
+    { endpoint: '/agent-sessions/latest' }
+  ])
 }
 
 describe('user_model delta storage invariant', () => {
@@ -1934,6 +1970,23 @@ describe('ModelService.delete', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('refreshes sessions whose selected model is deleted', async () => {
+    const modelId = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, name: 'GPT-4o' }))
+    await seedSessionUsingModel(dbh.db, 'session-single-delete', modelId)
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.delete('openai', 'gpt-4o')
+
+    const [session] = await dbh.db
+      .select({ modelId: agentSessionTable.modelId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-single-delete'))
+    expect(session.modelId).toBeNull()
+    expectSessionModelProjectionChange(['session-single-delete'])
+  })
+
   it('purges pins that target the deleted model id', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const targetModelId = createUniqueModelId('openai', 'gpt-4o')
@@ -2099,6 +2152,35 @@ describe('ModelService.bulkDelete', () => {
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === secondTargetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
+  })
+
+  it('refreshes sessions whose selected models are bulk deleted', async () => {
+    const firstModelId = createUniqueModelId('openai', 'gpt-4o')
+    const secondModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: firstModelId }),
+        modelRow('openai', 'gpt-4o-mini', { id: secondModelId })
+      ])
+    await seedSessionUsingModel(dbh.db, 'session-bulk-delete-1', firstModelId)
+    await seedSessionUsingModel(dbh.db, 'session-bulk-delete-2', secondModelId)
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.bulkDelete([
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'openai', modelId: 'gpt-4o-mini' }
+    ])
+
+    const sessions = await dbh.db
+      .select({ id: agentSessionTable.id, modelId: agentSessionTable.modelId })
+      .from(agentSessionTable)
+    expect(sessions.sort((left, right) => left.id.localeCompare(right.id))).toEqual([
+      { id: 'session-bulk-delete-1', modelId: null },
+      { id: 'session-bulk-delete-2', modelId: null }
+    ])
+    expectSessionModelProjectionChange(['session-bulk-delete-1', 'session-bulk-delete-2'])
   })
 
   it('dedupes duplicate model ids before deleting', async () => {
@@ -2484,6 +2566,23 @@ describe('ModelService.reconcileForProvider', () => {
       .where(or(...bulkRows.map((m) => and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.id, m.id))!)))
     const sortedKeys = bulkOrderKeys.map((r) => r.orderKey).sort()
     expect(new Set(sortedKeys).size).toBe(sortedKeys.length)
+  })
+
+  it('refreshes sessions whose selected model is removed by reconcile', async () => {
+    const modelId = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, presetModelId: 'gpt-4o' }))
+    await seedSessionUsingModel(dbh.db, 'session-reconcile-delete', modelId)
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [modelId] })
+
+    const [session] = await dbh.db
+      .select({ modelId: agentSessionTable.modelId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-reconcile-delete'))
+    expect(session.modelId).toBeNull()
+    expectSessionModelProjectionChange(['session-reconcile-delete'])
   })
 
   it('chunks large removal filters and deletes', async () => {

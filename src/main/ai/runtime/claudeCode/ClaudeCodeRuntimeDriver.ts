@@ -52,6 +52,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeReconcileInput,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
@@ -518,13 +519,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  async reconcile(input: {
-    agentId?: string
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -536,14 +531,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    agentId?: string
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
+    if (input.agentType !== undefined && input.agentType !== 'claude-code') return 'rebuild'
     const agentId = input.agentId ?? this.input.agentId
     if (agentId !== this.input.agentId) return 'rebuild'
     const derived = await deriveConnectionConfig(

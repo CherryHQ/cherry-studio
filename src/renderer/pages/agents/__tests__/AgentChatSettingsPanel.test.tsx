@@ -681,6 +681,22 @@ describe('AgentChat settings panel', () => {
     )
   })
 
+  it('does not update the previous session when model confirmation outlives navigation', async () => {
+    const user = userEvent.setup()
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    const view = renderAgentChat()
+
+    await user.click(screen.getByRole('button', { name: 'change topbar model' }))
+    view.rerender(
+      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, id: 'session-2' })} />
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+  })
+
   it('shares the model confirmation opt-out for the current app run when requested', async () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]

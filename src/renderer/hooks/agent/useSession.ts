@@ -75,9 +75,10 @@ function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSes
 }
 
 /**
- * Fetch a single session by id. Config (model / instructions / ...) lives on
- * the parent agent — fetch via `useAgent(session.agentId)` separately. For
- * mutations call `useUpdateSession()` directly.
+ * Fetch a single session by id. The selected model lives on the session;
+ * agent-wide config (instructions / configuration / ...) is fetched via
+ * `useAgent(session.agentId)` separately. For mutations call
+ * `useUpdateSession()` directly.
  */
 export const useSession = (sessionId: string | null) => {
   const {

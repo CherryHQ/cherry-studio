@@ -49,8 +49,7 @@ describe('useAgentConversationBootstrap', () => {
       useAgentConversationBootstrap({
         session,
         sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
+        sessionSource: 'query'
       })
     )
 
@@ -64,8 +63,7 @@ describe('useAgentConversationBootstrap', () => {
       useAgentConversationBootstrap({
         session,
         sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
+        sessionSource: 'query'
       })
     )
 
@@ -77,13 +75,13 @@ describe('useAgentConversationBootstrap', () => {
     expect(result.current.resources.agent).toBe(mocks.agent)
   })
 
-  it('does not fall back to an agent hint when the session has no model', () => {
+  it('does not fall back to the agent model when the session has no model', () => {
+    mocks.agent = { id: 'agent-1', model: 'provider-agent::model-agent' }
     renderHook(() =>
       useAgentConversationBootstrap({
         session: { ...session, modelId: null },
         sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-1', model: 'provider-stale::model-stale' }
+        sessionSource: 'query'
       })
     )
 

@@ -11,7 +11,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -862,6 +862,9 @@ export class AgentSessionService {
             if (routingUpdate.requiresEmptySession) {
               this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
             }
+            if (dto.agentId !== undefined && dto.agentId !== current.agentId) {
+              getDataService('AgentSessionMessageService').clearRuntimeResumeTokensTx(tx, [id])
+            }
           }
           return this.updateTx(tx, id, patch)
         }),
@@ -1258,3 +1261,4 @@ export class AgentSessionService {
 }
 
 export const agentSessionService = new AgentSessionService()
+registerDataService('AgentSessionService', agentSessionService)

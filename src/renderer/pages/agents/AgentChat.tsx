@@ -580,7 +580,13 @@ const AgentChat = ({
         confirmText={t('agent.session.model_switch_confirm.confirm')}
         cancelText={t('common.cancel')}
         onConfirm={async () => {
-          if (!modelSwitchTarget || modelSwitchTarget.model.id === activeModel?.id) return
+          if (
+            !modelSwitchTarget ||
+            modelSwitchTarget.sessionId !== currentSessionId ||
+            modelSwitchTarget.model.id === activeModel?.id
+          ) {
+            return
+          }
           const updatedSession = await updateSession(
             { id: modelSwitchTarget.sessionId, modelId: modelSwitchTarget.model.id },
             { showSuccessToast: false }

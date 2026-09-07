@@ -44,7 +44,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -52,6 +51,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeReconcileInput,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
@@ -293,6 +293,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
+        modelName: initialSnapshot.model.name ?? initialSnapshot.model.id,
         citationsGuidance
       })
       const approvalContext = {
@@ -508,10 +509,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
    * permission-mode changes wait for an idle boundary. Any spawn-frozen difference is
    * rebuilt by the host at the next safe boundary.
    */
-  async reconcile(input: {
-    modelId: UniqueModelId
-    knowledgeBaseIds?: readonly string[]
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
       () => this.reconcileOnce(input)
@@ -520,18 +518,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    modelId: UniqueModelId
-    knowledgeBaseIds?: readonly string[]
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
+    if (input.agentType !== undefined && input.agentType !== 'pi') return 'rebuild'
+    const agentId = input.agentId ?? this.input.agentId
+    if (agentId !== this.input.agentId) return 'rebuild'
     let snapshot
     try {
-      snapshot = await capturePiConnectionSnapshot(
-        this.input.sessionId,
-        this.input.agentId,
-        input.modelId,
-        input.knowledgeBaseIds
-      )
+      snapshot = await capturePiConnectionSnapshot(this.input.sessionId, agentId, input.modelId, input.knowledgeBaseIds)
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
       throw error

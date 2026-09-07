@@ -177,6 +177,18 @@ export type AgentRuntimeEvent =
  */
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
+export interface AgentRuntimeReconcileInput {
+  /** Connection identity; omitted only by legacy tests/callers. */
+  agentId?: string
+  /** Runtime identity; omitted only by legacy tests/callers. */
+  agentType?: string
+  modelId: UniqueModelId
+  reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
+  knowledgeBaseIds?: readonly string[]
+  fastMode?: boolean
+}
+
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
@@ -205,15 +217,7 @@ export interface AgentRuntimeConnection {
    * pinning the host uses for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
-  reconcile(input: {
-    /** Agent identity the connection must serve; omitted only by legacy tests/callers. */
-    agentId?: string
-    modelId: UniqueModelId
-    reasoningEffort?: ReasoningEffortOption
-    serviceTier?: ServiceTierSelection
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-  }): Promise<AgentRuntimeReconcileResult>
+  reconcile(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).

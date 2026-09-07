@@ -3917,6 +3917,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
       expect(mocks.deriveConfig).not.toHaveBeenCalled()
     })
 
+    it('requires a rebuild when the connection target switches runtime', async () => {
+      const { connection } = await connectWithSnapshot()
+      mocks.deriveConfig.mockClear()
+
+      await expect(connection.reconcile({ agentType: 'pi', modelId: 'claude-code::sonnet' as any })).resolves.toBe(
+        'rebuild'
+      )
+      expect(mocks.deriveConfig).not.toHaveBeenCalled()
+    })
+
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
       const { connection, query, toolPolicySnapshot } = await connectWithSnapshot()
 

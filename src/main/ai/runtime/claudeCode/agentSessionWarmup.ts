@@ -393,7 +393,7 @@ async function deriveConnectionConfigFromSnapshot(
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    promptModelName: model.name ?? model.id,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -527,6 +527,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         primaryModelId: uniqueModelId,
+        modelName: model.name ?? model.id,
         contextWindow,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,

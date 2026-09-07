@@ -703,13 +703,16 @@ export class AgentSessionMessageService {
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
-      if (sessionIds.length > 0) {
-        tx.update(sessionMessagesTable)
-          .set({ runtimeResumeToken: null })
-          .where(inArray(sessionMessagesTable.sessionId, sessionIds))
-          .run()
-      }
+      this.clearRuntimeResumeTokensTx(tx, sessionIds)
     })
+  }
+
+  clearRuntimeResumeTokensTx(tx: DbOrTx, sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return
+    tx.update(sessionMessagesTable)
+      .set({ runtimeResumeToken: null })
+      .where(inArray(sessionMessagesTable.sessionId, [...new Set(sessionIds)]))
+      .run()
   }
 
   /** Best-effort terminalization after a live assistant persistence failure. */

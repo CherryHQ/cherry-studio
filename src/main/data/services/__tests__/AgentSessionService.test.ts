@@ -881,6 +881,30 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('clears persisted runtime resume tokens when a session is reassigned', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-resume-target',
+      type: 'claude-code',
+      name: 'Resume Target Agent',
+      instructions: '',
+      orderKey: 'b1'
+    })
+    const session = await createSession('Reassigned resume session')
+    await insertSessionMessage(session.id, 'message-with-resume-token')
+    await dbh.db
+      .update(agentSessionMessageTable)
+      .set({ runtimeResumeToken: 'previous-agent-runtime-session' })
+      .where(eq(agentSessionMessageTable.id, 'message-with-resume-token'))
+
+    agentSessionService.update(session.id, { agentId: 'agent-session-resume-target' })
+
+    const [message] = await dbh.db
+      .select({ runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, 'message-with-resume-token'))
+    expect(message.runtimeResumeToken).toBeNull()
+  })
+
   it('rejects runtime changes after messages are sent', async () => {
     await seedAgentModels()
     const session = await createSession('Locked runtime session')

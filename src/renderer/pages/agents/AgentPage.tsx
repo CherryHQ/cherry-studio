@@ -254,12 +254,10 @@ const AgentPage = () => {
     (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
       ? lastVisibleSessionRef.current
       : null)
-  const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
   const conversationBootstrap = useAgentConversationBootstrap({
     session: visibleSession ?? null,
     sessionLoading: isActiveSessionLoading,
-    sessionSource: activeSessionSource,
-    agentHint: visibleAgentFromList
+    sessionSource: activeSessionSource
   })
   const visibleAgent = conversationBootstrap.resources.agent
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)

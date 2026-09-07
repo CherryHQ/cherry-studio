@@ -24,7 +24,6 @@ interface UseAgentConversationBootstrapOptions {
   session: AgentSessionEntity | null
   sessionLoading: boolean
   sessionSource: AgentSessionSource
-  agentHint?: Pick<AgentEntity, 'id' | 'model'>
 }
 
 /**

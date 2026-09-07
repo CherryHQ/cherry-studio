@@ -230,12 +230,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::agent-default' })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      name: 'Session Model'
     }))
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.sdkModelId).toBe('session-model-api')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ modelName: 'Session Model' }),
+      expect.anything()
+    )
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
@@ -1445,19 +1452,19 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptUserName'])
   })
 
-  it('changes only the prompt model name rebuild fact when the resolved Agent model name changes', async () => {
-    const agent = {
+  it('tracks the selected session model name in prompt and route rebuild facts', async () => {
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
-      model: 'provider-1::model-1',
-      modelName: 'Model One',
+      model: 'provider-1::agent-default',
+      modelName: 'Stale Agent Default',
       disabledTools: [],
       mcps: [],
       configuration: {}
-    }
-    mocks.getAgent.mockReturnValue(agent)
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'model-1-api', name: 'Model One' })
     const original = await deriveSignature()
 
-    mocks.getAgent.mockReturnValue({ ...agent, modelName: 'Renamed Model' })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'model-1-api', name: 'Renamed Model' })
     const renamed = await deriveSignature()
 
     expect(renamed.rebuildSignature).not.toBe(original.rebuildSignature)
@@ -1465,7 +1472,7 @@ describe('deriveConnectionConfig', () => {
       Object.keys(original.rebuildFactFingerprints).filter(
         (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
       )
-    ).toEqual(['promptModelName'])
+    ).toEqual(['route', 'promptModelName'])
   })
 
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {

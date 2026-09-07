@@ -114,6 +114,8 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Effective session-owned primary model frozen for this connection. */
   primaryModelId?: UniqueModelId
+  /** Effective session-owned model name for prompt variable expansion. */
+  modelName?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
@@ -229,7 +231,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    agentsMdContext
+    agentsMdContext,
+    options?.modelName
   )
 
   // 6. MCP servers (session + built-in)
@@ -589,7 +592,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
-  agentsMdContext?: string
+  agentsMdContext?: string,
+  /** Effective session-owned model name for prompt variable expansion. */
+  modelName?: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -609,6 +614,7 @@ export async function buildSystemPrompt(
     workspacePath: cwd,
     agentDataPath,
     agent,
+    modelName,
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
     customBaseContext

@@ -261,20 +261,22 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     expect(text).toContain('<agent_instructions>\nAGENT_ROLE: You are the release manager.\n</agent_instructions>')
   })
 
-  it('resolves Agent System Prompt variables with the embedded Agent model name', async () => {
-    mockReplacePromptVariables.mockResolvedValueOnce('Address Alice while using Claude Sonnet 4.5.')
+  it('resolves Agent System Prompt variables with the selected session model name', async () => {
+    mockReplacePromptVariables.mockResolvedValueOnce('Address Alice while using Claude Opus 4.5.')
     const agent = makeAgent({
       instructions: 'Address {{username}} while using {{model_name}}.',
-      modelName: 'Claude Sonnet 4.5'
+      modelName: 'Stale Agent Default'
     })
 
-    const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+    const text = promptText(
+      await buildSystemPrompt(agent, '/tmp/cwd', '/tmp/cwd', [], [], undefined, 'Claude Opus 4.5')
+    )
 
     expect(mockReplacePromptVariables).toHaveBeenCalledWith(
       'Address {{username}} while using {{model_name}}.',
-      'Claude Sonnet 4.5'
+      'Claude Opus 4.5'
     )
-    expect(text).toContain('Address Alice while using Claude Sonnet 4.5.')
+    expect(text).toContain('Address Alice while using Claude Opus 4.5.')
     expect(text).not.toContain('{{username}}')
     expect(text).not.toContain('{{model_name}}')
   })
