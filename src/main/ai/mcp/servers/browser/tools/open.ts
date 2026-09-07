@@ -5,7 +5,12 @@ import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 export const OpenSchema = z.object({
-  url: z.url().describe('URL to navigate to'),
+  url: z
+    .string()
+    .min(1)
+    .describe(
+      'URL to navigate to. Accepts https:// and http:// URLs, file:// URLs, and absolute file paths (e.g. D:\\report\\out.html, /tmp/out.html) when local file access is enabled in Settings.'
+    ),
   format: z
     .enum(['html', 'txt', 'markdown', 'json'])
     .optional()
@@ -37,13 +42,14 @@ export const OpenSchema = z.object({
 export const openToolDefinition = {
   name: 'open',
   description:
-    'Navigate to a URL and optionally fetch page content. By default the browser runs in the background (no window shown). If format is specified, returns { tabId, content } with page content in that format. Otherwise, returns { currentUrl, title, tabId } for subsequent operations. Use selector to extract only part of a page (e.g. "#search" for Google results). Set showWindow=true ONLY when the user needs to visually see or interact with the page (e.g. login, CAPTCHA, manual browsing). PARALLEL: Set newTab=true and call this tool multiple times simultaneously when visiting multiple URLs.',
+    'Navigate to a URL and optionally fetch page content. By default the browser runs in the background (no window shown). If format is specified, returns { tabId, content } with page content in that format. Otherwise, returns { currentUrl, title, tabId } for subsequent operations. Accepts http(s) URLs always; file:// URLs and absolute local paths (e.g. D:\\report\\out.html) only when the user enabled local file access in Settings > General. Use selector to extract only part of a page (e.g. "#search" for Google results). Set showWindow=true ONLY when the user needs to visually see or interact with the page (e.g. login, CAPTCHA, manual browsing). PARALLEL: Set newTab=true and call this tool multiple times simultaneously when visiting multiple URLs.',
   inputSchema: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
-        description: 'URL to navigate to'
+        description:
+          'URL to navigate to. http(s) URLs always work; file:// URLs and absolute paths require local file access in Settings.'
       },
       format: {
         type: 'string',

@@ -48,6 +48,7 @@ const GeneralSettings: FC = () => {
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
+  const [allowBrowserFileAccess, setAllowBrowserFileAccess] = usePreference('app.browser.allow_file_access')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
@@ -212,6 +213,21 @@ const GeneralSettings: FC = () => {
           <Switch
             checked={allowPrivateNetworkFetch}
             onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-allow-browser-file-access" className="scroll-mt-6">
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.browser.allow_file_access')}</span>
+            <InfoTooltip
+              content={t('settings.browser.allow_file_access_tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch
+            checked={allowBrowserFileAccess}
+            onCheckedChange={(checked) => void setAllowBrowserFileAccess(checked)}
           />
         </SettingRow>
         <SettingDivider />

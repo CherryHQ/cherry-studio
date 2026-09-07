@@ -68,6 +68,36 @@ Callers migrating from `net.fetch` must treat this as a user-visible compatibili
 - `fetchRemoteText(url, options)` is the full direct-fetch boundary: URL validation, DNS resolution, address pinning, timeout, redirect policy, and response-size limit.
 - `sanitizeRemoteUrl(url, configuredApiHost?)` is only a literal URL guard. It is useful when no network request is opened at that point or when validating a user-configured provider origin, including an explicitly matching loopback/private provider endpoint. It does not close DNS rebinding by itself and must not be followed by an unpinned direct fetch of attacker-controlled input.
 
+## Browser navigation vs direct fetch
+
+`@cherry/browser` navigation (`CdpBrowserController.open/fetch` rendering in a
+Chromium `BrowserView`) is a separate boundary from direct main-process fetches:
+
+- `file://` URLs and absolute local paths are accepted **only** there, via
+  `resolveBrowserNavigationTarget()` in `src/main/ai/mcp/servers/browser/navigationUrl.ts`,
+  and only when the `app.browser.allow_file_access` preference is on (default off).
+- `sanitizeRemoteUrl()`, `resolveRemoteFetchUrl()`, and `fetchRemoteText()` keep
+  rejecting `file:` unconditionally — no DNS pinning, redirect, or size
+  guarantees from the direct-fetch path apply inside Chromium.
+- The file branch resolves symlinks via `realpath`, requires the target to
+  exist as a regular file under a size cap, and always rejects remote shares
+  (`file://host/...`, UNC), credentials, and non-http(s)/file schemes. The
+  check is best-effort (no time-of-check/time-of-use guarantee against a file
+  changing between validation and Chromium loading it).
+- Renderer-initiated navigations (JS `location.href`, in-page links,
+  meta-refreshes, server redirects) bypass `open()`, so tabs re-apply the
+  full gate in `will-navigate` / `will-frame-navigate` / `will-redirect`
+  handlers: `file:` targets need the pref and pass file validation; `http(s)`
+  targets re-run the literal `sanitizeRemoteUrl()` guard (so a public page
+  cannot redirect the tab to an intranet host); anything else is denied,
+  except `about:blank`, which performs no network or file access. The tab-bar
+  address input applies the same gate before `loadURL()`.
+- `file://localhost/...` is treated as local (RFC 8089); any other `file:`
+  authority is a rejected remote share.
+- Risk accepted behind the opt-in: `fetch(format)` / `snapshot` / `execute`
+  on a `file://` page returns local file content into model context, so
+  enabling the pref lets models read local files the user points them at.
+
 ## Redirects
 
 Redirects are rejected by default. Callers may opt into a strict hop limit; every followed hop repeats URL validation, DNS resolution, private-address rejection, and pinned connection setup before opening the next request. Cross-origin redirects drop `Authorization`, `Cookie`, and `Proxy-Authorization` headers before the next hop.

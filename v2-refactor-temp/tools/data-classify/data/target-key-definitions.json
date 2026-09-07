@@ -13,6 +13,13 @@
       "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.browser.allow_file_access",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow @cherry/browser to open local file:// URLs and absolute file paths (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.power.prevent_sleep_when_busy",
       "type": "boolean",
       "defaultValue": false,

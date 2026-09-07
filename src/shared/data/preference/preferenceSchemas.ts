@@ -44,6 +44,8 @@ export interface PreferenceSchemas {
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
+    // target-key-definitions/complex/complex
+    'app.browser.allow_file_access': boolean
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
     // redux/settings/autoCheckUpdate
@@ -582,6 +584,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
+    'app.browser.allow_file_access': false,
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,

@@ -49,6 +49,7 @@ Open a URL in a browser window. Optionally return page content.
 - `format`: If set (`html`, `txt`, `markdown`, `json`), returns page content in that format along with tabId. If not set, just opens the page and returns navigation info.
 - `newTab`: Set to `true` to open in a new tab (required for parallel requests)
 - `showWindow`: Set to `true` to display the browser window (useful for debugging)
+- `url`: `http(s)` URLs always work. `file://` URLs and absolute local paths (e.g. `file:///D:/report/out.html`, `D:\report\out.html`, `/tmp/out.html`) work only when the user enables **Settings > General > Allow browser to open local files** (`app.browser.allow_file_access`, default off). The file must exist, be a regular file, and be under the size cap; remote shares (`file://server/...`, UNC) are rejected.
 - Returns (without format): `{ currentUrl, title, tabId }`
 - Returns (with format): `{ tabId, content }` where content is in the specified format
 

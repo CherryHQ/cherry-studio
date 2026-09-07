@@ -44,6 +44,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.proxy.mode.title'
   },
   {
+    anchorId: 'allow-browser-file-access',
+    titleKey: 'settings.browser.allow_file_access',
+    groupKey: 'settings.proxy.mode.title',
+    aliases: ['browser', 'file', '浏览器', '文件']
+  },
+  {
     anchorId: 'hardware-acceleration',
     titleKey: 'settings.hardware_acceleration.title',
     groupKey: 'settings.proxy.mode.title',

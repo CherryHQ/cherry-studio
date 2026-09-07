@@ -3946,6 +3946,8 @@
   "settings.developer.enable_developer_mode": "Enable Developer Mode",
   "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
   "settings.developer.title": "Developer Mode",
+  "settings.browser.allow_file_access": "Allow browser to open local files",
+  "settings.browser.allow_file_access_tip": "Lets @cherry/browser open file:// URLs and absolute local paths so agents can preview generated HTML. Turn this off if you do not want models to read files on your machine.",
   "settings.display.custom.css.label": "Custom CSS",
   "settings.display.custom.css.migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
   "settings.display.custom.css.placeholder": "/* Put custom CSS here */",

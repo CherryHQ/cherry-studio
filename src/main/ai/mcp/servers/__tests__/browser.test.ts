@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
-    mkdirSync: vi.fn()
+    mkdirSync: vi.fn(),
+    realpathSync: vi.fn((p: string) => p),
+    statSync: vi.fn(() => ({ isDirectory: () => false, isFile: () => true, size: 100 }))
   },
   existsSync: vi.fn(() => false),
-  mkdirSync: vi.fn()
+  mkdirSync: vi.fn(),
+  realpathSync: vi.fn((p: string) => p),
+  statSync: vi.fn(() => ({ isDirectory: () => false, isFile: () => true, size: 100 }))
 }))
 
 vi.mock('electron', () => {
@@ -229,6 +233,178 @@ describe('CdpBrowserController', () => {
     const result = await controller.open('https://foo.bar/', 5000, true)
     expect(result.currentUrl).toBe('https://example.com/')
     expect(result.title).toBe('Example Title')
+  })
+
+  it('rejects file URLs when file access is disabled', async () => {
+    const controller = new CdpBrowserController()
+    await expect(controller.open('file:///D:/report/out.html', 5000, false)).rejects.toThrow(/disabled/)
+  })
+
+  it('opens a file URL when file access is enabled', async () => {
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'WindowManager') {
+        return { open: wmOpen, getWindow: wmGetWindow, close: wmClose } as never
+      }
+      if (name === 'PreferenceService') {
+        return { get: () => true } as never
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const controller = new CdpBrowserController()
+    const result = await controller.open('file:///D:/report/out.html', 5000, false)
+    expect(result.tabId).toBeDefined()
+  })
+
+  it('still rejects non-http(s)/file schemes when file access is enabled', async () => {
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'WindowManager') {
+        return { open: wmOpen, getWindow: wmGetWindow, close: wmClose } as never
+      }
+      if (name === 'PreferenceService') {
+        return { get: () => true } as never
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const controller = new CdpBrowserController()
+    await expect(controller.open('ftp://example.com/file', 5000, false)).rejects.toThrow(/Invalid browser url/)
+    await expect(controller.open('file://server/share/x.html', 5000, false)).rejects.toThrow(/Remote file shares/)
+  })
+
+  it('registers a will-navigate guard that blocks file URLs when file access is disabled', async () => {
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as
+      | ((event: { preventDefault: () => void }, url: string) => void)
+      | undefined
+    const willFrameNavigate = onMock.mock.calls.find(([event]) => event === 'will-frame-navigate')?.[1] as
+      | ((event: { preventDefault: () => void; url: string }) => void)
+      | undefined
+    expect(willNavigate).toBeDefined()
+    expect(willFrameNavigate).toBeDefined()
+
+    const blocked = { preventDefault: vi.fn() }
+    willNavigate!(blocked, 'file:///D:/secret.html')
+    expect(blocked.preventDefault).toHaveBeenCalled()
+
+    const allowed = { preventDefault: vi.fn() }
+    willNavigate!(allowed, 'https://example.com/')
+    expect(allowed.preventDefault).not.toHaveBeenCalled()
+
+    const frameBlocked = { preventDefault: vi.fn(), url: 'file:///D:/secret.html' }
+    willFrameNavigate!(frameBlocked)
+    expect(frameBlocked.preventDefault).toHaveBeenCalled()
+  })
+
+  it('blocks server redirects to file URLs and private hosts via will-redirect', async () => {
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willRedirect = onMock.mock.calls.find(([event]) => event === 'will-redirect')?.[1] as
+      | ((event: { preventDefault: () => void }, url: string) => void)
+      | undefined
+    expect(willRedirect).toBeDefined()
+
+    for (const url of ['file:///D:/secret.html', 'http://169.254.169.254/latest/meta-data']) {
+      const event = { preventDefault: vi.fn() }
+      willRedirect!(event, url)
+      expect(event.preventDefault).toHaveBeenCalled()
+    }
+
+    const allowed = { preventDefault: vi.fn() }
+    willRedirect!(allowed, 'https://example.com/next')
+    expect(allowed.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('reads the navigation URL from the event when provided in the new shape', async () => {
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
+      event: { preventDefault: () => void; url?: unknown },
+      url?: unknown
+    ) => void
+
+    const blocked = { preventDefault: vi.fn(), url: 'file:///D:/secret.html' }
+    willNavigate(blocked, undefined)
+    expect(blocked.preventDefault).toHaveBeenCalled()
+
+    const allowed = { preventDefault: vi.fn(), url: 'https://example.com/' }
+    willNavigate(allowed, undefined)
+    expect(allowed.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('allows about:blank navigations and popups', async () => {
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
+      event: { preventDefault: () => void },
+      url: string
+    ) => void
+
+    const blank = { preventDefault: vi.fn() }
+    willNavigate(blank, 'about:blank')
+    expect(blank.preventDefault).not.toHaveBeenCalled()
+
+    const popup = vi.mocked(view.webContents.setWindowOpenHandler).mock.calls[0][0] as (details: { url: string }) => {
+      action: 'deny'
+    }
+    const tabsBefore = (await controller.listTabs(false)).length
+    expect(popup({ url: 'about:blank' })).toEqual({ action: 'deny' })
+    expect(popup({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Only the blank popup opened a tab; the javascript: popup was denied.
+    expect((await controller.listTabs(false)).length).toBe(tabsBefore + 1)
+  })
+
+  it('blocks private hosts, untrusted schemes and unparseable URLs in will-navigate', async () => {
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
+      event: { preventDefault: () => void },
+      url: string
+    ) => void
+
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:3000/admin',
+      'data:text/html,hi',
+      '::not a url::'
+    ]) {
+      const event = { preventDefault: vi.fn() }
+      willNavigate(event, url)
+      expect(event.preventDefault).toHaveBeenCalled()
+    }
+  })
+
+  it('lets the will-navigate guard pass file URLs when file access is enabled', async () => {
+    vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'WindowManager') {
+        return { open: wmOpen, getWindow: wmGetWindow, close: wmClose } as never
+      }
+      if (name === 'PreferenceService') {
+        return { get: () => true } as never
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const controller = new CdpBrowserController()
+    const { view } = await controller.createTab(false)
+    const onMock = vi.mocked(view.webContents.on)
+    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
+      event: { preventDefault: () => void },
+      url: string
+    ) => void
+
+    const event = { preventDefault: vi.fn() }
+    willNavigate(event, 'file:///D:/report/out.html')
+    expect(event.preventDefault).not.toHaveBeenCalled()
+
+    const privateEvent = { preventDefault: vi.fn() }
+    willNavigate(privateEvent, 'http://localhost:3000/admin')
+    expect(privateEvent.preventDefault).toHaveBeenCalled()
   })
 
   it('reuses session for execute and supports multiline', async () => {

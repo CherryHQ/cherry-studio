@@ -7,6 +7,7 @@ import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
+import { isBrowserFileInput, resolveBrowserNavigationTarget, resolveBrowserNavigationUrl } from './navigationUrl'
 import { TAB_BAR_HTML } from './tabbarHtml'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
 
@@ -63,6 +64,19 @@ export class CdpBrowserController {
 
   private getPartition(privateMode: boolean): string {
     return privateMode ? SESSION_KEY_PRIVATE : `persist:${SESSION_KEY_DEFAULT}`
+  }
+
+  /**
+   * Whether local file navigation is allowed. Reads the
+   * `app.browser.allow_file_access` preference (default off); any lookup
+   * failure (tests, early boot) denies file access.
+   */
+  private isFileAccessAllowed(): boolean {
+    try {
+      return application.get('PreferenceService').get('app.browser.allow_file_access') === true
+    } catch {
+      return false
+    }
   }
 
   private async ensureAppReady() {
@@ -222,7 +236,33 @@ export class CdpBrowserController {
     const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
     if (!activeTab || activeTab.view.webContents.isDestroyed()) return
 
-    let finalUrl = url.trim()
+    const input = url
+      .trim()
+      .replace(/^["'](.*)["']$/, '$1')
+      .trim()
+    if (!input) return
+
+    const load = (finalUrl: string) => {
+      activeTab.view.webContents.loadURL(finalUrl).catch((error) => {
+        logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: windowInfo.activeTabId })
+      })
+    }
+
+    // Full gate first: file:// URLs, absolute paths, and complete http(s) URLs.
+    try {
+      load(resolveBrowserNavigationUrl(input, { allowFile: this.isFileAccessAllowed() }))
+      return
+    } catch (gateError) {
+      // File-like inputs must not fall through to the domain/search
+      // heuristics below (which would prefix https:// onto a local path).
+      if (/^file:/i.test(input) || isBrowserFileInput(input)) {
+        logger.warn('Blocked local file navigation in tab bar', { error: gateError, url: input })
+        return
+      }
+    }
+
+    // User convenience heuristics for typed domains / search terms.
+    let finalUrl = input
     if (!/^https?:\/\//i.test(finalUrl)) {
       if (/^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}/.test(finalUrl) || finalUrl.includes('.')) {
         finalUrl = 'https://' + finalUrl
@@ -231,9 +271,16 @@ export class CdpBrowserController {
       }
     }
 
-    activeTab.view.webContents.loadURL(finalUrl).catch((error) => {
-      logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: windowInfo.activeTabId })
-    })
+    // Programmatic loadURL() does not emit will-* events, so enforce the
+    // literal SSRF guard here instead of relying on the navigation handlers.
+    try {
+      finalUrl = sanitizeRemoteUrl(finalUrl)
+    } catch (error) {
+      logger.warn('Blocked tab bar navigation to unsafe URL', { error, url: input })
+      return
+    }
+
+    load(finalUrl)
   }
 
   private handleBackAction(windowInfo: WindowInfo) {
@@ -534,20 +581,85 @@ export class CdpBrowserController {
       this.sendTabBarUpdate(windowInfo)
     })
 
+    // Fail-closed navigation policy: renderer-initiated navigations
+    // (execute("location.href='...'"), in-page links, meta-refreshes,
+    // server redirects) bypass open(), so re-apply the same gate here: the
+    // file branch (opt-in local access) plus the http(s) literal SSRF guard.
+    // Anything else (other schemes, unparseable URLs) is denied, except
+    // about:blank, which performs no network or file access.
+    const getNavigationUrl = (event: Electron.Event, fallbackUrl?: unknown): string | undefined => {
+      // Newer Electron passes the URL on the event (details.url); older
+      // versions pass it as a trailing listener argument. Support both.
+      const eventUrl = (event as { url?: unknown }).url
+      if (typeof eventUrl === 'string') return eventUrl
+      return typeof fallbackUrl === 'string' ? fallbackUrl : undefined
+    }
+    const enforceNavigationPolicy = (url: string | undefined): boolean => {
+      if (url === 'about:blank') return true
+      if (!url) {
+        logger.warn('Blocked navigation with missing URL', { tabId })
+        return false
+      }
+      let protocol = ''
+      try {
+        protocol = new URL(url).protocol
+      } catch {
+        logger.warn('Blocked navigation with unparseable URL', { url, tabId })
+        return false
+      }
+      try {
+        if (protocol === 'file:') {
+          resolveBrowserNavigationTarget(url, { allowFile: this.isFileAccessAllowed() })
+        } else if (protocol === 'http:' || protocol === 'https:') {
+          sanitizeRemoteUrl(url)
+        } else {
+          logger.warn('Blocked navigation to untrusted URL scheme', { url, tabId })
+          return false
+        }
+        return true
+      } catch (error) {
+        logger.warn('Blocked renderer-initiated navigation', { error, url, tabId })
+        return false
+      }
+    }
+    view.webContents.on('will-navigate', (event, url) => {
+      if (!enforceNavigationPolicy(getNavigationUrl(event, url))) event.preventDefault()
+    })
+    view.webContents.on('will-frame-navigate', (event) => {
+      if (!enforceNavigationPolicy(getNavigationUrl(event))) event.preventDefault()
+    })
+    // Server-side redirects (3xx) emit will-redirect, not will-navigate —
+    // without this, a public URL could redirect the tab to an intranet host.
+    view.webContents.on('will-redirect', (event, url) => {
+      if (!enforceNavigationPolicy(getNavigationUrl(event, url))) event.preventDefault()
+    })
+
     // Handle new window requests (e.g., target="_blank" links) - open in new tab instead
     view.webContents.setWindowOpenHandler(({ url }) => {
+      // about:blank performs no network or file access (blank popup shells,
+      // e.g. OAuth flows that navigate later under the navigation guards).
+      let targetUrl = url
+      if (url !== 'about:blank') {
+        try {
+          targetUrl = resolveBrowserNavigationUrl(url, { allowFile: this.isFileAccessAllowed() })
+        } catch (error) {
+          logger.warn('Blocked navigation from window.open', { error, url })
+          return { action: 'deny' }
+        }
+      }
+      const safeUrl = targetUrl
       // Create a new tab and navigate to the URL
       this.createTab(privateMode, true)
         .then(({ tabId: newTabId }) => {
           return this.switchTab(privateMode, newTabId).then(() => {
             const newTab = windowInfo.tabs.get(newTabId)
             if (newTab && !newTab.view.webContents.isDestroyed()) {
-              void newTab.view.webContents.loadURL(url)
+              void newTab.view.webContents.loadURL(safeUrl)
             }
           })
         })
         .catch((error) => {
-          logger.warn('Failed to open link in new tab', { error, url })
+          logger.warn('Failed to open link in new tab', { error, url: safeUrl })
         })
       return { action: 'deny' }
     })
@@ -636,9 +748,15 @@ export class CdpBrowserController {
    * @returns Object containing the current URL, page title, and tab ID after navigation
    */
   public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
-    // Reject non-http(s) schemes (e.g. file://) and local/private hosts before navigating
-    // (covers fetch() too, which routes through open()) to prevent local-file read / SSRF.
-    url = sanitizeRemoteUrl(url)
+    // Browser-only navigation gate: http(s) still goes through the SSRF-safe
+    // sanitizeRemoteUrl(); file:// URLs and absolute paths are allowed only
+    // when the user opted in via app.browser.allow_file_access (covers
+    // fetch() too, which routes through open()).
+    const target = resolveBrowserNavigationTarget(url, { allowFile: this.isFileAccessAllowed() })
+    if (target.kind === 'file') {
+      logger.info('Loading local file', { path: target.filePath, windowKey: this.getWindowKey(privateMode) })
+    }
+    url = target.url
 
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const view = tab.view
