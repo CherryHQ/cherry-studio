@@ -146,6 +146,16 @@ describe('browser snapshots', () => {
     expect(serializeSnapshot({ ...base, url: 'https://user:SECRET@example.com/' }, 40_000).text).not.toContain('SECRET')
   })
 
+  it('sanitizes the browser default title when it repeats the page URL', async () => {
+    const { session, mock } = setup()
+    const url = 'data:text/html,<input value="SECRET">'
+    mock.getURL.mockReturnValue(url)
+    mock.getTitle.mockReturnValue(url)
+    const result = await session.snapshot()
+    expect(result.snapshot.title).toBe('data:[content omitted]')
+    expect(JSON.stringify(result)).not.toContain('SECRET')
+  })
+
   it.each([
     ['https://user:SECRET@example.com/path', 'https://example.com/path'],
     ['//user:SECRET@example.com/path', '//example.com/path'],

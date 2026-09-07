@@ -260,11 +260,13 @@ export class GuestSession {
         const raw = await captureSnapshot(this)
         if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
         const tree = buildSnapshotTree(raw, this.allocateRef, scope)
+        const url = this.guest.getURL()
+        const title = this.guest.getTitle()
         const snapshot: BrowserSnapshot = {
           ...tree,
           documentId: this.documentId,
-          url: sanitizeSnapshotUrl(this.guest.getURL()),
-          title: this.guest.getTitle(),
+          url: sanitizeSnapshotUrl(url),
+          title: title === url ? sanitizeSnapshotUrl(title) : title,
           truncated: false
         }
         const maxChars = opts.maxChars ?? 40_000
