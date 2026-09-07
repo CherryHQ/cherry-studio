@@ -109,7 +109,9 @@ describe('DoctorService.run', () => {
 
   it('includes transitive dependencies for selected checks', async () => {
     const result = await createReadyService().run({ tier: 'live', checkIds: ['network-dns-resolution'] })
-    expect(result).toMatchObject({ status: 'completed', report: { summary: { pass: 2, skip: 0 } } })
+    expect(result.status).toBe('completed')
+    if (result.status !== 'completed') return
+    expect(result.report.results.map((item) => item.id)).toEqual(['network-dns-resolution', 'network-online'])
   })
 
   it('rejects a tier mismatch before publishing running', async () => {
@@ -125,9 +127,10 @@ describe('DoctorService.run', () => {
       new Error('read failed')
     )
     await expect(service.run({ tier: 'quick', checkIds: MOCKED })).rejects.toThrow('read failed')
-    expect(state()?.status).toBe('canceled')
+    expect(state()).toEqual({ status: 'idle' })
     expect((await service.run({ tier: 'quick', checkIds: MOCKED })).status).toBe('completed')
   })
+
   it('publishes running progress and then the completed report on the shared cache', async () => {
     const service = createReadyService()
     const outcome = await service.run({ tier: 'quick', checkIds: MOCKED })
@@ -150,6 +153,31 @@ describe('DoctorService.run', () => {
       'running',
       'completed'
     ])
+  })
+
+  it('counts a repeated check once', async () => {
+    const service = createReadyService()
+    const outcome = await service.run({
+      tier: 'quick',
+      checkIds: ['config-boot-config-valid', 'config-boot-config-valid']
+    })
+
+    expect(outcome.status).toBe('completed')
+    if (outcome.status !== 'completed') return
+    expect(outcome.report.results).toHaveLength(1)
+    expect(outcome.report.summary).toMatchObject({ pass: 1 })
+  })
+
+  it('aborts an in-flight run when the service stops', async () => {
+    let release!: () => void
+    registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
+    const service = createReadyService()
+
+    const run = service.run({ tier: 'quick', checkIds: MOCKED })
+    ;(service as unknown as { onStop(): void }).onStop()
+    release()
+
+    await expect(run).resolves.toMatchObject({ status: 'canceled' })
   })
 
   it('answers busy with the in-flight run id, and that id can cancel the run', async () => {
@@ -204,7 +232,7 @@ describe('DoctorService.fix', () => {
         status: 'busy',
         runId: run.report.runId
       })
-      await expect(service.fix(request)).rejects.toThrow('busy')
+      await expect(service.fix(request)).resolves.toEqual({ status: 'stale', reason: 'run_superseded' })
       const replacement = {
         ...run.report,
         ...(change === 'superseded' ? { runId: 'replacement' } : { expiresAt: new Date(0).toISOString() })
@@ -293,6 +321,43 @@ describe('DoctorService.fix', () => {
       reason: 'run_superseded'
     })
     expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
+  })
+
+  it('refuses a fix while a newer run is in flight', async () => {
+    registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
+    const service = createReadyService()
+    const first = await service.run({ tier: 'quick', checkIds: MOCKED })
+    if (first.status !== 'completed') throw new Error('expected a report')
+
+    let release!: () => void
+    registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
+    const second = service.run({ tier: 'quick', checkIds: MOCKED })
+
+    await expect(
+      service.fix({ runId: first.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    ).resolves.toEqual({ status: 'stale', reason: 'run_superseded' })
+    expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
+
+    release()
+    await second
+  })
+
+  it('blocks a run while a fix is in flight, so the two never overlap', async () => {
+    registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
+    let release!: () => void
+    registryMocks.bootConfigRepair.mockReturnValue(
+      new Promise((resolve) => (release = () => resolve({ status: 'fixed' })))
+    )
+    const service = createReadyService()
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    if (run.status !== 'completed') throw new Error('expected a report')
+
+    const fixing = service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    await vi.waitFor(() => expect(registryMocks.bootConfigRepair).toHaveBeenCalled())
+    expect(await service.run({ tier: 'quick', checkIds: MOCKED })).toMatchObject({ status: 'busy' })
+
+    release()
+    await expect(fixing).resolves.toMatchObject({ status: 'fixed' })
   })
 
   it('refuses a fix when a fresh probe no longer offers it', async () => {
