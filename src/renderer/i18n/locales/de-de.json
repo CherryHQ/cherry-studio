@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Modellsymbol",
   "settings.assistant.icon.type.none": "Nicht anzeigen",
+  "settings.browser.allow_file_access": "Browser das Öffnen lokaler Dateien erlauben",
+  "settings.browser.allow_file_access_tip": "Erlaubt @cherry/browser, file://-URLs und absolute lokale Pfade zu öffnen, damit Agenten generiertes HTML in der Vorschau anzeigen können. Deaktivieren Sie dies, wenn Modelle keine Dateien auf Ihrem Rechner lesen sollen.",
   "settings.channels.title": "Kanäle",
   "settings.data.app_data.copy_data_option": "Daten kopieren, wird nach Neustart automatisch vom Original- ins neue Verzeichnis kopiert",
   "settings.data.app_data.copy_time_notice": "Datenkopie benötigt etwas Zeit, Anwendung während des Kopiervorgangs nicht schließen",

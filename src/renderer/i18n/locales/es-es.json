@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Ícono del modelo",
   "settings.assistant.icon.type.none": "No mostrar",
+  "settings.browser.allow_file_access": "Permitir que el navegador abra archivos locales",
+  "settings.browser.allow_file_access_tip": "Permite que @cherry/browser abra URL file:// y rutas locales absolutas para que los agentes puedan previsualizar el HTML generado. Desactívalo si no quieres que los modelos lean archivos de tu equipo.",
   "settings.channels.title": "Canales",
   "settings.data.app_data.copy_data_option": "Copiar datos: la aplicación se reiniciará automáticamente y copiará los datos de la carpeta original a la nueva",
   "settings.data.app_data.copy_time_notice": "La copia de datos tomará algún tiempo. No cierre la aplicación durante la copia",

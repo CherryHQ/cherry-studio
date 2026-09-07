@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji",
   "settings.assistant.icon.type.model": "Εικονίδιο μοντέλου",
   "settings.assistant.icon.type.none": "Κανένα",
+  "settings.browser.allow_file_access": "Να επιτρέπεται στο πρόγραμμα περιήγησης το άνοιγμα τοπικών αρχείων",
+  "settings.browser.allow_file_access_tip": "Επιτρέπει στο @cherry/browser να ανοίγει διευθύνσεις URL file:// και απόλυτες τοπικές διαδρομές, ώστε οι πράκτορες να μπορούν να κάνουν προεπισκόπηση παραγόμενου HTML. Απενεργοποιήστε το αν δεν θέλετε τα μοντέλα να διαβάζουν αρχεία στον υπολογιστή σας.",
   "settings.channels.title": "Κανάλια",
   "settings.data.app_data.copy_data_option": "Αντιγραφή δεδομένων, θα γίνει αυτόματα επανεκκίνηση και τα δεδομένα από τον αρχικό κατάλογο θα αντιγραφούν στο νέο κατάλογο",
   "settings.data.app_data.copy_time_notice": "Η αντιγραφή δεδομένων θα διαρκέσει κάποιο χρονικό διάστημα, μην κλείσετε την εφαρμογή κατά τη διάρκεια της αντιγραφής",

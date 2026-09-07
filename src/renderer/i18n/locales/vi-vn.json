@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Biểu tượng cảm xúc",
   "settings.assistant.icon.type.model": "Biểu tượng mô hình",
   "settings.assistant.icon.type.none": "Ẩn",
+  "settings.browser.allow_file_access": "Cho phép trình duyệt mở tệp cục bộ",
+  "settings.browser.allow_file_access_tip": "Cho phép @cherry/browser mở URL file:// và đường dẫn cục bộ tuyệt đối để các tác tử có thể xem trước HTML được tạo. Hãy tắt nếu bạn không muốn mô hình đọc các tệp trên máy của bạn.",
   "settings.channels.title": "Kênh",
   "settings.data.app_data.copy_data_option": "Sao chép dữ liệu, sẽ tự động khởi động lại sau khi sao chép dữ liệu thư mục gốc vào thư mục mới",
   "settings.data.app_data.copy_time_notice": "Sao chép dữ liệu có thể mất một lúc, không được tắt ứng dụng bằng cách ép buộc",

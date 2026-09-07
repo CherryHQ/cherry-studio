@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji Simgesi",
   "settings.assistant.icon.type.model": "Model Simgesi",
   "settings.assistant.icon.type.none": "Gizle",
+  "settings.browser.allow_file_access": "Tarayıcının yerel dosyaları açmasına izin ver",
+  "settings.browser.allow_file_access_tip": "@cherry/browser uygulamasının file:// URL’lerini ve mutlak yerel yolları açmasına izin vererek ajanların oluşturulan HTML’i önizlemesini sağlar. Modellerin bu makinedeki dosyaları okumasını istemiyorsanız bunu kapatın.",
   "settings.channels.title": "Kanallar",
   "settings.data.app_data.copy_data_option": "Verileri kopyalar; özgün dizindeki veriler yeni dizine kopyalandıktan sonra otomatik olarak yeniden başlatılır",
   "settings.data.app_data.copy_time_notice": "Verilerin kopyalanması biraz zaman alabilir; uygulamayı zorla kapatmayın",

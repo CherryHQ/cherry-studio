@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Pictogramă Emoji",
   "settings.assistant.icon.type.model": "Pictogramă model",
   "settings.assistant.icon.type.none": "Ascunde",
+  "settings.browser.allow_file_access": "Permite browserului să deschidă fișiere locale",
+  "settings.browser.allow_file_access_tip": "Permite @cherry/browser să deschidă URL-uri file:// și căi locale absolute, astfel încât agenții să poată previzualiza HTML-ul generat. Dezactivați dacă nu doriți ca modelele să citească fișiere de pe calculatorul dvs.",
   "settings.channels.title": "Canale",
   "settings.data.app_data.copy_data_option": "Copiază datele, va reporni automat după copierea datelor din directorul original în noul director",
   "settings.data.app_data.copy_time_notice": "Copierea datelor poate dura ceva timp, nu închide forțat aplicația",

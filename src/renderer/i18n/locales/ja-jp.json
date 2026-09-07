@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji アイコン",
   "settings.assistant.icon.type.model": "モデルアイコン",
   "settings.assistant.icon.type.none": "表示しない",
+  "settings.browser.allow_file_access": "ブラウザによるローカルファイルのオープンを許可",
+  "settings.browser.allow_file_access_tip": "@cherry/browser が file:// URL や絶対ローカルパスを開き、エージェントが生成された HTML をプレビューできるようにします。モデルにマシン上のファイルを読み取らせたくない場合はオフにしてください。",
   "settings.channels.title": "チャンネル",
   "settings.data.app_data.copy_data_option": "データをコピーする, 開くと元のフォルダーのデータが新しいフォルダーにコピーされます。",
   "settings.data.app_data.copy_time_notice": "データコピーには時間がかかります。アプリを強制終了しないでください。",

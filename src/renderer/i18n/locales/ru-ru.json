@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji иконка",
   "settings.assistant.icon.type.model": "Модель иконки",
   "settings.assistant.icon.type.none": "Не отображать",
+  "settings.browser.allow_file_access": "Разрешить браузеру открывать локальные файлы",
+  "settings.browser.allow_file_access_tip": "Позволяет @cherry/browser открывать URL вида file:// и абсолютные локальные пути, чтобы агенты могли предпросматривать сгенерированный HTML. Отключите, если не хотите, чтобы модели читали файлы на вашем компьютере.",
   "settings.channels.title": "Каналы",
   "settings.data.app_data.copy_data_option": "Копировать данные. После копирования данных из исходного каталога в новый приложение автоматически перезапустится.",
   "settings.data.app_data.copy_time_notice": "Копирование данных из исходной директории займет некоторое время, пожалуйста, будьте терпеливы",

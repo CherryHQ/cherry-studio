@@ -3498,6 +3498,8 @@
   "settings.assistant.icon.type.emoji": "Emoji 表情",
   "settings.assistant.icon.type.model": "模型圖示",
   "settings.assistant.icon.type.none": "不顯示",
+  "settings.browser.allow_file_access": "允許瀏覽器開啟本機檔案",
+  "settings.browser.allow_file_access_tip": "允許 @cherry/browser 開啟 file:// 連結和本機絕對路徑，以便智能體預覽產生的 HTML。如果不希望模型讀取本機檔案，請關閉。",
   "settings.channels.title": "頻道",
   "settings.data.app_data.copy_data_option": "複製資料，會在重新啟動後將原始目錄的資料複製到新目錄",
   "settings.data.app_data.copy_time_notice": "複製資料需要一些時間，期間請勿關閉應用程式",
