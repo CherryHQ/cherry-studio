@@ -41,7 +41,7 @@ export const SubWindowAppShell = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const [, setMiniAppShow] = useCache('mini_app.show')
-  const [, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
+  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   const takeClearingSplitId = useCallback(
     (closedIds: readonly string[]): string | undefined => {
@@ -88,8 +88,11 @@ export const SubWindowAppShell = () => {
       const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
       if (orphanedIds.length === 0) return
       const orphanedSet = new Set(orphanedIds)
+      const keepAliveIds = new Set(openedKeepAliveMiniApps.map((app) => app.appId))
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
-      for (const appId of orphanedIds) clearWebviewState(appId)
+      for (const appId of orphanedIds) {
+        if (keepAliveIds.has(appId)) clearWebviewState(appId)
+      }
       if (currentMiniAppId && orphanedSet.has(currentMiniAppId)) {
         if (openedOneOffMiniApp?.appId === currentMiniAppId) {
           setOpenedOneOffMiniApp(null)
@@ -104,6 +107,7 @@ export const SubWindowAppShell = () => {
       splitMiniAppId,
       currentMiniAppId,
       openedOneOffMiniApp,
+      openedKeepAliveMiniApps,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
       setMiniAppShow,
