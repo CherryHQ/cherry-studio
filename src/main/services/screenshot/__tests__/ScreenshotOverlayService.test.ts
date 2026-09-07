@@ -1012,6 +1012,30 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
+    it('leaves a newer session alone when a slow clipboard write lands late', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+
+      let finishWrite: () => void = () => {}
+      electron.clipboard.write.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishWrite = resolve
+        })
+      )
+      const pending = service.commit({ pngBytes: PNG_BYTES })
+
+      // Esc ends the session while the write is still in flight, and the user starts
+      // another capture. The pool hands back the same overlay, so an unguarded
+      // dismiss() from the stale commit would tear down the live session's window.
+      service.dismiss()
+      await service.startCapture()
+
+      finishWrite()
+      await pending
+
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+    })
+
     it('leaves the clipboard untouched when the result bytes cannot be decoded', async () => {
       singleDisplaySetup()
       await service.startCapture()
