@@ -21,12 +21,14 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
 type AgentModelAvailability = {
+  getModelDetailDescription: (model: Model) => string | undefined
   getModelFreeQuotaStatus: (model: Model) => CherryCloudFreeQuotaStatus | undefined
   isModelExclusiveToAgent: (model: Model) => boolean
   isModelQuotaExhausted: (model: Model) => boolean
@@ -51,18 +53,32 @@ export function useAgentModelFilter(agentType: AgentType | undefined, enabled = 
 
 /** Returns Cherry Cloud availability for model selectors in the Work module. */
 export function useAgentModelAvailability(enabled = true): AgentModelAvailability {
+  const { t } = useTranslation()
   const { getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature, isModelQuotaExhausted } =
     useCherryCloudModelAvailability(enabled)
 
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const isModelExclusiveToAgent = (model: Model) => isModelExclusiveToFeature(model, 'agent')
+    const getModelDetailDescription = (model: Model) => {
+      const quotaStatus = getModelFreeQuotaStatus(model)
+      if (quotaStatus === 'exhausted') return t('models.detail.free_quota_exhausted')
+      if (isModelQuotaExhausted(model)) return t('models.detail.quota_exhausted')
+      if (!quotaStatus) return undefined
+      return t(
+        isModelExclusiveToAgent(model)
+          ? 'models.detail.limited_time_free_agent_only'
+          : 'models.detail.limited_time_free'
+      )
+    }
+
+    return {
+      getModelDetailDescription,
       getModelFreeQuotaStatus,
-      isModelExclusiveToAgent: (model: Model) => isModelExclusiveToFeature(model, 'agent'),
+      isModelExclusiveToAgent,
       isModelQuotaExhausted,
       isModelDisabled: (model: Model) => isModelDisabledForFeature(model, 'agent')
-    }),
-    [getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature, isModelQuotaExhausted]
-  )
+    }
+  }, [getModelFreeQuotaStatus, isModelDisabledForFeature, isModelExclusiveToFeature, isModelQuotaExhausted, t])
 }
 
 /** Returns the Agent selector rule for models that stay visible but cannot be selected. */

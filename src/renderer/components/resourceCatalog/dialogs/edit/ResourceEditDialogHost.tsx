@@ -2,7 +2,7 @@ import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelAvailability, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
@@ -111,7 +111,7 @@ function AgentEditDialogHost({
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
   const modelFilter = useAgentModelFilter(agent?.type, open)
-  const isModelDisabled = useAgentModelDisabled(open)
+  const { getModelDetailDescription, isModelDisabled } = useAgentModelAvailability(open)
 
   useEffect(() => {
     if (!error) return
@@ -127,6 +127,7 @@ function AgentEditDialogHost({
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
+      getModelDetailDescription={getModelDetailDescription}
       initialTab={target.initialTab}
     />
   )

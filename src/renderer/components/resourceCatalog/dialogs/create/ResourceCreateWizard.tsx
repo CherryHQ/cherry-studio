@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelAvailability, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
@@ -138,7 +138,7 @@ export function ResourceCreateWizard({
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, open && kind === 'agent')
   const assistantModelFilter = useCherryCloudModelFilter('chat', modelFilter, open && kind === 'assistant')
-  const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
+  const { getModelDetailDescription, isModelDisabled } = useAgentModelAvailability(open && kind === 'agent')
   const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
@@ -358,6 +358,7 @@ export function ResourceCreateWizard({
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
                     isModelDisabled={isModelDisabled}
+                    getModelDetailDescription={kind === 'agent' ? getModelDetailDescription : undefined}
                     runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />

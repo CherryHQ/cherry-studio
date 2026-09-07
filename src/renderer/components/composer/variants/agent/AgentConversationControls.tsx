@@ -1,10 +1,6 @@
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import {
-  ModelSelector,
-  type ModelSelectorDetailDescriptionResolver,
-  type ModelSelectorFilter
-} from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -16,7 +12,7 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -164,23 +160,7 @@ function ModelControl({
   AgentConversationControlsProps,
   'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
-  const { t } = useTranslation()
-  const { getModelFreeQuotaStatus, isModelDisabled, isModelExclusiveToAgent, isModelQuotaExhausted } =
-    useAgentModelAvailability()
-  const getModelDetailDescription = useCallback<ModelSelectorDetailDescriptionResolver>(
-    (candidate) => {
-      const quotaStatus = getModelFreeQuotaStatus(candidate)
-      if (quotaStatus === 'exhausted') return t('models.detail.free_quota_exhausted')
-      if (isModelQuotaExhausted(candidate)) return t('models.detail.quota_exhausted')
-      if (!quotaStatus) return undefined
-      return t(
-        isModelExclusiveToAgent(candidate)
-          ? 'models.detail.limited_time_free_agent_only'
-          : 'models.detail.limited_time_free'
-      )
-    },
-    [getModelFreeQuotaStatus, isModelExclusiveToAgent, isModelQuotaExhausted, t]
-  )
+  const { getModelDetailDescription, isModelDisabled } = useAgentModelAvailability()
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)

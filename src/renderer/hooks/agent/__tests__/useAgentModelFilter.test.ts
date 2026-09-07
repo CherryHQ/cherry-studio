@@ -29,6 +29,10 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
     id: 'openai::gpt-4o',
@@ -190,6 +194,31 @@ describe('useAgentModelDisabled', () => {
     expect(result.current.getModelFreeQuotaStatus(exhausted)).toBe('exhausted')
     expect(result.current.isModelExclusiveToAgent(free)).toBe(true)
     expect(result.current.isModelExclusiveToAgent(paid)).toBe(false)
+  })
+
+  it('maps synchronized Work model status to the shared selector descriptions', async () => {
+    const exclusiveFree = cloudModel('exclusive-free')
+    const sharedFree = cloudModel('shared-free')
+    const exhaustedFree = cloudModel('exhausted-free')
+    const exhaustedPaid = cloudModel('exhausted-paid')
+    mocks.availability = {
+      entitledModelIds: [exclusiveFree.id, sharedFree.id, exhaustedFree.id, exhaustedPaid.id],
+      freeModelIds: [exclusiveFree.id, sharedFree.id, exhaustedFree.id],
+      availableModelIdsByFeature: {
+        agent: [exclusiveFree.id, sharedFree.id, exhaustedFree.id, exhaustedPaid.id],
+        chat: [sharedFree.id],
+        translate: []
+      },
+      quotaExhaustedModelIds: [exhaustedFree.id, exhaustedPaid.id]
+    }
+    const { result } = renderHook(() => useAgentModelAvailability(), { wrapper: wrapper() })
+
+    await waitFor(() => expect(result.current.isModelDisabled(exclusiveFree)).toBe(false))
+    expect(result.current.getModelDetailDescription(exclusiveFree)).toBe('models.detail.limited_time_free_agent_only')
+    expect(result.current.getModelDetailDescription(sharedFree)).toBe('models.detail.limited_time_free')
+    expect(result.current.getModelDetailDescription(exhaustedFree)).toBe('models.detail.free_quota_exhausted')
+    expect(result.current.getModelDetailDescription(exhaustedPaid)).toBe('models.detail.quota_exhausted')
+    expect(result.current.getModelDetailDescription(model())).toBeUndefined()
   })
 
   it('does not synchronize while disabled', async () => {
