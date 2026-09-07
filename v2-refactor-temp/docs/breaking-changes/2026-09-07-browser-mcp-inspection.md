@@ -2,7 +2,7 @@
 title: Browser agents can find elements and inspect page diagnostics
 category: changed
 severity: notice
-introduced_in_pr: "TBD (browser-use-inspection)"
+introduced_in_pr: "#20139"
 date: 2026-09-07
 ---
 
@@ -25,5 +25,5 @@ bounded result arrays; take a fresh snapshot when a reference is stale.
 
 ## Notes for release manager
 
-PR3 builds on browser MCP PR #20134. Fill the PR number when published. WebMCP,
+PR3 builds on browser MCP PR #20134. WebMCP,
 Electron upgrades and visible-pane control are separate follow-ups.

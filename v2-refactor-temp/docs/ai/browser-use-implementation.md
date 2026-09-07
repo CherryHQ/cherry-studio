@@ -16,7 +16,7 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 |---|---|---|
 | PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
-| PR3 / C1–C2 — `browser-use-inspection` | PR B | Implemented locally: inspection and same-document ref recovery |
+| PR3 / C1–C2 — `browser-use-inspection` | PR B | Open in [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139): inspection and same-document ref recovery |
 | C3–C5 follow-ups | PR3 | Planned separately: WebMCP, retained-tab freezing, WebContentsView |
 | PR D | PR A | Planned independent branch: browser-data import (§10) |
 
@@ -543,7 +543,7 @@ PR B validation:
 
 ### PR C work packages — stability, inspection and follow-ups
 
-PR3 implements C1–C2 locally on `browser-use-inspection`. C3 ships separately after its runtime compatibility gate (§5.7);
+PR3 ([#20139](https://github.com/CherryHQ/cherry-studio/pull/20139)) implements C1–C2 on `browser-use-inspection`. C3 ships separately after its runtime compatibility gate (§5.7);
 C4–C5 remain separately scoped work. These labels identify work packages, not one required PR.
 
 | # | Commit | Files | Tests |

@@ -24,7 +24,8 @@ lives in the browser feature, its tabs use the shared service, and snapshot/acti
 retention likewise requires upstream session identity and a turn-ended signal. See the implementation
 plan for the remaining PR C/D boundaries.
 
-PR3 (C1–C2) is implemented locally on `browser-use-inspection`, based on PR2: same-document
+PR3 (C1–C2), [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139), is open on
+`browser-use-inspection`, based on PR2: same-document
 ref recovery, `find`, `console_messages` and `network_requests`. WebMCP remains a separate follow-up.
 
 ## Current state — `src/main/features/browser/mcp/`
