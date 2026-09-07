@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import fs, { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -57,7 +57,9 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported } = await import('../tarballArtifact')
+const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } = await import(
+  '../tarballArtifact'
+)
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
@@ -219,6 +221,68 @@ describe('shared artifact acquisition', () => {
 
     it('is a no-op when the binary was never downloaded', async () => {
       await expect(localModelStorageService.removeArtifactIfUnused('onnxruntime-node')).resolves.toBe(true)
+    })
+  })
+
+  describe('removeArtifact', () => {
+    let removeMock: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      removeMock = vi.spyOn(fs.promises, 'rm')
+      Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      removeMock.mockRestore()
+    })
+
+    it.each(['EPERM', 'EBUSY'] as const)('retries a transient Windows %s error', async (code) => {
+      const transientError = Object.assign(new Error(`temporary ${code}`), { code })
+      removeMock.mockRejectedValueOnce(transientError).mockResolvedValue(undefined)
+      vi.useFakeTimers()
+
+      const removal = removeArtifact(FIXTURE_ARTIFACT)
+      await vi.advanceTimersByTimeAsync(50)
+
+      await expect(removal).resolves.toBeUndefined()
+      expect(removeMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('propagates the transient error after the retry budget is exhausted', async () => {
+      const transientError = Object.assign(new Error('still busy'), { code: 'EBUSY' })
+      removeMock.mockRejectedValue(transientError)
+      vi.useFakeTimers()
+
+      const removal = removeArtifact(FIXTURE_ARTIFACT)
+      await vi.runAllTimersAsync()
+
+      await expect(removal).rejects.toBe(transientError)
+      expect(removeMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('does not retry transient removal errors off Windows', async () => {
+      Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+      const transientError = Object.assign(new Error('temporary permission error'), { code: 'EPERM' })
+      removeMock.mockRejectedValue(transientError)
+
+      await expect(removeArtifact(FIXTURE_ARTIFACT)).rejects.toBe(transientError)
+      expect(removeMock).toHaveBeenCalledOnce()
+    })
+
+    it('does not retry non-retryable Windows removal errors', async () => {
+      const error = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      removeMock.mockRejectedValue(error)
+
+      await expect(removeArtifact(FIXTURE_ARTIFACT)).rejects.toBe(error)
+      expect(removeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the existing behavior when the first removal succeeds', async () => {
+      removeMock.mockResolvedValue(undefined)
+
+      await expect(removeArtifact(FIXTURE_ARTIFACT)).resolves.toBeUndefined()
+      expect(removeMock).toHaveBeenCalledOnce()
     })
   })
 })
