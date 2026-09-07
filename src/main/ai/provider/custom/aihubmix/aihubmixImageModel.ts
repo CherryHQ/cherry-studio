@@ -200,7 +200,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // Canonical AI-SDK options. Renderer's canonicalGenerate routes:
     //   painting.params.aspectRatio → options.aspectRatio
     //   painting.params.numImages   → options.n
-    //   painting.params.seed        → options.seed (or bag.seed for non-native)
+    //   painting.params.seed        → options.seed
     // Vendor-specific keys (styleType / magicPromptOption / renderingSpeed
     // / etc.) flow through `bag`.
     const aspectRatio = options.aspectRatio ?? (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
@@ -243,7 +243,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // ---- Bespoke AiHubMix HTTP families ----
     // The adapter selects the family; endpoint/body/response handling lives in
     // the transport so no custom branch performs HTTP here.
-    if (modelId === 'V_3' || modelId.startsWith('doubao-seedream') || !isDefaultModel(modelId, mode)) {
+    if (modelId === 'ideogram/V3' || modelId.startsWith('doubao-seedream') || !isDefaultModel(modelId, mode)) {
       const transport = createAihubmixImageTransport({
         apiRoot,
         baseURL,
@@ -304,7 +304,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
 // Ideogram V_1/V_2 model ids: the only non-default models that take the
 // bespoke `${apiRoot}/ideogram/...` JSON/FormData path in `generate` mode.
-// (V_3 is handled by its own branch above.)
+// (`ideogram/V3` is handled by its own branch above.)
 const IDEOGRAM_V1_V2_MODELS = new Set(['V_1', 'V_2'])
 
 /**

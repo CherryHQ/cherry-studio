@@ -22,7 +22,7 @@ import { createAihubmixImageTransport } from '../aihubmix/aihubmixImageTransport
 
 /**
  * Covers the relocated AiHubMix special branches (Google native image models,
- * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
+ * Ideogram V3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
  * abort, error handling, and the byte-identical default delegate to the inner
  * `OpenAICompatibleImageModel`.
  * Wire oracle: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-07-27).
@@ -127,7 +127,7 @@ describe('AihubmixImageModel', () => {
     })
   })
 
-  describe('Ideogram V_3', () => {
+  describe('Ideogram V3', () => {
     it('declares reference-image support for remix and upscale', () => {
       const transport = createAihubmixImageTransport({
         apiRoot: 'https://aihubmix.com',
@@ -136,7 +136,7 @@ describe('AihubmixImageModel', () => {
         headers: {}
       })
       const input = {
-        modelId: 'V_3',
+        modelId: 'ideogram/V3',
         prompt: 'a fox',
         n: 1,
         size: undefined,
@@ -159,16 +159,16 @@ describe('AihubmixImageModel', () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/a.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('V_3').doGenerate(
+      const result = await make('ideogram/V3').doGenerate(
         callOptions({
           n: 2,
+          seed: 0,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_16_9',
               renderingSpeed: 'TURBO',
               styleType: 'AUTO',
-              seed: '42',
               negativePrompt: 'blur',
               magicPromptOption: true
             }
@@ -186,7 +186,7 @@ describe('AihubmixImageModel', () => {
       expect(form.get('num_images')).toBe('2')
       expect(form.get('aspect_ratio')).toBe('16x9')
       expect(form.get('style_type')).toBe('AUTO')
-      expect(form.get('seed')).toBe('42')
+      expect(form.get('seed')).toBe('0')
       expect(form.get('negative_prompt')).toBe('blur')
       expect(form.get('magic_prompt')).toBe('ON')
       expect(result.images).toEqual(['https://img/a.png'])
@@ -196,7 +196,7 @@ describe('AihubmixImageModel', () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/r.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('V_3').doGenerate(
+      const result = await make('ideogram/V3').doGenerate(
         callOptions({
           files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2]) }],
           providerOptions: {
@@ -223,7 +223,7 @@ describe('AihubmixImageModel', () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/u.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      await make('V_3').doGenerate(
+      await make('ideogram/V3').doGenerate(
         callOptions({
           prompt: '',
           files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([9]) }],
@@ -262,7 +262,7 @@ describe('AihubmixImageModel', () => {
         .mockResolvedValueOnce(okJson({ data: [{ url: 'https://img/result.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      await make('V_3').doGenerate(
+      await make('ideogram/V3').doGenerate(
         callOptions({
           prompt: '',
           files: [{ type: 'url', url: 'https://cdn.example.com/reference.png' }],
@@ -288,12 +288,12 @@ describe('AihubmixImageModel', () => {
       const result = await make('V_2').doGenerate(
         callOptions({
           n: 3,
+          seed: 0,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_1_1',
               styleType: 'REALISTIC',
-              seed: '7',
               negativePrompt: 'noise',
               magicPromptOption: false
             }
@@ -312,7 +312,7 @@ describe('AihubmixImageModel', () => {
         aspect_ratio: 'ASPECT_1_1',
         num_images: 3,
         style_type: 'REALISTIC',
-        seed: 7,
+        seed: 0,
         negative_prompt: 'noise',
         magic_prompt_option: 'OFF'
       })

@@ -49,18 +49,18 @@ const config = {
 }
 
 describe('AiHubMix image-model boundary (Ideogram branches)', () => {
-  it('V_3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
+  it('ideogram/V3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('ideogram/V3', { ...config, fetch }).doGenerate(
         opts({
           n: 2,
           aspectRatio: '16:9',
+          seed: 0,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               renderingSpeed: 'TURBO',
               styleType: 'GENERAL',
-              seed: '42',
               negativePrompt: 'blur',
               magicPromptOption: true
             }
@@ -89,10 +89,10 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
         opts({
           n: 3,
           aspectRatio: '1:1',
+          seed: 0,
           providerOptions: {
             aihubmix: {
               styleType: 'REALISTIC',
-              seed: 7,
               negativePrompt: 'noise',
               magicPromptOption: false
             }

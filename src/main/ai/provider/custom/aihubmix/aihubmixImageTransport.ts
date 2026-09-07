@@ -29,7 +29,6 @@ export type AihubmixImageOptions = Pick<
   ParamValues,
   | 'aspectRatio'
   | 'numImages'
-  | 'seed'
   | 'styleType'
   | 'renderingSpeed'
   | 'negativePrompt'
@@ -104,7 +103,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
 
   async submit(input: ImageGenerationSubmitInput<AihubmixImageOptions>) {
     const mode = input.providerParams.mode ?? 'generate'
-    if (input.modelId === 'V_3' && mode !== 'upscale') {
+    if (input.modelId === 'ideogram/V3' && mode !== 'upscale') {
       return this.submitIdeogramV3(input, mode)
     }
     if (mode === 'generate' && isDoubaoSeedreamModel(input.modelId)) {
@@ -127,7 +126,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     if (aspectRatio) formData.append('aspect_ratio', aspectRatio)
     if (bag.styleType) formData.append('style_type', bag.styleType)
     else formData.append('style_type', 'AUTO')
-    if (bag.seed) formData.append('seed', String(bag.seed))
+    if (input.seed !== undefined) formData.append('seed', String(input.seed))
     if (bag.negativePrompt) formData.append('negative_prompt', bag.negativePrompt)
     if (bag.magicPromptOption !== undefined) {
       formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
@@ -163,7 +162,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             aspect_ratio: aspectRatio,
             num_images: input.n,
             style_type: bag.styleType,
-            seed: bag.seed ? +bag.seed : undefined,
+            seed: input.seed,
             negative_prompt: bag.negativePrompt || undefined,
             magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
           }
@@ -185,7 +184,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             image_weight: bag.imageWeight,
             style_type: bag.styleType,
             num_images: input.n,
-            seed: bag.seed ? +bag.seed : undefined,
+            seed: input.seed,
             negative_prompt: bag.negativePrompt || undefined,
             magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
           }
@@ -194,7 +193,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             resemblance: bag.resemblance,
             detail: bag.detail,
             num_images: input.n,
-            seed: bag.seed ? +bag.seed : undefined,
+            seed: input.seed,
             magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF'
           }
     const formData = new FormData()
@@ -256,7 +255,7 @@ function buildDoubaoBody(input: ImageGenerationSubmitInput<AihubmixImageOptions>
     // AiHubMix provider-option channel used by direct ImageModel callers.
     size: input.size !== undefined ? input.size : bag.imageResolution,
     n: input.n,
-    seed: typeof input.seed === 'number' ? input.seed : bag.seed,
+    seed: input.seed,
     watermark: bag.addWatermark,
     sequentialImageGeneration: bag.sequentialImageGeneration,
     maxImages: bag.maxImages
