@@ -7,7 +7,7 @@ const MAX_ENTRIES = 200
 const MAX_TEXT = 2000
 export type ConsoleLevel = 'error' | 'warning' | 'all'
 
-interface ConsoleMessage {
+export interface ConsoleMessage {
   level: 'error' | 'warning' | 'info'
   text: string
   timestamp: number
