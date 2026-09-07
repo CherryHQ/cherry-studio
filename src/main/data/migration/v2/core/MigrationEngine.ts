@@ -44,6 +44,7 @@ import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
+import { appEditionService } from '@data/services/AppEditionService'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
@@ -59,6 +60,7 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
+import { parse as parseVersion } from 'semver'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -198,6 +200,7 @@ export class MigrationEngine {
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
+      if (statusValue.status === 'completed') await this.backfillMigrationEdition()
       return statusValue.status !== 'completed'
     }
 
@@ -207,8 +210,35 @@ export class MigrationEngine {
     }
 
     logger.info('Fresh install detected (no legacy data found), skipping migration')
-    await this.markCompleted()
+    await this.markCompleted(false)
     return false
+  }
+
+  private async backfillMigrationEdition(): Promise<void> {
+    const db = this.getDb()
+    if (appEditionService.getMigrationOrigin(db) !== undefined) return
+
+    let migratedFromV1 = false
+    try {
+      const file = await fs.open(this.paths.versionLogFile, 'r')
+      try {
+        for await (const line of file.readLines()) {
+          const parts = line.trim().split('|')
+          if (parts.length === 6 && parseVersion(parts[0])?.major === 1) {
+            migratedFromV1 = true
+            break
+          }
+        }
+      } finally {
+        await file.close()
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not read version history for migration edition', error as Error)
+        return
+      }
+    }
+    appEditionService.recordMigrationOrigin(db, migratedFromV1)
   }
 
   /**
@@ -346,7 +376,7 @@ export class MigrationEngine {
       this.verifyForeignKeys()
 
       // Mark migration completed
-      await this.markCompleted()
+      await this.markCompleted(true)
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
@@ -577,18 +607,22 @@ export class MigrationEngine {
         version: '2.0.0',
         error: null
       })
+      appEditionService.recordMigrationOrigin(tx, false)
     })
   }
 
   /**
    * Mark migration as completed in app_state
    */
-  private async markCompleted(): Promise<void> {
-    this.upsertMigrationStatus(this.getDb(), {
-      status: 'completed',
-      completedAt: Date.now(),
-      version: '2.0.0',
-      error: null
+  private async markCompleted(migratedFromV1: boolean): Promise<void> {
+    this.getDb().transaction((tx) => {
+      this.upsertMigrationStatus(tx, {
+        status: 'completed',
+        completedAt: Date.now(),
+        version: '2.0.0',
+        error: null
+      })
+      appEditionService.recordMigrationOrigin(tx, migratedFromV1)
     })
   }
 

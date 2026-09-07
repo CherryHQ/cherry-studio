@@ -20,6 +20,10 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 
 `prepareWindow.ts` is the shared L1 prologue: `await prepareWindow({ preference: 'all' | [keys] })` initializes i18n and warms the preference cache **before** the first render, so `usePreference` reads saved values on frame one instead of defaults (no theme flash). `main`/`subWindow` warm the full cache (`'all'`, one in-memory IPC fetch); light windows list exactly the keys their first frame reads. `migrationV2` and `userDataRelocation` are preboot special cases (own i18n, no preferences) and stay standalone. CSS side-effect imports stay per-entry — `selection/toolbar` deliberately omits `index.css` (fonts / markdown / chat styles) to keep the lightest window minimal.
 
+The same first-frame barrier also fetches the effective application edition through `app.get_info`. Edition-dependent
+UI reads that cached runtime value, so a migrated profile inside a China package opens with global behavior immediately.
+If the edition request fails, preparation logs the error and falls back to the package edition so the window can render.
+
 ## Window runtime leaf
 
 Window-level side effects (subscriptions, DOM sync that must live for the window's lifetime) go in a small runtime-leaf component the L2 `XxxApp` mounts **inside the providers but outside every `TabRouter`/`<Activity>`** — a hidden `<Activity>` subtree destroys effects, so anything mounted under a tab would lose its subscription when that tab is backgrounded.

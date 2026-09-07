@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   listModels: vi.fn()
 }))
 
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => mocks.appEdition
+vi.mock('@data/services/AppEditionService', () => ({
+  appEditionService: { getEdition: () => mocks.appEdition }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({

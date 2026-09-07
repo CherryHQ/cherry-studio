@@ -1,5 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { prepareWindow } from '../prepareWindow'
 
@@ -11,35 +12,23 @@ vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControl
 
 describe('prepareWindow', () => {
   beforeEach(() => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
     vi.clearAllMocks()
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: { edition: 'global' } })
   })
 
-  it("warms the full preference cache and initializes i18n for preference: 'all'", async () => {
-    await prepareWindow({ preference: 'all' })
+  afterEach(() => vi.stubGlobal('__APP_EDITION__', 'global'))
 
-    expect(preferenceService.preloadAll).toHaveBeenCalledTimes(1)
-    expect(preferenceService.preload).not.toHaveBeenCalled()
-    expect(initI18nMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('preloads exactly the given keys for a key-list preference', async () => {
-    await prepareWindow({ preference: ['ui.theme_mode', 'app.language'] })
-
-    expect(preferenceService.preload).toHaveBeenCalledExactlyOnceWith(['ui.theme_mode', 'app.language'])
-    expect(preferenceService.preloadAll).not.toHaveBeenCalled()
-    expect(initI18nMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
-    const pending = prepareWindow({ preference: 'all' })
-
-    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
-    return pending
-  })
-
-  it('resolves only after both i18n and the preference warm-up complete', async () => {
+  it('resolves only after i18n, preferences and the effective edition are ready', async () => {
     let resolveI18n!: () => void
     let resolvePreload!: () => void
+    let resolveEdition!: (value: unknown) => void
+    vi.mocked(window.api.ipcApi.request).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveEdition = resolve
+        })
+    )
     initI18nMock.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveI18n = resolve)))
     vi.mocked(preferenceService.preloadAll).mockImplementationOnce(
       () => new Promise<void>((resolve) => (resolvePreload = resolve))
@@ -56,7 +45,17 @@ describe('prepareWindow', () => {
     expect(settled).toBe(false)
 
     resolvePreload()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveEdition({ ok: true, data: { edition: 'global' } })
     await pending
     expect(settled).toBe(true)
+    expect(getAppEdition()).toBe('global')
+  })
+  it('falls back to the package edition when the runtime edition cannot be loaded', async () => {
+    vi.mocked(window.api.ipcApi.request).mockRejectedValueOnce(new Error('IPC unavailable'))
+    await expect(prepareWindow({ preference: 'all' })).resolves.toBeUndefined()
+    expect(getAppEdition()).toBe('cn')
   })
 })

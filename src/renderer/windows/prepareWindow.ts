@@ -1,6 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
 import { initI18n } from '@renderer/i18n/resolver'
+import { preloadAppEdition } from '@renderer/utils/appEdition'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 interface PrepareWindowOptions {
@@ -25,5 +26,5 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
   const preferencesWarm =
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
-  await Promise.all([initI18n(), preferencesWarm])
+  await Promise.all([initI18n(), preferencesWarm, preloadAppEdition()])
 }

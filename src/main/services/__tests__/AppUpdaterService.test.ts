@@ -54,7 +54,7 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => appEditionState.current
+  getPackageEdition: () => appEditionState.current
 }))
 
 vi.mock('@main/services/RegionService', () => ({

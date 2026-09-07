@@ -47,7 +47,7 @@ vi.mock('@application', () => ({
   }
 }))
 // cn keeps Cherry Cloud agent-only, which the external-request rejection below relies on.
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'cn' }))
+vi.mock('@data/services/AppEditionService', () => ({ appEditionService: { getEdition: () => 'cn' } }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))

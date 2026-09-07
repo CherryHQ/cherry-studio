@@ -12,8 +12,8 @@ const { applicationEdition } = vi.hoisted(() => ({
   applicationEdition: { current: 'cn' as AppEdition }
 }))
 
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => applicationEdition.current
+vi.mock('@data/services/AppEditionService', () => ({
+  appEditionService: { getEdition: () => applicationEdition.current }
 }))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {

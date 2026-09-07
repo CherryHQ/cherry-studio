@@ -1,7 +1,7 @@
+import { appEditionService } from '@data/services/AppEditionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -107,7 +107,7 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
-  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
+  if (!allowAgentOnly && isAgentOnlyProvider(provider, appEditionService.getEdition())) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
@@ -140,7 +140,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
       // external callers even though they pass the routable-model predicate (matches the renderer
       // picker's exclusion).
-      if (provider && isAgentOnlyProvider(provider, getAppEdition())) {
+      if (provider && isAgentOnlyProvider(provider, appEditionService.getEdition())) {
         continue
       }
       // Same routable-model predicate as the renderer's gateway picker — the

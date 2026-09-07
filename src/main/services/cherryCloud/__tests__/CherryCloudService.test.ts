@@ -2,6 +2,7 @@ import type { Model } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  packageEdition: 'global' as 'cn' | 'global',
   appEdition: 'global' as 'cn' | 'global',
   appIsPackaged: false,
   broadcast: vi.fn(),
@@ -78,8 +79,10 @@ vi.mock('@application', () => ({
   }
 }))
 
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => mocks.appEdition
+vi.mock('@main/utils/appEdition', () => ({ getPackageEdition: () => mocks.packageEdition }))
+
+vi.mock('@data/services/AppEditionService', () => ({
+  appEditionService: { getEdition: () => mocks.appEdition }
 }))
 
 vi.mock('electron', () => ({
@@ -305,6 +308,7 @@ describe('CherryCloudService', () => {
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     installCloudRouteFixture()
+    mocks.packageEdition = 'global'
     mocks.appEdition = 'global'
     mocks.appIsPackaged = false
     mocks.savedDevice = null
@@ -465,6 +469,29 @@ describe('CherryCloudService', () => {
     expect(authorizationRequestBody().callback_port).toBe(49152)
     expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), expectedOrigin)
   })
+
+  it.each([undefined, 'https://cloud.cherryai.com.cn'])(
+    'does not restore a China session in a migrated global profile (origin: %s)',
+    async (apiOrigin) => {
+      mocks.appIsPackaged = true
+      mocks.packageEdition = 'cn'
+      mocks.appEdition = 'global'
+      mocks.savedDevice = { publicKey: 'device-public-key', privateKey: 'device-private-key' }
+      mocks.savedSession = {
+        apiOrigin,
+        refreshToken: 'china-refresh-token',
+        sessionId: 'china-session',
+        sessionExpiresAt: Date.now() + 60_000,
+        deviceId: 'device-id',
+        accountId: 'china-account',
+        displayName: 'China account'
+      }
+      const service = await createService()
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+      expect(mocks.savedSession.refreshToken).toBe('china-refresh-token')
+    }
+  )
 
   it('returns to signed out when browser authorization expires without a callback', async () => {
     vi.useFakeTimers()

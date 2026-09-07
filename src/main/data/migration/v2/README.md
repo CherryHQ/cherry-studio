@@ -114,6 +114,18 @@ Path Safety section above.
 
 ## Quick Reference
 
+### Edition identity
+
+Successful v1 migrations record a durable global-edition identity in the same transaction as migration completion,
+through `AppEditionService`. Fresh installs and explicit skips record a negative result; a later skip never revokes
+an existing global identity. Runtime features use this identity even when the installed package is the China edition.
+System application IDs and update channels continue to follow the installed package.
+
+Older completed records lack migration provenance. Once per profile, the engine streams `version.log` and treats a
+valid v1 version record as upgrade evidence. Missing history keeps package behavior. This cannot distinguish old
+explicit skips from successful migrations, and cannot recover provenance from a database-only backup without history.
+Read failures other than a missing file are retried at a later startup.
+
 ### Creating a New Migrator
 
 1. Extend `BaseMigrator` in `migrators/`

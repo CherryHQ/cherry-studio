@@ -34,11 +34,11 @@ function resolveAppEdition(): AppEdition {
 
 let cachedAppEdition: AppEdition | undefined
 
-export function getAppEdition(): AppEdition {
+export function getPackageEdition(): AppEdition {
   cachedAppEdition ??= resolveAppEdition()
   return cachedAppEdition
 }
 
 export function getApplicationId(): string {
-  return APPLICATION_IDS[getAppEdition()]
+  return APPLICATION_IDS[getPackageEdition()]
 }

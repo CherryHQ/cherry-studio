@@ -80,6 +80,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
+| `appEdition:v1Migration` | `AppEditionService` | `boolean` | `true` permanently grants global runtime behavior to a v1-origin profile; `false` records a fresh install, explicit skip, or historical check without v1 evidence. Written with migration completion; never rename or downgrade a `true` marker. Package identity and update channel stay package-specific. |
 
 ## Related Source Code
 

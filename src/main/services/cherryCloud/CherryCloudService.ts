@@ -1,10 +1,11 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { appEditionService } from '@data/services/AppEditionService'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -13,6 +14,7 @@ import {
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type { AppEdition } from '@shared/types/appEdition'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
@@ -69,10 +71,10 @@ function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
 
-function resolveApiOrigin(): string {
+function resolveApiOrigin(edition: AppEdition = appEditionService.getEdition()): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   if (configuredOrigin) return new URL(configuredOrigin).origin
-  return app.isPackaged ? PRODUCTION_API_ORIGINS[getAppEdition()] : DEVELOPMENT_API_ORIGIN
+  return app.isPackaged ? PRODUCTION_API_ORIGINS[edition] : DEVELOPMENT_API_ORIGIN
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -944,19 +946,22 @@ export class CherryCloudService extends BaseService {
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
 
+    const sessionOrigin = stored.session?.apiOrigin ?? resolveApiOrigin(getPackageEdition())
+    const session = sessionOrigin === resolveApiOrigin() ? stored.session : null
+
     this.cloudState = {
       device,
       pending: null,
-      session: stored.session
+      session: session
         ? {
             accessToken: '',
             accessExpiresAt: 0,
-            refreshToken: stored.session.refreshToken,
-            sessionId: stored.session.sessionId,
-            sessionExpiresAt: stored.session.sessionExpiresAt,
-            deviceId: stored.session.deviceId,
-            accountId: stored.session.accountId,
-            displayName: stored.session.displayName
+            refreshToken: session.refreshToken,
+            sessionId: session.sessionId,
+            sessionExpiresAt: session.sessionExpiresAt,
+            deviceId: session.deviceId,
+            accountId: session.accountId,
+            displayName: session.displayName
           }
         : null
     }
@@ -971,6 +976,7 @@ export class CherryCloudService extends BaseService {
       devicePublicKey: device.publicKey,
       devicePrivateKey: device.privateKey,
       session: {
+        apiOrigin: resolveApiOrigin(),
         refreshToken: session.refreshToken,
         sessionId: session.sessionId,
         sessionExpiresAt: session.sessionExpiresAt,

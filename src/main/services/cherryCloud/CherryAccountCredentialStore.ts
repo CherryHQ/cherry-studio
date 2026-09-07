@@ -15,6 +15,7 @@ const sessionSchema = z
     refreshToken: z.string().min(1),
     sessionExpiresAt: z.number().int().positive(),
     deviceId: z.string().min(1),
+    apiOrigin: z.url().optional(),
     displayName: z.string().nullable()
   })
   .strict()

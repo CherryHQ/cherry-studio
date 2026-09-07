@@ -1,6 +1,7 @@
 import { arch } from 'node:os'
 
 import { application } from '@application'
+import { appEditionService } from '@data/services/AppEditionService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
@@ -15,6 +16,7 @@ import { app, BrowserWindow } from 'electron'
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
     version: app.getVersion(),
+    edition: appEditionService.getEdition(),
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
     homePath: application.getPath('sys.home'),
