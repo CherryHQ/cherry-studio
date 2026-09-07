@@ -172,12 +172,12 @@ describe('resolveAiSdkProviderId', () => {
       expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('openai-compatible')
     })
 
-    it('uses the generic Responses adapter when a custom provider has no Responses adapterFamily', () => {
+    it('uses the generic Responses adapter when a custom provider configures Responses without an adapterFamily', () => {
       const provider = makeProvider({
         id: 'custom-provider',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
         endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
             baseUrl: 'https://express-ent-admin.cherryin.net/v1'
           }
         }

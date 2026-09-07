@@ -16856,7 +16856,6 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
       "contextWindow": 1050000,
-      "endpointTypes": ["openai-responses"],
       "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],

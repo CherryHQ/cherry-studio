@@ -28,7 +28,6 @@ describe('OpenAI catalog', () => {
       ]),
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
-      endpointTypes: ['openai-responses'],
       contextWindow: 1050000,
       maxInputTokens: 922000,
       maxOutputTokens: 128000,

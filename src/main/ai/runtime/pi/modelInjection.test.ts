@@ -156,12 +156,12 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-responses')
   })
 
-  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+  it('routes a model-level Responses hint through a custom provider Responses base URL', () => {
     const provider = makeProvider({
       id: 'custom-provider',
-      defaultChatEndpoint: 'openai-chat-completions',
+      defaultChatEndpoint: 'openai-responses',
       endpointConfigs: {
-        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+        'openai-responses': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
       }
     })
     const model = makeModel({

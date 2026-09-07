@@ -1054,7 +1054,7 @@ describe('ModelService.list — registry enrichment', () => {
     })
   })
 
-  it('hydrates a sparse GPT-6 Astra row with its model-level Responses endpoint', async () => {
+  it("keeps a sparse GPT-6 Astra row on a custom provider's Chat endpoint", async () => {
     await dbh.db.insert(userProviderTable).values({
       ...providerRow('custom-provider', 'Custom Provider'),
       presetProviderId: null,
@@ -1088,9 +1088,9 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model).toMatchObject({
       apiModelId: 'openai/gpt-6-astra',
       presetModelId: 'gpt-6-astra',
-      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
-      endpointTypes: ['openai-responses']
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
+    expect(model.endpointTypes).toBeUndefined()
   })
 
   it('hydrates same-canonical variants through their exact API model ID', async () => {
