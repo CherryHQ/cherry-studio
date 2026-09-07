@@ -415,6 +415,7 @@ export class ChatMigrator extends BaseMigrator {
 
       if (allAssistants.length > 0) {
         for (const assistant of allAssistants) {
+          if (!assistant?.id) continue
           const remappedId = remapAssistantId(assistant.id)
           this.assistantLookup.set(remappedId, assistant)
 
