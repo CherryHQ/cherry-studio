@@ -28,12 +28,14 @@ export type { ToolApplyScope }
 
 export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
-  readonly providerId: T
-  readonly providerOptionsKey: ProviderOptionsKey
-  readonly providerSettings: AppProviderSettingsMap[T]
-  readonly modelId: string
-}
+export type SdkConfig<T extends AppProviderKey = AppProviderKey> = T extends AppProviderKey
+  ? {
+      readonly providerId: T
+      readonly providerOptionsKey: ProviderOptionsKey
+      readonly providerSettings: AppProviderSettingsMap[T]
+      readonly modelId: string
+    }
+  : never
 
 export interface RequestScope extends ToolApplyScope {
   readonly request: AiBaseRequest & { chatId?: string }

@@ -16,7 +16,7 @@ import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
 import type { ImageGenerationSubmitInput } from '../imageTransport'
-import { resolveImageTransport } from '../imageTransportRegistry'
+import { isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
 import { executeImageTransport } from '../imageTransportRuntime'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
@@ -91,7 +91,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     })
     const usageStartedAt = Date.now()
 
-    const transport = await resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    if (!isImageTransportConfig(sdkConfig, sdkConfig.modelId)) {
+      throw new Error(`Image generation job: no transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`)
+    }
+    const transport = await resolveImageTransport(sdkConfig, sdkConfig.modelId)
     if (!transport) {
       throw new Error(
         `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`

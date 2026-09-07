@@ -49,7 +49,10 @@ const {
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveImageTransportMock }))
+vi.mock('../../imageTransportRegistry', () => ({
+  isImageTransportConfig: () => true,
+  resolveImageTransport: resolveImageTransportMock
+}))
 vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: getByProviderIdMock, getApiKeys: getApiKeysMock }

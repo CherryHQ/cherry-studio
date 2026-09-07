@@ -11,9 +11,9 @@
  * `ApiService.fetchImageGeneration` is a strict, byte-identical superset
  * regardless of the paintings-page flag.
  *
- * Painting-specific fields and upload blobs are read from
- * `options.providerOptions.aihubmix`. That key is also exactly what the inner
- * `OpenAICompatibleImageModel` reads (`providerOptionsKey` =
+ * Painting-specific fields are read from `options.providerOptions.aihubmix`;
+ * upload blobs use the AI SDK's `options.files`. The provider-options key is
+ * exactly what the inner `OpenAICompatibleImageModel` reads (`providerOptionsKey` =
  * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so a single bag feeds both
  * the special branches and the default delegate.
  */
@@ -317,13 +317,6 @@ const IDEOGRAM_V1_V2_MODELS = new Set(['V_1', 'V_2'])
  * pre-Phase-4a `OpenAICompatibleImageModel`.
  */
 function isDefaultModel(modelId: string, mode: AihubmixMode): boolean {
-  // NOTE: `mode` is always `'generate'` today. It is read from
-  // `providerOptions.aihubmix.mode`, which is v1 residue — not a catalog key, so the IPC
-  // boundary strips it, and nothing in the v2 path writes it. That makes this guard, and
-  // the `remix` / `upscale` branches in `createAihubmixImageModel`, unreachable. v2
-  // carries the mode as `request.mode` → `modelDescriptor.mode`, not through the param
-  // bag; wiring those branches to it — and their `bag.imageFiles` reads to
-  // `options.files` — is the fix, not a rename.
   if (mode !== 'generate') {
     return false
   }

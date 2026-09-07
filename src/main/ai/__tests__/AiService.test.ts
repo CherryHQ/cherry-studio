@@ -566,6 +566,38 @@ describe('AiService', () => {
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
   })
 
+  it('delivers AiHubMix remix mode with its input image to the ImageModel adapter', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'aihubmix',
+        providerOptionsKey: 'aihubmix',
+        providerSettings: {},
+        modelId: 'V_3'
+      }
+    } as never)
+    mockProviderGetByProviderId.mockReturnValue({ id: 'aihubmix', presetProviderId: 'aihubmix' })
+    mockModelGetByKey.mockReturnValue({ id: 'aihubmix::V_3', providerId: 'aihubmix', apiModelId: 'V_3' })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+
+    const inputImage = 'data:image/png;base64,AQI='
+    await service.generateImage({
+      uniqueModelId: 'aihubmix::V_3',
+      cleanupPolicy: 'delete_when_unreferenced',
+      prompt: 'remix this',
+      mode: 'remix',
+      inputImages: [inputImage],
+      paramValues: {}
+    })
+
+    expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        prompt: { text: 'remix this', images: [inputImage] },
+        providerOptions: { aihubmix: { mode: 'remix' } }
+      })
+    )
+  })
+
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({

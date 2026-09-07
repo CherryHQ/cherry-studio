@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { captureImageRequest } from '../custom/__tests__/boundary/captureRequest'
 import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../custom/imageGenerationModel'
-import { hasImageTransport, resolveImageTransport } from '../custom/imageTransportRegistry'
+import { hasImageTransport, isImageTransportConfig, resolveImageTransport } from '../custom/imageTransportRegistry'
 
 /**
  * The direction `imageParamDeliverability` cannot cover: it treats "this model has a
@@ -92,7 +92,9 @@ describe('every transport-routed registry image model is submittable', () => {
   })
 
   it.each(declarations)('$providerId / $modelId ($mode)', async ({ providerId, modelId, mode, def }) => {
-    const transport = await resolveImageTransport(providerId, modelId, PROBE_SETTINGS)
+    const config = { providerId, providerSettings: PROBE_SETTINGS }
+    if (!isImageTransportConfig(config, modelId)) throw new Error(`expected transport for ${providerId}/${modelId}`)
+    const transport = await resolveImageTransport(config, modelId)
     if (!transport) throw new Error(`expected transport for ${providerId}/${modelId}`)
     const input = submitInput({ modelId, modelDescriptor: descriptorFor(modelId, mode, def) })
 

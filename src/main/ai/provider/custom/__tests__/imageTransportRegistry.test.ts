@@ -8,13 +8,16 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { hasImageTransport, resolveImageTransport } from '../imageTransportRegistry'
+import { hasImageTransport, isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
 
 describe('resolveImageTransport', () => {
   it('resolves a poll-capable transport for ppio / dashscope / modelscope', async () => {
-    for (const providerId of ['ppio', 'dashscope', 'modelscope']) {
+    for (const providerId of ['ppio', 'dashscope', 'modelscope'] as const) {
       expect(hasImageTransport(providerId, 'any-model')).toBe(true)
-      const transport = await resolveImageTransport(providerId, 'any-model', {})
+      const config = { providerId, providerSettings: {} }
+      expect(isImageTransportConfig(config, 'any-model')).toBe(true)
+      if (!isImageTransportConfig(config, 'any-model')) throw new Error('expected transport config')
+      const transport = await resolveImageTransport(config, 'any-model')
       expect(transport).not.toBeNull()
       expect(typeof transport?.submit).toBe('function')
       expect(transport?.task.kind).toBe('supported')
@@ -25,7 +28,7 @@ describe('resolveImageTransport', () => {
     const settings = { baseURL: 'https://www.dmxapi.cn/v1' }
     for (const modelId of ['doubao-seedream-3', 'wan2.2-t2i', 'qwen-image']) {
       expect(hasImageTransport('dmxapi', modelId)).toBe(true)
-      expect(await resolveImageTransport('dmxapi', modelId, settings)).not.toBeNull()
+      expect(await resolveImageTransport({ providerId: 'dmxapi', providerSettings: settings }, modelId)).not.toBeNull()
     }
   })
 
@@ -39,22 +42,23 @@ describe('resolveImageTransport', () => {
       'some-openai-flat-model'
     ]) {
       expect(hasImageTransport('dmxapi', modelId)).toBe(false)
-      expect(await resolveImageTransport('dmxapi', modelId, settings)).toBeNull()
+      expect(await resolveImageTransport({ providerId: 'dmxapi', providerSettings: settings }, modelId)).toBeNull()
     }
   })
 
   it('returns null for providers without a custom transport', async () => {
     expect(hasImageTransport('openai', 'gpt-image-1')).toBe(false)
     expect(hasImageTransport('unknown-provider', 'x')).toBe(false)
-    expect(await resolveImageTransport('openai', 'gpt-image-1', {})).toBeNull()
-    expect(await resolveImageTransport('unknown-provider', 'x', {})).toBeNull()
   })
 
   it('resolves tokenhub models by the provider id', async () => {
     const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-    const transport = await resolveImageTransport('tokenhub', 'hy-image-v3.0', settings)
+    const transport = await resolveImageTransport(
+      { providerId: 'tokenhub', providerSettings: settings },
+      'hy-image-v3.0'
+    )
     expect(transport).not.toBeNull()
     expect(transport?.task.kind).toBe('supported')
-    expect(await resolveImageTransport('openai-compatible', 'hy-image-v3.0', settings)).toBeNull()
+    expect(hasImageTransport('openai-compatible', 'hy-image-v3.0')).toBe(false)
   })
 })

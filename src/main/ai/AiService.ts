@@ -52,7 +52,11 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { resolveProviderAiSdkConfig } from './provider/config'
-import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
+import {
+  hasImageTransport,
+  isImageTransportConfig,
+  resolveImageTransport
+} from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
@@ -908,6 +912,9 @@ export class AiService extends BaseService {
       registration,
       vendorBag
     )
+    if (sdkConfig.providerId === 'aihubmix' && (request.mode === 'remix' || request.mode === 'upscale')) {
+      imageProviderOptions.aihubmix = { ...imageProviderOptions.aihubmix, mode: request.mode }
+    }
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -1318,7 +1325,10 @@ export class AiService extends BaseService {
             apiKeyOverride: request.apiKeyOverride
           })
           const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          const transport = await resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+          if (!isImageTransportConfig(config, wireModelId)) {
+            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+          }
+          const transport = await resolveImageTransport(config, wireModelId)
           if (!transport) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
           }

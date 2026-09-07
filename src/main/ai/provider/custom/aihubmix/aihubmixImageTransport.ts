@@ -1,6 +1,7 @@
-import { APICallError } from '@ai-sdk/provider'
+import { APICallError, type ImageModelV3File } from '@ai-sdk/provider'
 import {
   combineHeaders,
+  convertBase64ToUint8Array,
   createJsonResponseHandler,
   type FetchFunction,
   postFormDataToApi,
@@ -9,6 +10,7 @@ import {
 } from '@ai-sdk/provider-utils'
 import type { ParamValues } from '@cherrystudio/provider-registry'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import * as z from 'zod'
 
 import {
@@ -21,12 +23,6 @@ import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
 export type AihubmixMode = 'generate' | 'remix' | 'upscale'
-
-interface AihubmixImageFile {
-  mediaType: string
-  data: Uint8Array
-  name: string
-}
 
 export type AihubmixImageOptions = Pick<
   ParamValues,
@@ -46,10 +42,7 @@ export type AihubmixImageOptions = Pick<
   | 'sequentialImageGeneration'
   | 'maxImages'
 > & {
-  /** v1 residue retained until mode delivery is migrated separately. */
   mode?: AihubmixMode
-  /** v1 residue retained until reference-file delivery is migrated separately. */
-  imageFiles?: AihubmixImageFile[]
 }
 
 export interface AihubmixImageTransportSettings {
@@ -101,8 +94,9 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
   constructor(private readonly settings: AihubmixImageTransportSettings) {}
 
   supportsInput(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageTransportInputSupport {
+    const mode = input.providerParams.mode ?? 'generate'
     return {
-      files: isDoubaoSeedreamModel(input.modelId),
+      files: isDoubaoSeedreamModel(input.modelId) || mode === 'remix' || mode === 'upscale',
       mask: false
     }
   }
@@ -139,8 +133,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     }
     if (mode === 'remix') {
       if (bag.imageWeight) formData.append('image_weight', String(bag.imageWeight))
-      const file = requireLegacyImageFile(bag)
-      formData.append('image', toBlob(file), file.name)
+      formData.append('image', toBlob(requireImageFile(input)))
     }
 
     const url = `${this.settings.apiRoot}/ideogram/v1/ideogram-v3/${mode}`
@@ -181,7 +174,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
       return completedImageTransportSubmission(parseIdeogramResults(response), 'AiHubMix Ideogram generate')
     }
 
-    const file = requireLegacyImageFile(bag)
+    const file = requireImageFile(input)
     const imageRequest =
       mode === 'remix'
         ? {
@@ -205,7 +198,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
           }
     const formData = new FormData()
     formData.append('image_request', JSON.stringify(imageRequest))
-    formData.append('image_file', toBlob(file), file.name)
+    formData.append('image_file', toBlob(file))
     const response = await this.postForm(url, formData, input)
     return completedImageTransportSubmission(parseIdeogramResults(response), `AiHubMix Ideogram ${mode}`)
   }
@@ -324,14 +317,21 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
   return modelId.startsWith('doubao-seedream')
 }
 
-function requireLegacyImageFile(bag: AihubmixImageOptions): AihubmixImageFile {
-  const file = bag.imageFiles?.[0]
-  if (!file) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+type AihubmixInputFile = Extract<ImageModelV3File, { type: 'file' }>
+
+function requireImageFile(input: ImageGenerationSubmitInput<AihubmixImageOptions>): AihubmixInputFile {
+  const file = input.files?.[0]
+  if (!file || file.type !== 'file') throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
   return file
 }
 
-function toBlob(file: AihubmixImageFile): Blob {
-  return new Blob([file.data as unknown as BlobPart], { type: file.mediaType })
+function toBlob(file: AihubmixInputFile): Blob {
+  if (file.data instanceof Uint8Array) return new Blob([Uint8Array.from(file.data)], { type: file.mediaType })
+  const parsed = parseDataUrl(file.data)
+  const data = parsed?.data ?? file.data
+  const bytes =
+    parsed && !parsed.isBase64 ? new TextEncoder().encode(decodeURIComponent(data)) : convertBase64ToUint8Array(data)
+  return new Blob([bytes], { type: parsed?.mediaType ?? file.mediaType })
 }
 
 function asPaintingRemoteError(error: unknown): unknown {

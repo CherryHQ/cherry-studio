@@ -18,12 +18,14 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
+import { createAihubmixImageTransport } from '../aihubmix/aihubmixImageTransport'
 
 /**
  * Covers the relocated AiHubMix special branches (Google native image models,
  * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
  * abort, error handling, and the byte-identical default delegate to the inner
  * `OpenAICompatibleImageModel`.
+ * Wire oracle: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-07-27).
  */
 describe('AihubmixImageModel', () => {
   afterEach(() => {
@@ -126,6 +128,33 @@ describe('AihubmixImageModel', () => {
   })
 
   describe('Ideogram V_3', () => {
+    it('declares reference-image support for remix and upscale', () => {
+      const transport = createAihubmixImageTransport({
+        apiRoot: 'https://aihubmix.com',
+        baseURL,
+        apiKey: 'sk-test',
+        headers: {}
+      })
+      const input = {
+        modelId: 'V_3',
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined
+      }
+
+      expect(transport.supportsInput({ ...input, providerParams: { mode: 'remix' } })).toEqual({
+        files: true,
+        mask: false
+      })
+      expect(transport.supportsInput({ ...input, providerParams: { mode: 'upscale' } })).toEqual({
+        files: true,
+        mask: false
+      })
+    })
+
     it('generate → FormData to /ideogram/v1/ideogram-v3/generate with Api-Key', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/a.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
@@ -169,11 +198,11 @@ describe('AihubmixImageModel', () => {
 
       const result = await make('V_3').doGenerate(
         callOptions({
+          files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2]) }],
           providerOptions: {
             aihubmix: {
               mode: 'remix',
-              imageWeight: 55,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([1, 2]), name: 'src.png' }]
+              imageWeight: 55
             }
           } as any
         })
@@ -183,7 +212,10 @@ describe('AihubmixImageModel', () => {
       expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/remix')
       const form = init.body as FormData
       expect(form.get('image_weight')).toBe('55')
-      expect(form.get('image')).toBeInstanceOf(Blob)
+      const image = form.get('image')
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([1, 2]))
       expect(result.images).toEqual(['https://img/r.png'])
     })
 
@@ -194,13 +226,13 @@ describe('AihubmixImageModel', () => {
       await make('V_3').doGenerate(
         callOptions({
           prompt: '',
+          files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([9]) }],
           providerOptions: {
             aihubmix: {
               mode: 'upscale',
               resemblance: 60,
               detail: 80,
-              numImages: 1,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([9]), name: 'in.png' }]
+              numImages: 1
             }
           } as any
         })
@@ -260,11 +292,11 @@ describe('AihubmixImageModel', () => {
 
       const result = await make('V_2').doGenerate(
         callOptions({
+          files: [{ type: 'file', mediaType: 'image/jpeg', data: 'data:image/jpeg;base64,Aw==' }],
           providerOptions: {
             aihubmix: {
               mode: 'remix',
-              imageWeight: 30,
-              imageFiles: [{ mediaType: 'image/jpeg', data: new Uint8Array([3]), name: 'r.jpg' }]
+              imageWeight: 30
             }
           } as any
         })
@@ -275,7 +307,10 @@ describe('AihubmixImageModel', () => {
       const form = init.body as FormData
       const imageRequest = JSON.parse(form.get('image_request') as string)
       expect(imageRequest.image_weight).toBe(30)
-      expect(form.get('image_file')).toBeInstanceOf(Blob)
+      const image = form.get('image_file')
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([3]))
       expect(result.images).toEqual(['data:image/png;base64,QUJD'])
     })
   })

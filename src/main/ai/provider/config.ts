@@ -716,7 +716,8 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
   }
 }
 
-function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
+function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
+  if (ctx.aiSdkProviderId !== 'cherryin') throw new Error('CherryIn config resolved with a mismatched provider id')
   const provider = ctx.actualProvider
   const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
@@ -812,11 +813,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
+  // The registered extension selected this provider id and owns the corresponding settings factory.
   return {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
-  }
+  } as ProviderConfig
 }
 
 /**

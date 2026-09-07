@@ -1,62 +1,61 @@
+import type { ProviderConfig } from '../../types'
 import type { VendorBag } from '../../utils/imageOptions'
-import type { ImageGenerationTransport } from './imageGenerationModel'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
+import type { ImageGenerationTransport } from './imageGenerationModel'
 
-interface TransportRegistration {
-  supports: (modelId: string) => boolean
-  load: (providerSettings: unknown) => Promise<ImageGenerationTransport<VendorBag>>
+const TRANSPORT_SUPPORT = {
+  ppio: () => true,
+  dashscope: () => true,
+  modelscope: () => true,
+  dmxapi: dmxapiUsesCustomTransport,
+  tokenhub: () => true
 }
 
-// `providerSettings` is the erased provider-config union at this registry
-// boundary. The registration key selects the matching builder, so each cast is
-// paired with that builder instead of widening every transport constructor.
-const TRANSPORTS: Record<string, TransportRegistration> = {
-  ppio: {
-    supports: () => true,
-    load: async (settings) => {
+export type ImageTransportProviderId = keyof typeof TRANSPORT_SUPPORT
+
+const TRANSPORT_PROVIDER_IDS: ReadonlySet<string> = new Set(Object.keys(TRANSPORT_SUPPORT))
+
+function isImageTransportProviderId(providerId: string): providerId is ImageTransportProviderId {
+  return TRANSPORT_PROVIDER_IDS.has(providerId)
+}
+
+export function hasImageTransport(providerId: string, modelId: string): providerId is ImageTransportProviderId {
+  return isImageTransportProviderId(providerId) && TRANSPORT_SUPPORT[providerId](modelId)
+}
+
+export function isImageTransportConfig(
+  config: ProviderConfig,
+  modelId: string
+): config is ProviderConfig<ImageTransportProviderId> {
+  return hasImageTransport(config.providerId, modelId)
+}
+
+export async function resolveImageTransport(
+  config: ProviderConfig<ImageTransportProviderId>,
+  modelId: string
+): Promise<ImageGenerationTransport<VendorBag> | null> {
+  if (!TRANSPORT_SUPPORT[config.providerId](modelId)) return null
+
+  switch (config.providerId) {
+    case 'ppio': {
       const { buildPpioTransport } = await import('./ppio/ppioProvider')
-      return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
+      return buildPpioTransport(config.providerSettings)
     }
-  },
-  dashscope: {
-    supports: () => true,
-    load: async (settings) => {
+    case 'dashscope': {
       const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+      return buildDashScopeTransport(config.providerSettings)
     }
-  },
-  modelscope: {
-    supports: () => true,
-    load: async (settings) => {
+    case 'modelscope': {
       const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
-      return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
+      return buildModelscopeTransport(config.providerSettings)
     }
-  },
-  dmxapi: {
-    supports: dmxapiUsesCustomTransport,
-    load: async (settings) => {
+    case 'dmxapi': {
       const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
-      return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
+      return buildDmxapiTransport(config.providerSettings)
     }
-  },
-  tokenhub: {
-    supports: () => true,
-    load: async (settings) => {
+    case 'tokenhub': {
       const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
-      return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
+      return buildTokenhubTransport(config.providerSettings)
     }
   }
-}
-
-export function hasImageTransport(providerId: string, modelId: string): boolean {
-  return TRANSPORTS[providerId]?.supports(modelId) ?? false
-}
-
-export function resolveImageTransport(
-  providerId: string,
-  modelId: string,
-  providerSettings: unknown
-): Promise<ImageGenerationTransport<VendorBag> | null> {
-  const registration = TRANSPORTS[providerId]
-  return registration?.supports(modelId) ? registration.load(providerSettings) : Promise.resolve(null)
 }

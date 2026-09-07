@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { nativeBindingFor, type NativeParamKey } from '../../utils/aiSdkNativeBindings'
-import { resolveImageTransport } from '../custom/imageTransportRegistry'
+import { isImageTransportConfig, resolveImageTransport } from '../custom/imageTransportRegistry'
 import { resolveWireRegistration, type WireProfile } from '../custom/wire/wireProfile'
 
 /**
@@ -149,9 +149,9 @@ describe('registry image params are deliverable on the runtime wire', () => {
     // reaches it; otherwise the key must be a native AI SDK option, mapped by the
     // provider's wire profile, or carried by its passthrough.
     const registration = resolveWireRegistration(sdkConfig.providerId)
-    const hasTransport = Boolean(
-      await resolveImageTransport(sdkConfig.providerId, override.modelId, sdkConfig.providerSettings)
-    )
+    const hasTransport =
+      isImageTransportConfig(sdkConfig, override.modelId) &&
+      Boolean(await resolveImageTransport(sdkConfig, override.modelId))
     const profiles = [registration.profile, ...(registration.also ?? []).map((a) => a.profile)]
 
     const undeliverable = keys.filter(
