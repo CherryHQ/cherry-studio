@@ -235,8 +235,11 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
   })
 
-  it('checks missing manifests on the normal cadence without preventing manual retries', async () => {
-    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValue(releaseError('{"error":{"code":"manifest_missing"}}'))
+  it.each([
+    ['HttpError', releaseError('{"error":{"code":"manifest_missing"}}')],
+    ['plain Error', new Error(releaseError('{"error":{"code":"manifest_missing"}}').message)]
+  ])('keeps normal cadence and manual retries for a missing manifest in %s', async (_label, error) => {
+    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValue(error)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     await appUpdater._doAllReady()
 
@@ -274,6 +277,11 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
   it.each([
     ['HTML mentioning the code', releaseError('<html>manifest_missing</html>')],
     ['unknown structured code', releaseError('{"error":{"code":"upstream_timeout"}}')],
+    ['non-Error rejection', null],
+    [
+      'oversized response',
+      releaseError(JSON.stringify({ error: { code: 'manifest_missing', message: 'x'.repeat(64 * 1024) } }))
+    ],
     ['edition mismatch', releaseError('{"error":{"code":"edition_mismatch"}}', 400)],
     ['404 without its response body', new HttpError(404, '404 Not Found', 'method: GET url: https://example.test')]
   ])('keeps transient backoff for %s', async (_label, error) => {

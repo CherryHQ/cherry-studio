@@ -20,7 +20,7 @@ import {
 } from '@shared/utils/releaseNotes'
 import { isMissingUpdateManifest } from '@shared/utils/updateError'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken, HttpError } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
@@ -375,7 +375,7 @@ export class AppUpdaterService extends BaseService {
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
     } catch (error) {
-      if (error instanceof HttpError && isMissingUpdateManifest(error)) {
+      if (isMissingUpdateManifest(error)) {
         this.updateCheckFailures = 0
         logger.warn('scheduled update check hit manifest_missing, keeping normal cadence')
         this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
