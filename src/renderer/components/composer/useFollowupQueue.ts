@@ -198,7 +198,22 @@ export function useFollowupQueue({
     stateRef.current = next
     setState(next)
     setFailedItemId(null)
-  }, [scopeKey])
+    // If the restored queue is non-empty and completion is already fulfilled, re-arm
+    // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
+    if (
+      next.items.length > 0 &&
+      !next.paused &&
+      isFulfilledRef.current &&
+      isWindowFocused()
+    ) {
+      const head = next.items[0]
+      if (head) {
+        markSeenRef.current()
+        // Defer to next tick so state has committed before drainHead checks drainingIdRef.
+        queueMicrotask(() => drainHead(head))
+      }
+    }
+  }, [scopeKey, drainHead])
 
   const enqueue = useCallback((draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
     // Fast local reject when clearly over limit.
@@ -285,14 +300,14 @@ export function useFollowupQueue({
     const epoch = drainEpochRef.current
     void onDrainRef.current(head.payload).then(
       (sent) => {
-        drainingIdRef.current = null
         if (drainEpochRef.current !== epoch) return
+        drainingIdRef.current = null
         if (sent) removeIdRef.current(head.id)
         else failHeadRef.current(head.id)
       },
       () => {
-        drainingIdRef.current = null
         if (drainEpochRef.current !== epoch) return
+        drainingIdRef.current = null
         failHeadRef.current(head.id)
       }
     )

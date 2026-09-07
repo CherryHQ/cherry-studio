@@ -1502,6 +1502,8 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
+  // Scope by agent + session so a queued payload is always drained through the agent it was enqueued for,
+  // even if the selected agent changes before the drain fires.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
@@ -1515,7 +1517,7 @@ const AgentComposerInner = ({
     retryFailed: retryFailedFollowup,
     skipFailed: skipFailedFollowup
   } = useFollowupQueue({
-    scopeKey: sessionTopicId,
+    scopeKey: `${agentId}:${sessionTopicId}`,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
