@@ -149,7 +149,10 @@ export function useAgentChatRuntimeState({
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
   const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
-  const clearMessages = useCallback(() => ipcApi.request('ai.agent.session.messages.clear', { sessionId }), [sessionId])
+  const clearMessages = useCallback(async () => {
+    const { deletedIds } = await ipcApi.request('ai.agent.session.messages.clear', { sessionId })
+    invalidateCachedMessageUiStates(deletedIds)
+  }, [sessionId])
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,

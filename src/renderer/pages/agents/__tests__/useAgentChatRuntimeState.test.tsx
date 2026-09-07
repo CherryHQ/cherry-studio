@@ -149,7 +149,7 @@ describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
-    mocks.clearSessionMessages.mockResolvedValue(undefined)
+    mocks.clearSessionMessages.mockResolvedValue({ deletedIds: ['assistant-1'] })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
@@ -220,7 +220,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it('clears messages through the Agent Session command boundary', async () => {
+  it('clears messages through the Agent Session command boundary and invalidates their UI state', async () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -232,6 +232,7 @@ describe('useAgentChatRuntimeState', () => {
     await act(() => result.current.clearMessages())
 
     expect(mocks.clearSessionMessages).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session-1' })
+    expect(mocks.invalidateMessages).toHaveBeenCalledExactlyOnceWith(['assistant-1'])
     expect(mocks.chatStop).not.toHaveBeenCalled()
   })
 

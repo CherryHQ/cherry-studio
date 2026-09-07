@@ -225,11 +225,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
   'ai.agent.session.messages.clear': async ({ sessionId }) => {
+    let result: { deletedIds: string[] } = { deletedIds: [] }
     await application
       .get('AiStreamManager')
       .abortAndDrain(buildAgentSessionTopicId(sessionId), 'user-requested', () => {
-        agentSessionMessageService.clearSessionMessages(sessionId)
+        result = agentSessionMessageService.clearSessionMessages(sessionId)
       })
+    return result
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),

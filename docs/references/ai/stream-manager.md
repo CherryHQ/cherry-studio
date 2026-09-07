@@ -468,7 +468,7 @@ class AiStreamManager {
 
   // ── Control ───────────────────────────────────────────────────────
   abort(topicId: string, reason: string): void
-  abortAndDrain(topicId: string, reason: string, options?: { clearSessionMessages?: boolean }): Promise<void>
+  abortAndDrain(topicId: string, reason: string, afterDrain?: () => void | Promise<void>): Promise<void>
   hasLiveStream(topicId: string): boolean
   // Queue a steer user row persisted while a turn was live; the running turn
   // yields and `onExecutionDone` chains a `steer-continuation` to answer it.

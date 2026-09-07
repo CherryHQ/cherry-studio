@@ -317,7 +317,7 @@ export const aiRequestSchemas = {
   }),
   'ai.agent.session.messages.clear': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),

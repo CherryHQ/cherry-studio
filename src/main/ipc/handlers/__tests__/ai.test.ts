@@ -362,12 +362,17 @@ describe('aiHandlers — streaming', () => {
   })
 
   it('clears an Agent Session only after its stream drains and before the dispatch lock releases', async () => {
+    agentSessionMessageService.clearSessionMessages.mockReturnValue({ deletedIds: ['m1', 'm2'] })
     aiStreamManager.abortAndDrain.mockImplementationOnce(async (_topicId, _reason, afterDrain) => {
       expect(agentSessionMessageService.clearSessionMessages).not.toHaveBeenCalled()
       afterDrain()
     })
 
-    await aiHandlers['ai.agent.session.messages.clear']({ sessionId: 's1' }, { senderId: null })
+    await expect(
+      aiHandlers['ai.agent.session.messages.clear']({ sessionId: 's1' }, { senderId: null })
+    ).resolves.toEqual({
+      deletedIds: ['m1', 'm2']
+    })
 
     expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith(
       'agent-session:s1',
