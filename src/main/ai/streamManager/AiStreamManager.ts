@@ -1982,7 +1982,10 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
-    } else if (request.runtime?.kind !== 'agent-session' && isEmptySuccessTurn(exec.finalMessage)) {
+    } else if (
+      !(request.runtime?.kind === 'agent-session' || topicId.startsWith('agent-session:')) &&
+      isEmptySuccessTurn(exec.finalMessage)
+    ) {
       const noResponseError: SerializedError = {
         name: 'NoResponseError',
         message: 'No response',
