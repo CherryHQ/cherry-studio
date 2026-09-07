@@ -178,130 +178,68 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.11 - Features, Fixes, and Improvements
+    Cherry Studio 2.0.12 - Features, Fixes, and Improvements
 
     ✨ New Features
-    - [Cherry Cloud] Sign in to Cherry Cloud for entitlement-aware Agent models, automatic local Gateway startup, quota-aware model selection, and durable Product Session handling.
-    - [Context Management] Configure the compression trigger threshold per assistant or globally in Settings.
-    - [Mini Apps] Improved installation and navigation with drag-and-drop packages, stable tabs and icons, and transparent Translate and Painting views.
-    - [Translate] Single-direction text translation now requires only a target language and starts without source-language detection.
-    - [Files] Press Ctrl+A (Cmd+A on macOS) in the file list to select all files in the current view.
-    - [Translate] Added an inline delete button to remove a message's translation in one click.
-    - [Sidebar] Hide the chat assistant from the sidebar via Appearance Settings, and launch directly to the first visible sidebar app.
-    - [Agent] Added a global search action to the Agent conversation toolbar.
-    - [Models] Add Hy4 Preview, Ling 3.0 Flash, and Qwen3.8 Flash support.
-    - [Anthropic Cache] Anthropic-compatible providers can now keep prompt caches for 1 hour from API Settings.
-    - [i18n] Added initial Turkish localization support across Cherry Studio.
-    - [Screenshot] Confirm the capture on double-click inside the selection rectangle.
+    - [Settings] Settings gains a sidebar search: find any setting row across all sections (title/description/aliases, Chinese pinyin included), jump to it with scroll + highlight, full keyboard navigation.
+    - [Settings] Settings search now covers all sections with static settings rows, including MCP tabs.
+    - [Translation] The translate model now has its own temperature, top-p and reasoning effort settings, editable from the translation settings panel and the translate page toolbar.
+    - [Markdown] Markdown previews outside chat now use the same rich renderer as chat messages. In agent session messages and rendered artifact Markdown previews, workspace links open files in the artifact pane and directories in the system file manager; relative links resolve from the agent workspace root.
 
     🐛 Bug Fixes
-    - [Agent Sessions] Pinned agent sessions now remain in their agent group and appear before unpinned sessions.
-    - [Citations] Knowledge base and web search citations referenced again in a later turn now render as numbered citations and export correctly.
-    - [WebDAV] WebDAV backups now verify the server's TLS certificate by default. Enable “Allow Self-Signed Certificates” if your server uses a self-signed certificate.
-    - [Web Search] Web search now prefers model-native search by default, with automatic fallback to configured services.
-    - [Export] Fixed markdown export with images: oversized embeds are skipped, folder-mode images are copied directly, and broken links are removed.
-    - [Backup] Shows the available disk space when a backup or restore fails because the disk is full.
-    - [Chat] Fixed the app freezing for seconds when removing all models of a provider on a large chat history.
-    - [PDF] Improved PDF previews with selectable text, direct page jumps, and document outlines.
-    - [Thinking] Fixed thinking time restarting from 0 when switching tabs during streaming.
-    - [Migration] Fixed v1-to-v2 migration so multi-model conversations preserve the response selected as context.
-    - [Topics] Fixed a race where deleting the active conversation could leave the UI stuck on the deleted conversation.
-    - [Topics] Keep pinned conversations inside their assistant group when conversations are grouped by assistant.
-    - [Composer] Fixed the agent input box sometimes showing a raw knowledge-base prompt sentence after switching sessions.
-    - [Composer] Long pasted text is pasted as plain text by default again; the “paste long text as file” toggle is back in Input Settings.
-    - [Provider] Fixed custom request headers not being deletable in the provider request-configuration drawer.
-    - [Provider] Fixed image generation icon not displaying for OpenRouter models with versioned GPT image IDs.
-    - [Provider] Restored the Off reasoning option for optional OpenRouter reasoning models.
-    - [Provider] Corrected reasoning-effort options for Qwen3.8 Flash and Max on DashScope Responses endpoint.
-    - [Provider] Point the TokenHub “Get API key” link to the API Key management page.
-    - [Models] Preserve Fireworks Kimi Fast and Turbo variants.
-    - [Models] Fixed Kimi K2.5 and newer requests failing when assistant sampling settings were enabled.
-    - [Chat] Fixed the inconsistent edit action on assistant messages so all assistant replies with text are uniformly editable.
-    - [Chat] Fixed a race where switching the model from the conversation header could leave the next message routed to the previously selected model.
-    - [Chat] Improved automatic conversation titles by requesting them in the selected language using an explicit language name.
-    - [Chat] Citation markers that cannot be matched to a source are no longer shown as raw `[cite:...]` text in answers.
-    - [Chat] Fixed scheduled task cards showing “Running” forever for runs that were cancelled before the app quit.
-    - [Chat] Fixed the agent heartbeat toggle being ignored for agents migrated from v1.
-    - [Chat] Fixed the right-side list opening at the same width as the left list and remembering its own width.
-    - [Chat] Improved focus responsiveness in large Assistant and Agent resource selectors.
-    - [Chat] Keep thinking elapsed stable across tab switches.
-    - [Markdown] Fixed rendering of standalone LaTeX environments such as `equation` and `aligned`.
-    - [Markdown] Fixed table columns keeping a stale fixed width after inserting or resizing columns in the notes editor.
-    - [Mini Apps] Passing null options to chat or file export no longer rejects with an unexpected error.
-    - [Mini Apps] Use a fixed 25px size for Mini App tab icons.
-    - [Mini Apps] Managed DeepSeek Harness sessions no longer open the system browser when they start or restart.
-    - [Mini Apps] Links inside unauthorized HTML artifact previews can no longer navigate the preview frame.
-    - [MCP Browser] Restored MCP browser window controls and tab-bar actions on Windows.
-    - [Knowledge] Reindex now re-acquires files from the real source.
-    - [Files] Pasting multiple files into the composer no longer drops the remaining files when one fails to read.
-    - [Painting] Fixed painting migrator leaving dangling model references that disabled the send button.
-    - [Sidebar] New installs now open Agent first and place it before Chat; existing users keep their saved order.
+    - [Cherry Cloud] Cherry Cloud models now honor server-declared capabilities, support configured OpenAI Chat Completions routes, and remain compatible with older model-list responses. Message token details now also show time to first token without requiring the expanded runtime breakdown.
+    - [Chat] Preserve partial chat responses and show a clear, retryable error when a provider stream ends without a finish reason.
+    - [Chat] Fix middle-click (autoscroll) scrolling in the chat message list so it no longer vibrates or jumps.
+    - [Chat] Sent image attachments now appear as compact filename chips with real image thumbnails, including after reopening a conversation.
+    - [Model Health] Model health check results no longer linger after leaving the provider page.
+    - [Filesystem MCP] Allow grep searches to use regular expression syntax supported by ripgrep.
+    - [Knowledge Base] Empty knowledge bases now appear in the knowledge list.
+    - [Chat Export] Prevent fraction denominators from being clipped when exporting conversations as images.
+    - [OpenClaw] Prevent the OpenClaw gateway from failing to start when Cherry Studio uses a socks5 proxy.
+    - [Web Search] Web fetch no longer sends localhost, LAN, or locally-unresolvable URLs to Jina Reader when the built-in fetch fails, regardless of the “Allow fetching local network addresses” setting.
+    - [Topics] Pinned topics and agent sessions now keep their text aligned with unpinned items in owner-grouped lists.
+    - [Agent] The task progress capsule now always tracks the main agent's task plan; todo lists written by spawned subagents no longer replace it.
+    - [Agent] Fixed the permission-mode popup showing two highlighted rows at once, and tooltips no longer pop up on their own when the panel opens.
+    - [PDF Preview] Preserve colors in colored PDF documents.
+    - [Models] Fix reasoning mode not being available for Xunfei MaaS (讯飞星辰) custom models — their model IDs are now recognized and expose the reasoning toggle/effort controls.
+    - [UI] Improved Skills detail scrolling and Sidebar avatar and title-bar alignment.
+
+    💄 Improvements
+    - [Input Fields] Number fields across settings, model options, MCP servers, assistants and painting parameters no longer show the browser's native spinner buttons, and no longer change value when the mouse wheel scrolls over a focused field. They step with the arrow keys, announce their allowed range to screen readers, and the API gateway port now tells you when a value is out of range instead of quietly applying a different one.
 
     ⚡ Performance
-    - [Export] Exporting or analyzing a long topic with many web/knowledge searches no longer slows down quadratically.
-    - [File Preview] Improved file preview startup time by loading supported preview modules while file metadata is checked.
+    - [Paintings] Improved painting history refresh performance by reusing unchanged hydrated records.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.11 - 新功能、修复与改进
+    Cherry Studio 2.0.12 - 新功能、修复与改进
 
     ✨ 新功能
-    - [樱桃云] 登录樱桃云获取权益感知的智能体模型、自动本地网关启动、配额感知的模型选择和持久的产品会话处理。
-    - [上下文管理] 在设置中为每个助手或全局配置压缩触发阈值。
-    - [小程序] 改进安装和导航，支持拖放包、稳定的标签和图标，以及透明的翻译和绘画视图。
-    - [翻译] 单向文本翻译现在只需要目标语言，无需源语言检测即可开始。
-    - [文件] 在文件列表中按 Ctrl+A（macOS 上为 Cmd+A）全选当前视图中的所有文件。
-    - [翻译] 添加内联删除按钮，一键删除消息的翻译。
-    - [侧边栏] 通过外观设置隐藏聊天助手，启动时直接打开第一个可见的侧边栏应用。
-    - [智能体] 在智能体会话工具栏添加全局搜索操作。
-    - [模型] 新增 Hy4 Preview、Ling 3.0 Flash 和 Qwen3.8 Flash 支持。
-    - [Anthropic 缓存] Anthropic 兼容服务商现在可以从 API 设置中将提示缓存保持 1 小时。
-    - [国际化] 在 Cherry Studio 中添加初始土耳其语本地化支持。
-    - [截图] 在选择区域内双击确认截图。
+    - [设置] 设置侧边栏新增搜索功能：可搜索所有设置项（标题/描述/别名，支持中文拼音），点击跳转并高亮显示，支持完整的键盘导航。
+    - [设置] 设置搜索现覆盖所有包含静态设置行的部分，包括 MCP 标签页。
+    - [翻译] 翻译模型现在可以单独设置温度、Top-P 和推理强度，在翻译设置面板和翻译页工具栏均可调整。
+    - [Markdown] 聊天外的 Markdown 预览现在使用与聊天消息相同的富渲染器。在智能体会话和渲染的产物 Markdown 预览中，工作区链接在产物面板中打开文件，目录在系统文件管理器中打开；相对链接从智能体工作区根目录解析。
 
     🐛 问题修复
-    - [智能体会话] 固定的智能体会话现在保留在其智能体组中，并显示在未固定会话之前。
-    - [引用] 在后续对话中再次引用的知识库和网络搜索引用现在渲染为编号引用并正确导出。
-    - [WebDAV] WebDAV 备份现在默认验证服务器的 TLS 证书。如果您的服务器使用自签名证书，请启用”允许自签名证书”。
-    - [联网搜索] 联网搜索现在默认优先使用模型原生搜索，并自动回退到配置的服务。
-    - [导出] 修复带图片的 Markdown 导出：跳过超大嵌入、直接复制文件夹模式图片、移除损坏的链接。
-    - [备份] 当备份或恢复因磁盘已满而失败时显示可用磁盘空间。
-    - [对话] 修复在大型对话历史中删除服务商的所有模型时应用卡顿数秒的问题。
-    - [PDF] 改进 PDF 预览，支持可选文本、直接页面跳转和文档大纲。
-    - [思考] 修复流式传输期间切换标签时思考时间从 0 重新开始的问题。
-    - [迁移] 修复 v1 到 v2 迁移，使多模型对话保留上下文中选择的响应。
-    - [话题] 修复删除活动对话可能导致界面卡在已删除对话上的竞争条件。
-    - [话题] 按助手分组时，固定对话保留在其助手组中。
-    - [输入框] 修复切回已挂载知识库的智能体会话时，输入框偶尔显示知识库提示词原文的问题。
-    - [输入框] 长粘贴文本默认再次作为纯文本粘贴；”将长文本粘贴为文件”开关已恢复到输入设置中。
-    - [服务商] 修复服务商请求配置抽屉中的自定义请求头无法删除的问题。
-    - [服务商] 修复带有版本化 GPT 图像 ID 的 OpenRouter 模型不显示图像生成图标的问题。
-    - [服务商] 恢复可选 OpenRouter 推理模型的 Off 推理选项。
-    - [服务商] 修正百炼 Responses 接口上 Qwen3.8 Flash 和 Max 的推理强度选项。
-    - [服务商] 将 TokenHub”获取 API 密钥”链接指向 API 密钥管理页面。
-    - [模型] 保留 Fireworks Kimi Fast 和 Turbo 变体。
-    - [模型] 修复开启助手采样设置时 Kimi K2.5 及更新模型请求失败的问题。
-    - [对话] 修复助手消息编辑操作不一致的问题，使所有带文本的助手回复可通过”更多操作 → 编辑”统一编辑。
-    - [对话] 修复从对话标题切换模型可能导致下一条消息路由到之前选择的模型的竞争条件。
-    - [对话] 改进自动对话标题，使用显式语言名称按所选语言请求。
-    - [对话] 无法匹配来源的引用标记不再显示为原始 `[cite:...]` 文本。
-    - [对话] 修复定时任务卡片在应用退出前被取消的运行永远显示”运行中”的问题。
-    - [对话] 修复从 v1 迁移的智能体的心跳开关被忽略的问题。
-    - [对话] 右侧列表现在以与左侧列表相同的宽度打开，并记住自己的宽度。
-    - [对话] 改进大型助手和智能体资源选择器中的焦点响应速度。
-    - [对话] 保持思考时间在标签切换时稳定。
-    - [Markdown] 修复独立 LaTeX 环境（如 `equation` 和 `aligned`）的渲染。
-    - [Markdown] 修复在笔记编辑器中插入或调整列后表格列保持过时固定宽度的问题。
-    - [小程序] 向聊天或文件导出传递 null 选项不再报意外错误。
-    - [小程序] 使用固定的 25px 大小显示小程序标签图标。
-    - [小程序] 托管的 DeepSeek Harness 会话在启动或重启时不再打开系统浏览器。
-    - [小程序] 未授权的 HTML 产物预览中的链接不再能导航预览框架。
-    - [MCP 浏览器] 恢复 Windows 上的 MCP 浏览器窗口控件和标签栏操作。
-    - [知识库] 重建索引现在从真实来源重新获取文件。
-    - [文件] 向输入框粘贴多个文件时，如果一个文件读取失败，不再丢弃其余文件。
-    - [绘画] 修复绘画迁移器留下悬空模型引用导致发送按钮禁用的问题。
-    - [侧边栏] 全新安装现在首先打开智能体并将其放在聊天之前；现有用户保持其保存的顺序。
+    - [樱桃云] 樱桃云模型现在遵循服务器声明的功能，支持配置的 OpenAI Chat Completions 路由，并与旧版模型列表响应保持兼容。消息令牌详情现在也显示首个令牌时间，无需展开运行时明细。
+    - [对话] 当服务商流在没有结束原因的情况下终止时，保留部分对话响应并显示清晰的可重试错误。
+    - [对话] 修复聊天消息列表中的中键自动滚动不再抖动或跳跃。
+    - [对话] 发送的图片附件现在显示为紧凑的文件名芯片，带有真实的图片缩略图，包括重新打开对话后。
+    - [模型健康] 离开服务商页面后，模型健康检查结果不再残留。
+    - [文件系统 MCP] 允许 grep 搜索使用 ripgrep 支持的正则表达式语法。
+    - [知识库] 空知识库现在显示在知识库列表中。
+    - [对话导出] 防止导出对话图片时分数分母被裁剪。
+    - [OpenClaw] 防止 Cherry Studio 使用 socks5 代理时 OpenClaw 网关启动失败。
+    - [联网搜索] 当内置获取失败时，Web 获取不再将 localhost、局域网或本地无法解析的 URL 发送到 Jina Reader，无论”允许获取本地网络地址”设置如何。
+    - [话题] 固定的话题和智能体会话现在在按所有者分组的列表中与未固定项目保持文本对齐。
+    - [智能体] 任务进度胶囊现在始终跟踪主智能体的任务计划；子智能体编写的待办列表不再替换它。
+    - [智能体] 修复权限模式弹出窗口同时显示两个高亮行的问题，工具提示不再在面板打开时自动弹出。
+    - [PDF 预览] 在彩色 PDF 文档中保留颜色。
+    - [模型] 修复讯飞星辰自定义模型无法使用推理模式的问题 —— 其模型 ID 现在被识别并显示推理开关/强度控制。
+    - [界面] 改进技能详情滚动和侧边栏头像及标题栏对齐。
+
+    💄 改进
+    - [输入字段] 设置、模型选项、MCP 服务器、助手和绘画参数中的数字字段不再显示浏览器的原生微调按钮，鼠标滚轮滚动聚焦字段时不再改变值。它们使用方向键步进，向屏幕阅读器宣布允许的范围，API 网关端口现在会告诉您值何时超出范围，而不是悄悄应用不同的值。
 
     ⚡ 性能优化
-    - [导出] 导出或分析包含多次网络/知识搜索的长话题不再二次方减慢。
-    - [文件预览] 改进文件预览启动时间，在检查文件元数据的同时加载支持的预览模块。
+    - [绘画] 通过重用未更改的水合记录改进绘画历史刷新性能。
     <!--LANG:END-->
