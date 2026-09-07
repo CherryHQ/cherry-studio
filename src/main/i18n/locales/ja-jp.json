@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "ほか {{count}} 件の問題",
   "openclaw.errors.preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。",
   "paintings.generate_failed": "画像の生成に失敗しました",
-  "paintings.image_mix_failed": "画像の混合に失敗しました",
   "selection.name": "テキスト選択ツール",
   "settings.mcp.oauth.callback.message": "このページを閉じてCherry Studioに戻ることができます",
   "settings.mcp.oauth.callback.title": "認証成功",

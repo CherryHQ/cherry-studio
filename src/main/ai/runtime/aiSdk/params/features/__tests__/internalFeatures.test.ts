@@ -12,7 +12,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveProviderOptionsKey } from '../../../../provider/endpoint'
+import { resolveProviderOptionsKey } from '../../../../../provider/endpoint'
 
 vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
   providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` }))

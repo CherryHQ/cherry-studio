@@ -716,16 +716,13 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
   }
 }
 
-function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
-  if (ctx.aiSdkProviderId !== 'cherryin') throw new Error('CherryIn config resolved with a mismatched provider id')
+function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   const provider = ctx.actualProvider
   const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
-
-  return {
-    providerId: ctx.aiSdkProviderId,
+  const config = {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
@@ -734,6 +731,17 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
       geminiBaseURL,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
+  }
+
+  switch (ctx.aiSdkProviderId) {
+    case 'cherryin':
+      return { providerId: 'cherryin', ...config }
+    case 'cherryin-chat':
+      return { providerId: 'cherryin-chat', ...config }
+    case 'openai-compatible':
+      return buildOpenAICompatibleConfig(ctx)
+    default:
+      throw new Error(`CherryIn config resolved with unsupported provider id: ${ctx.aiSdkProviderId}`)
   }
 }
 

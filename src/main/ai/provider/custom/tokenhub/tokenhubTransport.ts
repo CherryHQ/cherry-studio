@@ -220,10 +220,7 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
           successfulResponseHandler: createJsonResponseHandler(tokenhubSyncImageResponseSchema)
         })
     )
-    return completedImageTransportSubmission(
-      extractSyncUrls(response.value.data),
-      'TokenHub'
-    )
+    return completedImageTransportSubmission(extractSyncUrls(response.value.data), 'TokenHub')
   }
 
   private async query(

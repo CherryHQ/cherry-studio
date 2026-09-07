@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import type { EndpointType } from '@shared/data/types/model'
+import { type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -30,8 +30,8 @@ import { WIRE_REGISTRY } from '../wireProfile'
 
 // providerToAiSdkConfig reads the rotated API key (and Vertex/Bedrock auth) off the
 // direct-import ProviderService singleton; mock it so the builders run without a DB.
-const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
-  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(() => 'sk-test'),
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+  resolveApiKeyMock: vi.fn(() => ({ value: 'sk-test', apiKeySelection: { attribution: 'unknown' as const } })),
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(
     () => ({ type: 'iam-gcp', project: 'p', location: 'us-central1' }) as AuthConfig
   ),
@@ -40,7 +40,7 @@ const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hois
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
-    getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock,
     getByProviderId: getByProviderIdMock
   }
@@ -53,9 +53,7 @@ const PROBE_MODEL_ID = '__reachability-probe-model__'
 
 describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () => {
   it('every registered provider can still reach the SDK delivery branch', () => {
-    const shadowed = Object.keys(WIRE_REGISTRY).filter((providerId) =>
-      hasImageTransport(providerId, PROBE_MODEL_ID)
-    )
+    const shadowed = Object.keys(WIRE_REGISTRY).filter((providerId) => hasImageTransport(providerId, PROBE_MODEL_ID))
 
     expect(shadowed, 'these rows can never be read — the provider always takes a transport').toEqual([])
   })
@@ -111,6 +109,7 @@ describe('WIRE_REGISTRY rows are reachable from a real declared model', () => {
           id: `${override.providerId}::${override.modelId}`,
           apiModelId: override.modelId,
           providerId: override.providerId,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
           endpointTypes: override.endpointTypes
         })
       )

@@ -15,10 +15,9 @@ import { captureImageRequest } from './captureRequest'
  * wanx2.1-imageedit (function + base_image_url). size is converted `x`→`*`.
  */
 const host = 'https://dashscope.aliyuncs.com'
-const file = (bytes: number[]) =>
-  [
-    { mediaType: 'image/png', data: new Uint8Array(bytes) }
-  ] as ImageGenerationSubmitInput<DashScopeProviderParams>['files']
+const file = (bytes: number[]): NonNullable<ImageGenerationSubmitInput<DashScopeProviderParams>['files']> => [
+  { type: 'file', mediaType: 'image/png', data: new Uint8Array(bytes) }
+]
 
 const base = {
   n: 1,
@@ -88,7 +87,7 @@ const CASES: Case[] = [
       size: '1328x1328',
       modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
       providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -139,9 +138,9 @@ const CASES: Case[] = [
       prompt: 'a fox',
       size: '1024x1024',
       files: [
-        { mediaType: 'image/png', data: new Uint8Array([1]) },
-        { mediaType: 'image/jpeg', data: new Uint8Array([2]) }
-      ] as ImageGenerationSubmitInput<DashScopeProviderParams>['files'],
+        { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) },
+        { type: 'file', mediaType: 'image/jpeg', data: new Uint8Array([2]) }
+      ],
       modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
       providerParams: {}
     } as ImageGenerationSubmitInput<DashScopeProviderParams>,

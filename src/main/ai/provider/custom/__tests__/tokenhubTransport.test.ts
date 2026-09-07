@@ -51,7 +51,7 @@ describe('TokenhubTransport', () => {
 
     const { url, init, body } = lastRequest(fetchMock)
     expect(url).toBe('https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v3-generation')
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token')
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer token')
     expect(body).toEqual({
       model: 'hy-image-v3',
       prompt: 'a fox',
@@ -150,13 +150,10 @@ describe('TokenhubTransport', () => {
     })
 
     expect(globalFetch).not.toHaveBeenCalled()
-    const headers = lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers as Record<
-      string,
-      string
-    >
-    expect(headers['X-App']).toBe('cherry')
-    expect(headers['X-Request']).toBe('once')
-    expect(headers.Authorization).toBe('Bearer token')
+    const headers = new Headers(lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers)
+    expect(headers.get('x-app')).toBe('cherry')
+    expect(headers.get('x-request')).toBe('once')
+    expect(headers.get('authorization')).toBe('Bearer token')
   })
 
   it('rejects a vidu submit that returns no task_id instead of completing empty', async () => {

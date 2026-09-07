@@ -146,6 +146,12 @@ export function resolveProviderOptionsKey(
       return brand(context?.actualProviderId ?? providerId)
     case 'cherryin':
     case 'cherryin-chat':
+      if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return brand('anthropic')
+      if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return brand('google')
+      if (context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) return brand('openai')
+      return brand('cherryin')
+    case SystemProviderIds.doubao:
+      return brand('bytedance')
     case 'newapi':
     case 'aihubmix':
     case SystemProviderIds.dmxapi:

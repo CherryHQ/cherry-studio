@@ -4,6 +4,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
+import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
 
@@ -439,6 +440,7 @@ describe('AiService', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
+        providerOptionsKey: resolveProviderOptionsKey('test-provider'),
         providerSettings: {},
         modelId: 'test-model'
       },
@@ -635,7 +637,12 @@ describe('AiService', () => {
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+      sdkConfig: {
+        providerId: 'silicon',
+        providerOptionsKey: resolveProviderOptionsKey('silicon'),
+        providerSettings: {},
+        modelId: 'Kwai-Kolors/Kolors'
+      }
     } as never)
 
     mockGenerateImage.mockResolvedValue({ images: [] })
@@ -1977,7 +1984,13 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
-    expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
+    expect(mockResolveImageTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'ppio',
+        providerSettings: expect.objectContaining({ apiKey: 'sk-selected' })
+      }),
+      'qwen-image-edit'
+    )
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -18,7 +18,6 @@ import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
 import type { ImageGenerationSubmitInput } from '../imageTransport'
 import { isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
 import { executeImageTransport } from '../imageTransportRuntime'
-import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
@@ -179,7 +178,7 @@ async function downloadAndPersistImageUrls(
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
   for (const url of urls) {
-    if (signal.aborted) throw createAbortError('Image generation aborted')
+    if (signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     const data = await resolveImageDataUrl(url)
     if (!data) continue
     files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))

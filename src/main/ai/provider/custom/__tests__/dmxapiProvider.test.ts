@@ -70,7 +70,7 @@ describe('createDmxapiProvider', () => {
   // resolves BEFORE any SDK image model — so the factory no longer builds one for them.
   it('imageModel serves only the openai-flat families', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi.image')
+    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi')
   })
 
   // `buildDmxapiTransport` is the shared constructor `resolveImageTransport` and a

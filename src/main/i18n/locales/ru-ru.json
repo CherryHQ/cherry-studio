@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "и ещё проблем: {{count}}",
   "openclaw.errors.preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw.",
   "paintings.generate_failed": "Не удалось сгенерировать изображение",
-  "paintings.image_mix_failed": "Не удалось объединить изображения",
   "selection.name": "Помощник выбора",
   "settings.mcp.oauth.callback.message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
   "settings.mcp.oauth.callback.title": "Аутентификация выполнена",

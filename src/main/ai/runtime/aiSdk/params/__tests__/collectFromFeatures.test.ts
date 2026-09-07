@@ -1,7 +1,7 @@
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveProviderOptionsKey } from '../../../provider/endpoint'
+import { resolveProviderOptionsKey } from '../../../../provider/endpoint'
 import { collectFromFeatures } from '../collectFromFeatures'
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'

@@ -385,14 +385,14 @@ describe('imageGenerationJobHandler.execute', () => {
   it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
     submitMock.mockResolvedValue({ kind: 'completed', imageUrls: [] })
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
-    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
+    expect(recordRequestMock).not.toHaveBeenCalled()
   })
 
   it('fails when poll returns an empty array (paid no-op guard)', async () => {
     submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-empty' })
     queryMock.mockResolvedValue({ kind: 'completed', imageUrls: [] })
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
-    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
+    expect(recordRequestMock).not.toHaveBeenCalled()
   })
 
   it('cancels the remote task when the signal aborts mid-poll', async () => {
