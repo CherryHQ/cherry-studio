@@ -18,8 +18,8 @@ when set, persona and workspace instructions can still override it.
 Previously every agent reply was forced into the UI language, which could fight
 with personas or instructions written in another language. After upgrading,
 agents follow the language of the conversation by default — usually what the
-user wants. Users who relied on the old behavior can restore it with the new
-setting.
+user wants. Pinning a language will be possible once the new agent-language
+setting is exposed in the settings UI.
 
 ## What the user should do
 
