@@ -10,16 +10,21 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '@renderer/components/composer/tokens'
+import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   AgentSelector,
   type AgentSelectorItem,
   WorkspaceSelector
 } from '@renderer/components/resourceCatalog/selectors'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useModelById } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { HandoffDraftOpenResponse, HandoffStart, HandoffStartResponse } from '@shared/ipc/schemas/ai'
+import { isNonChatModel } from '@shared/utils/model'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,7 +43,7 @@ export interface AgentHandoffSource {
 }
 
 interface HandoffState {
-  phase: 'idle' | 'generating' | 'ready' | 'starting' | 'error'
+  phase: 'idle' | 'generating' | 'ready' | 'starting' | 'complete' | 'error'
   source?: AgentHandoffSource
   target?: AgentHandoffTarget
   handoffId?: string
@@ -52,6 +57,7 @@ interface HandoffState {
   workspaceId: string | null
   excludedAttachments: string[]
   submitted: boolean
+  summaryModelId?: UniqueModelId
 }
 
 const initialState: HandoffState = {
@@ -76,6 +82,8 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
   const taskId = useId()
   const summaryId = useId()
   const [state, setState] = useState<HandoffState>(initialState)
+  const { model: summaryModel } = useModelById(state.metadata?.modelId ?? state.summaryModelId)
+  const { providers } = useProviders(undefined, { enabled: state.phase !== 'idle' })
   const stateRef = useRef(state)
   stateRef.current = state
   const generationRef = useRef(0)
@@ -126,12 +134,18 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
       draft: ComposerSerializedDraft,
       target: AgentHandoffTarget,
       source: AgentHandoffSource,
-      attachments: ComposerAttachment[]
+      attachments: ComposerAttachment[],
+      options?: {
+        summaryModelId?: UniqueModelId
+        workspaceId?: string | null
+        excludedAttachments?: string[]
+        handoffId?: string
+      }
     ) => {
       cancel()
       const generation = ++generationRef.current
       const streamId = `handoff:draft:${crypto.randomUUID()}`
-      const handoffId = crypto.randomUUID()
+      const handoffId = options?.handoffId ?? crypto.randomUUID()
       streamIdRef.current = streamId
       setState({
         phase: 'generating',
@@ -142,15 +156,17 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
         summary: '',
         streamId,
         attachments,
-        workspaceId: null,
-        excludedAttachments: [],
-        submitted: false
+        workspaceId: options?.workspaceId ?? null,
+        excludedAttachments: options?.excludedAttachments ?? [],
+        submitted: false,
+        summaryModelId: options?.summaryModelId
       })
       void ipcApi
         .request('ai.agent.handoff.draft.open', {
           sourceSessionId: source.id,
           task: draft.text.trim(),
           target: { agentId: target.agentId, name: target.name, description: target.description },
+          ...(options?.summaryModelId ? { summaryModelId: options.summaryModelId } : {}),
           streamId
         })
         .then((metadata) => {
@@ -205,8 +221,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
         return
       }
       onStarted?.()
-      navigation.openConversation(result.sessionId, current.target.name)
-      cancel()
+      setState((value) => ({ ...value, phase: 'complete', result }))
     } catch (error) {
       if (generation === generationRef.current) {
         setState((value) => ({ ...value, phase: 'error', error: errorMessage(error) }))
@@ -214,7 +229,15 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
     } finally {
       if (generation === generationRef.current) startingRef.current = false
     }
-  }, [cancel, navigation, onStarted])
+  }, [onStarted])
+
+  // Navigate after the source's cleared draft has committed, before it persists on unmount.
+  useEffect(() => {
+    if (state.phase !== 'complete' || !state.result) return
+    if (sourceId && state.source?.id !== sourceId) return
+    navigation.openConversation(state.result.sessionId, state.target?.name)
+    cancel()
+  }, [cancel, navigation, sourceId, state.phase, state.result, state.source?.id, state.target?.name])
 
   const changeTarget = useCallback(
     (item: AgentSelectorItem | null) => {
@@ -228,9 +251,14 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
           description: typeof item.description === 'string' ? item.description : undefined
         },
         current.source,
-        current.attachments
+        current.attachments,
+        {
+          summaryModelId: current.summaryModelId,
+          workspaceId: current.workspaceId,
+          excludedAttachments: current.excludedAttachments,
+          handoffId: current.handoffId
+        }
       )
-      setState((value) => ({ ...value, workspaceId: current.workspaceId }))
     },
     [open]
   )
@@ -241,15 +269,19 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
     if (!startingRef.current || !submittedRequestRef.current) cancel()
   }, [cancel])
 
-  const regenerate = () => {
+  const regenerate = (summaryModelId?: UniqueModelId) => {
     const current = stateRef.current
     if (!current.source || !current.target || current.submitted || !current.task.trim()) return
-    open({ text: current.task, tokens: [] }, current.target, current.source, current.attachments)
-    setState((value) => ({
-      ...value,
+    open({ text: current.task, tokens: [] }, current.target, current.source, current.attachments, {
+      summaryModelId: summaryModelId ?? current.summaryModelId,
       workspaceId: current.workspaceId,
-      excludedAttachments: current.excludedAttachments
-    }))
+      excludedAttachments: current.excludedAttachments,
+      handoffId: current.handoffId
+    })
+  }
+  const handleSummaryModelSelect = (model: { id: UniqueModelId } | undefined) => {
+    if (!model || inputDisabled) return
+    regenerate(model.id)
   }
   const inputDisabled = state.phase === 'generating' || state.phase === 'starting' || state.submitted
   const choices = [
@@ -279,7 +311,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
                 </Button>
               }
             />
-            <label className="font-medium text-sm" htmlFor={taskId}>
+            <label className="block font-medium text-sm" htmlFor={taskId}>
               {t('agent.session.handoff.goal')}
             </label>
             <Textarea.Input
@@ -288,7 +320,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
               onChange={(event) => setState((value) => ({ ...value, task: event.target.value }))}
               disabled={inputDisabled}
             />
-            <label className="font-medium text-sm" htmlFor={summaryId}>
+            <label className="block font-medium text-sm" htmlFor={summaryId}>
               {t('agent.session.handoff.summary')}
             </label>
             <Textarea.Input
@@ -307,6 +339,15 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
                 </Button>
               }
             />
+            <fieldset disabled={inputDisabled}>
+              <DefaultModelSelector
+                model={summaryModel}
+                providers={providers}
+                placeholder={t('settings.models.quick_model.label')}
+                filter={(model) => !isNonChatModel(model)}
+                onSelect={handleSummaryModelSelect}
+              />
+            </fieldset>
             {state.metadata ? (
               <p className="text-muted-foreground text-xs">
                 {t('agent.session.handoff.coverage', {
@@ -358,7 +399,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
               </Button>
             ) : null}
             {!state.submitted ? (
-              <Button variant="outline" disabled={inputDisabled || !state.task.trim()} onClick={regenerate}>
+              <Button variant="outline" disabled={inputDisabled || !state.task.trim()} onClick={() => regenerate()}>
                 {t('common.regenerate')}
               </Button>
             ) : null}

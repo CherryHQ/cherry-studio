@@ -26,7 +26,9 @@ explicit summary model does not silently fall back. Capacity checks reject an in
 that cannot fit; the source is not silently shortened to the composer's input limit.
 Models without a declared context window can generate a draft; the provider reports
 any capacity error, following the existing prompt-stream behavior.
-The task and summary remain editable before confirmation.
+The task and summary remain editable before confirmation. The preview also lets
+the user select a different summary model and regenerate without changing global
+model defaults.
 
 ## Confirmation and execution
 

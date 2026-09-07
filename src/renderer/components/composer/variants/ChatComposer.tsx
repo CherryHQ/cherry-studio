@@ -1245,6 +1245,7 @@ const ChatComposerInner = ({
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
       reconcileTokens(nextDraftTokens)
+      setDraftTokens(nextDraftTokens.length ? [...nextDraftTokens] : undefined)
       setDraftTokenRevision((revision) => revision + 1)
     },
     [reconcileTokens]
@@ -1527,7 +1528,7 @@ const ChatComposerInner = ({
       }
     ]
   }, [agentHandoffSources, entityReferenceSources])
-  const handoffTarget = getHandoffTarget(surfaceGetDraftRef.current().tokens)
+  const handoffTarget = getHandoffTarget(draftTokens ?? [])
   const agentHandoff = useAgentHandoff({ onStarted: clearCurrentDraft, sourceId: topicId })
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains

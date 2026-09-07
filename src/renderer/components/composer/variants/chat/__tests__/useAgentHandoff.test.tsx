@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import { type ComponentProps, type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,17 @@ vi.mock('@renderer/ipc', () => ({
 }))
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigation: () => ({ openConversation: mocks.openConversation })
+}))
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (id: string | undefined) => ({
+    model: id ? { id, name: `Model ${id}`, providerId: 'provider' } : undefined
+  })
+}))
+vi.mock('@renderer/hooks/useProvider', () => ({ useProviders: () => ({ providers: [] }) }))
+vi.mock('@renderer/components/DefaultModelSelector', () => ({
+  DefaultModelSelector: ({ onSelect }: { onSelect: (model: { id: string }) => void }) => (
+    <button onClick={() => onSelect({ id: 'provider::summary' })}>select-summary-model</button>
+  )
 }))
 vi.mock('@renderer/utils/file/buildFileParts', () => ({ buildFilePartsForAttachments: mocks.buildFiles }))
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
@@ -72,6 +83,38 @@ describe('useAgentHandoff', () => {
     mocks.buildFiles.mockReset()
     mocks.buildFiles.mockResolvedValue([])
   })
+  it('commits source draft clearing before navigation can unmount and save it', async () => {
+    function SourceComposer() {
+      const [sourceDraft, setSourceDraft] = useState('unsent task')
+      const handoff = useAgentHandoff({ sourceId: source.id, onStarted: () => setSourceDraft('') })
+      return (
+        <>
+          <span data-testid="source-draft">{sourceDraft}</span>
+          <button type="button" onClick={() => handoff.open(draft, target, source, [])}>
+            open
+          </button>
+          {handoff.dialog}
+        </>
+      )
+    }
+    mocks.request.mockImplementation((route: string) =>
+      Promise.resolve(
+        route === 'ai.agent.handoff.start'
+          ? { sessionId: 'session-1', state: 'started' }
+          : { streamId: '', modelId: 'provider::summary', coverage: {}, attachments: [] }
+      )
+    )
+    mocks.openConversation.mockImplementation(() => {
+      expect(screen.getByTestId('source-draft').textContent).toBe('')
+    })
+    render(<SourceComposer />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const streamId = mocks.request.mock.calls[0][1].streamId
+    await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'agent.session.handoff.start' })))
+    expect(mocks.openConversation).toHaveBeenCalledWith('session-1', 'Reviewer')
+  })
+
   it('opens a review dialog without creating a session before confirmation', async () => {
     let resolve!: (value: unknown) => void
     mocks.request.mockImplementationOnce(() => new Promise((r) => (resolve = r)))
@@ -85,6 +128,31 @@ describe('useAgentHandoff', () => {
       mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' })
       resolve({ streamId, modelId: 'm', coverage: {}, attachments: [] })
     })
+    expect(mocks.openConversation).not.toHaveBeenCalled()
+  })
+
+  it('sends an explicit summary model id and regenerates the preview without creating a session', async () => {
+    mocks.request.mockImplementation((route: string) =>
+      route === 'ai.agent.handoff.draft.open'
+        ? Promise.resolve({ streamId: 'unused', modelId: 'provider::default', coverage: {}, attachments: [] })
+        : Promise.resolve(undefined)
+    )
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const firstStreamId = mocks.request.mock.calls[0][1].streamId
+    await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: firstStreamId, status: 'success' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-summary-model' }))
+    const draftOpens = mocks.request.mock.calls.filter(([route]) => route === 'ai.agent.handoff.draft.open')
+    expect(draftOpens).toHaveLength(2)
+    expect(draftOpens[1][1]).toMatchObject({ summaryModelId: 'provider::summary', task: 'Review this change' })
+    await act(async () =>
+      mocks.listeners.get('ai.stream.done')?.({ topicId: draftOpens[1][1].streamId, status: 'success' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'common.regenerate' }))
+    const repeatedOpen = mocks.request.mock.calls
+      .filter(([route]) => route === 'ai.agent.handoff.draft.open')
+      .at(-1)![1]
+    expect(HandoffDraftOpenSchema.parse(repeatedOpen).summaryModelId).toBe('provider::summary')
     expect(mocks.openConversation).not.toHaveBeenCalled()
   })
 
