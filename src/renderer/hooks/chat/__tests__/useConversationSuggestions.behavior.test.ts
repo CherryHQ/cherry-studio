@@ -284,4 +284,47 @@ describe('useConversationSuggestions behavior', () => {
     await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
     expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
   })
+
+  it('falls back to the default model when the dedicated model is disabled', async () => {
+    stubModelQueries({
+      [modelPath(suggestionsModel.id)]: { ...suggestionsModel, isEnabled: false },
+      [modelPath(defaultModel.id)]: defaultModel
+    })
+    enableSuggestions(suggestionsModel.id, defaultModel.id)
+
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-disabled-dedicated',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledWith(expect.any(Object), defaultModel)
+  })
+
+  it('does not generate against a disabled default model', async () => {
+    stubModelQueries({
+      [modelPath(defaultModel.id)]: { ...defaultModel, isEnabled: false }
+    })
+    enableSuggestions(null, defaultModel.id)
+
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-disabled-default',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
+    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+  })
 })

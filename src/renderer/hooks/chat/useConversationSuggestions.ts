@@ -37,13 +37,13 @@ export function useConversationSuggestions({
   // without an id. null is reserved for an active unset dedicated/default id.
   const dedicatedId = active ? ((suggestionsModelId as UniqueModelId | null) ?? null) : undefined
   const { model: dedicatedModel, isLoading: dedicatedLoading } = useModelById(dedicatedId)
-  const dedicatedUsable = Boolean(active && dedicatedModel && !isNonChatModel(dedicatedModel))
+  const dedicatedUsable = Boolean(active && dedicatedModel?.isEnabled && !isNonChatModel(dedicatedModel))
   const fallbackId =
     active && (!dedicatedId || (!dedicatedLoading && !dedicatedUsable))
       ? ((defaultModelId as UniqueModelId | null) ?? null)
       : undefined
   const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
-  const defaultUsable = Boolean(active && defaultModel && !isNonChatModel(defaultModel))
+  const defaultUsable = Boolean(active && defaultModel?.isEnabled && !isNonChatModel(defaultModel))
   const generationModel = dedicatedUsable ? dedicatedModel : defaultUsable ? defaultModel : undefined
   const modelPending = Boolean(dedicatedId && dedicatedLoading) || Boolean(fallbackId && defaultLoading)
   const key =
