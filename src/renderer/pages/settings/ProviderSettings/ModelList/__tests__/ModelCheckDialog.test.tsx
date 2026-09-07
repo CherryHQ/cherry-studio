@@ -138,8 +138,8 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    await user.click(screen.getByRole('button', { name: /settings\.models\.check\.select_api_key sk\*+ry/ }))
-    await user.click(screen.getByRole('option', { name: /sk\*+ve/ }))
+    await user.click(screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key sk\*{4}mary$/ }))
+    await user.click(screen.getByRole('option', { name: /^sk\*{4}tive$/ }))
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
 
     await waitFor(() =>
@@ -160,8 +160,8 @@ describe('ModelCheckDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
 
     await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
-    await user.click(screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key sk\*{4}ry$/ }))
-    await user.click(screen.getByRole('option', { name: /sk\*+ve/ }))
+    await user.click(screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key sk\*{4}mary$/ }))
+    await user.click(screen.getByRole('option', { name: /^sk\*{4}tive$/ }))
 
     health.apiKeyEntries = health.apiKeyEntries.map((entry) =>
       entry.id === 'key-2' ? { ...entry, isEnabled: false } : entry
@@ -184,7 +184,9 @@ describe('ModelCheckDialog', () => {
     rerender(<ModelCheckDialog />)
 
     expect(screen.getByRole('radio', { name: 'settings.models.check.single' })).toBeChecked()
-    expect(screen.getByRole('button', { name: /settings\.models\.check\.select_api_key sk\*+ve/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key sk\*{4}tive$/ })
+    ).toBeInTheDocument()
   })
 
   it('shows single-model key controls only when the credential policy permits selection', () => {

@@ -61,6 +61,7 @@ import { providerHandlers } from '../providers'
 describe('providerHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
   })
 
   describe('/providers', () => {

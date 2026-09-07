@@ -207,9 +207,14 @@ function fakeMsgWithContextTokens(
   return { ...fakeMsg(id, role, text), stats: { contextTokens } }
 }
 
-function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
+function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }, thresholdPercent = 80) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, maxMessages: null, compress: { enabled: true } },
+    contextSettings: {
+      enabled: true,
+      truncateThreshold: 0.9,
+      maxMessages: null,
+      compress: { enabled: true, thresholdPercent }
+    },
     compressionModel
   })
 }
@@ -460,6 +465,57 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The trigger is configurable, and this lane must honour it — the in-loop hook
+  // going green on its own would hide a regression here.
+  it('2c. folds at a configured trigger the default would not have reached', async () => {
+    const MID = 'token '.repeat(300) // 5 x 300 = 1500: under the default 3200, over 40%'s 1600... just under
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn(undefined, 30) // trigger = 30% of 4000 = 1200 < ~1500
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The mirror of 2c: the same history under the default 80% trigger (3200)
+  // stays untouched, so 2c is proving the setting and not just the history size.
+  it('2c-bis. leaves that same history alone at the default trigger', async () => {
+    const MID = 'token '.repeat(300)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  // The keep budget is a fraction of the TRIGGER (0.375x), not of the window
+  // (the old 0.3x). Sized against the window it OVERSHOOTS a low trigger, and a
+  // history that is over the trigger but still fits the budget leaves nothing to
+  // snap: `planKeepBoundary` returns null and this lane silently stops folding
+  // while the in-loop hook carries on alone.
+  //
+  // 5 x ~200 = ~1000 tokens at a 20% trigger on a 4000 window:
+  //   trigger      = 800   → over budget, must fold
+  //   keep (0.375x)= 300   → snaps a boundary, folds the head
+  //   keep (old .3x window) = 1200 → whole history fits, boundary null, no fold
+  it('2d. still snaps a keep boundary at a trigger below the old window-relative budget', async () => {
+    const SMALL = 'token '.repeat(200)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', SMALL))
+    )
+    compressionOn(undefined, 20)
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
   })
 
   // The same history on the same model, but an endpoint that puts no max_tokens
@@ -1049,7 +1105,7 @@ function inLoopScope(contextWindow: number) {
     model: { id: 'openai::gpt-4o', contextWindow },
     // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
     provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
-    contextSettings: { enabled: true, compress: { enabled: true } },
+    contextSettings: { enabled: true, compress: { enabled: true, thresholdPercent: 80 } },
     compressionModel: { id: 'compression-model' }
   } as any
 }

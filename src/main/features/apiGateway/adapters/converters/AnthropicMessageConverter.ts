@@ -34,6 +34,20 @@ function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
 }
 
+function sanitizeDescription(value: string): string {
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
+}
+
 function buildResponsesToolName(name: string, attempt: number): string {
   const sanitized = Array.from(name, (char) => (RESPONSES_TOOL_NAME_PATTERN.test(char) ? char : '_')).join('') || '_'
   const hash = createHash('sha1').update(`${name}\0${attempt}`).digest('hex').slice(0, TOOL_NAME_HASH_LENGTH)
@@ -312,7 +326,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({
-        description: toolDef.description || '',
+        description: sanitizeDescription(toolDef.description || ''),
         inputSchema: zodSchema(schema),
         // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
         // Responses strict-mode's all-properties-required contract, so match the

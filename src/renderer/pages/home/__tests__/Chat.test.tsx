@@ -18,7 +18,6 @@ const assistantContextMock = vi.hoisted(() => ({
   isLoading: false,
   isModelPending: false
 }))
-const providerHookArgs = vi.hoisted(() => [] as unknown[][])
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
@@ -117,10 +116,9 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: (...args: unknown[]) => {
-    providerHookArgs.push(args)
-    return { providers: [] }
-  }
+  useProviders: (_query?: unknown, options?: { enabled?: boolean }) => ({
+    providers: options?.enabled === false ? [] : [{ id: 'provider', name: 'Provider' }]
+  })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -148,13 +146,23 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
-  ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
-    <div data-testid="chat-conversation-controls">{assistantName}</div>
-  )
+  ChatConversationControls: ({ assistantName, model, providers }: any) => {
+    const provider = providers.find((currentProvider: any) => currentProvider.id === model?.providerId)
+    return (
+      <div data-testid="chat-conversation-controls">
+        {assistantName}
+        {model && provider ? `${model.name} | ${provider.name}` : null}
+      </div>
+    )
+  }
 }))
 
 vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('../ChatContent', async () => {
@@ -195,6 +203,10 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
+vi.mock('../components/TopicBranchSwitcher', () => ({
+  default: () => null
+}))
+
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = {
     Scope: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -215,7 +227,6 @@ describe('Chat', () => {
     chatContentProps.current = null
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
-    providerHookArgs.length = 0
     commandHandlers.clear()
     activeTabMock.current = true
   })
@@ -280,21 +291,10 @@ describe('Chat', () => {
     expect(chatContentProps.current?.assistantContext?.isModelPending).toBe(true)
   })
 
-  it('loads provider metadata only for multi-model control details', () => {
+  it('loads provider metadata for the single-model trigger', () => {
     render(<Chat activeTopic={topic} />)
 
-    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
-
-    act(() => {
-      chatContentProps.current?.onConversationControlsChange?.({
-        scopeKey: topic.id,
-        mentionedModels: [],
-        mentionedModelSelectorValue: [{ id: 'provider::model-a' }, { id: 'provider::model-b' }],
-        lockedMentionedModels: []
-      })
-    })
-
-    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: true }])
+    expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Model | Provider')
   })
 
   it('preserves the rail gutter while switching topics', async () => {

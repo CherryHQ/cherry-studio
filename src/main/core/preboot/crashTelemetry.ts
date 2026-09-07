@@ -2,6 +2,7 @@ import process from 'node:process'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { isSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
 import { app, crashReporter } from 'electron'
 
 const logger = loggerService.withContext('CrashTelemetry')
@@ -79,12 +80,13 @@ function installProcessErrorHandlers(): void {
  */
 function hardenWebContents(): void {
   app.on('web-contents-created', (_, webContents) => {
-    // Owns every session's single `onHeadersReceived` slot: Electron keeps ONE
-    // listener per session, so a later registration elsewhere would silently
-    // replace this one — and with it the call-stack collection below. Nothing
-    // else may call `webRequest.onHeadersReceived`; if a second consumer ever
-    // appears, introduce a per-session coordinator instead (same doctrine as
-    // `ai/utils/customFetch.ts` for the `onBeforeSendHeaders` slot).
+    // Owns every session's single `onHeadersReceived` slot EXCEPT the ones whose owner
+    // installs its own: Electron keeps ONE listener per session, so two registrations are
+    // not two policies, they are the later one. The second consumer this comment used to
+    // forbid has appeared (mini apps re-deliver their CSP on this slot), so the two are
+    // separated by session instead of by a coordinator — each is then the only writer on
+    // the sessions it owns. `Document-Policy` is for OUR renderers' crash reports anyway.
+    if (isSelfHardenedSession(webContents.session)) return
     webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {

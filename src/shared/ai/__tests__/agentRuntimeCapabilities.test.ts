@@ -1,6 +1,11 @@
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
-import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_MODEL_GROUP,
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
@@ -84,20 +89,44 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     })
   })
 
-  describe('dsh model input compatibility', () => {
+  it('offers synchronized Cherry Cloud models to every Work runtime', () => {
+    const provider = makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID })
+    const cloudModel = makeModel({
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      apiModelId: 'deepseek-free',
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192
+    })
+
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible(provider, cloudModel)).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, cloudModel)).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible(provider, cloudModel)).toBe(true)
+  })
+
+  it('does not grant Cloud compatibility from the display group alone', () => {
+    const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID, authMethods: ['external-cli'] })
+    const model = makeModel({
+      providerId: CHERRYAI_PROVIDER_ID,
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      capabilities: ['embedding']
+    })
+
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, model)).toBe(false)
+    expect(AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible(provider, model)).toBe(false)
+  })
+
+  describe('dsh model compatibility', () => {
     const isCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
     const provider = makeProvider({})
 
-    it('accepts undeclared and text-capable multimodal inputs', () => {
+    it('does not filter models by their declared input modalities', () => {
       expect(isCompatible(provider, makeModel({}))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.AUDIO] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.VIDEO] }))).toBe(true)
-    })
-
-    it('rejects models that explicitly cannot accept text', () => {
-      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(false)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(false)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(false)
+      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.IMAGE] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(true)
     })
   })
 })

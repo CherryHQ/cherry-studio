@@ -1,4 +1,4 @@
-import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniApp'
+import type { MiniApp, MiniAppRegion, SiteMiniApp } from '@shared/data/types/miniApp'
 
 /**
  * Shared test fixtures for MiniApp-related hooks.
@@ -14,7 +14,8 @@ import type { MiniApp, MiniAppRegion } from '@shared/data/types/miniApp'
  * createMiniApp('app1')
  * createMiniApp('app1', { status: 'pinned', supportedRegions: ['Global'] })
  */
-export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp => ({
+export const createMiniApp = (appId: string, overrides?: Partial<SiteMiniApp>): MiniApp => ({
+  kind: 'site',
   appId: appId,
   name: appId,
   url: `https://${appId}.example.com`,
@@ -25,11 +26,11 @@ export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): Mini
 })
 
 /** Shorthand: create a Global-supporting app */
-export const createGlobalApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp =>
+export const createGlobalApp = (appId: string, overrides?: Partial<SiteMiniApp>): MiniApp =>
   createMiniApp(appId, { supportedRegions: ['Global'] as MiniAppRegion[], ...overrides })
 
 /** Shorthand: create a CN-only app */
-export const createCnOnlyApp = (appId: string, overrides?: Partial<MiniApp>): MiniApp =>
+export const createCnOnlyApp = (appId: string, overrides?: Partial<SiteMiniApp>): MiniApp =>
   createMiniApp(appId, { supportedRegions: ['CN'] as MiniAppRegion[], ...overrides })
 
 /**

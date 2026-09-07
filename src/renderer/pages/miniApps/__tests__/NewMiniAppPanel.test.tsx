@@ -1,6 +1,7 @@
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,52 +43,103 @@ vi.mock('@renderer/components/icons/MiniAppLogoAvatar', () => ({
   default: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
 }))
 
+vi.mock('../InstallMiniAppPanel', () => ({
+  InstallMiniAppPicker: () => <button type="button">miniApp.install.choose_file</button>
+}))
+
 vi.mock('@renderer/utils/uuid', () => ({
   uuid: () => 'generated-id'
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
-    <button type="button" onClick={onClick} disabled={disabled}>
-      {children}
-    </button>
-  ),
-  Input: ({
-    id,
-    value,
-    onChange,
-    placeholder,
-    disabled
-  }: {
-    id?: string
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-    placeholder?: string
-    disabled?: boolean
-  }) => <input id={id} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} />,
-  Field: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  FieldLabel: ({ children, htmlFor }: React.PropsWithChildren<{ htmlFor?: string }>) => (
-    <label htmlFor={htmlFor}>{children}</label>
-  ),
-  Dialog: ({
-    open,
-    children,
-    onOpenChange
-  }: React.PropsWithChildren<{ open: boolean; onOpenChange?: (open: boolean) => void }>) => {
-    mocks.dialogOnOpenChange = onOpenChange
-    return open ? <>{children}</> : null
-  },
-  DialogContent: ({ children }: React.PropsWithChildren) => <div role="dialog">{children}</div>,
-  DialogClose: ({ children }: React.PropsWithChildren) => (
-    <div onClick={() => mocks.dialogOnOpenChange?.(false)}>{children}</div>
-  ),
-  DialogFooter: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  DialogHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
-  DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  // Stateful, unlike the global flattened stand-in: the package tab mounts its content
+  // only when chosen, so switching has to actually switch.
+  const React = await import('react')
+  const TabsContext = React.createContext<{ value?: string; onValueChange?: (value: string) => void }>({})
+  return {
+    Tabs: ({
+      value,
+      onValueChange,
+      children
+    }: React.PropsWithChildren<{ value?: string; onValueChange?: (value: string) => void }>) => (
+      <TabsContext value={{ value, onValueChange }}>{children}</TabsContext>
+    ),
+    TabsList: ({ children }: React.PropsWithChildren) => <div role="tablist">{children}</div>,
+    TabsTrigger: ({ value, children }: React.PropsWithChildren<{ value: string }>) => {
+      const ctx = React.use(TabsContext)
+      return (
+        <button type="button" role="tab" onClick={() => ctx.onValueChange?.(value)}>
+          {children}
+        </button>
+      )
+    },
+    TabsContent: ({ value, children }: React.PropsWithChildren<{ value: string }>) => {
+      const ctx = React.use(TabsContext)
+      return ctx.value === value ? <div role="tabpanel">{children}</div> : null
+    },
+    Alert: ({ message }: { message: string }) => <div role="alert">{message}</div>,
+    InputGroup: ({ children }: React.PropsWithChildren) => <div role="group">{children}</div>,
+    InputGroupInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    InputGroupAddon: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    InputGroupButton: ({
+      children,
+      onClick,
+      disabled
+    }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
+      <button type="button" onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
+    ),
+    Label: ({ children, htmlFor }: React.PropsWithChildren<{ htmlFor?: string }>) => (
+      <label htmlFor={htmlFor}>{children}</label>
+    ),
+    Button: ({
+      children,
+      onClick,
+      disabled
+    }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
+      <button type="button" onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
+    ),
+    Input: ({
+      id,
+      value,
+      onChange,
+      placeholder,
+      disabled
+    }: {
+      id?: string
+      value: string
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+      placeholder?: string
+      disabled?: boolean
+    }) => <input id={id} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} />,
+    Field: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    FieldLabel: ({ children, htmlFor }: React.PropsWithChildren<{ htmlFor?: string }>) => (
+      <label htmlFor={htmlFor}>{children}</label>
+    ),
+    Dialog: ({
+      open,
+      children,
+      onOpenChange
+    }: React.PropsWithChildren<{ open: boolean; onOpenChange?: (open: boolean) => void }>) => {
+      mocks.dialogOnOpenChange = onOpenChange
+      return open ? <>{children}</> : null
+    },
+    DialogContent: ({ children }: React.PropsWithChildren) => <div role="dialog">{children}</div>,
+    DialogClose: ({ children }: React.PropsWithChildren) => (
+      <div onClick={() => mocks.dialogOnOpenChange?.(false)}>{children}</div>
+    ),
+    DialogFooter: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    DialogHeader: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+    DialogTitle: ({ children }: React.PropsWithChildren) => <h2>{children}</h2>
+  }
+})
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  // `i18n` too: the package tab's content resolves the manifest's locale table against it.
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US', resolvedLanguage: 'en-US' } })
 }))
 
 // This suite mocks react-i18next without initReactI18next, so the shared setup's
@@ -151,12 +203,13 @@ describe('NewMiniAppPanel', () => {
 
   it('uses separate titles for creating and editing custom mini apps', () => {
     const { rerender } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    expect(screen.getByText('settings.miniApps.custom.create_title')).toBeInTheDocument()
+    expect(screen.getByText('miniApp.add.title')).toBeInTheDocument()
 
     rerender(
       <NewMiniAppPanel
         open={true}
         app={{
+          kind: 'site',
           appId: 'custom-app',
           presetMiniAppId: null,
           status: 'enabled',
@@ -169,6 +222,57 @@ describe('NewMiniAppPanel', () => {
       />
     )
     expect(screen.getByText('settings.miniApps.custom.edit_title')).toBeInTheDocument()
+  })
+
+  it('offers a website tab and a package tab when creating, and no tabs when editing', () => {
+    const { rerender } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+    // Website first, as before: the save button belongs to that form.
+    expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
+    expect(screen.queryByText('miniApp.add.site_description')).toBeNull()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'miniApp.add.tab_app' }))
+    // The package tab IS the install panel's picker — one dialog, not a second entry.
+    expect(screen.getByText('miniApp.add.app_description')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'miniApp.install.choose_file' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /common\.save/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.developer_docs' }))
+    expect(mocks.ipcRequest).toHaveBeenCalledWith(
+      'system.shell.open_website',
+      'https://github.com/CherryHQ/cherry-studio-miniapps'
+    )
+
+    rerender(
+      <NewMiniAppPanel
+        open={true}
+        app={{
+          kind: 'site',
+          appId: 'custom-app',
+          presetMiniAppId: null,
+          status: 'enabled',
+          orderKey: 'a0',
+          name: 'Old App',
+          url: 'https://old.app',
+          logo: 'application'
+        }}
+        onClose={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
+  })
+
+  it('shows an error when the developer documentation cannot be opened', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockRejectedValueOnce(new Error('open failed'))
+    render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'miniApp.add.tab_app' }))
+    await user.click(screen.getByRole('button', { name: 'miniApp.add.developer_docs' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('miniApp.add.developer_docs_open_failed')
+    })
   })
 
   it('submits with the trimmed form values', async () => {
@@ -210,6 +314,7 @@ describe('NewMiniAppPanel', () => {
       <NewMiniAppPanel
         open={true}
         app={{
+          kind: 'site',
           appId: 'custom-app',
           presetMiniAppId: null,
           status: 'enabled',
@@ -243,6 +348,7 @@ describe('NewMiniAppPanel', () => {
       <NewMiniAppPanel
         open={true}
         app={{
+          kind: 'site',
           appId: 'custom-app',
           presetMiniAppId: null,
           status: 'enabled',
@@ -258,11 +364,12 @@ describe('NewMiniAppPanel', () => {
     expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', `file:///files/${STORED_ID}.webp`)
   })
 
-  it('uploads a replacement logo via mini_app.set_logo when editing', async () => {
+  it('uploads a replacement logo via mini_app.settings.set_logo when editing', async () => {
     const { container } = render(
       <NewMiniAppPanel
         open={true}
         app={{
+          kind: 'site',
           appId: 'custom-app',
           presetMiniAppId: null,
           status: 'enabled',
@@ -287,7 +394,7 @@ describe('NewMiniAppPanel', () => {
     await waitFor(() => {
       expect(mocks.updateCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'mini_app.set_logo',
+        'mini_app.settings.set_logo',
         expect.objectContaining({ appId: 'custom-app', image: expect.objectContaining({ kind: 'image' }) })
       )
       expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('custom-app')
@@ -318,7 +425,7 @@ describe('NewMiniAppPanel', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('creates the app with the default logo then uploads the image via mini_app.set_logo', async () => {
+  it('creates the app with the default logo then uploads the image via mini_app.settings.set_logo', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
     fillRequiredFields()
     pickLogoFile(container)
@@ -328,7 +435,7 @@ describe('NewMiniAppPanel', () => {
     await waitFor(() => {
       expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'mini_app.set_logo',
+        'mini_app.settings.set_logo',
         expect.objectContaining({ appId: 'generated-id', image: expect.objectContaining({ kind: 'image' }) })
       )
       expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('generated-id')

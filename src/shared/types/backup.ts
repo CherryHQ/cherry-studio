@@ -13,6 +13,8 @@ export type WebDavConfig = {
   maxBackups?: number
   skipBackupFile?: boolean
   disableStream?: boolean
+  /** Opt-in: skip ALL certificate checks for this server (self-signed/private-CA, and also expired or wrong-hostname certificates). Default (unset/false) verifies. */
+  allowSelfSignedTls?: boolean
 }
 
 export type LocalBackupConfig = {
@@ -58,3 +60,6 @@ export type AutoBackupSnapshot = {
 }
 
 export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'
+export const BACKUP_DISK_FULL_ERROR_CODE = 'BACKUP_DISK_FULL'
+export const BACKUP_NEWER_VERSION_ERROR_CODE = 'BACKUP_NEWER_VERSION'
+export const BACKUP_OPERATION_BUSY_ERROR_CODE = 'BACKUP_OPERATION_BUSY'

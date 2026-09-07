@@ -36,6 +36,7 @@ const scope = (overrides: {
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
+  thresholdPercent?: number
   compressionModel?: unknown
   adapterFamily?: string
 }) =>
@@ -45,7 +46,7 @@ const scope = (overrides: {
     provider: provider(overrides.adapterFamily),
     contextSettings: {
       enabled: overrides.enabled ?? true,
-      compress: { enabled: overrides.compressEnabled ?? true }
+      compress: { enabled: overrides.compressEnabled ?? true, thresholdPercent: overrides.thresholdPercent ?? 80 }
     },
     compressionModel: 'compressionModel' in overrides ? overrides.compressionModel : COMPRESSION_MODEL
   }) as any
@@ -216,6 +217,37 @@ describe('inLoopCompactionFeature', () => {
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(100_000) // fits the window
     expect(result).toEqual({ messages: compacted })
+  })
+
+  // The keep budget is a fraction of the TRIGGER, not of the window: sized
+  // against the window (the old 0.3x) it EXCEEDS the trigger below 30%, so the
+  // fold kept the entire history — handing back a prompt still over budget for
+  // the next step to re-fold, one summarizer round trip per step.
+  it('keeps a fold target under the trigger at a low threshold', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 20 })
+    )
+    // Trigger = 20% of 100k = 20k; 30 turns x ~1k = ~30k is over it.
+    const messages = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? userMessage(1000) : assistantMessage(1000)))
+    await prepareStep({ messages } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    // Keep budget = 0.375 x 20k = 7.5k, so ~8 of the ~1k turns survive — well
+    // under the trigger. A window-relative budget (0.3 x 100k = 30k) would have
+    // swallowed all 30 and handed back a prompt still over budget.
+    expect(compactModelMessages.mock.calls[0][2].keepRecentTurns).toBeLessThan(20)
+  })
+
+  it('honors a configured threshold below the default', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 50 })
+    )
+    // ~60k tokens: under the 80k default trigger, over the 50k configured one.
+    await prepareStep({ messages: [userMessage(60_000)] } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
   })
 
   // The summarize call goes to the COMPRESSOR, so its budget must come from the

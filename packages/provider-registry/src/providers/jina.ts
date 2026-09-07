@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'jina',
   name: 'Jina',
+  availableInEditions: ['global'],
   baseUrl: 'https://api.jina.ai',
   website: {
     apiKey: 'https://jina.ai/',

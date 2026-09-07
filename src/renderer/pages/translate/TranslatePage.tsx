@@ -7,10 +7,10 @@ import { loggerService } from '@logger'
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -68,14 +68,13 @@ import type {
 } from './pdf/PdfTranslationView'
 import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
-import { usePacedMarkdownOutput } from './usePacedMarkdownOutput'
+import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
-
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -133,6 +132,7 @@ const useBabelDoc = (enabled: boolean) => {
 
   return { availability, installing, install, refresh }
 }
+
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const getTitleFromTranslationResult = (translationResult: string) =>
@@ -215,9 +215,10 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory } = useTranslateHistory()
+  const { add: addHistory, update: updateHistory } = useTranslateHistory({
+    update: { showErrorToast: false, rethrowError: false }
+  })
   const { notesPath } = useNotesSettings()
-  const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
@@ -233,7 +234,6 @@ const TranslatePage: FC = () => {
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
-
   const {
     translate: runTranslate,
     isTranslating,
@@ -242,9 +242,8 @@ const TranslatePage: FC = () => {
     loggerContext: 'TranslatePage',
     onResponse: smoothUpdate
   })
-
-  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
+  const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
@@ -332,32 +331,26 @@ const TranslatePage: FC = () => {
     [setTranslateInput, setTranslateOutput]
   )
 
-  const copy = useCallback(
-    async (value: string) => {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-    },
-    [setCopied]
-  )
-
   const onCopyInput = useCallback(async () => {
     if (!translateInput) return
     try {
-      await copy(translateInput)
+      await navigator.clipboard.writeText(translateInput)
+      setInputCopied(true)
     } catch (error) {
       logger.error('Failed to copy source text:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateInput])
+  }, [setInputCopied, t, translateInput])
 
   const onCopyOutput = useCallback(async () => {
     try {
-      await copy(translateOutput)
+      await navigator.clipboard.writeText(translateOutput)
+      setOutputCopied(true)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateOutput])
+  }, [setOutputCopied, t, translateOutput])
 
   const onExportOutputToNotes = useCallback(() => {
     const translationResult = translateOutput.trim()
@@ -373,9 +366,9 @@ const TranslatePage: FC = () => {
   const translate = useCallback(
     async (
       rawText: string,
-      actualSourceLanguage: TranslateLangCode,
+      actualSourceLanguage: TranslateLangCode | null,
       actualTargetLanguage: TranslateLangCode
-    ): Promise<void> => {
+    ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
       smoothReset('')
@@ -390,7 +383,8 @@ const TranslatePage: FC = () => {
           'auto-copy',
           async () => {
             try {
-              await copy(translated)
+              await navigator.clipboard.writeText(translated)
+              setOutputCopied(true)
             } catch (error) {
               logger.error('Failed to auto copy translated text', error as Error)
               toast.error(t('translate.error.auto_copy_failed'))
@@ -400,22 +394,48 @@ const TranslatePage: FC = () => {
         )
       }
 
-      await addHistory({
+      return addHistory({
         sourceText: rawText,
         targetText: translated,
         sourceLanguage: actualSourceLanguage,
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, isTranslating, runTranslate, setOutputCopied, setTimeoutTimer, smoothReset, t]
+  )
+
+  // Off the translation critical path: a failed detection or patch just leaves
+  // the stored source language unset, so every outcome stays silent.
+  //
+  // Backfills for different history ids can overlap on this one template-path
+  // mutation, which shares `isMutating`/`error` across them (see
+  // docs/references/data/data-api-in-renderer.md). Harmless today because
+  // nothing here reads that state — revisit if this call site ever does.
+  const backfillHistorySourceLanguage = useCallback(
+    (historyId: string, rawText: string) => {
+      void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
+        .then((language) => {
+          if (language === UNKNOWN_LANG_CODE) return
+          return updateHistory(historyId, { sourceLanguage: language })
+        })
+        .catch(() => undefined)
+    },
+    [detectLanguage, updateHistory]
   )
 
   const translateTextContent = useCallback(
     async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
       if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
 
+      if (allowBidirectional && !isBidirectional) {
+        setDetectedLanguage(null)
+        const history = await translate(rawText, null, targetLanguage)
+        if (history) backfillHistorySourceLanguage(history.id, rawText)
+        return
+      }
+
       let actualSourceLanguage = sourceLanguage
-      if (sourceLanguage === 'auto') {
+      if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
         setIsDetecting(true)
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
@@ -449,6 +469,7 @@ const TranslatePage: FC = () => {
       await translate(rawText, actualSourceLanguage, targetResult.language)
     },
     [
+      backfillHistorySourceLanguage,
       bidirectionalPair,
       detectLanguage,
       isBidirectional,
@@ -596,7 +617,9 @@ const TranslatePage: FC = () => {
         setTranslateOutput(history.targetText)
       }
 
-      void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      if (history.kind === 'file' || history.sourceLanguage) {
+        void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      }
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
@@ -622,42 +645,10 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  // Input-side pacing: usePacedMarkdownOutput coalesces stream frames into
-  // one emission per interval; this effect renders the latest emission.
-  const pacedOutput = usePacedMarkdownOutput(translateOutput)
+  const translateReasoning = useTranslateReasoningEffort()
 
-  useEffect(() => {
-    if (!enableMarkdown || !pacedOutput) {
-      setRenderedMarkdown('')
-      return
-    }
-    let cancelled = false
-    let retryTimer: number | null = null
-    let retried = false
-    const render = async () => {
-      try {
-        const markdown = await shikiMarkdownIt(pacedOutput)
-        if (!cancelled) setRenderedMarkdown(markdown)
-      } catch (error) {
-        logger.error('Markdown render failed.', error as Error)
-        // One retry so a failed final render doesn't leave stale content behind.
-        if (!retried) {
-          retried = true
-          retryTimer = window.setTimeout(() => {
-            if (!cancelled) void render()
-          }, 500)
-        }
-      }
-    }
-    void render()
-    return () => {
-      cancelled = true
-      if (retryTimer !== null) window.clearTimeout(retryTimer)
-    }
-  }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
-
-  const modelSelectorFilter = useCallback(
-    (model: SelectorModel) =>
+  const modelSelectorFilter = useCallback<ModelSelectorFilter>(
+    (model) =>
       !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
   )
@@ -915,7 +906,7 @@ const TranslatePage: FC = () => {
   return (
     <div
       data-ui="translate.view"
-      className="relative flex h-full flex-col overflow-hidden bg-background"
+      className="relative flex h-full flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -925,7 +916,7 @@ const TranslatePage: FC = () => {
       )}
       <Navbar />
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
@@ -935,6 +926,7 @@ const TranslatePage: FC = () => {
             onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
             detectedLanguage={detectedLanguage}
             isBidirectional={isPdfMode ? false : isBidirectional}
+            showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
             couldExchange={couldExchange}
             onExchange={handleExchange}
@@ -1000,6 +992,14 @@ const TranslatePage: FC = () => {
                 </Button>
               }
             />
+            {translateReasoning.supportsReasoning && translateReasoning.model && (
+              <ModelSpeedControl
+                side="bottom"
+                model={translateReasoning.model}
+                reasoningEffort={translateReasoning.effort}
+                onReasoningEffortChange={translateReasoning.selectEffort}
+              />
+            )}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -1056,10 +1056,9 @@ const TranslatePage: FC = () => {
                         <TranslateOutputPane
                           ref={outputTextRef}
                           translatedContent={translateOutput}
-                          renderedMarkdown={renderedMarkdown}
                           enableMarkdown={enableMarkdown}
                           translating={isTranslating || isDetecting || isPdfTextExtracting}
-                          copied={copied}
+                          copied={outputCopied}
                           onCopy={onCopyOutput}
                           onExportToNotes={onExportOutputToNotes}
                           onScroll={outputScrollHandler}
@@ -1092,6 +1091,7 @@ const TranslatePage: FC = () => {
                 onPaste={onPaste}
                 onDrop={onDrop}
                 onSelectFile={handleSelectFile}
+                copied={inputCopied}
                 onCopy={onCopyInput}
                 onCancelOcr={clearOcrJob}
                 disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
@@ -1103,10 +1103,9 @@ const TranslatePage: FC = () => {
               <TranslateOutputPane
                 ref={outputTextRef}
                 translatedContent={translateOutput}
-                renderedMarkdown={renderedMarkdown}
                 enableMarkdown={enableMarkdown}
                 translating={isTranslating || isDetecting}
-                copied={copied}
+                copied={outputCopied}
                 onCopy={onCopyOutput}
                 onExportToNotes={onExportOutputToNotes}
                 onScroll={outputScrollHandler}

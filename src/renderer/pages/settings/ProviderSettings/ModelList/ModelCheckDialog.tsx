@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
+  InputNumber,
   Label,
   SegmentedControl,
   Switch
@@ -452,15 +452,14 @@ export default function ModelCheckDialog() {
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="model-check-timeout">{t('settings.models.check.timeout')}</Label>
                 <div className="flex items-center gap-2">
-                  <Input
+                  <InputNumber
                     id="model-check-timeout"
-                    type="number"
                     min={5}
                     max={60}
+                    step={1}
                     value={timeoutSeconds}
                     className="w-24"
-                    onChange={(event) => setTimeoutSeconds(Number(event.target.value))}
-                    onBlur={() => setTimeoutSeconds(clampTimeout(timeoutSeconds))}
+                    onBlur={(value) => setTimeoutSeconds(value ?? 5)}
                   />
                   <span className="text-muted-foreground text-sm">{t('settings.models.check.timeout_unit')}</span>
                 </div>
