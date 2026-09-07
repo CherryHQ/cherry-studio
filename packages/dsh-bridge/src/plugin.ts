@@ -77,6 +77,7 @@ export function apply(ctx: Context): void {
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   const turnSystemPrompts = new Map<string, TurnSystemPromptState>()
+  const openingSessions = new Set<string>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
 
@@ -173,21 +174,25 @@ export function apply(ctx: Context): void {
   }
 
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
-    if (turnSystemPrompts.has(params.sessionId)) throw new Error(`session "${params.sessionId}" is already open`)
+    if (openingSessions.has(params.sessionId) || turnSystemPrompts.has(params.sessionId)) {
+      throw new Error(`session "${params.sessionId}" is already open`)
+    }
+    openingSessions.add(params.sessionId)
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
       model: params.model,
       ...(params.maxTokens === undefined ? {} : { maxTokens: params.maxTokens })
     }
+    let disposeAgent: (() => Promise<void>) | undefined
     try {
       let agent: Agent
       replaceTools(params.sessionId, params.tools)
       if (params.resume) {
         try {
           const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
+          disposeAgent = () => resumed.dispose()
           if (resumed.agent.session.header.cwd !== params.cwd) {
-            await resumed.dispose()
             throw new Error(
               `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
             )
@@ -201,6 +206,7 @@ export function apply(ctx: Context): void {
             meta: { cwd: params.cwd },
             agentOptions
           })
+          disposeAgent = () => created.dispose()
           agent = created.agent
         }
       } else {
@@ -209,6 +215,7 @@ export function apply(ctx: Context): void {
           meta: { cwd: params.cwd },
           agentOptions
         })
+        disposeAgent = () => created.dispose()
         agent = created.agent
       }
       const turnSystemPrompt: TurnSystemPromptState = { pending: new Map() }
@@ -235,7 +242,10 @@ export function apply(ctx: Context): void {
       policies.delete(params.sessionId)
       turnSystemPrompts.delete(params.sessionId)
       disposeTools(params.sessionId)
+      await disposeAgent?.()
       throw error
+    } finally {
+      openingSessions.delete(params.sessionId)
     }
   }
 

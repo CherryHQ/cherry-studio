@@ -213,6 +213,74 @@ describe('cherry bridge plugin', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('rejects a concurrent open before creating a second agent for the same session', async () => {
+    const host = await startHost()
+    let resolveCreate: ((value: { agent: Agent; dispose: () => Promise<void> }) => void) | undefined
+    const create = vi.fn(
+      () =>
+        new Promise<{ agent: Agent; dispose: () => Promise<void> }>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    const agent = {
+      id: 'session-1',
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: { on: vi.fn(), systemPrompt: { section: vi.fn() } }
+    } as unknown as Agent
+    const ctx = makeContext({ agents: { resume: vi.fn(), create, get: vi.fn(() => agent) } })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    const firstOpen = host.request('session/open', { ...openParams, resume: false })
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce())
+    await expect(host.request('session/open', { ...openParams, resume: false })).rejects.toThrow(
+      'session "session-1" is already open'
+    )
+    expect(create).toHaveBeenCalledOnce()
+
+    resolveCreate?.({ agent, dispose: vi.fn().mockResolvedValue(undefined) })
+    await expect(firstOpen).resolves.toEqual({})
+  })
+
+  it.each([
+    { name: 'created', resume: false },
+    { name: 'resumed', resume: true }
+  ])('disposes a $name agent when post-open setup fails', async ({ resume }) => {
+    const host = await startHost()
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    const agent = {
+      id: 'session-1',
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: {
+        on: vi.fn(),
+        systemPrompt: {
+          section: vi.fn(() => {
+            throw new Error('section setup failed')
+          })
+        }
+      }
+    } as unknown as Agent
+    const opened = { agent, dispose }
+    const ctx = makeContext({
+      agents: {
+        resume: vi.fn().mockResolvedValue(opened),
+        create: vi.fn().mockResolvedValue(opened),
+        get: vi.fn(() => agent)
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    await expect(host.request('session/open', { ...openParams, resume })).rejects.toThrow('section setup failed')
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
   it('routes a delegated subagent tool call through the root session', async () => {
     const host = await startHost()
     const register = vi.fn().mockReturnValue(() => {})
