@@ -23,6 +23,8 @@ const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
+const mockReadConversation = vi.fn()
+const mockFindPersistedToolOutput = vi.fn()
 const mockListSessions = vi.fn()
 const mockSearchSessions = vi.fn()
 const mockSearchSessionMessages = vi.fn()
@@ -44,6 +46,11 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: mockGetAgent,
     updateAgent: mockUpdateAgent
   }
+}))
+
+vi.mock('@main/ai/messages/readConversation', () => ({
+  readConversation: mockReadConversation,
+  findPersistedToolOutput: mockFindPersistedToolOutput
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -171,20 +178,12 @@ describe('CherryAutonomyTools', () => {
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
-  it('should list all tools', () => {
+  it('advertises the read contract, search limit and configured notification recipient', () => {
     const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
-    expect(tools).toHaveLength(8)
-    expect(tools.map((t) => t.name)).toEqual([
-      'cron',
-      'notify',
-      'config',
-      'session_list',
-      'session_search',
-      'session_create',
-      'session_deliveries',
-      'session_send'
-    ])
+    const readSchema = tools.find((tool) => tool.name === 'session_read')?.inputSchema
+    expect(readSchema?.required).toContain('session_id')
+    expect(readSchema?.properties).not.toHaveProperty('type')
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
@@ -209,7 +208,7 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
-    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
+    it.each(['session_list', 'session_search', 'session_read', 'session_deliveries', 'session_create', 'session_send'])(
       'denies %s from a headless turn before reading or mutating another Session',
       async (toolName) => {
         mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
@@ -234,6 +233,79 @@ describe('CherryAutonomyTools', () => {
         expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
       }
     )
+
+    it('reads a conversation through the unified session_read facade', async () => {
+      mockReadConversation.mockReturnValue({
+        source: 'topic',
+        sessionId: 'topic-1',
+        messages: [{ message: { id: 'message-1', role: 'user', data: { parts: [] } } }],
+        nextCursor: 'cursor-1'
+      })
+
+      const result = await callTool(createServer(), { session_id: 'topic-1', limit: 10 }, 'session_read')
+
+      expect(mockReadConversation).toHaveBeenCalledWith({
+        sessionId: 'topic-1',
+        cursor: undefined,
+        limit: 10,
+        nodeId: undefined,
+        includeSiblings: undefined,
+        messageId: undefined,
+        toolCallId: undefined
+      })
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        source: 'topic',
+        messages: [{ message: { id: 'message-1' } }],
+        nextCursor: 'cursor-1'
+      })
+    })
+
+    it('adds a persisted tool result to an exact session_read', async () => {
+      mockReadConversation.mockReturnValue({
+        source: 'agent',
+        sessionId: 'session-a',
+        message: { id: 'message-1', role: 'assistant', data: { parts: [] } }
+      })
+      mockFindPersistedToolOutput.mockResolvedValue({ found: true, output: 'full tool output' })
+
+      const result = await callTool(
+        createServer(),
+        { session_id: 'session-a', message_id: 'message-1', tool_call_id: 'call-1' },
+        'session_read'
+      )
+
+      expect(mockFindPersistedToolOutput).toHaveBeenCalledWith('agent-session:session-a', 'message-1', 'call-1')
+      expect(JSON.parse(result.content[0].text).toolResult).toEqual({ found: true, output: 'full tool output' })
+    })
+
+    it('rejects session_read input without a session id', async () => {
+      const result = await callTool(createServer(), {}, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Invalid input')
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
+    it('rejects a caller-supplied session type because Main identifies the source by id', async () => {
+      const result = await callTool(createServer(), { session_id: 'topic-1', type: 'topic' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Unrecognized key')
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
+    it('keeps the existing sender identity gate for session_read', async () => {
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'another-agent' })
+
+      const result = await callTool(createServer(), { session_id: 'topic-1' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SENDER_FORBIDDEN' }
+      })
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
 
     it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')

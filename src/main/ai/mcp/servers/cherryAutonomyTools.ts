@@ -16,7 +16,13 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import {
+  findPersistedToolOutput,
+  readConversation,
+  type ReadConversationInput
+} from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -25,6 +31,7 @@ import {
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
+  SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -33,6 +40,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 
@@ -303,6 +311,35 @@ const SESSION_SEARCH_TOOL: Tool = {
   }
 }
 
+const SESSION_READ_TOOL: Tool = {
+  name: SESSION_READ_TOOL_NAME,
+  description:
+    'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string', description: 'Chat topic, Agent Session, or temporary conversation id.' },
+      cursor: { type: 'string', description: 'Opaque cursor returned by the previous page.' },
+      limit: { type: 'number', description: 'Maximum messages to return.' },
+      node_id: { type: 'string', description: 'Topic branch endpoint message id.' },
+      include_siblings: { type: 'boolean', description: 'Include sibling replies for topic messages.' },
+      message_id: { type: 'string', description: 'Read one exact message in the conversation.' },
+      tool_call_id: { type: 'string', description: 'Restore the persisted output for message_id tool call.' }
+    },
+    required: ['session_id']
+  }
+}
+
+const SessionReadArgsSchema = z.strictObject({
+  session_id: z.string().min(1),
+  cursor: z.string().optional(),
+  limit: z.number().int().positive().optional(),
+  node_id: z.string().optional(),
+  include_siblings: z.boolean().optional(),
+  message_id: z.string().min(1).optional(),
+  tool_call_id: z.string().min(1).optional()
+})
+
 const SESSION_DELIVERIES_TOOL: Tool = {
   name: SESSION_DELIVERIES_TOOL_NAME,
   description: 'Inspect durable incoming or outgoing cross-Session requests, results, and delivery state.',
@@ -359,6 +396,7 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
   SESSION_SEARCH_TOOL,
+  SESSION_READ_TOOL,
   SESSION_CREATE_TOOL,
   SESSION_DELIVERIES_TOOL,
   SESSION_SEND_TOOL
@@ -428,6 +466,8 @@ export class CherryAutonomyTools {
           return this.listSessions(args)
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
+        case SESSION_READ_TOOL_NAME:
+          return await this.readSession(args)
         case SESSION_CREATE_TOOL_NAME:
           return await this.createSession(args)
         case SESSION_DELIVERIES_TOOL_NAME:
@@ -570,6 +610,42 @@ export class CherryAutonomyTools {
       })
     }
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
+  }
+
+  private async readSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const parsed = SessionReadArgsSchema.safeParse(args)
+    if (!parsed.success)
+      throw new McpError(ErrorCode.InvalidParams, parsed.error.issues[0]?.message ?? 'Invalid session_read input')
+    const sessionId = parsed.data.session_id.trim()
+
+    const readInput: ReadConversationInput = {
+      sessionId,
+      cursor: parsed.data.cursor,
+      limit: parsed.data.limit,
+      nodeId: parsed.data.node_id,
+      includeSiblings: parsed.data.include_siblings,
+      messageId: parsed.data.message_id,
+      toolCallId: parsed.data.tool_call_id
+    }
+    const conversation = readConversation(readInput)
+    if (parsed.data.tool_call_id) {
+      if (!parsed.data.message_id) {
+        throw new McpError(ErrorCode.InvalidParams, "'tool_call_id' requires 'message_id'")
+      }
+      const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
+      const toolResult = await findPersistedToolOutput(topicId, parsed.data.message_id, parsed.data.tool_call_id)
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ...conversation, toolResult })
+          }
+        ]
+      }
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify(conversation) }] }
   }
 
   private listSessionDeliveries(args: Record<string, unknown>) {
