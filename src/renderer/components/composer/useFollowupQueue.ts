@@ -333,9 +333,18 @@ export function useFollowupQueue({
         stateRef.current = next
         return next
       })
-      if (wasFailed) setFailedItemId(null)
+      if (wasFailed) {
+        setFailedItemId(null)
+        if (isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
+          const head = stateRef.current.items[0]
+          if (head) {
+            markSeenRef.current()
+            drainHead(head)
+          }
+        }
+      }
     },
-    [persist]
+    [persist, drainHead]
   )
   removeIdRef.current = removeId
 
@@ -432,11 +441,13 @@ export function useFollowupQueue({
       let next = loadState(scopeKeyRef.current)
       if (isEqual(next, stateRef.current)) return
       // If the failed item was removed externally, clear the failure so drains can resume.
+      let didUnpause = false
       if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
         setFailedItemId(null)
         if (next.paused) {
           next = { ...next, paused: false }
           persistState(scopeKeyRef.current, next.items, next.paused)
+          didUnpause = true
         }
       }
       // If the draining item disappeared externally, invalidate its resolution.
@@ -446,8 +457,15 @@ export function useFollowupQueue({
       }
       stateRef.current = next
       setState(next)
+      if (didUnpause && isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
+        const head = next.items[0]
+        if (head) {
+          markSeenRef.current()
+          drainHead(head)
+        }
+      }
     })
-  }, [])
+  }, [drainHead])
 
   const retryFailed = useCallback(() => {
     const failed = failedItemIdRef.current
