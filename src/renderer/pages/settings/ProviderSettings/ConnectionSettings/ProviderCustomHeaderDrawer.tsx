@@ -9,6 +9,11 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -154,13 +159,20 @@ export function resolveEndpointTypes(
 
 export interface EndpointDraft {
   baseUrl: string
+  reasoningFormat?: { type: 'self-hosted' }
 }
+
+const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES
+])
 
 /**
  * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
- * Each drafted endpoint's `baseUrl` is written or stripped from the draft;
- * other configured fields on the entry are kept. An empty entry is dropped.
+ * Each drafted endpoint's `baseUrl` and `reasoningFormat` are written or
+ * stripped from the draft; other configured fields on the entry are kept.
+ * An empty entry is dropped.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
@@ -174,6 +186,13 @@ export function mergeEndpointConfigs(
       next.baseUrl = value
     } else {
       delete next.baseUrl
+    }
+    if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
+      if (draft.reasoningFormat) {
+        next.reasoningFormat = draft.reasoningFormat
+      } else {
+        delete next.reasoningFormat
+      }
     }
     if (!isEmpty(next)) {
       out[type] = next
@@ -242,8 +261,12 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
+      const reasoningFormat = provider?.endpointConfigs?.[type]?.reasoningFormat
       drafts[type] = {
-        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? ''),
+        ...(REASONING_FORMAT_ENDPOINT_TYPES.has(type) && reasoningFormat?.type === 'self-hosted'
+          ? { reasoningFormat: { type: 'self-hosted' as const } }
+          : {})
       }
     }
     setEndpointDrafts(drafts)
@@ -454,6 +477,42 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   autoComplete="off"
                 />
               </InputGroup>
+              {REASONING_FORMAT_ENDPOINT_TYPES.has(type) && (
+                <div className="flex items-center gap-2">
+                  <Label
+                    className="shrink-0 text-muted-foreground text-xs"
+                    htmlFor={`provider-reasoning-format-${type}`}>
+                    {t('settings.provider.reasoning_format')}
+                  </Label>
+                  <Select
+                    value={endpointDrafts[type]?.reasoningFormat?.type ?? 'default'}
+                    onValueChange={(next) =>
+                      setEndpointDrafts((prev) => ({
+                        ...prev,
+                        [type]: {
+                          ...(prev[type] ?? { baseUrl: '' }),
+                          reasoningFormat: next === 'self-hosted' ? { type: 'self-hosted' } : undefined
+                        }
+                      }))
+                    }>
+                    <SelectTrigger
+                      size="sm"
+                      className="w-48"
+                      id={`provider-reasoning-format-${type}`}
+                      aria-label={t('settings.provider.reasoning_format')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" className="w-56">
+                      <SelectItem value="default" className="text-sm">
+                        {t('settings.provider.reasoning_format_default')}
+                      </SelectItem>
+                      <SelectItem value="self-hosted" className="text-sm">
+                        {t('settings.provider.reasoning_format_self_hosted')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {isDefault && (
                 <p className="wrap-break-word text-muted-foreground text-xs leading-relaxed">
                   {t('settings.provider.api_host_drawer_hint')}

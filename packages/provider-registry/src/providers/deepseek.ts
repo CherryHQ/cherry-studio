@@ -25,18 +25,34 @@ const v4ProPeakPricing = {
 // Targets name `@ai-sdk/deepseek` provider options, not wire fields: the SDK's zod schema takes
 // camelCase `reasoningEffort` and silently strips the snake_case form before it reaches the body.
 const v4ChatEffortWire = {
-  off: { operations: [{ target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }] },
+  off: {
+    operations: [
+      {
+        target: 'thinking.type' as const,
+        value: { source: 'literal' as const, value: 'disabled' },
+        delivery: 'provider-option' as const
+      }
+    ]
+  },
   auto: {
     operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
+      {
+        target: 'thinking.type' as const,
+        value: { source: 'literal' as const, value: 'enabled' },
+        delivery: 'provider-option' as const
+      },
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const }, delivery: 'provider-option' as const }
     ],
     effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
     operations: [
-      { target: 'thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } },
-      { target: 'reasoningEffort' as const, value: { source: 'effort' as const } }
+      {
+        target: 'thinking.type' as const,
+        value: { source: 'literal' as const, value: 'enabled' },
+        delivery: 'provider-option' as const
+      },
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const }, delivery: 'provider-option' as const }
     ],
     effortMap: v4EffortMap
   }
@@ -44,14 +60,24 @@ const v4ChatEffortWire = {
 
 const v4ResponsesEffortWire = {
   off: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }]
+    operations: [
+      {
+        target: 'reasoningEffort' as const,
+        value: { source: 'literal' as const, value: 'none' },
+        delivery: 'provider-option' as const
+      }
+    ]
   },
   auto: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
+    operations: [
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const }, delivery: 'provider-option' as const }
+    ],
     effortMap: { auto: 'high' as const, ...v4EffortMap }
   },
   effort: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
+    operations: [
+      { target: 'reasoningEffort' as const, value: { source: 'effort' as const }, delivery: 'provider-option' as const }
+    ],
     effortMap: v4EffortMap
   }
 }
@@ -72,9 +98,33 @@ export default defineProvider({
       reasoningFormat: {
         type: 'openai-chat',
         wire: {
-          off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
-          effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
+          off: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'disabled' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          },
+          auto: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'enabled' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          },
+          effort: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'enabled' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          }
         }
       }
     },

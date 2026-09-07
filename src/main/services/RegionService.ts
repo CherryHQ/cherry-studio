@@ -29,7 +29,7 @@ type CachedEgressRegion = {
  * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
-  private inflight = new Map<string | null, { promise: Promise<string> }>()
+  private inflight: Promise<string> | null = null
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
@@ -57,30 +57,17 @@ class RegionService {
       return cached.country
     }
 
-    // Dedup concurrent detections for the active proxy — callers share one in-flight request.
-    const current = this.inflight.get(proxyKey)
-    if (current) {
-      return current.promise
-    }
-
-    const inflight = {
-      promise: this.detectAndCache(proxyKey)
-    }
-    inflight.promise = inflight.promise.finally(() => {
-      if (this.inflight.get(proxyKey) === inflight) {
-        this.inflight.delete(proxyKey)
-      }
+    // Dedup concurrent detections — callers share one in-flight request.
+    this.inflight ??= this.detectAndCache(proxyKey).finally(() => {
+      this.inflight = null
     })
-    this.inflight.set(proxyKey, inflight)
-    return inflight.promise
+    return this.inflight
   }
 
   private async detectAndCache(proxyKey: string | null): Promise<string> {
     try {
       const country = await this.fetchCountry()
-      if (application.get('ProxyService').appliedProxyKey === proxyKey) {
-        application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
-      }
+      application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)

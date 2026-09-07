@@ -28,13 +28,15 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
 
 const anthropicBudgetWire: ReasoningWireProfile = {
   off: {
-    operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' as const }
+    ]
   },
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'thinking.budgetTokens', value: { source: 'budget' } },
-      { target: 'sendReasoning', value: { source: 'literal', value: true } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' as const },
+      { target: 'thinking.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const },
+      { target: 'sendReasoning', value: { source: 'literal', value: true }, delivery: 'provider-option' as const }
     ],
     budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
   }

@@ -12,19 +12,33 @@ const webToolModels = [
 
 const bedrockBudgetWire: ReasoningWireProfile = {
   off: {
-    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'disabled' } }]
+    operations: [
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'disabled' },
+        delivery: 'provider-option' as const
+      }
+    ]
   },
   auto: {
     operations: [
-      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' } }
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'enabled' },
+        delivery: 'provider-option' as const
+      },
+      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
     ],
     budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
   },
   effort: {
     operations: [
-      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' } }
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'enabled' },
+        delivery: 'provider-option' as const
+      },
+      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
     ],
     budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
   }
@@ -32,15 +46,35 @@ const bedrockBudgetWire: ReasoningWireProfile = {
 
 const bedrockEffortWire: ReasoningWireProfile = {
   off: {
-    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'disabled' } }]
+    operations: [
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'disabled' },
+        delivery: 'provider-option' as const
+      }
+    ]
   },
   auto: {
-    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } }]
+    operations: [
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'adaptive' },
+        delivery: 'provider-option' as const
+      }
+    ]
   },
   effort: {
     operations: [
-      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
-      { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }
+      {
+        target: 'reasoningConfig.type',
+        value: { source: 'literal', value: 'adaptive' },
+        delivery: 'provider-option' as const
+      },
+      {
+        target: 'reasoningConfig.maxReasoningEffort',
+        value: { source: 'effort' },
+        delivery: 'provider-option' as const
+      }
     ]
   }
 }
