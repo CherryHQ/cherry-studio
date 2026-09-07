@@ -13,6 +13,7 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { migrationEngine } from '@data/migration/v2'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
@@ -71,7 +72,7 @@ type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  return !availableInEditions || availableInEditions.includes(getAppEdition())
+  return migrationEngine.isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {

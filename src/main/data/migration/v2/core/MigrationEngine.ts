@@ -126,6 +126,7 @@ export class MigrationEngine {
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
   private legacyDataConfirmed = false
+  private migratedFromV1 = false
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -155,6 +156,11 @@ export class MigrationEngine {
   close(): void {
     this.migrationDb?.close()
     this.migrationDb = null
+  }
+
+  /** Whether this profile completed a v1-to-v2 migration, restored during preboot. */
+  isMigratedFromV1(): boolean {
+    return this.migratedFromV1
   }
 
   private getDb(): DbType {
@@ -198,6 +204,7 @@ export class MigrationEngine {
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
+      this.migratedFromV1 = statusValue.status === 'completed' && statusValue.migratedFromV1 === true
       return statusValue.status !== 'completed'
     }
 
@@ -579,6 +586,7 @@ export class MigrationEngine {
         error: null
       })
     })
+    this.migratedFromV1 = false
   }
 
   /**
@@ -592,6 +600,7 @@ export class MigrationEngine {
       version: '2.0.0',
       error: null
     })
+    this.migratedFromV1 = migratedFromV1
   }
 
   /**
@@ -605,6 +614,7 @@ export class MigrationEngine {
       version: '2.0.0',
       error: error
     })
+    this.migratedFromV1 = false
   }
 
   private upsertMigrationStatus(executor: DbType | DbTransaction, statusValue: MigrationStatusValue): void {
