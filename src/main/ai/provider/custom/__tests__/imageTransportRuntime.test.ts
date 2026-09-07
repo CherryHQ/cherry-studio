@@ -108,6 +108,29 @@ describe('image transport runtime', () => {
     expect(events).toEqual(['persist', 'query'])
   })
 
+  it('cancels an accepted task when task-id persistence fails', async () => {
+    const cancelRemote = vi.fn().mockResolvedValue(undefined)
+    const query = vi.fn()
+    const transport = asyncTransport({
+      query,
+      cancel: { kind: 'supported', cancelRemote }
+    })
+
+    await expect(
+      executeImageTransport({
+        transport,
+        input: input(),
+        onTaskSubmitted: vi.fn().mockRejectedValue(new Error('database unavailable')),
+        onProgress: vi.fn(),
+        logContext: {}
+      })
+    ).rejects.toThrow('database unavailable')
+
+    expect(query).not.toHaveBeenCalled()
+    expect(cancelRemote).toHaveBeenCalledOnce()
+    expect(cancelRemote).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: undefined }))
+  })
+
   it('cancels after persistence when the request is aborted while saving the task id', async () => {
     const controller = new AbortController()
     const cancelRemote = vi.fn().mockResolvedValue(undefined)
@@ -229,6 +252,7 @@ describe('image transport runtime', () => {
     })
     const terminalQuery = vi.fn().mockRejectedValue(terminal)
     const failedQuery = vi.fn().mockResolvedValue({ kind: 'failed', message: 'moderated' })
+    const failedCancel = vi.fn().mockResolvedValue(undefined)
 
     await expect(
       executeImageTransport({
@@ -243,7 +267,7 @@ describe('image transport runtime', () => {
 
     await expect(
       executeImageTransport({
-        transport: asyncTransport({ query: failedQuery }),
+        transport: asyncTransport({ query: failedQuery, cancel: { kind: 'supported', cancelRemote: failedCancel } }),
         input: input(),
         onTaskSubmitted: vi.fn(),
         onProgress: vi.fn(),
@@ -251,6 +275,34 @@ describe('image transport runtime', () => {
       })
     ).rejects.toThrow('moderated')
     expect(failedQuery).toHaveBeenCalledTimes(1)
+    expect(failedCancel).not.toHaveBeenCalled()
+  })
+
+  it('cancels an accepted task when local polling terminates', async () => {
+    const queryError = new APICallError({
+      message: 'invalid response',
+      url: 'https://api.example/tasks/task-1',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const cancelRemote = vi.fn().mockResolvedValue(undefined)
+    const transport = asyncTransport({
+      query: vi.fn().mockRejectedValue(queryError),
+      cancel: { kind: 'supported', cancelRemote }
+    })
+
+    await expect(
+      executeImageTransport({
+        transport,
+        input: input(),
+        onTaskSubmitted: vi.fn(),
+        onProgress: vi.fn(),
+        logContext: {}
+      })
+    ).rejects.toThrow('invalid response')
+
+    expect(cancelRemote).toHaveBeenCalledOnce()
+    expect(cancelRemote).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: undefined }))
   })
 
   it('cancels a submitted task once with a fresh signal when aborted', async () => {
@@ -284,9 +336,11 @@ describe('image transport runtime', () => {
 
   it('bounds query attempts including transient failures', async () => {
     const query = vi.fn().mockResolvedValue({ kind: 'pending' })
+    const cancelRemote = vi.fn().mockResolvedValue(undefined)
     const transport = asyncTransport({
       pollPolicy: { ...TEST_POLICY, maxAttempts: 2 },
-      query
+      query,
+      cancel: { kind: 'supported', cancelRemote }
     })
 
     await expect(
@@ -299,6 +353,7 @@ describe('image transport runtime', () => {
       })
     ).rejects.toThrow('Task polling timeout')
     expect(query).toHaveBeenCalledTimes(2)
+    expect(cancelRemote).toHaveBeenCalledOnce()
   })
 
   it('enforces a maximum elapsed time independently of attempt count', async () => {

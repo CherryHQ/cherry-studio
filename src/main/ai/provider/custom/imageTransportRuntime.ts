@@ -49,19 +49,21 @@ export async function executeImageTransport<P>({
     throw new Error(`Image transport returned task '${submission.taskId}' but does not support task queries`)
   }
 
-  await onTaskSubmitted(submission.taskId)
-  return pollImageTransportTask({
-    transport,
-    taskId: submission.taskId,
-    context: {
-      signal: input.signal ?? new AbortController().signal,
-      modelDescriptor: input.modelDescriptor,
-      headers: input.headers,
-      providerParams: input.providerParams
-    },
-    onProgress,
-    logContext
-  })
+  const context = {
+    signal: input.signal ?? new AbortController().signal,
+    modelDescriptor: input.modelDescriptor,
+    headers: input.headers,
+    providerParams: input.providerParams
+  }
+  try {
+    await onTaskSubmitted(submission.taskId)
+  } catch (error) {
+    await cancelRemoteTask(transport.task, submission.taskId, context, logContext)
+    if (context.signal.aborted || isAbortError(error)) throw createImageAbortError()
+    throw error
+  }
+
+  return pollImageTransportTask({ transport, taskId: submission.taskId, context, onProgress, logContext })
 }
 
 export async function resumeImageTransport<P>({
@@ -90,6 +92,7 @@ async function pollImageTransportTask<P>({
   }
 
   const { signal } = context
+  let remoteSettled = false
   let cancellationPromise: Promise<void> | undefined
   const requestRemoteCancellation = () => {
     if (!cancellationPromise) {
@@ -131,8 +134,14 @@ async function pollImageTransportTask<P>({
         throwIfAborted(signal)
         consecutiveErrors = 0
 
-        if (state.kind === 'completed') return requireNonEmptyImageUrls(state.imageUrls, 'Image transport task')
-        if (state.kind === 'failed') throw new ImageTransportTaskFailedError(state.message)
+        if (state.kind === 'completed') {
+          remoteSettled = true
+          return requireNonEmptyImageUrls(state.imageUrls, 'Image transport task')
+        }
+        if (state.kind === 'failed') {
+          remoteSettled = true
+          throw new ImageTransportTaskFailedError(state.message)
+        }
         if (state.kind !== 'pending') throw new Error('Image transport query returned an invalid task state')
         if (state.progress !== undefined) onProgress(state.progress)
       } catch (error) {
@@ -157,6 +166,7 @@ async function pollImageTransportTask<P>({
       await requestRemoteCancellation()
       throw createImageAbortError()
     }
+    if (!remoteSettled) await requestRemoteCancellation()
     throw error
   } finally {
     signal.removeEventListener('abort', onAbort)
@@ -170,7 +180,7 @@ async function cancelRemoteTask<P>(
   logContext: Record<string, unknown>
 ): Promise<void> {
   if (task.cancel.kind === 'unsupported') {
-    logger.warn('Image generation aborted locally; the remote task may continue', { ...logContext, taskId })
+    logger.warn('Image generation stopped locally; the remote task may continue', { ...logContext, taskId })
     return
   }
 
