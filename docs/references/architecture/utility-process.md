@@ -8,6 +8,9 @@ sources:
   - src/main/services/readableContent/ReadableContentService.ts
   - scripts/utility-process-smoke
   - electron.vite.config.ts
+  - electron.vite.entries.config.ts
+  - scripts/utilityProcessEntryGuard.ts
+  - src/main/ai/localModel/runtime/inferenceProcess.ts
 ---
 
 # Utility Process Architecture
@@ -54,8 +57,8 @@ flowchart LR
   RUNTIME --> HANDLERS["Domain handlers"]
 ```
 
-No consumer is registered in the generic-layer implementation itself. Local-model migration and
-production entry-build integration are separate changes. The forcing constraint is the Windows
+The generic layer does not register business definitions itself. The local-model domain registers
+embedding and OCR processes, with a separate production entry build. The forcing constraint is the Windows
 ONNX Runtime DLL collision described in #19621: incompatible native runtimes must not share a process.
 Embedding, OCR, and speech remain consumer-owned capabilities.
 
@@ -127,24 +130,27 @@ The exact deadlines and error codes live in the
 - **Separate main and child import surfaces.** There is no root barrel joining them.
   The [source README](../../../src/main/core/utilityProcess/README.md) lists the sanctioned paths.
   A resolved-path `import-x/no-restricted-paths` lint zone catches both relative and aliased
-  direct imports into main-only modules; the smoke build's entry-graph guard checks transitive imports.
+  direct imports into main-only modules; the production and smoke builds share an entry-graph guard
+  in `scripts/utilityProcessEntryGuard.ts` that checks transitive imports.
 
 ## Entry build and production integration
 
 Utility entries are ordinary TypeScript modules under their consumer's `utilityEntries/`.
 The chosen build uses a dedicated electron-vite pass with named `build.lib.entry` inputs,
 CJS output under `out/utility-process/`, and stable `[name].js` entry filenames.
-The fixture uses `preserveModules` for stable emitted paths.
+Production and smoke builds use flat chunks with stable entry names and hashed shared-chunk names,
+avoiding dependency output under nested `node_modules` directories that packaging can exclude.
 
 Keeping main startup outside the utility build graph prevents entries from importing and
 executing the app's main entry. The historical mixed-graph E1 failure below motivates that
 separation; the current separate-pass smoke does not prove that `preserveModules` alone
 prevents entry folding.
 
-The generic layer provides the path key and fixture build, not production build wiring.
-The first consumer adds its named-entry build map, main-compatible externalization,
-build ordering, dev watcher, and electron-builder inclusion. It must verify the real release-shaped
-package and rerun the platform checks in the [production integration checklist](../utility-process/utility-process-testing.md#scope-and-residual-risk).
+The generic layer provides the path key; `electron.vite.entries.config.ts` supplies the inference
+entry map and reuses main's externalization policy. `pnpm build` builds entries after main, and
+`pnpm dev` builds them before startup. Entry changes are not watched: rerun `pnpm build:utility-process`
+after editing them. `electron-builder.yml` includes the output, but consumers must still verify the
+real release-shaped package and platform checks in the [production integration checklist](../utility-process/utility-process-testing.md#scope-and-residual-risk).
 A build entry map is distinct from runtime consumer registration.
 
 The rejected `?modulePath` mechanism and selected dedicated build were measured on the exact
