@@ -28,7 +28,9 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
   getRawShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
+  hasMiseInPath: (pathValue?: string) =>
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }))
 
 const { createTransport } = await import('../mcpTransport')

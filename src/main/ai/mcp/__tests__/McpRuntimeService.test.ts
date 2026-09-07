@@ -37,7 +37,9 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: shellEnvMock.getShellEnv,
   getRawShellEnv: shellEnvMock.getRawShellEnv,
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
+  hasMiseInPath: (pathValue?: string) =>
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }))
 
 const commandResolverMock = vi.hoisted(() => ({

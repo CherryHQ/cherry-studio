@@ -247,7 +247,11 @@ vi.mock('@main/utils/rtk', () => ({
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
   getRawShellEnv: mocks.getRawShellEnv,
-  refreshShellEnv: mocks.refreshShellEnv
+  refreshShellEnv: mocks.refreshShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
+  hasMiseInPath: (pathValue?: string) =>
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }))
 
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
