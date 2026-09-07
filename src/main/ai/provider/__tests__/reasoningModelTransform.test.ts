@@ -1,4 +1,5 @@
 import { createExecutor } from '@cherrystudio/ai-core'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import {
   applyReasoningModelMaxTokensConversion,
   createCherryIn,
@@ -11,6 +12,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { createNewApi } from '../custom/newapiProvider'
+import { OpenResponsesExtension } from '../extensions'
+
+if (!extensionRegistry.has(OpenResponsesExtension.config.name)) {
+  extensionRegistry.register(OpenResponsesExtension)
+}
 
 const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(),
@@ -157,6 +163,19 @@ function fakeSuccessResponse() {
   )
 }
 
+function fakeResponsesSuccessResponse() {
+  return new Response(
+    JSON.stringify({
+      id: 'resp-fake',
+      created_at: 0,
+      model: 'gpt-6-astra',
+      output: [],
+      usage: { input_tokens: 1, output_tokens: 1 }
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  )
+}
+
 describe('wire-body regression through real construction paths', () => {
   it('default OpenAI-compatible path (providerToAiSdkConfig → createExecutor) rewrites max_tokens on the wire', async () => {
     const provider = makeProvider({
@@ -222,6 +241,40 @@ describe('wire-body regression through real construction paths', () => {
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
     expect(body.max_completion_tokens).toBe(128000)
     expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('constructs GPT-6 Astra on the Responses URL for a Chat-configured custom provider', async () => {
+    const provider = makeProvider({
+      id: 'custom-provider',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+        }
+      }
+    })
+    const model = makeModel({
+      providerId: 'custom-provider',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    expect(config.providerId).toBe('open-responses')
+
+    const fetchSpy = vi.fn().mockResolvedValue(fakeResponsesSuccessResponse())
+    const executor = await createExecutor(
+      config.providerId as Parameters<typeof createExecutor>[0],
+      { ...config.providerSettings, fetch: fetchSpy } as Parameters<typeof createExecutor>[1]
+    )
+    const languageModel = await executor.languageModel('openai/gpt-6-astra')
+
+    await languageModel.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+
+    const request = fetchSpy.mock.calls[0][0]
+    expect(request instanceof Request ? request.url : String(request)).toBe(
+      'https://express-ent-admin.cherryin.net/v1/responses'
+    )
   })
 
   it('NewAPI createNewApi path rewrites max_tokens on the wire', async () => {

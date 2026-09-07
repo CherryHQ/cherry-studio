@@ -78,6 +78,7 @@ export default defineCreator({
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
       contextWindow: 1050000,
       maxInputTokens: 922000,
       maxOutputTokens: 128000,

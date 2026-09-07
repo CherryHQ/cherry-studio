@@ -156,6 +156,26 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-responses')
   })
 
+  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+    const provider = makeProvider({
+      id: 'custom-provider',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: ['openai-responses']
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('keeps OpenAI Chat when the provider has no Anthropic endpoint configuration', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',

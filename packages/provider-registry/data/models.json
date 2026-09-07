@@ -16856,6 +16856,7 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
       "contextWindow": 1050000,
+      "endpointTypes": ["openai-responses"],
       "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
@@ -16953,10 +16954,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -21996,5 +21997,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "7e351e461e8f2323"
+  "version": "de26437ccfc78a10"
 }

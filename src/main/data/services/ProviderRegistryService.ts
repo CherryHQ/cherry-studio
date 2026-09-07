@@ -532,7 +532,9 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let outputModalities: Modality[] | undefined = presetModel.outputModalities?.length
     ? [...presetModel.outputModalities]
     : undefined
-  let endpointTypes: EndpointType[] | undefined = undefined
+  let endpointTypes: EndpointType[] | undefined = presetModel.endpointTypes?.length
+    ? [...presetModel.endpointTypes]
+    : undefined
   const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow

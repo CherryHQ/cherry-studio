@@ -1054,6 +1054,45 @@ describe('ModelService.list — registry enrichment', () => {
     })
   })
 
+  it('hydrates a sparse GPT-6 Astra row with its model-level Responses endpoint', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('custom-provider', 'Custom Provider'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom-provider', 'openai/gpt-6-astra', {
+        presetModelId: 'gpt-6-astra',
+        name: null,
+        capabilities: null,
+        endpointTypes: null,
+        supportsStreaming: null
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'custom-provider' })
+
+    expect(model).toMatchObject({
+      apiModelId: 'openai/gpt-6-astra',
+      presetModelId: 'gpt-6-astra',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+      endpointTypes: ['openai-responses']
+    })
+  })
+
   it('hydrates same-canonical variants through their exact API model ID', async () => {
     const apiModelId = 'deepseek-v4-flash-202605'
     await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
