@@ -23,21 +23,23 @@ export type SecretInputProps = Omit<InputProps, 'className' | 'size' | 'type'> &
   size?: React.ComponentProps<typeof InputGroup>['size']
 }
 
-function SecretInput({
-  className,
-  inputClassName,
-  size,
-  showLabel,
-  hideLabel,
-  disabled,
-  ref,
-  spellCheck,
-  value,
-  onChange,
-  ...props
-}: SecretInputProps) {
+function SecretInput(secretInputProps: SecretInputProps) {
+  const {
+    className,
+    inputClassName,
+    size,
+    showLabel,
+    hideLabel,
+    disabled,
+    ref,
+    spellCheck,
+    value,
+    onChange,
+    ...props
+  } = secretInputProps
   const [isVisible, setIsVisible] = useState(false)
-  const normalizedValue = value === undefined ? undefined : String(value)
+  const isControlled = Object.hasOwn(secretInputProps, 'value')
+  const normalizedValue = isControlled ? String(value ?? '') : undefined
   const lastUserValueRef = useRef(normalizedValue)
   const visibilityLabel = isVisible ? hideLabel : showLabel
 
@@ -58,7 +60,7 @@ function SecretInput({
       <InputGroupInput
         {...props}
         ref={ref}
-        value={value}
+        value={isControlled ? (value ?? '') : undefined}
         onChange={handleChange}
         type={isVisible ? 'text' : 'password'}
         spellCheck={spellCheck ?? false}

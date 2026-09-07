@@ -114,6 +114,36 @@ describe('SecretInput', () => {
     expect(screen.getByRole('button', { name: 'Show credential' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('clears and remasks when a controlled credential becomes undefined', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <SecretInput
+        aria-label="Credential"
+        value="secret-value"
+        readOnly
+        showLabel="Show credential"
+        hideLabel="Hide credential"
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Show credential' }))
+    expect(screen.getByLabelText('Credential')).toHaveAttribute('type', 'text')
+
+    rerender(
+      <SecretInput
+        aria-label="Credential"
+        value={undefined}
+        readOnly
+        showLabel="Show credential"
+        hideLabel="Hide credential"
+      />
+    )
+
+    expect(screen.getByLabelText('Credential')).toHaveValue('')
+    expect(screen.getByLabelText('Credential')).toHaveAttribute('type', 'password')
+    expect(screen.getByRole('button', { name: 'Show credential' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('keeps a revealed credential visible while the user edits it', async () => {
     function Harness() {
       const [value, setValue] = useState('secret-value')

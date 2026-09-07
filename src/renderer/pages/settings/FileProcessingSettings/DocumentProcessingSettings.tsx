@@ -1,4 +1,4 @@
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { compactSettingsFieldClassName, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
@@ -10,14 +10,6 @@ import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferenc
 import { type FileProcessingMenuEntry, getFeatureSections } from './utils/fileProcessingMeta'
 
 const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
-
-const documentProcessingFieldClassName =
-  '[&_input[data-slot=input]]:h-8 [&_input[data-slot=input]]:rounded-lg [&_input[data-slot=input]]:border-border-subtle ' +
-  '[&_input[data-slot=input]]:bg-muted/30 [&_input[data-slot=input]]:px-2.5 [&_input[data-slot=input]]:shadow-none ' +
-  '[&_input[data-slot=input]:focus-visible]:ring-[1px] [&_input[data-slot=input]:focus-visible]:ring-ring/35 ' +
-  '[&_[data-slot=input-group]]:h-8 [&_[data-slot=input-group]]:rounded-lg [&_[data-slot=input-group]]:border-border-subtle ' +
-  '[&_[data-slot=input-group]]:bg-muted/30 [&_[data-slot=input-group]]:shadow-none ' +
-  '[&_[data-slot=input-group-control]]:px-2.5'
 
 const DocumentProcessingSettings: FC = () => {
   const { t } = useTranslation()
@@ -59,7 +51,7 @@ const DocumentProcessingSettings: FC = () => {
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey) ?? menuEntries[0]
 
   return (
-    <SettingsContentColumn theme={themeMode} innerClassName={documentProcessingFieldClassName}>
+    <SettingsContentColumn theme={themeMode} innerClassName={compactSettingsFieldClassName}>
       {activeEntry ? (
         <ProcessorPanel
           entry={activeEntry}
