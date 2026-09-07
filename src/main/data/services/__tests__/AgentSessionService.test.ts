@@ -881,7 +881,7 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('clears persisted runtime resume tokens when a session is reassigned', async () => {
+  it('rejects agent reassignment after messages are sent without clearing the runtime resume token', async () => {
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-resume-target',
       type: 'claude-code',
@@ -896,13 +896,16 @@ describe('AgentSessionService', () => {
       .set({ runtimeResumeToken: 'previous-agent-runtime-session' })
       .where(eq(agentSessionMessageTable.id, 'message-with-resume-token'))
 
-    agentSessionService.update(session.id, { agentId: 'agent-session-resume-target' })
+    expect(
+      captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-resume-target' }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
 
     const [message] = await dbh.db
       .select({ runtimeResumeToken: agentSessionMessageTable.runtimeResumeToken })
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, 'message-with-resume-token'))
-    expect(message.runtimeResumeToken).toBeNull()
+    expect(message.runtimeResumeToken).toBe('previous-agent-runtime-session')
+    expect(agentSessionService.getById(session.id).agentId).toBe('agent-session-test')
   })
 
   it('rejects runtime changes after messages are sent', async () => {

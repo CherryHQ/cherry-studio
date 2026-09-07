@@ -129,7 +129,20 @@ type AgentSessionRoutingDefaultSource = {
   model: string | null
 }
 
+type AgentSessionRoutingUpdateField = (typeof AGENT_SESSION_ROUTING_UPDATE_FIELDS)[number]
+type AgentSessionRoutingPolicy = {
+  [Field in AgentSessionRoutingUpdateField]: { requiresEmptySession: boolean }
+} & {
+  [Field in keyof AgentSessionRouting]: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => AgentSessionRouting[Field]
+    clearWhenChanged: readonly (keyof AgentSessionRouting)[]
+  }
+}
+
 const AGENT_SESSION_ROUTING_POLICY = {
+  agentId: {
+    requiresEmptySession: true
+  },
   agentType: {
     defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => normalizeSessionAgentType(agent.type),
     requiresEmptySession: true,
@@ -140,13 +153,7 @@ const AGENT_SESSION_ROUTING_POLICY = {
     requiresEmptySession: false,
     clearWhenChanged: []
   }
-} as const satisfies {
-  [Field in keyof AgentSessionRouting]: {
-    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => AgentSessionRouting[Field]
-    requiresEmptySession: boolean
-    clearWhenChanged: readonly (keyof AgentSessionRouting)[]
-  }
-}
+} as const satisfies AgentSessionRoutingPolicy
 
 function routingDefaultsFromAgent(agent: AgentSessionRoutingDefaultSource): AgentSessionRouting {
   return {
@@ -160,10 +167,8 @@ function resolveSessionRoutingUpdate(
   dto: UpdateAgentSessionDto,
   reboundAgent?: AgentSessionRoutingDefaultSource
 ): { patch: Partial<AgentSessionRouting>; requiresEmptySession: boolean } {
-  const inherited =
-    dto.agentId !== undefined && dto.agentId !== current.agentId && reboundAgent
-      ? routingDefaultsFromAgent(reboundAgent)
-      : undefined
+  const agentIdChanged = dto.agentId !== undefined && dto.agentId !== current.agentId
+  const inherited = agentIdChanged && reboundAgent ? routingDefaultsFromAgent(reboundAgent) : undefined
   const agentType = dto.agentType ?? inherited?.agentType
   let modelId = dto.modelId !== undefined ? dto.modelId : inherited?.modelId
   const agentTypeChanged = agentType !== undefined && agentType !== current.agentType
@@ -181,7 +186,8 @@ function resolveSessionRoutingUpdate(
   if (agentType !== undefined) patch.agentType = agentType
   if (modelId !== undefined) patch.modelId = modelId
 
-  const changedFields: (keyof AgentSessionRouting)[] = []
+  const changedFields: AgentSessionRoutingUpdateField[] = []
+  if (agentIdChanged) changedFields.push('agentId')
   if (agentTypeChanged) changedFields.push('agentType')
   if (modelId !== undefined && modelId !== current.modelId) changedFields.push('modelId')
 
@@ -861,9 +867,6 @@ export class AgentSessionService {
             Object.assign(patch, routingUpdate.patch)
             if (routingUpdate.requiresEmptySession) {
               this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
-            }
-            if (dto.agentId !== undefined && dto.agentId !== current.agentId) {
-              getDataService('AgentSessionMessageService').clearRuntimeResumeTokensTx(tx, [id])
             }
           }
           return this.updateTx(tx, id, patch)

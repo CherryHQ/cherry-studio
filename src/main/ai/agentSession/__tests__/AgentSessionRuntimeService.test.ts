@@ -1608,60 +1608,6 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('connects a turn created before an agent rebind with its captured agent', async () => {
-    const connection = {
-      events: createAsyncQueue<any>().iterable,
-      send: vi.fn(),
-      close: vi.fn(),
-      reconcile: vi.fn().mockResolvedValue('current')
-    }
-    const connect = vi.fn().mockResolvedValue(connection)
-    runtimeDriverRegistry.register({
-      type: 'test-runtime',
-      capabilities: ['agent-session'],
-      connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
-    })
-    mocks.getAgent.mockImplementation((agentId: string) => ({
-      id: agentId,
-      type: 'test-runtime',
-      model: baseTurnInput.modelId
-    }))
-
-    const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-
-    await (service as any).handleSessionUpdated(
-      'session-1',
-      { agentId: 'agent-2' },
-      { id: 'session-1', agentId: 'agent-2', agentType: 'test-runtime', modelId: baseTurnInput.modelId }
-    )
-
-    const reader = service
-      .openTurnStream({
-        sessionId: 'session-1',
-        turnId: handle.turnId,
-        signal: new AbortController().signal
-      })
-      .getReader()
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
-
-    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-1' }))
-    const entry = getEntry(service)
-    const idleEntry = {
-      ...entry,
-      runtimeState: { ...entry.runtimeState, execution: { kind: 'idle' } }
-    }
-    expect((service as any).connectionTarget(idleEntry)).toMatchObject({
-      agentId: 'agent-2',
-      agentType: 'test-runtime'
-    })
-
-    await reader.cancel().catch(() => undefined)
-  })
-
   it('invalidates an entry with an in-flight connect when the session model is cleared', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,
