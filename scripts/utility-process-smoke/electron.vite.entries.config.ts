@@ -25,10 +25,7 @@ export default {
           entryFileNames: '[name].js',
           format: 'cjs',
           hoistTransitiveImports: false,
-          // Keeps emitted paths stable and readable. Not required for correctness here —
-          // entries are built without a main entry in the graph, so the RFC E1 folding mode
-          // (one entry requiring the other) cannot arise; a consumer that adds entries to the
-          // main build does need it.
+          // Keeps emitted paths stable; isolation comes from building without a main entry.
           preserveModules: true,
           preserveModulesRoot: repoRoot
         }

@@ -14,14 +14,14 @@ export type UtilityProcessManagerDeps = ProcessHostDeps
 /**
  * Owns one ProcessHost per registered definition and hands consumers typed clients.
  * Nothing spawns until the first `request()`; every live process is stopped on `onStop`.
- * Clients never expose forks, pids, ports, or generations (RFC §3.2).
+ * Clients never expose forks, pids, ports, or generations.
  */
 @Injectable('UtilityProcessManager')
 @ServicePhase(Phase.WhenReady)
 export class UtilityProcessManager extends BaseService {
   private readonly definitions = new Map<string, UtilityProcessDefinition<any, any>>()
   private readonly deps: ProcessHostDeps
-  /** Kept until the confirmed exit — across onStop and a restart — so stop barriers stay truthful. */
+  /** Retained across restart until both the child and every queued maintenance operation finish. */
   private readonly hosts = new Map<string, ProcessHost<any, any>>()
   private readonly clients = new WeakMap<UtilityProcessDefinition<any, any>, UtilityProcessClient<any>>()
   /** False outside onInit..onStop: requests fail fast instead of spawning into a shutdown. */
@@ -66,12 +66,20 @@ export class UtilityProcessManager extends BaseService {
     const cached = this.clients.get(definition)
     if (cached !== undefined) return cached as UtilityProcessClient<Contract>
     const client: UtilityProcessClient<Contract> = {
-      request: async (method, input, options) => this.hostFor(definition).request(method, input, options),
+      request: async (method, input, options) => {
+        if (!this.accepting) {
+          throw new UtilityProcessError(
+            'PROCESS_BLOCKED',
+            `utility process '${definition.id}': manager is not running`,
+            {
+              processId: definition.id
+            }
+          )
+        }
+        return this.hostFor(definition).request(method, input, options)
+      },
       stop: (options) => this.hosts.get(definition.id)?.stop(options) ?? Promise.resolve(),
-      withStopped: async (operation, options) => {
-        const host = this.hosts.get(definition.id) ?? (this.accepting ? this.hostFor(definition) : null)
-        return host === null ? operation() : host.withStopped(operation, options)
-      }
+      withStopped: async (operation, options) => this.hostFor(definition).withStopped(operation, options)
     }
     this.clients.set(definition, client)
     return client
@@ -104,22 +112,17 @@ export class UtilityProcessManager extends BaseService {
   private hostFor(definition: UtilityProcessDefinition<any, any>): ProcessHost<any, any> {
     const existing = this.hosts.get(definition.id)
     if (existing !== undefined) return existing
-    if (!this.accepting) {
-      throw new UtilityProcessError('PROCESS_BLOCKED', `utility process '${definition.id}': manager is not running`, {
-        processId: definition.id
-      })
-    }
     const host = new ProcessHost(definition, this.deps)
     this.hosts.set(definition.id, host)
     return host
   }
 
-  /** Each host leaves the map only at its confirmed exit; a stuck child keeps its slot and blocks a successor. */
+  /** Process shutdown is bounded; host retirement also waits for maintenance without extending that budget. */
   private async disposeHosts(): Promise<void> {
     this.accepting = false
     const hosts = [...this.hosts.entries()]
     for (const [id, host] of hosts) {
-      void host.whenQuiescent().then(() => {
+      host.retireWhenQuiescent(() => {
         if (this.hosts.get(id) === host) this.hosts.delete(id)
       })
     }

@@ -255,4 +255,56 @@ describe('UtilityProcessManager', () => {
     expect(adapter.spawns).toHaveLength(0)
     await manager._doStop()
   })
+
+  it.each(['running', 'stopped'] as const)(
+    'preserves running and queued maintenance across restart when submitted while %s',
+    async (state) => {
+      const { manager, adapter } = createManager()
+      await manager._doInit()
+      const client = manager.client(echoDefinition)
+      await client.request('ping', undefined)
+      if (state === 'stopped') await manager._doStop()
+
+      const firstGate = Promise.withResolvers<void>()
+      const secondGate = Promise.withResolvers<void>()
+      const steps: string[] = []
+      const first = client.withStopped(async () => {
+        steps.push('first')
+        await firstGate.promise
+      })
+      await waitUntil(() => steps.length === 1, 'first maintenance started')
+      const failure = new Error('replacement failed')
+      const second = rejectionOf(
+        client.withStopped(async () => {
+          steps.push('second')
+          await secondGate.promise
+          throw failure
+        })
+      )
+
+      // Stopping must finish without waiting for the unbounded maintenance callback.
+      if (state === 'running') await manager._doStop()
+      await manager._doInit()
+      const third = client.withStopped(() => steps.push('third'))
+      await flushMicrotasks()
+      expect(steps).toEqual(['first'])
+      expect(isUtilityProcessError(await rejectionOf(client.request('ping', undefined)), 'PROCESS_BLOCKED')).toBe(true)
+      expect(adapter.spawns).toHaveLength(1)
+
+      firstGate.resolve()
+      await first
+      await waitUntil(() => steps.length === 2, 'second maintenance started')
+      expect(steps).toEqual(['first', 'second'])
+      expect(isUtilityProcessError(await rejectionOf(client.request('ping', undefined)), 'PROCESS_BLOCKED')).toBe(true)
+      expect(adapter.spawns).toHaveLength(1)
+
+      secondGate.resolve()
+      expect(await second).toBe(failure)
+      await third
+      expect(steps).toEqual(['first', 'second', 'third'])
+      await expect(client.request('ping', undefined)).resolves.toBe('pong')
+      expect(adapter.spawns).toHaveLength(2)
+      await manager._doStop()
+    }
+  )
 })

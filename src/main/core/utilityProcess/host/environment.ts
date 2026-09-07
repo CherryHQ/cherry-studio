@@ -1,5 +1,5 @@
 /**
- * Hermetic child environment (RFC §6). Non-empty on purpose: an empty `env` makes Electron
+ * Hermetic child environment. Non-empty on purpose: an empty `env` makes Electron
  * inherit the whole parent environment. Definitions may only add variables.
  */
 

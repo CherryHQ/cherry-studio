@@ -4,6 +4,7 @@ sources:
   - src/main/core/utilityProcess/protocol
   - src/main/core/utilityProcess/runtime
   - src/main/core/utilityProcess/host
+  - src/main/core/utilityProcess/UtilityProcessManager.ts
 ---
 
 # Utility Process Protocol & State Machine
@@ -104,11 +105,17 @@ The third failure's error already carries `failureCount: 3` and `circuitOpen: tr
 
 `stop()` sends `shutdown` (or kills outright if the generation never became ready), then waits: the child aborts its handlers, awaits them, runs `dispose`, closes the port, and exits `0`. A child that has not exited 1 s later is killed. If it has still not exited after 4 s total, `stop()` rejects with `PROCESS_STOP_FAILED`, pending requests are rejected too, and the generation stays quarantined — no successor spawns until its exit is finally observed.
 
-Four seconds fits under the lifecycle's 5 s stop ceiling, and the manager stops every host in parallel, so the budget is 4 s in total rather than 4 s per process. The manager keeps each host until its confirmed exit — across `onStop` and a service restart — so `stop()` and `withStopped()` issued during teardown still wait for the real exit, and a quarantined child blocks a successor until it is gone.
+Four seconds fits under the lifecycle's 5 s stop ceiling, and the manager stops every host in parallel, so the budget is 4 s in total rather than 4 s per process. The manager keeps each host until its confirmed exit and completion of all queued maintenance — across `onStop` and a service restart — so `stop()` and `withStopped()` issued during teardown still wait for the real exit, and a quarantined child blocks a successor until it is gone. Lifecycle shutdown does not await maintenance callbacks, which may outlive that bounded process-stop operation.
+
+## Maintenance
+
+`withStopped` closes the request gate synchronously when queued, waits its turn in the per-host queue, then stops the child before invoking the callback. Queued and running callbacks keep the gate closed even when there is no child. Calls made while the manager is stopped still enter that same queue; restart does not create a competing host.
+
+A retiring host is removed synchronously only when both its generation is gone and its last maintenance operation settles. Callback failures propagate unchanged and release their gate in `finally`, allowing subsequent queued operations to continue. Once retirement completes, the next request can create a fresh host.
 
 ## Errors
 
-`UtilityProcessError` is the only error type the layer throws. `code` is the contract; `processId`, `generation`, `exitCode`, `intentional`, `failureCount`, `circuitOpen`, and `remote` are diagnostics.
+Infrastructure and remote-handler failures use `UtilityProcessError`. Cancellation reasons and errors from maintenance callbacks propagate unchanged. `code` is the contract; `processId`, `generation`, `exitCode`, `intentional`, `failureCount`, `circuitOpen`, and `remote` are diagnostics.
 
 | Code | Meaning |
 | --- | --- |

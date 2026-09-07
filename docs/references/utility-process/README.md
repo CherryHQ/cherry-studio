@@ -9,7 +9,7 @@ sources:
 
 `src/main/core/utilityProcess/` runs trusted but crash-prone work in an Electron utility process instead of the main process: native model runtimes, third-party binaries, anything that can take the main process down with it. It owns spawning, the wire protocol, request correlation, cancellation, failure classification, and shutdown — a consumer writes a contract, an entry, and calls typed methods. The process is a crash and native-library isolation boundary, not a security sandbox: the child is a full Node context with no capability or OS-level restriction, so V1 must not run untrusted code.
 
-The design rationale, the rejected alternatives, and the experiment evidence live in the [design RFC](../architecture/utility-process-rfc.md).
+The design rationale, ownership boundaries, and historical experiment evidence live in the [architecture reference](../architecture/utility-process.md).
 
 ## Quick Navigation
 
@@ -26,7 +26,7 @@ No pooling, no keyed instances, no reverse RPC (child → main), no raw byte cha
 A definition is a frozen, validated description of one utility process. It carries the contract only as a phantom type — main and child come from the same signed build, so there is no runtime validation of method payloads.
 
 ```typescript
-// src/main/ai/inference/embeddingProcess.ts
+// src/main/ai/localModel/embeddingProcess.ts
 export type EmbeddingContract = {
   methods: {
     embed: UtilityProcessMethod<{ texts: string[] }, number[][]>
@@ -55,22 +55,33 @@ Register the definition from the consumer service's `onInit` — `application.ge
 Entries live in a `utilityEntries/` directory next to their consumer and end with `serveUtilityProcess()`:
 
 ```typescript
-// src/main/ai/inference/utilityEntries/inferenceEmbedding.ts
+// src/main/ai/localModel/utilityEntries/inferenceEmbedding.ts
+let modelPath: string
+let session: ReturnType<typeof loadModel> | undefined
+const getSession = () => (session ??= loadModel(modelPath))
+
 serveUtilityProcess<EmbeddingContract, { modelPath: string }>({
   id: 'inference.embedding',
-  initialize: async ({ modelPath }, { logger }) => {
-    session = await loadModel(modelPath)
-    logger.info('model loaded')
+  initialize: (initData) => {
+    modelPath = initData.modelPath
   },
   handlers: {
-    embed: ({ texts }, { signal }) => session.embed(texts, { signal }),
-    warmup: (_input, { emit }) => emit({ loaded: session.layerCount })
+    embed: async ({ texts }, { signal }) => (await getSession()).embed(texts, { signal }),
+    warmup: async (_input, { emit }) => {
+      const loaded = await getSession()
+      emit({ loaded: loaded.layerCount })
+    }
   },
-  dispose: () => session.release()
+  dispose: async () => {
+    const loaded = await session?.catch(() => undefined)
+    await loaded?.release()
+  }
 })
 ```
 
 `initialize` must stay light: the host fails the cold start after 10 s. Heavy work belongs in a method the caller can cancel. Handlers receive `{ signal, emit, logger }`; `emit` streams progress, `logger` writes structured lines that the host relays with the process id, generation, pid, and request id attached. Anything the child writes to stdout/stderr is relayed too (`debug` / `warn`), so a native library's own logging is not lost.
+
+Here `loadModel` is the consumer's async model loader. Concurrent handlers share its promise; `warmup` is optional because `embed` also loads lazily, including after an idle restart. The definition uses `terminate`, so cancelling a dispatched request also terminates an uninterruptible model load. A failed load remains failed for that generation; after remediation, the consumer calls `stop()` before retrying. Disposal releases a successfully loaded session and has nothing to release if loading failed or never started.
 
 ## Calling it
 
@@ -88,14 +99,18 @@ The layer restarts the process, not the work. A rejected `request()` is final: n
 - `PROCESS_START_FAILED` / `PROCESS_EXITED` / `PROCESS_PROTOCOL_ERROR` — infrastructure failed. Surface it; the next `request()` spawns a fresh generation.
 - `PROCESS_REMOTE_ERROR` — the handler threw. Business failure; `error.remote` carries the child's `name` / `message` / `code`.
 - `PROCESS_CIRCUIT_OPEN` — three consecutive infrastructure failures. Stop retrying and tell the user; clear it deliberately with `stop({ resetFailures: true })` after fixing the cause (re-downloading a model, for example).
-- `PROCESS_BLOCKED` — a `withStopped()` maintenance window is open. Retry after it completes.
+- `PROCESS_BLOCKED` — maintenance is queued/running, or the manager is stopped. Retry only after maintenance completes and the service is available.
 - `PROCESS_SERIALIZATION_FAILED` — the input is not structured-cloneable. A programming error, not a runtime condition.
 
 Cancellation is not a `UtilityProcessError`: the caller's own `signal.reason` is rethrown untouched.
 
+Consumers must expose an unavailable/error state and an explicit retry or remediation action; a permanently silent failure is not a recovery strategy. Resetting the breaker belongs after that remediation, not in an automatic retry loop.
+
 ### Maintenance
 
 `withStopped(operation)` is the file-replacement gate: it stops the live process, runs `operation` only after a confirmed exit, and fails concurrent requests with `PROCESS_BLOCKED` meanwhile. Use it to delete or overwrite files the child holds open (a model directory on Windows, for instance). `stop()` alone is the short barrier — the next request lazily respawns.
+
+Maintenance operations are serialized per definition, including calls made while the manager is stopped and across a service restart. The gate remains closed until every queued operation settles, even after the child exits. A callback failure propagates unchanged and does not prevent later queued operations from running.
 
 ## Environment and network
 

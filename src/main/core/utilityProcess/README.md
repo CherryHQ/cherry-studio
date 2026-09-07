@@ -10,7 +10,7 @@ Quick jumps:
 - [Protocol & State Machine](../../../../docs/references/utility-process/utility-process-protocol.md) — frames, generations, cancellation, circuit breaker, stop budget
 - [Testing](../../../../docs/references/utility-process/utility-process-testing.md) — unit layers and the real-Electron smoke harness
 - [Future Work](../../../../docs/references/utility-process/utility-process-future.md) — what V1 leaves out, and the consumer order
-- [Design RFC](../../../../docs/references/architecture/utility-process-rfc.md) — rationale, alternatives, experiment evidence
+- [Architecture](../../../../docs/references/architecture/utility-process.md) — ownership, rationale, alternatives, historical experiment evidence
 
 This directory has **no barrel**: main-side and child-side code are bundled into different processes, so a root `index.ts` would seal `runtime/` behind a boundary the child build has to cross. Import the sanctioned paths directly:
 

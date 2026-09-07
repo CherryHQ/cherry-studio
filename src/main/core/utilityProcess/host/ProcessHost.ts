@@ -1,6 +1,6 @@
 /**
  * Per-definition engine: one live generation at a time, request correlation, cancellation,
- * the stop / withStopped barriers, idle TTL, and the circuit breaker (RFC §4–5).
+ * the stop / withStopped barriers, idle TTL, and the circuit breaker.
  *
  * Constructed with injected deps only — no `@application` / `@logger` — so unit tests drive it
  * with an in-memory adapter and the smoke harness with the real Electron adapter.
@@ -16,6 +16,7 @@ import {
 } from '../protocol/constants'
 import type { FrameIdentity, LogFrame } from '../protocol/frames'
 import { isChildFrame, matchesIdentity } from '../protocol/guards'
+import { toRemoteError } from '../protocol/remoteError'
 import type {
   UtilityProcessContract,
   UtilityProcessDefinition,
@@ -83,7 +84,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   })
 }
 
-const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+const describe = (error: unknown): string => toRemoteError(error).message
 
 type Outcome = { value: unknown } | { error: unknown }
 
@@ -141,6 +142,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   /** > 0 while a withStopped() is enqueued or running: requests fail fast with PROCESS_BLOCKED. */
   private blockedDepth = 0
   private disposed = false
+  private quiescentCleanup: (() => void) | null = null
 
   constructor(
     private readonly definition: UtilityProcessDefinition<Contract, InitData>,
@@ -215,6 +217,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
         return result
       } finally {
         this.blockedDepth -= 1
+        this.cleanupIfQuiescent()
       }
     }
     const next = this.maintenanceChain.then(run, run)
@@ -236,11 +239,17 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     }
   }
 
-  /** Resolves once no generation is live: at once, or at the live generation's observed exit. */
-  whenQuiescent(): Promise<void> {
-    const generation = this.live
-    if (generation === null) return Promise.resolve()
-    return generation.exit.promise.then(() => this.whenQuiescent())
+  /** Registers retirement once both the generation and every queued maintenance operation have finished. */
+  retireWhenQuiescent(cleanup: () => void): void {
+    this.quiescentCleanup = cleanup
+    this.cleanupIfQuiescent()
+  }
+
+  private cleanupIfQuiescent(): void {
+    if (this.live !== null || this.blockedDepth > 0) return
+    const cleanup = this.quiescentCleanup
+    this.quiescentCleanup = null
+    cleanup?.()
   }
 
   /** Diagnostics only: `child-process-gone` never drives a transition (the wrapper's exit does). */
@@ -415,7 +424,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       case 'error': {
         const state = this.classify(generation, data.requestId, data.kind)
         if (state === 'unknown' || state === 'duplicate') return
-        // Any well-formed terminal proves spawn, handshake, and dispatch all work (RFC §5.2).
+        // Any well-formed terminal proves spawn, handshake, and dispatch all work.
         this.failureCount = 0
         if (state === 'tombstone') {
           generation.tombstones.delete(data.requestId)
@@ -484,6 +493,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       intentional: generation.intentionalExit
     })
     generation.exit.resolve(code)
+    this.cleanupIfQuiescent()
   }
 
   /**

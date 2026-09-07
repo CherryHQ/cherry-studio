@@ -1,6 +1,6 @@
 /**
  * Public types of the utility-process layer. The contract types are TypeScript-only: main and
- * child come from the same signed build, so method maps carry no runtime validation (RFC §3.1).
+ * child come from the same signed build, so method maps carry no runtime validation.
  */
 
 /** One RPC method exposed by a utility process: its input, output, and streamed event types. */
