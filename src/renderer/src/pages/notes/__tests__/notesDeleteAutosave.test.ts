@@ -546,11 +546,12 @@ describe('notes delete / autosave guards', () => {
       activePath = '/notes/b.md'
       activeContent = 'content-b'
 
-      // delete folder /notes/folder
+      // stale autosave starts before folder deletion (passes pre-write fence)
+      const stalePromise = saveCurrentNoteSim('old content', '/notes/folder/a.md')
+
+      // delete folder /notes/folder while the save is in flight
       pendingSet.add(normalizePathValue('/notes/folder'))
       bump('/notes/folder')
-
-      const stalePromise = saveCurrentNoteSim('old content', '/notes/folder/a.md')
 
       // recreate same folder - clears pending, bumps generation, records recreation
       pendingSet.delete(normalizePathValue('/notes/folder'))
