@@ -101,7 +101,7 @@ describe('PpioTransport', () => {
     expect((error as APICallError).isRetryable).toBe(retryable)
   })
 
-  it('builds jimeng params with width/height from size and seed default', async () => {
+  it('builds jimeng params without overriding an omitted prompt-enhancement setting', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -121,15 +121,17 @@ describe('PpioTransport', () => {
       }
     })
 
+    // Contract source: https://ppio.com/docs/models/reference-jimeng-txt2img-v3.1
+    // Retrieved 2026-09-07. The server owns the documented default when the optional field is omitted.
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toMatchObject({
       prompt: 'a fox',
-      use_pre_llm: true,
       seed: -1,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }
     })
+    expect(body).not.toHaveProperty('use_pre_llm')
   })
 
   it('uses the sync path (imageUrls) for isSync models', async () => {

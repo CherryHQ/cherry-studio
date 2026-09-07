@@ -98,7 +98,7 @@ the static types all project from it.
 | which delivery adapter a request takes | `imageTransportRegistry` (transport ⇒ job path; else SDK) | `AiService.generateImage` |
 | whether a transport reads `files` / `mask` for a model | `ImageGenerationTransport.supportsInput` | the warning at both submit call sites |
 | per-provider SDK delivery (dual-key / passthrough / sibling key) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) — **SDK branch only** | the SDK adapter |
-| providerOptions namespace the SDK model reads | `sdkConfig.optionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
+| providerOptions namespace the SDK model reads | `sdkConfig.providerOptionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
 | per-model endpoint routing (endpoint / sync / response family) | registry `vendorTransport` → `modelDescriptor` | the transports |
 
 Nothing in this list is repeated. A canonical param is **one** catalog row; a
@@ -227,7 +227,7 @@ interface WireProfile  { fields: Partial<Record<CanonicalParamKey, WireRule>> } 
 interface WireRegistration {
   profile: WireProfile
   dualOpenAI?: boolean            // mirror the clean body under `openai` too (gpt-image family)
-                                  // (no delivery-key field — that is `sdkConfig.optionsKey`)
+                                  // (no delivery-key field — that is `sdkConfig.providerOptionsKey`)
   passthrough?: boolean | 'wire'  // forward unmapped vendor-bag fields: raw camelCase (custom
                                   // models read them) or wire-named ('wire' — the body IS the HTTP body)
   also?: { key; profile }[]       // a sibling provider key (multi-backend gateways);

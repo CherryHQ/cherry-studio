@@ -245,6 +245,39 @@ describe('AihubmixImageModel', () => {
       expect(imageRequest).toMatchObject({ resemblance: 60, detail: 80, num_images: 1, magic_prompt_option: 'OFF' })
       expect(form.get('image_file')).toBeInstanceOf(Blob)
     })
+
+    it.each([
+      {
+        mode: 'remix' as const,
+        endpoint: 'https://aihubmix.com/ideogram/v1/ideogram-v3/remix',
+        formField: 'image'
+      },
+      { mode: 'upscale' as const, endpoint: 'https://aihubmix.com/ideogram/upscale', formField: 'image_file' }
+    ])('downloads an HTTP URL before uploading it for $mode', async ({ mode, endpoint, formField }) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([7, 8]), { status: 200, headers: { 'Content-Type': 'image/png' } })
+        )
+        .mockResolvedValueOnce(okJson({ data: [{ url: 'https://img/result.png' }] }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await make('V_3').doGenerate(
+        callOptions({
+          prompt: '',
+          files: [{ type: 'url', url: 'https://cdn.example.com/reference.png' }],
+          providerOptions: { aihubmix: { mode } }
+        })
+      )
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/reference.png')
+      const [url, init] = fetchMock.mock.calls[1]
+      expect(url).toBe(endpoint)
+      const image = (init.body as FormData).get(formField)
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([7, 8]))
+    })
   })
 
   describe('Ideogram V_1/V_2', () => {

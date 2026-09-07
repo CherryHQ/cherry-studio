@@ -3,6 +3,7 @@ import {
   combineHeaders,
   convertBase64ToUint8Array,
   createJsonResponseHandler,
+  downloadBlob,
   type FetchFunction,
   postFormDataToApi,
   postJsonToApi,
@@ -133,7 +134,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     }
     if (mode === 'remix') {
       if (bag.imageWeight) formData.append('image_weight', String(bag.imageWeight))
-      formData.append('image', toBlob(requireImageFile(input)))
+      formData.append('image', await toBlob(requireImage(input), input.signal))
     }
 
     const url = `${this.settings.apiRoot}/ideogram/v1/ideogram-v3/${mode}`
@@ -174,7 +175,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
       return completedImageTransportSubmission(parseIdeogramResults(response), 'AiHubMix Ideogram generate')
     }
 
-    const file = requireImageFile(input)
+    const file = requireImage(input)
     const imageRequest =
       mode === 'remix'
         ? {
@@ -198,7 +199,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
           }
     const formData = new FormData()
     formData.append('image_request', JSON.stringify(imageRequest))
-    formData.append('image_file', toBlob(file))
+    formData.append('image_file', await toBlob(file, input.signal))
     const response = await this.postForm(url, formData, input)
     return completedImageTransportSubmission(parseIdeogramResults(response), `AiHubMix Ideogram ${mode}`)
   }
@@ -317,15 +318,14 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
   return modelId.startsWith('doubao-seedream')
 }
 
-type AihubmixInputFile = Extract<ImageModelV3File, { type: 'file' }>
-
-function requireImageFile(input: ImageGenerationSubmitInput<AihubmixImageOptions>): AihubmixInputFile {
+function requireImage(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageModelV3File {
   const file = input.files?.[0]
-  if (!file || file.type !== 'file') throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+  if (!file) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
   return file
 }
 
-function toBlob(file: AihubmixInputFile): Blob {
+async function toBlob(file: ImageModelV3File, signal?: AbortSignal): Promise<Blob> {
+  if (file.type === 'url') return downloadBlob(file.url, { abortSignal: signal })
   if (file.data instanceof Uint8Array) return new Blob([Uint8Array.from(file.data)], { type: file.mediaType })
   const parsed = parseDataUrl(file.data)
   const data = parsed?.data ?? file.data

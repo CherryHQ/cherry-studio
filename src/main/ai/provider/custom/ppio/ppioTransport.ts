@@ -223,8 +223,11 @@ class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
   private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     const params: Record<string, unknown> = {
       prompt: input.prompt,
-      use_pre_llm: painting.promptEnhancement ?? true,
       seed: painting.ppioSeed ?? -1
+    }
+
+    if (painting.promptEnhancement !== undefined) {
+      params.use_pre_llm = painting.promptEnhancement
     }
 
     if (painting.size) {
