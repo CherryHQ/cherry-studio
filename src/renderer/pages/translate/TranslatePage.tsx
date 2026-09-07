@@ -52,7 +52,7 @@ import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateHistoryList from './components/TranslateHistory'
@@ -283,6 +283,12 @@ const TranslatePage: FC = () => {
   const pdfTextRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
+  const exchangePendingRef = useRef(false)
+  const translateTextRef = useRef({ input: translateInput, output: translateOutput })
+
+  useLayoutEffect(() => {
+    translateTextRef.current = { input: translateInput, output: translateOutput }
+  }, [translateInput, translateOutput])
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -592,16 +598,24 @@ const TranslatePage: FC = () => {
       sourceLanguage === UNKNOWN_LANG_CODE ||
       targetLanguage === UNKNOWN_LANG_CODE ||
       isTranslating ||
-      isDetecting
+      isDetecting ||
+      exchangePendingRef.current
     )
       return
-    const persisted = await safePersist(
-      setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
-      'translate languages'
-    )
-    if (!persisted) return
-    setTranslateInput(translateOutput)
-    setTranslateOutput(translateInput)
+    exchangePendingRef.current = true
+    try {
+      const persisted = await safePersist(
+        setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
+        'translate languages'
+      )
+      if (!persisted) return
+      const { input, output } = translateTextRef.current
+      translateTextRef.current = { input: output, output: input }
+      setTranslateInput(output)
+      setTranslateOutput(input)
+    } finally {
+      exchangePendingRef.current = false
+    }
   }, [
     isDetecting,
     safePersist,
@@ -610,8 +624,6 @@ const TranslatePage: FC = () => {
     setTranslateOutput,
     sourceLanguage,
     targetLanguage,
-    translateInput,
-    translateOutput,
     isTranslating,
     pdfFile
   ])

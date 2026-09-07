@@ -7,6 +7,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -361,6 +362,8 @@ vi.mock('../components/TranslateInputPane', () => ({
 
 vi.mock('../components/TranslateLanguageBar', () => ({
   default: (props: {
+    sourceLanguage: string
+    targetLanguage: string
     isBidirectional: boolean
     showSourceControls: boolean
     couldExchange: boolean
@@ -371,6 +374,8 @@ vi.mock('../components/TranslateLanguageBar', () => ({
     languageBarMock(props)
     return (
       <div>
+        <span data-testid="translate-source-language">{props.sourceLanguage}</span>
+        <span data-testid="translate-target-language">{props.targetLanguage}</span>
         {!props.isBidirectional && props.showSourceControls && (
           <button type="button" aria-label="translate.source_language" onClick={() => props.onSourceChange('zh-cn')} />
         )}
@@ -1097,6 +1102,110 @@ describe('TranslatePage', () => {
       expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('你好')
       expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('hello')
     })
+  })
+
+  it('ignores a second language exchange while the first exchange is pending', async () => {
+    const user = userEvent.setup()
+    let resolvePersist!: () => void
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          resolvePersist = () => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          }
+        })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    MockUseCacheUtils.setCacheValue('translate.output', '你好')
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+        const exchangeButton = screen.getByRole('button', { name: 'translate.exchange.label' })
+
+        await user.click(exchangeButton)
+        await user.click(exchangeButton)
+
+        expect(persistLanguages).toHaveBeenCalledTimes(1)
+
+        await act(async () => resolvePersist())
+        rerender(<TranslatePage />)
+
+        expect(screen.getByTestId('translate-source-language')).toHaveTextContent('zh-cn')
+        expect(screen.getByTestId('translate-target-language')).toHaveTextContent('en-us')
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('你好')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('hello')
+      }
+    )
+  })
+
+  it('exchanges the latest text when input changes while language persistence is pending', async () => {
+    const user = userEvent.setup()
+    let resolvePersist!: () => void
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          resolvePersist = () => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          }
+        })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    MockUseCacheUtils.setCacheValue('translate.output', '你好')
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+        await user.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+        expect(persistLanguages).toHaveBeenCalledTimes(1)
+
+        const input = screen.getByLabelText('translate.input.placeholder')
+        fireEvent.change(input, { target: { value: 'edited while saving' } })
+        rerender(<TranslatePage />)
+
+        await act(async () => resolvePersist())
+        rerender(<TranslatePage />)
+
+        expect(screen.getByTestId('translate-source-language')).toHaveTextContent('zh-cn')
+        expect(screen.getByTestId('translate-target-language')).toHaveTextContent('en-us')
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('你好')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('edited while saving')
+      }
+    )
   })
 
   it('keeps the language pair and text unchanged when the batch exchange fails', async () => {
