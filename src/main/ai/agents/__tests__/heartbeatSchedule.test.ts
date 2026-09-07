@@ -206,6 +206,16 @@ describe('heartbeatSchedule', () => {
     })
   })
 
+  it('never arms a 0ms trigger when a sub-minute interval rounds down', async () => {
+    // 0.4 min rounds to 0 — a bare Math.round would produce a 0ms interval;
+    // the clamp must hold the floor at 1 minute (the UI's lower bound).
+    seedAgent(AGENT_ID, { heartbeat_interval: 0.4 })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(heartbeatRows(AGENT_ID)[0].trigger).toEqual({ kind: 'interval', ms: 60_000 })
+  })
+
   it('repairs a migrated legacy row in place, preserving its name', async () => {
     seedAgent(AGENT_ID)
     // The v1→v2 migration writes sentinel rows with a system workspace — the
@@ -297,5 +307,20 @@ describe('heartbeatSchedule', () => {
 
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
     expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(0)
+  })
+
+  it('scans the schedule table once across all agents in the repair pass', async () => {
+    // Regression for the O(agents × schedules) startup pass: each agent used
+    // to trigger its own listAll. The pass must snapshot once and reuse it.
+    seedAgent(AGENT_ID)
+    seedAgent(OTHER_AGENT_ID)
+    const listAllSpy = vi.spyOn(jobScheduleService, 'listAll')
+
+    await repairHeartbeatSchedules()
+
+    expect(listAllSpy).toHaveBeenCalledTimes(1)
+    listAllSpy.mockRestore()
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
   })
 })

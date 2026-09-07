@@ -101,7 +101,9 @@ export class AgentJobsService extends BaseService {
     )
 
     // Startup repair pass for migrated rows and producer-less agents (#19203).
-    void repairHeartbeatSchedules()
+    void repairHeartbeatSchedules().catch((error) => {
+      logger.warn('Heartbeat schedule repair failed at startup', { error })
+    })
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {

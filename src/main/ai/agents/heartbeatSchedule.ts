@@ -20,7 +20,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
+import { type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
 
 import { agentDataDirectoryPath } from './agentDataDirectory'
 import { ensureHeartbeatFile } from './heartbeat'
@@ -60,7 +60,9 @@ function clampIntervalMinutes(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
     return DEFAULT_HEARTBEAT_INTERVAL_MINUTES
   }
-  return Math.min(Math.round(raw), MAX_HEARTBEAT_INTERVAL_MINUTES)
+  // Rounding a fractional value could land on 0 (e.g. 0.4) — never arm a
+  // 0ms trigger; the UI already enforces a 1–1440 minute range.
+  return Math.min(Math.max(1, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
 }
 
 /** A row is this agent's heartbeat iff its template carries the sentinel prompt. */
@@ -70,8 +72,8 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
   return template.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
 }
 
-function findHeartbeatRow(agentId: string) {
-  return jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).find((row) => isHeartbeatRow(row, agentId)) ?? null
+function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
+  return rows.find((row) => isHeartbeatRow(row, agentId)) ?? null
 }
 
 /** True when the stored template no longer matches what sync would write. */
@@ -90,7 +92,10 @@ function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): b
  * creation); every failure path is the caller's to log, never a user-facing
  * error — the v1 handler had the same contract.
  */
-export async function syncHeartbeatSchedule(agentId: string): Promise<HeartbeatSyncOutcome> {
+export async function syncHeartbeatSchedule(
+  agentId: string,
+  rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
+): Promise<HeartbeatSyncOutcome> {
   const agent = agentService.getAgent(agentId)
   if (!agent) return 'skipped-missing-agent'
 
@@ -103,7 +108,7 @@ export async function syncHeartbeatSchedule(agentId: string): Promise<HeartbeatS
   if (config.heartbeat_enabled === false) {
     // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
     // The run-side gate remains as a backstop for rows paused by neither path.
-    const existing = findHeartbeatRow(agentId)
+    const existing = findHeartbeatRow(agentId, rows)
     if (existing?.enabled) {
       application.get('DbService').withWriteTx((tx) => {
         application.get('JobManager').updateJobScheduleTx(tx, existing.id, { enabled: false })
@@ -133,7 +138,7 @@ export async function syncHeartbeatSchedule(agentId: string): Promise<HeartbeatS
     reuseRevision: 0
   }
 
-  const existing = findHeartbeatRow(agentId)
+  const existing = findHeartbeatRow(agentId, rows)
   const jobManager = application.get('JobManager')
 
   if (!existing) {
@@ -180,10 +185,13 @@ export async function syncHeartbeatSchedule(agentId: string): Promise<HeartbeatS
  */
 export async function repairHeartbeatSchedules(): Promise<void> {
   const { agents } = agentService.listAgents()
+  // Snapshot rows once — a per-agent scan would make this O(agents × schedules).
+  // Identity is per-agent, so mid-pass inserts for one agent never affect another.
+  const rows = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
   const counts = new Map<HeartbeatSyncOutcome | 'failed', number>()
   for (const agent of agents) {
     try {
-      const outcome = await syncHeartbeatSchedule(agent.id)
+      const outcome = await syncHeartbeatSchedule(agent.id, rows)
       counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
     } catch (error) {
       counts.set('failed', (counts.get('failed') ?? 0) + 1)
