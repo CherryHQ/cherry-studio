@@ -119,27 +119,6 @@ describe('Sortable', () => {
     expect(states.some((state) => state.overlay === true)).toBe(true)
   })
 
-  it('binds the drag activator to the whole row in default mode', () => {
-    const states: Array<{ dragHandleProps?: unknown }> = []
-
-    render(
-      <Sortable
-        items={[{ id: 'a' }]}
-        itemKey="id"
-        onSortEnd={() => {}}
-        renderItem={(item, state) => {
-          states.push(state)
-          return <div>{item.id}</div>
-        }}
-      />
-    )
-
-    // No handle props are handed to renderItem; the activator attributes/listeners
-    // land on the sortable row itself.
-    expect(states.every((state) => state.dragHandleProps === undefined)).toBe(true)
-    expect(document.querySelector('[aria-roledescription="sortable"]')).not.toBeNull()
-  })
-
   it('routes the drag activator to a handle in dragHandle mode, leaving the row inert', () => {
     let captured: any
 

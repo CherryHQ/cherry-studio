@@ -5,6 +5,11 @@ defects in the skill files themselves — checklist gaps, ambiguous instructions
 missing exclusion rules, etc. The goal is to make the skill more accurate and
 reliable, NOT to re-review the project code.
 
+This is an explicit maintenance mode under `SKILL.md` § Interaction and
+interruption contract, not a normal review. Interactive runs may request the
+declared edit selection below. Automated runs never wait for a selection: report
+the actionable edit candidates, apply none, and stop.
+
 Work entirely from the session context. Only read a skill file when you need to
 confirm the exact wording of a rule before suggesting a change.
 
@@ -49,8 +54,9 @@ include if the change is specific and actionable.
 
 ## Apply
 
-If any finding has a concrete file edit, present all actionable edits via
-multi-select. Each option label is a one-line summary of the edit. Unchecked
-edits are discarded.
+If any finding has a concrete file edit, an interactive run presents all
+actionable edits via multi-select. Each option label is a one-line summary of
+the edit. Unchecked edits are discarded. An automated run reports the same
+candidates without presenting a selection control.
 
-Apply selected edits.
+In an interactive run, apply selected edits. In an automated run, apply none.

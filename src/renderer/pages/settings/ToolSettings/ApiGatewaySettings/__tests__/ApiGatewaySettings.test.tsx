@@ -1,3 +1,5 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,35 +8,40 @@ import ApiGatewaySettings from '../ApiGatewaySettings'
 
 const useApiGatewayMock = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentProps<'button'> & { loading?: boolean }) => {
-    const { loading, ...buttonProps } = props
-    return (
-      <button type="button" data-loading={loading || undefined} {...buttonProps}>
-        {children}
-      </button>
-    )
-  },
-  IndicatorLight: () => <span />,
-  Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  InputGroupAddon: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  InputGroupButton: ({
-    asChild,
-    children,
-    type = 'button',
-    ...props
-  }: ComponentProps<'button'> & { asChild?: boolean }) =>
-    asChild ? (
-      children
-    ) : (
-      <button type={type} {...props}>
-        {children}
-      </button>
-    ),
-  InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Button: ({ children, ...props }: ComponentProps<'button'> & { loading?: boolean }) => {
+      const { loading, ...buttonProps } = props
+      return (
+        <button type="button" data-loading={loading || undefined} {...buttonProps}>
+          {children}
+        </button>
+      )
+    },
+    IndicatorLight: () => <span />,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    InputGroupAddon: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    InputGroupButton: ({
+      asChild,
+      children,
+      type = 'button',
+      ...props
+    }: ComponentProps<'button'> & { asChild?: boolean }) =>
+      asChild ? (
+        children
+      ) : (
+        <button type={type} {...props}>
+          {children}
+        </button>
+      ),
+    InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
 
 vi.mock('@renderer/components/CopyButton', () => ({
   default: ({
@@ -73,22 +80,71 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const gatewayState = () => ({
+  apiGatewayConfig: {
+    host: '127.0.0.1',
+    port: 23333,
+    apiKey: 'cs-sk-test-key',
+    enabled: false
+  },
+  apiGatewayRunning: false,
+  apiGatewayLoading: false,
+  startApiGateway: vi.fn(),
+  stopApiGateway: vi.fn(),
+  restartApiGateway: vi.fn(),
+  setApiGatewayConfig: vi.fn()
+})
+
 describe('ApiGatewaySettings', () => {
   beforeEach(() => {
-    useApiGatewayMock.mockReturnValue({
-      apiGatewayConfig: {
-        host: '127.0.0.1',
-        port: 23333,
-        apiKey: 'cs-sk-test-key',
-        enabled: false
-      },
-      apiGatewayRunning: false,
-      apiGatewayLoading: false,
-      startApiGateway: vi.fn(),
-      stopApiGateway: vi.fn(),
-      restartApiGateway: vi.fn(),
-      setApiGatewayConfig: vi.fn()
-    })
+    vi.clearAllMocks()
+    useApiGatewayMock.mockReturnValue(gatewayState())
+  })
+
+  // A port is an identifier: an out-of-range one has to be refused and explained,
+  // not quietly rounded into range the way a magnitude would be.
+  it.each([
+    ['999', 'below the minimum'],
+    ['70000', 'above the maximum']
+  ])('refuses the port %s (%s) and says why', (value) => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value } })
+    fireEvent.blur(field)
+
+    expect(setApiGatewayConfig).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('apiGateway.messages.portInvalid')
+    expect(field).toHaveValue('23333')
+  })
+
+  it('restores the saved port when the field is emptied, without calling it invalid', () => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.blur(field)
+
+    expect(field).toHaveValue('23333')
+    expect(setApiGatewayConfig).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('applies a port inside the allowed range', () => {
+    const setApiGatewayConfig = vi.fn()
+    useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
+    render(<ApiGatewaySettings />)
+
+    const field = screen.getByLabelText('apiGateway.fields.port.label')
+    fireEvent.change(field, { target: { value: '8080' } })
+    fireEvent.blur(field)
+
+    expect(setApiGatewayConfig).toHaveBeenCalledWith({ port: 8080 })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('protects the API key and authorization header by default', () => {

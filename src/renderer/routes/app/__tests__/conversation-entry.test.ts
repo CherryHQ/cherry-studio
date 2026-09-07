@@ -30,26 +30,30 @@ beforeEach(() => {
 })
 
 describe('conversation entry route guards', () => {
-  it('treats chat view=message without a topic id as a bare entry', async () => {
-    await chatBeforeLoad({ search: { view: 'message' } })
+  it('resolves the entry target for a bare chat entry', async () => {
+    mocks.resolveChatEntryTopicId.mockResolvedValue('topic-last')
 
-    expect(mocks.resolveChatEntryTopicId).toHaveBeenCalledTimes(1)
+    await expect(chatBeforeLoad({ search: {} })).rejects.toMatchObject({
+      options: { to: '/app/chat', search: { topicId: 'topic-last' }, replace: true }
+    })
   })
 
-  it('does not resolve an explicit message-only chat target', async () => {
-    await chatBeforeLoad({ search: { topicId: 'topic-a', view: 'message' } })
+  it('does not resolve a chat entry that already carries a topic id', async () => {
+    await chatBeforeLoad({ search: { topicId: 'topic-a' } })
 
     expect(mocks.resolveChatEntryTopicId).not.toHaveBeenCalled()
   })
 
-  it('treats agent view=message without a session id as a bare entry', async () => {
-    await agentBeforeLoad({ search: { view: 'message' } })
+  it('resolves the entry target for a bare agent entry', async () => {
+    mocks.resolveAgentEntrySessionId.mockResolvedValue('session-last')
 
-    expect(mocks.resolveAgentEntrySessionId).toHaveBeenCalledTimes(1)
+    await expect(agentBeforeLoad({ search: {} })).rejects.toMatchObject({
+      options: { to: '/app/agents', search: { sessionId: 'session-last' }, replace: true }
+    })
   })
 
-  it('does not resolve an explicit message-only agent target', async () => {
-    await agentBeforeLoad({ search: { sessionId: 'session-a', view: 'message' } })
+  it('does not resolve an agent entry that already carries a session id', async () => {
+    await agentBeforeLoad({ search: { sessionId: 'session-a' } })
 
     expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
   })

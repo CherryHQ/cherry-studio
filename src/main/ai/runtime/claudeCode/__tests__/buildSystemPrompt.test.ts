@@ -308,6 +308,39 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   })
 })
 
+describe('buildSystemPrompt — cache-stable segment order', () => {
+  it('keeps static Cherry policy before configurable and runtime-derived context', async () => {
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'native' },
+      context: 'PERSONA_AND_MEMORY_CONTEXT'
+    })
+
+    const text = promptText(
+      await buildSystemPrompt(
+        makeAgent({ instructions: 'CONFIGURED_AGENT_INSTRUCTIONS' }),
+        '/tmp/cwd',
+        undefined,
+        [],
+        [],
+        'WORKSPACE_INSTRUCTIONS'
+      )
+    )
+
+    const orderedMarkers = [
+      '## Instruction Precedence',
+      ARTIFACTS_MARKER,
+      'CONFIGURED_AGENT_INSTRUCTIONS',
+      'WORKSPACE_INSTRUCTIONS',
+      'PERSONA_AND_MEMORY_CONTEXT',
+      'IMPORTANT: You must respond in English.'
+    ]
+    const offsets = orderedMarkers.map((marker) => text.indexOf(marker))
+
+    expect(offsets.every((offset) => offset >= 0)).toBe(true)
+    expect(offsets).toEqual([...offsets].sort((a, b) => a - b))
+  })
+})
+
 describe('buildSystemPrompt — runtime/CLI handbook', () => {
   it('does not inject the handbook for a normal agent with user instructions', async () => {
     const result = promptText(await buildSystemPrompt(makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd'))

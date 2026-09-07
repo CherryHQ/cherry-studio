@@ -1,3 +1,5 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +9,8 @@ const serviceMocks = vi.hoisted(() => ({
   getApiKeys: vi.fn(),
   resolveApiKey: vi.fn(),
   getByKey: vi.fn(),
-  hasToken: vi.fn()
+  hasToken: vi.fn(),
+  resolveApiGatewayRuntime: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -20,21 +23,38 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: serviceMocks.getByKey } }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ OAuthRuntimeService: { hasToken: serviceMocks.hasToken } } as never)
+  return mockApplicationFactory({
+    OAuthRuntimeService: { hasToken: serviceMocks.hasToken }
+  } as never)
 })
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentApiGateway>()),
+  resolveApiGatewayRuntime: serviceMocks.resolveApiGatewayRuntime
+}))
 
 import {
   assertPiProviderUsable,
+  buildPiGatewayInjection,
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
-  PiMissingContextWindowError,
   PiUnsupportedProviderError,
   resolvePiProviderInjection,
+  resolvePiProviderInjectionForSession,
   resolvePiProviderInjectionFromSnapshot
 } from './modelInjection'
 
 const REAL_KEY = 'sk-cherry-secret-key'
+const GATEWAY_KEY = 'cs-sk-local-gateway'
+const GATEWAY_USAGE_HEADERS = {
+  'x-cherry-agent-session-id': 'session-1',
+  'x-cherry-internal-usage-token': 'usage-token'
+}
+const GATEWAY = {
+  baseUrl: 'http://127.0.0.1:23333',
+  apiKey: GATEWAY_KEY,
+  usageHeaders: GATEWAY_USAGE_HEADERS
+}
 
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -278,6 +298,35 @@ describe('buildPiProviderInjection', () => {
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
   })
 
+  it('hands pi header values it resolves back to the literals the user typed', async () => {
+    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const provider = makeProvider({
+      id: 'p',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://example.com/v1' } },
+      settings: {
+        extraHeaders: {
+          'x-token': 'a$b${HOME}',
+          'x-command': '!echo pwned',
+          // A non-string survives from v1 settings and from `String()`-less API writes.
+          'x-legacy': 42 as unknown as string
+        }
+      }
+    })
+    const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'm' }), REAL_KEY)
+
+    const authStorage = AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey('p', injection.apiKey)
+    const registry = ModelRegistry.inMemory(authStorage)
+    registry.registerProvider('p', injection.providerConfig)
+    const auth = await registry.getApiKeyAndHeaders(registry.find('p', injection.modelId)!)
+
+    expect(auth).toMatchObject({
+      ok: true,
+      headers: { 'x-token': 'a$b${HOME}', 'x-command': '!echo pwned', 'x-legacy': '42' }
+    })
+  })
+
   it('uses the gateway per-model route for both API family and base URL', () => {
     const provider = makeProvider({
       id: 'aihubmix',
@@ -341,6 +390,7 @@ describe('buildPiProviderInjection', () => {
       frozenModels: [
         {
           modelId: 'anthropic::claude',
+          apiModelId: 'claude-sonnet-4',
           modelName: 'Sonnet',
           aliases: ['anthropic::claude', 'claude-sonnet-4'],
           pricingSnapshot: null
@@ -389,16 +439,15 @@ describe('buildPiProviderInjection', () => {
     expect(() => buildPiProviderInjection(provider, makeModel({}), '   ')).toThrow(PiMissingApiKeyError)
   })
 
-  it('rejects a model whose context window is unknown', () => {
+  it('falls back to the default context window when the model declares none', () => {
     const provider = makeProvider({
       id: 'anthropic',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
 
-    expect(() => buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)).toThrow(
-      PiMissingContextWindowError
-    )
+    const injection = buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)
+    expect(injection.providerConfig.models?.[0].contextWindow).toBe(256_000)
   })
 
   it('throws PiUnsupportedProviderError for a provider with no pi mapping', () => {
@@ -465,6 +514,52 @@ describe('buildPiProviderInjection', () => {
   })
 })
 
+describe('Cherry Cloud Pi injection', () => {
+  const provider = makeProvider({
+    id: CHERRY_CLOUD_PROVIDER_ID,
+    name: 'CherryAI',
+    defaultChatEndpoint: 'anthropic-messages',
+    endpointConfigs: {
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://cloud.cherryai.com.cn' }
+    }
+  })
+  const model = makeModel({
+    id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+    providerId: CHERRY_CLOUD_PROVIDER_ID,
+    apiModelId: 'deepseek-free',
+    group: CHERRY_CLOUD_MODEL_GROUP,
+    endpointTypes: ['anthropic-messages'],
+    contextWindow: 128_000,
+    maxOutputTokens: 8_192
+  })
+
+  it('routes Anthropic Messages through the local gateway without a provider key', () => {
+    const injection = buildPiGatewayInjection(provider, model, GATEWAY)
+
+    expect(injection.api).toBe('anthropic-messages')
+    expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333')
+    expect(injection.providerConfig.headers).toEqual(GATEWAY_USAGE_HEADERS)
+    expect(injection.providerConfig.models?.[0]).toMatchObject({
+      id: 'cherryai-subscription:deepseek-free',
+      contextWindow: 128_000,
+      maxTokens: 8_192
+    })
+    expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('requires the enabled local gateway before materializing the Cloud route', async () => {
+    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+
+    await expect(resolvePiProviderInjectionForSession('session-1', provider, model)).resolves.toMatchObject({
+      modelId: 'cherryai-subscription:deepseek-free',
+      apiKey: GATEWAY_KEY
+    })
+    expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+})
+
 function stubGrokCliServices(): void {
   serviceMocks.getByProviderId.mockResolvedValue({
     id: 'grok-cli',
@@ -486,6 +581,7 @@ function stubGrokCliServices(): void {
 describe('modelInjection service resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
     serviceMocks.getByProviderId.mockResolvedValue({
       id: 'p',
       name: 'P',
@@ -505,6 +601,32 @@ describe('modelInjection service resolution', () => {
   it('validates compatibility without consuming rotated API keys', async () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
     expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      name: 'CherryAI',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://cloud.cherryai.com.cn' }
+      }
+    })
+    serviceMocks.getByKey.mockResolvedValueOnce({
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      apiModelId: 'deepseek-free',
+      name: 'DeepSeek Free',
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      endpointTypes: ['anthropic-messages'],
+      capabilities: [],
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192
+    })
+
+    await expect(assertPiProviderUsable('cherryai-subscription::deepseek-free')).resolves.toBeUndefined()
+    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
@@ -540,19 +662,6 @@ describe('modelInjection service resolution', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
-  })
-
-  it('rejects an unknown context window before checking credentials', async () => {
-    serviceMocks.getByKey.mockResolvedValueOnce({
-      id: 'p::m',
-      providerId: 'p',
-      name: 'M',
-      capabilities: [],
-      contextWindow: undefined
-    })
-
-    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingContextWindowError)
-    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
   })
 
   it('validates app-managed OAuth through its live session', async () => {
@@ -618,5 +727,69 @@ describe('modelInjection service resolution', () => {
         [{ id: 'k1', key: 'sk-old', isEnabled: true }]
       )
     ).toThrow('Pi provider credentials changed during materialization: p')
+  })
+})
+
+// pi defaults its thinking level to `medium` and clamps it against the model's ladder. Cherry used to
+// send no ladder, so pi assumed medium was available and emitted it verbatim — rejected by endpoints
+// serving Kimi K3, whose vocabulary is low/high/max (#20029).
+describe('pi thinking level ladder', () => {
+  const relay = () =>
+    makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://relay.example.com' }
+      }
+    })
+
+  const piModelFrom = (model: Model) =>
+    buildPiProviderInjection(relay(), model, REAL_KEY).providerConfig.models?.[0] as never
+
+  it("clamps pi's medium default onto a tier Kimi K3 actually offers", async () => {
+    const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const piModel = piModelFrom(
+      makeModel({
+        id: 'new-api::moonshotai/kimi-k3',
+        apiModelId: 'moonshotai/kimi-k3',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
+          selectableEfforts: ['low', 'high', 'max', 'none']
+        }
+      } as Partial<Model>)
+    )
+
+    expect(getSupportedThinkingLevels(piModel)).toEqual(['off', 'low', 'high', 'max'])
+    expect(clampThinkingLevel(piModel, 'medium')).toBe('high')
+  })
+
+  it('withholds the off level from an always-on model', async () => {
+    const { getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const piModel = piModelFrom(
+      makeModel({
+        apiModelId: 'kimi-k3-fast',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }],
+          selectableEfforts: ['low', 'high', 'max']
+        }
+      } as Partial<Model>)
+    )
+
+    expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
+  })
+
+  // A toggle model expresses on/off through the wire, not a ladder; an all-null map would read as
+  // "no level supported" and silently disable its thinking.
+  it('sends no ladder for a model that declares no concrete tier', () => {
+    const piModel = piModelFrom(
+      makeModel({
+        capabilities: ['reasoning'],
+        reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+      } as Partial<Model>)
+    )
+
+    expect(piModel).not.toHaveProperty('thinkingLevelMap')
   })
 })

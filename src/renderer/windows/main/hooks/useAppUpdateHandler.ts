@@ -10,6 +10,22 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAppUpdateHandler')
 
+/** Map updater failures to i18n keys. Never surface the raw HTTP body. */
+export function getManualUpdateErrorMessageKey(error: { message?: string } | null | undefined): string {
+  const message = error?.message ?? ''
+  if (isUnpublishedReleaseError(message)) {
+    return 'settings.about.updateNotPublished'
+  }
+  return 'settings.about.updateError'
+}
+
+function isUnpublishedReleaseError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('not_published') || (/\b503\b/.test(message) && /latest\.yml|httperror|http error/i.test(message))
+  )
+}
+
 // Main-only IPC->notification subscriber (twin of useStorageMonitorNotification):
 // maps updater IPC events onto toasts, notifications, and the update dialog.
 //
@@ -92,7 +108,7 @@ export function useAppUpdateHandler() {
     if (manualCheckRef.current) {
       void popup.info({
         title: t('settings.about.updateError'),
-        content: error?.message || t('settings.about.updateError'),
+        content: t(getManualUpdateErrorMessageKey(error)),
         icon: null
       })
     }

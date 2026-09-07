@@ -17,7 +17,7 @@ import {
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
@@ -51,6 +51,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   editable?: boolean
+  allowExecution?: boolean
   isStreaming?: boolean
   showToolbar?: boolean
   maxHeight?: string | number
@@ -74,7 +75,16 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
+  const {
+    children,
+    language,
+    onSave,
+    editable = true,
+    allowExecution = true,
+    isStreaming = false,
+    showToolbar = true,
+    maxHeight
+  } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -94,7 +104,6 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     themeDark: 'chat.code.editor.theme_dark'
   })
 
-  const { activeCmTheme } = useCodeStyle()
   const canEdit = codeEditor.enabled && editable
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
   const startedStreamingRef = useRef(isStreaming)
@@ -134,8 +143,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecutionEnabled && language === 'python'
-  }, [codeExecutionEnabled, language])
+    return allowExecution && codeExecutionEnabled && language === 'python'
+  }, [allowExecution, codeExecutionEnabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
@@ -149,6 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
   const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
+  const activeCmTheme = useCmTheme(isEditing)
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
@@ -364,12 +374,12 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
           {children}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, language])
+  }, [children, codeImageTools, isStreaming, language])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
@@ -395,7 +405,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return (
       <div
         className={cn(
-          'split-view-wrapper flex *:w-full *:flex-[1_1_auto]',
+          'split-view-wrapper flex *:min-w-0 *:flex-1',
           !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&

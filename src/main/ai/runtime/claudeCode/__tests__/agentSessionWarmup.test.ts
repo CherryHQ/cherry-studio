@@ -1,5 +1,6 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +28,8 @@ const mocks = vi.hoisted(() => ({
   resolveReasoningProfile: vi.fn(),
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
-  getClaudeCodeLoginShellEnvironment: vi.fn()
+  getClaudeCodeLoginShellEnvironment: vi.fn(),
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -83,6 +85,9 @@ vi.mock('@application', () => ({
       if (name === 'PreferenceService') {
         return { get: mocks.preferenceGet }
       }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
@@ -108,7 +113,11 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const {
+  buildClaudeCodeQueryRequestForAgentSession,
+  buildClaudeCodeWarmQueryRequestForAgentSession,
+  deriveConnectionConfig
+} = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
@@ -227,6 +236,42 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('passes the connection rebuild signature into the warm query request', async () => {
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!warmRequest || !current.ok) throw new Error('expected warm request and current config')
+    expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
+  it('passes native image support from the captured connection model into settings', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsImages: true }),
+      expect.anything()
+    )
+
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsImages: false }),
+      expect.anything()
+    )
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
@@ -388,7 +433,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
       expect(options?.linkedChannelSnapshot).toBeNull()
       // Simulate an external channel binding while settings are still being materialized.
-      mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
       return { env: {}, skills: [] }
     })
 
@@ -398,6 +443,25 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('carries the turn notification authority into the prewarm request that keys warm reuse', async () => {
+    const notificationContext = {
+      sourceChannel: null,
+      channels: [{ id: 'channel-1', type: 'telegram' }],
+      allowAnyOwnedChannel: false
+    } as const
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue(notificationContext.channels)
+
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ notificationContext }),
+      expect.anything()
+    )
+    expect(warmRequest?.notificationContext).toEqual(notificationContext)
   })
 
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {
@@ -580,6 +644,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       frozenModels: [
         {
           modelId: 'model-1',
+          apiModelId: 'claude-sonnet',
           modelName: 'model-1',
           pricingSnapshot: null,
           aliases: ['claude-sonnet', 'model-1']
@@ -650,6 +715,68 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('routes Cherry Cloud models through the local gateway regardless of endpoint type', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free` })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://cloud.example/v1' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-free',
+      apiModelId: 'deepseek-free',
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+    mocks.apiGatewayEnsureRunning.mockImplementation(async () => mocks.apiGatewayIsRunning.mockReturnValue(true))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!current.ok) throw new Error('expected ok derive')
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureRunning).toHaveBeenCalledOnce()
+    expect(request?.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`
+    })
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+
+  it('requires gateway consent for Cherry Cloud models', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free` })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://cloud.example/v1' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-free',
+      apiModelId: 'deepseek-free',
+      group: CHERRY_CLOUD_MODEL_GROUP,
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: false, host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toBeInstanceOf(
+      ApiGatewayNotRunningError
+    )
+    expect(mocks.apiGatewayEnsureRunning).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+  })
+
   it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
     // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
     // effective host would post Messages bodies at an OpenAI-compatible endpoint.
@@ -698,9 +825,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toMatchObject({
       owner: 'agent-sdk',
       frozenModels: [
-        { modelId: 'model-1', aliases: ['model-1-api', 'model-1'] },
-        { modelId: 'model-2', aliases: ['model-2-api', 'model-2'] },
-        { modelId: 'model-3', aliases: ['model-3-api', 'model-3'] }
+        { modelId: 'model-1', apiModelId: 'model-1-api', aliases: ['model-1-api', 'model-1'] },
+        { modelId: 'model-2', apiModelId: 'model-2-api', aliases: ['model-2-api', 'model-2'] },
+        { modelId: 'model-3', apiModelId: 'model-3-api', aliases: ['model-3-api', 'model-3'] }
       ]
     })
   })
@@ -886,9 +1013,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       port: 23333,
       apiKey: 'gateway-key'
     })
-    mocks.preferenceGet.mockImplementation((key: string) =>
-      key === 'feature.api_gateway.api_key' ? 'gateway-key' : undefined
-    )
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
     mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
 
@@ -1003,6 +1127,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       frozenModels: [
         {
           modelId: 'sonnet',
+          apiModelId: 'sonnet-api',
           modelName: 'sonnet',
           pricingSnapshot: null,
           aliases: ['sonnet-api', 'sonnet']
@@ -1099,14 +1224,19 @@ describe('deriveConnectionConfig', () => {
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
   })
 
   async function deriveSignature() {
-    const result = await deriveConnectionConfig('session-1')
+    const result = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
@@ -1139,8 +1269,40 @@ describe('deriveConnectionConfig', () => {
     expect(result.ok).toBe(true)
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
-    // The gateway fingerprint reads the persisted preference instead of ensureValidApiKey.
-    expect(mocks.preferenceGet).toHaveBeenCalledWith('feature.api_gateway.api_key')
+  })
+
+  it('changes a Cloud route rebuild signature when the gateway key changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.getProviderByProviderId.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-free',
+      apiModelId: 'deepseek-free',
+      group: CHERRY_CLOUD_MODEL_GROUP
+    })
+    mocks.apiGatewayIsRunning.mockReturnValue(true)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key-1'
+    })
+    const first = await deriveSignature()
+
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key-2'
+    })
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
   it('is stable across repeated derivation and across key rotation', async () => {
@@ -1367,6 +1529,14 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['proxyEnvironment'])
   })
 
+  it('rebuilds when task notification recipients change', async () => {
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
+    const first = await deriveSignature()
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
+
+    expect((await deriveSignature()).rebuildSignature).not.toBe(first.rebuildSignature)
+  })
+
   it('changes the rebuild signature when model context metadata changes', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
@@ -1393,7 +1563,7 @@ describe('deriveConnectionConfig', () => {
   it('changes the rebuild signature for each rebuild-group input', async () => {
     const base = await deriveSignature()
 
-    mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.findChannelBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
     const channelChanged = await deriveSignature()
     expect(channelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.findChannelBySessionId.mockReturnValue(null)

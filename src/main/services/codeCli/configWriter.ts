@@ -7,6 +7,8 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets } from '@shared/utils/cliConfig'
 
+import { getHermesHome } from './hermesHome'
+
 const logger = loggerService.withContext('CodeCliConfigWriter')
 
 /** CLI config files carry credentials — owner-only from birth. */
@@ -18,9 +20,12 @@ interface FileSnapshot {
   previousContent: string
 }
 
-/** Spec paths are all `~/…`; resolve against the OS home dir (matches the renderer's App_ResolvePath view). */
-function resolveTargetPath(target: CliConfigTarget): AbsoluteFilePath {
-  const specPath = CLI_CONFIG_FILE_SPECS[target].path
+/** Resolve a declarative target path against its base: the pinned Hermes home, or sys.home for `~/…` spec paths. */
+async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
+  const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
+  if (pathBase === 'hermes-home') {
+    return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
+  }
   return AbsoluteFilePathSchema.parse(path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, '')))
 }
 
@@ -47,12 +52,12 @@ export interface CliConfigReadFile {
  * Duplicate targets are deduplicated by the route schema, not here.
  */
 export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
-  const files: CliConfigReadFile[] = []
-  for (const target of targets) {
-    const path = resolveTargetPath(target)
-    files.push({ target, path, content: await readOrNull(path) })
-  }
-  return files
+  return Promise.all(
+    targets.map(async (target) => {
+      const path = await resolveTargetPath(target)
+      return { target, path, content: await readOrNull(path) }
+    })
+  )
 }
 
 /**
@@ -82,7 +87,7 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
   const snapshots: FileSnapshot[] = []
   try {
     for (const file of files) {
-      const absPath = resolveTargetPath(file.target)
+      const absPath = await resolveTargetPath(file.target)
       const previousContent = await readOrNull(absPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
       if ('delete' in file) {

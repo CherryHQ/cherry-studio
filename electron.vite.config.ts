@@ -2,16 +2,19 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readdirSync, readFileSync } from 'fs'
+import { join, resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import type { Plugin } from 'vite'
 import { parse } from 'yaml'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
 type ElectronBuilderConfig = {
@@ -40,6 +43,14 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
+export function resolveRendererEdition(value: string | undefined): AppEdition {
+  const edition = value?.trim().toLowerCase() || 'global'
+  if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
+  throw new Error(`Unsupported renderer edition: ${edition}`)
+}
+
+const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
+
 // Bundle/externalize split for the main process: everything in `dependencies` is
 // marked `external` below (kept in node_modules of the packaged app), and everything
 // NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
@@ -60,9 +71,33 @@ export const isMainExternalModule = (id: string) => {
   return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
 }
 
+// Ships the flat theme contract next to the main bundle so mini apps can be served
+// `assets/miniAppTheme.css`. Built in-process: nothing in the app pipeline runs the ui package build.
+const miniAppThemeAssetPlugin = (): Plugin => ({
+  name: 'cherry-mini-app-theme-asset',
+  // The sources live outside the main bundle's module graph, so `electron-vite dev` would
+  // serve a stale `miniAppTheme.css` after a token edit. Registered in `buildStart` because
+  // `addWatchFile` is a build-phase call — it is not available from `generateBundle`.
+  buildStart() {
+    const stylesDir = resolve('packages/ui/src/styles')
+    for (const name of readdirSync(stylesDir, { recursive: true, encoding: 'utf8' })) {
+      if (name.endsWith('.css')) this.addWatchFile(join(stylesDir, name))
+    }
+  },
+  async generateBundle() {
+    let source: string
+    try {
+      source = await buildFlatContractCss()
+    } catch (error) {
+      return this.error(`failed to build assets/miniAppTheme.css: ${error instanceof Error ? error.message : error}`)
+    }
+    this.emitFile({ type: 'asset', fileName: 'assets/miniAppTheme.css', source })
+  }
+})
+
 export default defineConfig({
   main: {
-    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), miniAppThemeAssetPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -125,7 +160,8 @@ export default defineConfig({
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
-          miniApp: resolve(__dirname, 'src/preload/miniApp.ts') // MiniApp `<webview>` guests
+          miniApp: resolve(__dirname, 'src/preload/miniApp.ts'), // MiniApp `<webview>` guests
+          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
         },
         external: ['electron'],
         output: {
@@ -137,6 +173,7 @@ export default defineConfig({
   },
   renderer: {
     define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
       __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
       __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)

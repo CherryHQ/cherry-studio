@@ -54,7 +54,7 @@ const stable = (v: unknown): string =>
 
 // Mirror buildProviders: drop the generation-only fields, template `description` (always overrides any
 // source `description`). The result is the exact source-derived provider payload the generator emits.
-const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'overrides']
+const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'standaloneModelIds', 'overrides']
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
@@ -76,6 +76,17 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
+  it('keeps AMD GPU Cloud in the twentieth slot used to seed new profiles', () => {
+    expect(PROVIDERS[19]?.id).toBe('radeon-cloud')
+    expect(providers[19]?.id).toBe('radeon-cloud')
+  })
+
+  it('classifies every source provider by supported application edition', () => {
+    for (const provider of PROVIDERS) {
+      expect(provider.availableInEditions).toContain('global')
+    }
+  })
+
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {
     const missing = PROVIDERS.filter((p) => !providerById.has(p.id)).map((p) => p.id)
     expect(missing).toEqual([]) // src has a provider data/ doesn't → run `pnpm generate`
@@ -119,14 +130,31 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
         if (!raw.modelId) continue
         // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
         const ov = splitOverrideWireId(raw)
-        if (p.modelsDevProvider && !ov.apiModelId && (ov.reasoningContracts || ov.requestControls)) {
+        if (
+          p.modelsDevProvider &&
+          !ov.apiModelId &&
+          (ov.endpointTypes ||
+            ov.reasoningContracts ||
+            ov.requestControls ||
+            ov.parameterSupport ||
+            ov.name ||
+            ov.ownedBy ||
+            Object.hasOwn(ov, 'pricing'))
+        ) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
           if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
           else if (
             rows.some(
               (row) =>
-                stable(row.reasoningContracts) !== stable(ov.reasoningContracts) ||
-                stable(row.requestControls) !== stable(ov.requestControls)
+                (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
+                (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
+                (Object.hasOwn(ov, 'reasoningContracts') &&
+                  stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
+                (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
+                (Object.hasOwn(ov, 'parameterSupport') &&
+                  stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
+                (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
+                (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
             )
           ) {
             problems.push(`stale ${p.id}/${ov.modelId}/model-template`)

@@ -6,6 +6,7 @@ import {
   type FileRefSourceType,
   jobRoles,
   jobSourceType,
+  miniAppFileRef,
   miniAppLogoRef,
   paintingRoles,
   paintingSourceType,
@@ -244,6 +245,34 @@ export const singleFileRefTablesBySourceType = {
 } as const satisfies Record<SingleFileRefSourceType, typeof providerLogoFileRefTable | typeof miniAppLogoFileRefTable>
 
 /**
+ * Mini app sandbox files.
+ *
+ * `logicalName` lives here rather than on `file_entry.name` because it expresses
+ * how THIS app names the file — a property of the relation, mirroring the `role`
+ * columns on the other ref tables. `file_entry.name` is globally non-unique, but
+ * `file.save('slot1')` twice must overwrite.
+ */
+export const miniAppFileRefTable = sqliteTable(
+  'mini_app_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => miniAppTable.appId, { onDelete: 'cascade' }),
+    logicalName: text('logical_name').notNull(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('mafr_entry_id_idx').on(t.fileEntryId),
+    index('mafr_source_id_idx').on(t.sourceId),
+    uniqueIndex('mafr_source_logical_name_unique_idx').on(t.sourceId, t.logicalName)
+  ]
+)
+
+/**
  * Every persistent source type has an association table. Intentionally has NO
  * runtime consumer — the `satisfies` below is a compile-time completeness
  * assertion: adding a source type without its table fails typecheck right here.
@@ -254,7 +283,8 @@ export const persistentFileRefTablesBySourceType = {
   [paintingSourceType]: paintingFileRefTable,
   [jobSourceType]: jobFileRefTable,
   [translateHistorySourceType]: translateHistoryFileRefTable,
-  ...singleFileRefTablesBySourceType
+  ...singleFileRefTablesBySourceType,
+  [miniAppFileRef.sourceType]: miniAppFileRefTable
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
@@ -264,6 +294,7 @@ export const persistentFileRefTablesBySourceType = {
   | typeof translateHistoryFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
+  | typeof miniAppFileRefTable
 >
 
 /**
@@ -291,3 +322,4 @@ export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelec
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
 export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert
+export type MiniAppFileRefRow = typeof miniAppFileRefTable.$inferSelect

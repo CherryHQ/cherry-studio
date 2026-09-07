@@ -16,7 +16,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { hasKnownPiContextWindow, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -30,11 +30,15 @@ import {
 } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
+import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -73,18 +77,7 @@ export class PiMissingApiKeyError extends Error {
   }
 }
 
-/** Thrown when Pi cannot safely drive a model without its real compaction boundary. */
-export class PiMissingContextWindowError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" has no context window configured; set it in model settings before using Pi`)
-    this.name = 'PiMissingContextWindowError'
-    this.modelId = modelId
-  }
-}
-
-export interface PiProviderInjection {
+interface PiProviderInjectionBase {
   /** pi provider name to register + target with `setRuntimeApiKey`. Cherry's provider id. */
   providerName: string
   /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
@@ -103,9 +96,19 @@ export interface PiProviderInjection {
   transportAdapter?: ProviderTransportAdapter
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
-  /** Frozen attribution selected together with the credential used by this connection. */
+}
+
+/** Native/OAuth route whose invocations are accounted for by the Agent SDK. */
+export interface PiDirectProviderInjection extends PiProviderInjectionBase {
   usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
 }
+
+/** Local gateway route whose provider calls are accounted for by gateway middleware. */
+export interface PiGatewayProviderInjection extends PiProviderInjectionBase {
+  usageCapture: Extract<AgentSessionUsageCapture, { owner: 'provider-calls' }>
+}
+
+export type PiProviderInjection = PiDirectProviderInjection | PiGatewayProviderInjection
 
 /** Materialize provider-specific stream compatibility before the connection consumes it. */
 export async function materializePiProviderStream(injection: PiProviderInjection): Promise<{
@@ -144,7 +147,7 @@ export function buildPiProviderInjection(
   model: Model,
   apiKey: string,
   credentialReceipt?: AiUsageCredentialReceipt
-): PiProviderInjection {
+): PiDirectProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
   const resolvedEndpoint = resolvePiEndpoint(provider, model)
@@ -158,7 +161,6 @@ export function buildPiProviderInjection(
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
-  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
   // Transport-adapter (app-managed-OAuth) providers authenticate per stream call
   // via the adapter; the connect-time `apiKey` is only the placeholder, so the
   // empty-key guard does not apply to them.
@@ -176,7 +178,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: provider.settings?.extraHeaders,
+    headers: toPiHeaders(provider.settings?.extraHeaders),
     models: [modelConfig]
   }
 
@@ -196,6 +198,7 @@ export function buildPiProviderInjection(
       frozenModels: [
         {
           modelId: model.id,
+          apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
           pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
@@ -206,6 +209,57 @@ export function buildPiProviderInjection(
     ...(api === 'azure-openai-responses' && provider.settings?.apiVersion?.trim()
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})
+  }
+}
+
+/**
+ * Cherry header values are literals, but pi resolves each one as a `$ENV` / `!command`
+ * template — the same interpolation the `apiKey` placeholder dodges.
+ */
+function toPiHeaders(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+  const coerced = toAgentProviderHeaders(headers)
+  if (!coerced) return undefined
+  return Object.fromEntries(
+    Object.entries(coerced).map(([name, value]) => [name, value.replaceAll('$', '$$$$').replace(/^!/, '$!')])
+  )
+}
+
+/** Whether this provider declares that Pi must use Cherry's local Gateway route. */
+export function usesPiGateway(provider: Provider): boolean {
+  return requiresAgentGateway(provider.id)
+}
+
+/** Build a Pi route targeting Cherry's local Gateway while preserving the model's wire protocol. */
+export function buildPiGatewayInjection(
+  provider: Provider,
+  model: Model,
+  gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }
+): PiGatewayProviderInjection {
+  const resolvedEndpoint = resolvePiEndpoint(provider, model)
+  const adapterFamily = resolvedEndpoint.endpointType
+    ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
+    : undefined
+  const api = mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+  if (!api) throw new PiUnsupportedProviderError(provider.id)
+
+  const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
+  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
+  const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
+
+  return {
+    providerName: provider.id,
+    api,
+    providerConfig: {
+      name: provider.name,
+      baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
+      apiKey: PI_PLACEHOLDER_API_KEY,
+      api,
+      ...(headers ? { headers } : {}),
+      models: [modelConfig]
+    },
+    apiKey: gateway.apiKey,
+    modelId,
+    usageCapture: { owner: 'provider-calls' }
   }
 }
 
@@ -231,7 +285,7 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  *
  * @throws PiUnsupportedProviderError when the provider has no pi mapping.
  */
-export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiProviderInjection> {
+export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiDirectProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const [provider, model] = await Promise.all([
     providerService.getByProviderId(providerId),
@@ -246,7 +300,7 @@ export function resolvePiProviderInjectionFromSnapshot(
   provider: Provider,
   model: Model,
   enabledApiKeys?: readonly ApiKeyEntry[]
-): PiProviderInjection {
+): PiDirectProviderInjection {
   // Transport-adapter providers hold no app-side key: the real OAuth token is
   // fetched per stream call by the adapter. Skip the round-robin key rotation.
   if (getProviderTransportAdapter(provider.id)) {
@@ -261,6 +315,21 @@ export function resolvePiProviderInjectionFromSnapshot(
   return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection)
 }
 
+/** Resolve a session-bound Pi route, including provider-declared local Gateway transport. */
+export async function resolvePiProviderInjectionForSession(
+  sessionId: string,
+  provider: Provider,
+  model: Model,
+  enabledApiKeys?: readonly ApiKeyEntry[]
+): Promise<PiProviderInjection> {
+  if (!usesPiGateway(provider)) {
+    return resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+  }
+
+  const gateway = await resolveApiGatewayRuntime(sessionId)
+  return buildPiGatewayInjection(provider, model, gateway)
+}
+
 /**
  * Validate pi compatibility without consuming ProviderService's round-robin API
  * key rotation. Dispatch validation runs before every turn; selecting the key is
@@ -272,6 +341,18 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
     providerService.getByProviderId(providerId),
     modelService.getByKey(providerId, modelId)
   ])
+
+  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
+  if (usesPiGateway(provider)) {
+    const resolvedEndpoint = resolvePiEndpoint(provider, model)
+    const adapterFamily = resolvedEndpoint.endpointType
+      ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
+      : undefined
+    if (!mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)) {
+      throw new PiUnsupportedProviderError(providerId)
+    }
+    return
+  }
 
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting
@@ -286,8 +367,6 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   ) {
     throw new PiUnsupportedProviderError(providerId)
   }
-  if (!hasKnownPiContextWindow(model)) throw new PiMissingContextWindowError(model.id)
-
   // Transport-adapter providers validate the OAuth session (cheap `hasToken`),
   // not app-side keys; a signed-out provider is surfaced as a missing credential.
   if (getProviderTransportAdapter(providerId)) {
@@ -300,9 +379,32 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
+/** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */
+const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+
+/**
+ * Project the model's declared efforts onto pi's ladder, marking the rest `null`.
+ *
+ * pi clamps its own default level (`medium`) against this map. Without one it assumes every level
+ * below `xhigh` is available and sends `medium` verbatim — which strict endpoints reject for models
+ * like Kimi K3, whose vocabulary is low/high/max (#20029). A model declaring no concrete tier gets
+ * no map: its toggle is expressed by the wire, and an all-`null` ladder would disable thinking.
+ */
+function buildThinkingLevelMap(model: Model): ProviderModelConfig['thinkingLevelMap'] | undefined {
+  const declared = model.reasoning?.selectableEfforts ?? []
+  if (!declared.some((effort) => effort !== 'none' && effort !== 'auto')) return undefined
+
+  const map: NonNullable<ProviderModelConfig['thinkingLevelMap']> = {}
+  for (const level of PI_THINKING_LEVELS) {
+    const effort = level === 'off' ? 'none' : level
+    map[level] = declared.includes(effort) ? effort : null
+  }
+  return map
+}
+
 function buildPiModelConfig(
   provider: Provider,
-  model: Model & { contextWindow: number },
+  model: Model,
   id: string,
   api: PiApi,
   endpointType: EndpointType | undefined
@@ -314,17 +416,19 @@ function buildPiModelConfig(
   if (supportsImage) {
     input.push('image')
   }
+  const thinkingLevelMap = buildThinkingLevelMap(model)
 
   return {
     id,
     name: model.name,
     api,
     reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
     input,
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
     // leave zeros — pi's tracking is unused here.
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: model.contextWindow,
+    contextWindow: resolveAgentContextWindow(model),
     maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     // Cherry's provider capability is the source of truth; pi otherwise infers
     // developer-role support from the endpoint URL.
