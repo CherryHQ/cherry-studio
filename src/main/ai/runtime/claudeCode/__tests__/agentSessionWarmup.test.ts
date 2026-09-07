@@ -180,7 +180,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
     })
-    mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
@@ -1366,10 +1365,49 @@ describe('deriveConnectionConfig', () => {
     expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
-  it('changes the rebuild signature when the app language changes', async () => {
+  it('changes the rebuild signature when the effective agent language changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: 'English' }
+    })
     const english = await deriveSignature()
 
-    mocks.getAppLanguage.mockReturnValue('zh-CN')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: '中文' }
+    })
+    const chinese = await deriveSignature()
+
+    expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
+    expect(
+      Object.keys(english.rebuildFactFingerprints).filter(
+        (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['language'])
+  })
+
+  it('changes the rebuild signature when the global agent.language preference changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? 'English' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
+    const english = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? '中文' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
     const chinese = await deriveSignature()
 
     expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)

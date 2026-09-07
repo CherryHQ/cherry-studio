@@ -26,6 +26,8 @@ import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
 
+const CONVERSATION_SUGGESTION_PERSONA_DESCRIPTION_MAX_LENGTH = 2000
+
 const CONVERSATION_SUGGESTIONS_PROMPT = `Generate exactly three concise prompts that a user can put into an AI conversation input.
 Return only valid JSON in this shape: {"suggestions":["...","...","..."]}.
 Each suggestion must be distinct, self-contained, actionable, at most 96 characters, and written in the requested output language.
@@ -141,9 +143,18 @@ export async function fetchGenerate({
 }
 
 export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model: Model) {
+  const boundedContext = context.persona?.description
+    ? {
+        ...context,
+        persona: {
+          ...context.persona,
+          description: context.persona.description.slice(0, CONVERSATION_SUGGESTION_PERSONA_DESCRIPTION_MAX_LENGTH)
+        }
+      }
+    : context
   const response = await fetchGenerate({
     prompt: CONVERSATION_SUGGESTIONS_PROMPT,
-    content: JSON.stringify(context),
+    content: JSON.stringify(boundedContext),
     model,
     throwOnError: true
   })

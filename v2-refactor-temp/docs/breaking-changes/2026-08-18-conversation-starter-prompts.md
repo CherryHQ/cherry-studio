@@ -8,7 +8,7 @@ date: 2026-08-18
 
 ## What changed
 
-Empty Chat and Agent conversations can generate three localized starter prompts. Conversation Suggestions is off by default and uses a dedicated model when set, otherwise the default chat model.
+Empty Chat and Agent conversations can generate three localized starter prompts. Conversation Suggestions is off by default. When enabled, it uses an enabled chat-capable dedicated model when one is configured and available; otherwise it uses an enabled chat-capable default model, or localized fallback prompts if neither model is usable.
 
 ## Why this matters to the user
 
@@ -16,4 +16,4 @@ Opening an empty conversation does not make a background model request until the
 
 ## What the user should do
 
-Conversation Suggestions stays off until you turn it on in Settings > Default Model. Optionally pick a dedicated model there; otherwise the default chat model is used.
+Conversation Suggestions stays off until you turn it on in Settings > Default Model. You can optionally pick a dedicated model there; the app falls back to an enabled chat-capable default model and then to localized prompts when needed.
