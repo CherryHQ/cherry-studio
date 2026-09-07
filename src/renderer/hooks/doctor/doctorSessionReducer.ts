@@ -2,7 +2,7 @@ import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorPanel, Doctor
 
 export type DoctorInteraction =
   | { readonly kind: 'idle' }
-  | { readonly kind: 'confirm-evidence'; readonly checkId: DoctorCheckId }
+  | { readonly kind: 'confirm-evidence'; readonly runId: string; readonly checkId: DoctorCheckId }
   | { readonly kind: 'fixing'; readonly request: DoctorFixRequest }
   | {
       readonly kind: 'action'
@@ -17,7 +17,10 @@ export type DoctorInteraction =
 export interface DoctorSessionState {
   readonly activePanel: DoctorPanel
   readonly descriptionDraft: string
-  readonly revealedEvidence: readonly DoctorCheckId[]
+  readonly evidenceGrant?: {
+    readonly runId: string
+    readonly checkIds: readonly DoctorCheckId[]
+  }
   readonly relaunchRequired: boolean
   readonly interaction: DoctorInteraction
 }
@@ -25,9 +28,9 @@ export interface DoctorSessionState {
 export type DoctorSessionAction =
   | { readonly type: 'set-panel'; readonly panel: DoctorPanel }
   | { readonly type: 'set-description'; readonly description: string }
-  | { readonly type: 'reveal-evidence'; readonly checkId: DoctorCheckId }
+  | { readonly type: 'reveal-evidence'; readonly runId: string; readonly checkId: DoctorCheckId }
   | { readonly type: 'mark-relaunch-required' }
-  | { readonly type: 'confirm-evidence'; readonly checkId: DoctorCheckId }
+  | { readonly type: 'confirm-evidence'; readonly runId: string; readonly checkId: DoctorCheckId }
   | { readonly type: 'cancel-confirmation' }
   | { readonly type: 'start-interaction'; readonly interaction: Exclude<DoctorInteraction, { kind: 'idle' }> }
   | { readonly type: 'finish-interaction'; readonly kind: DoctorInteraction['kind'] }
@@ -42,7 +45,6 @@ export function createDoctorSession({
   return {
     activePanel: initialPanel,
     descriptionDraft: initialDescription ?? '',
-    revealedEvidence: [],
     relaunchRequired: false,
     interaction: { kind: 'idle' }
   }
@@ -54,14 +56,19 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
       return { ...state, activePanel: action.panel }
     case 'set-description':
       return { ...state, descriptionDraft: action.description }
-    case 'reveal-evidence':
-      return state.revealedEvidence.includes(action.checkId)
+    case 'reveal-evidence': {
+      const checkIds = state.evidenceGrant?.runId === action.runId ? state.evidenceGrant.checkIds : []
+      return checkIds.includes(action.checkId)
         ? state
-        : { ...state, revealedEvidence: [...state.revealedEvidence, action.checkId] }
+        : { ...state, evidenceGrant: { runId: action.runId, checkIds: [...checkIds, action.checkId] } }
+    }
     case 'mark-relaunch-required':
       return { ...state, relaunchRequired: true }
     case 'confirm-evidence':
-      return { ...state, interaction: { kind: 'confirm-evidence', checkId: action.checkId } }
+      return {
+        ...state,
+        interaction: { kind: 'confirm-evidence', runId: action.runId, checkId: action.checkId }
+      }
     case 'cancel-confirmation':
       return state.interaction.kind === 'confirm-evidence' ? { ...state, interaction: { kind: 'idle' } } : state
     case 'start-interaction':

@@ -66,8 +66,7 @@ function createController(overrides: ControllerOverrides = {}) {
       activePanel: 'checks',
       descriptionDraft: '',
       interaction: { kind: 'idle' },
-      relaunchRequired: false,
-      revealedEvidence: []
+      relaunchRequired: false
     },
     setDescription: vi.fn<DoctorController['setDescription']>(),
     setPanel: vi.fn<DoctorController['setPanel']>(),
@@ -136,6 +135,7 @@ function createCompletedPanelController() {
   return createController({
     viewModel: {
       ...controller.viewModel,
+      runId: 'run-1',
       problemCount: 1,
       report: {
         schemaVersion: 1,
@@ -198,19 +198,22 @@ function createSecondaryEvidencePanelController() {
 
 function EvidenceFocusHarness() {
   const [interaction, setInteraction] = useState<DoctorInteraction>({ kind: 'idle' })
-  const [revealedEvidence, setRevealedEvidence] = useState<DoctorController['session']['revealedEvidence']>([])
+  const [evidenceGrant, setEvidenceGrant] = useState<DoctorController['session']['evidenceGrant']>()
   const baseController = createSecondaryEvidencePanelController()
   const controller = createController({
     cancelConfirmation: () => setInteraction({ kind: 'idle' }),
     confirmEvidence: () => {
       if (interaction.kind !== 'confirm-evidence') return
-      setRevealedEvidence([interaction.checkId])
+      setEvidenceGrant({ runId: interaction.runId, checkIds: [interaction.checkId] })
       setInteraction({ kind: 'idle' })
     },
-    requestEvidence: (checkId) => setInteraction({ kind: 'confirm-evidence', checkId }),
+    requestEvidence: (checkId) => {
+      if (!baseController.viewModel.runId) return
+      setInteraction({ kind: 'confirm-evidence', runId: baseController.viewModel.runId, checkId })
+    },
     session: {
       interaction,
-      revealedEvidence
+      evidenceGrant
     },
     viewModel: {
       ...baseController.viewModel,
@@ -270,6 +273,43 @@ describe('DoctorCheckAccordionItems interactions', () => {
     await user.click(localEvidenceTrigger)
 
     expect(localEvidenceTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('••••••')).toBeVisible()
+  })
+
+  it('masks a previous run evidence grant when a replacement report arrives', () => {
+    const completed = createCompletedPanelController()
+    const runOneSession = {
+      evidenceGrant: { runId: 'run-1', checkIds: ['runtime-claude-login'] as const }
+    }
+    const runOneViewModel = { ...completed.viewModel, runId: 'run-1' }
+    const { rerender } = render(
+      <Accordion type="single" collapsible defaultValue="doctor-runtime-claude-login">
+        <DoctorCheckAccordionItems
+          controller={createController({ session: runOneSession, viewModel: runOneViewModel })}
+        />
+      </Accordion>
+    )
+
+    expect(screen.getByText('private Doctor evidence')).toBeVisible()
+
+    const replacementReport = completed.viewModel.report
+    if (!replacementReport) throw new Error('Expected a completed Doctor report')
+    rerender(
+      <Accordion type="single" collapsible defaultValue="doctor-runtime-claude-login">
+        <DoctorCheckAccordionItems
+          controller={createController({
+            session: runOneSession,
+            viewModel: {
+              ...runOneViewModel,
+              runId: 'run-2',
+              report: { ...replacementReport, runId: 'run-2' }
+            }
+          })}
+        />
+      </Accordion>
+    )
+
+    expect(screen.queryByText('private Doctor evidence')).not.toBeInTheDocument()
     expect(screen.getByText('••••••')).toBeVisible()
   })
 
