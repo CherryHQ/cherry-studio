@@ -8,6 +8,7 @@ import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentTypeSchema } from './agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
@@ -28,6 +29,8 @@ export const SessionNameEntitySchema = z.string().max(255)
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  /** Session-owned runtime. Seeded from the agent default when the session is created. */
+  agentType: AgentTypeSchema,
   /** Session-owned primary model. Seeded from the agent default when the session is created. */
   modelId: UniqueModelIdSchema.nullable(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
@@ -60,6 +63,7 @@ export const UpdateAgentSessionSchema = z.strictObject({
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional(),
+  agentType: AgentTypeSchema.optional(),
   modelId: UniqueModelIdSchema.nullable().optional()
 })
 

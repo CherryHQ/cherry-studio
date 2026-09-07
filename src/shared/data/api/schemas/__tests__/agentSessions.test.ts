@@ -44,6 +44,11 @@ describe('AgentSession schemas', () => {
     })
   })
 
+  it('accepts only supported session runtime updates', () => {
+    expect(UpdateAgentSessionSchema.parse({ agentType: 'pi' })).toEqual({ agentType: 'pi' })
+    expect(UpdateAgentSessionSchema.safeParse({ agentType: 'unsupported' }).success).toBe(false)
+  })
+
   it('allows blank names for untitled placeholder sessions', () => {
     expect(
       CreateAgentSessionSchema.safeParse({

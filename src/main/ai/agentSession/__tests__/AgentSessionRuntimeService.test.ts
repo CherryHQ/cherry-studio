@@ -272,6 +272,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
+      agentType: 'test-runtime',
       modelId: baseTurnInput.modelId
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -1402,7 +1403,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
 
     const second = service.beginTurn({
@@ -1430,6 +1431,63 @@ describe('AgentSessionRuntimeService', () => {
 
     await firstReader.cancel().catch(() => undefined)
     await secondReader.cancel().catch(() => undefined)
+  })
+
+  it('rebuilds a primed connection when the empty session runtime changes', async () => {
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('rebuild')
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const firstConnect = vi.fn().mockResolvedValue(firstConnection)
+    const secondConnect = vi.fn().mockResolvedValue(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: firstConnect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    runtimeDriverRegistry.register({
+      type: 'alternate-runtime',
+      capabilities: ['agent-session'],
+      connect: secondConnect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    await service.primeConnection('session-1')
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'resume-1'
+    entry.resumeTokenAgentId = 'agent-1'
+
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { agentType: 'alternate-runtime' },
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        agentType: 'alternate-runtime',
+        modelId: baseTurnInput.modelId
+      }
+    )
+    await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
+    await service.primeConnection('session-1')
+    await vi.waitFor(() => expect(secondConnect).toHaveBeenCalledOnce())
+
+    expect(firstConnection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'alternate-runtime' }))
+    expect(getEntry(service)).toMatchObject({
+      agentType: 'alternate-runtime',
+      lastResumeToken: undefined,
+      resumeTokenInvalidated: true
+    })
   })
 
   it('retries callers sharing an in-flight connect when a mid-flight session model edit discards it', async () => {
@@ -1467,11 +1525,16 @@ describe('AgentSessionRuntimeService', () => {
     // Model edited while that connect is in flight → the first attempt self-discards and resolves
     // false. Both callers must retry, not surface false — a false with a current entry leaves
     // openTurnStream's turn hanging forever.
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
+      modelId: switchedModelId
+    })
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
     firstConnect.resolve(firstConnection)
 
@@ -1509,7 +1572,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
 
     const stream = service.openTurnStream({
@@ -1572,7 +1635,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { agentId: 'agent-2' },
-      { id: 'session-1', agentId: 'agent-2', modelId: baseTurnInput.modelId }
+      { id: 'session-1', agentId: 'agent-2', agentType: 'test-runtime', modelId: baseTurnInput.modelId }
     )
 
     const reader = service
@@ -1626,7 +1689,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: null },
-      { id: 'session-1', agentId: 'agent-1', modelId: null }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: null }
     )
     expect(service.inspect('session-1')).toBeUndefined()
     expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
@@ -1672,7 +1735,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: null },
-      { id: 'session-1', agentId: 'agent-1', modelId: null }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: null }
     )
 
     expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'session-model-cleared')
@@ -1698,7 +1761,7 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
 
     expect(connection.close).not.toHaveBeenCalled()
@@ -3601,6 +3664,7 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getSessionById.mockReturnValue({
         id: 'session-1',
         agentId: 'agent-1',
+        agentType: 'test-runtime',
         modelId: baseTurnInput.modelId
       })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -3675,6 +3739,7 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getSessionById.mockReturnValue({
         id: 'session-1',
         agentId: 'agent-1',
+        agentType: 'test-runtime',
         modelId: baseTurnInput.modelId
       })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -5205,11 +5270,16 @@ describe('AgentSessionRuntimeService', () => {
     service.markTurnTerminal('session-1', 'success')
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
 
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
+      modelId: switchedModelId
+    })
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
     await (service as any).startNextTurn(entry)
 
@@ -5243,11 +5313,16 @@ describe('AgentSessionRuntimeService', () => {
     service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
 
     // User switches this session's model before the queued follow-up drains.
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
+      modelId: switchedModelId
+    })
     await (service as any).handleSessionUpdated(
       'session-1',
       { modelId: switchedModelId },
-      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+      { id: 'session-1', agentId: 'agent-1', agentType: 'test-runtime', modelId: switchedModelId }
     )
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -5285,7 +5360,12 @@ describe('AgentSessionRuntimeService', () => {
 
     // The model was deleted while user-2 sat queued: its `user_model` row is gone and `session.modelId`
     // is FK-nulled, but no session update fires — the entry still caches the deleted model.
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'test-runtime',
+      modelId: null
+    })
     mocks.saveMessage.mockClear()
     mocks.startRuntimeTurn.mockClear()
 

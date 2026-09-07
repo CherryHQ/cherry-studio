@@ -43,14 +43,31 @@ describe('PiRuntimeDriver.validateSession', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { path: '/data/Agents/system/2026-08-12/session-1', type: 'system' }
-    } as AgentSessionEntity
-    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+      agentType: 'pi',
+      modelId: 'provider::session-model',
+      name: 'Session',
+      isNameManuallyEdited: false,
+      workspaceId: 'workspace-1',
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/data/Agents/system/2026-08-12/session-1',
+        type: 'system',
+        orderKey: 'a',
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:00.000Z'
+      },
+      orderKey: 'a',
+      lastActivityAt: '2026-08-12T00:00:00.000Z',
+      createdAt: '2026-08-12T00:00:00.000Z',
+      updatedAt: '2026-08-12T00:00:00.000Z'
+    } satisfies AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::agent-default' })
 
     await new PiRuntimeDriver().validateSession(session)
 
     expect(mocks.prepareWorkspace).toHaveBeenCalledWith(session)
-    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::session-model')
     expect(mocks.prepareWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.assertProviderUsable.mock.invocationCallOrder[0]
     )

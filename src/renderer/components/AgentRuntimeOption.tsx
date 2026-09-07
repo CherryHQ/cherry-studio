@@ -21,9 +21,8 @@ import { useId } from 'react'
 /**
  * Shared presentation for the agent runtimes.
  *
- * The runtime is picked once and never again, so both surfaces render the same card: the create
- * wizard makes them selectable, the editor shows the chosen one as a plain summary. Keeping them
- * here means the two never drift into looking like different decisions.
+ * Agent creation and empty-session routing both use the selectable tiles; the agent editor keeps
+ * showing its immutable default as a plain summary.
  */
 
 const RUNTIME_ICONS = {
@@ -128,7 +127,7 @@ export function AgentRuntimeTiles({
   )
 }
 
-/** The runtime an agent already has. Not a control — there is nothing left to choose. */
+/** The immutable default runtime an agent already has. */
 export function AgentRuntimeSummary({ value, t }: { value: AgentType; t: TFunction }) {
   return (
     <Item size="sm" variant="outline" className={RUNTIME_CARD_CLASS_NAME}>

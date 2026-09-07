@@ -649,7 +649,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent || !session.modelId) return
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
+      if (!runtimeDriverRegistry.getAgentSessionDriver(session.agentType)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
       // trace context the first turn will. The connection is reused across turns, so without this its
@@ -669,7 +669,7 @@ export class AgentSessionRuntimeService extends BaseService {
         topicId: buildAgentSessionTopicId(sessionId),
         sessionTraceId,
         agentId: session.agentId,
-        agentType: agent.type,
+        agentType: session.agentType,
         modelId: session.modelId,
         runtimeState: createAgentSessionRuntimeState()
       }
@@ -721,7 +721,8 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<void> {
     if (
       !Object.prototype.hasOwnProperty.call(updates, 'modelId') &&
-      !Object.prototype.hasOwnProperty.call(updates, 'agentId')
+      !Object.prototype.hasOwnProperty.call(updates, 'agentId') &&
+      !Object.prototype.hasOwnProperty.call(updates, 'agentType')
     ) {
       return
     }
@@ -734,12 +735,13 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const agent = agentService.getAgent(session.agentId)
-    if (!agent || (session.agentId !== entry.agentId && !runtimeDriverRegistry.getAgentSessionDriver(agent.type))) {
+    const routingChanged = session.agentId !== entry.agentId || session.agentType !== entry.agentType
+    if (!agent || (routingChanged && !runtimeDriverRegistry.getAgentSessionDriver(session.agentType))) {
       this.invalidateUnroutableEntry(entry, 'session-unroutable')
       return
     }
 
-    this.adoptEntryAgentIdentity(entry, session.agentId, agent.type)
+    this.adoptEntryAgentIdentity(entry, session.agentId, session.agentType)
     entry.modelId = session.modelId
     await this.reconcileEntryConnection(entry)
   }
@@ -2675,7 +2677,7 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode = false,
       trustedNotifyChannels
     } = pendingTurn
-    this.adoptEntryAgentIdentity(entry, liveAgent.id, liveAgent.type)
+    this.adoptEntryAgentIdentity(entry, liveAgent.id, liveSession.agentType)
     entry.modelId = liveSession.modelId
 
     const rootSpan = this.startRuntimeRootSpan(entry, entry.modelId, entry.agentId)

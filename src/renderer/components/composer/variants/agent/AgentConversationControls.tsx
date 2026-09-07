@@ -1,4 +1,5 @@
-import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
@@ -7,10 +8,11 @@ import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceC
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import type { AgentEntity } from '@shared/data/types/agent'
+import type { AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, Terminal, TriangleAlert, X } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +35,7 @@ export type AgentConversationWorkspace = Pick<AgentWorkspaceEntity, 'type'> &
 
 export interface AgentConversationControlsProps {
   agent?: AgentEntity
+  agentType?: AgentType
   model?: Model
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
@@ -46,13 +49,67 @@ export interface AgentConversationControlsProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   agentTriggerMode: 'selector' | 'edit'
+  canChangeAgentType: boolean
   canChangeModel: boolean
   onAgentChange: (agentId: string | null) => void | Promise<void>
+  onAgentTypeChange: (agentType: AgentType) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
+}
+
+function RuntimeControl({
+  agentType,
+  canChangeAgentType,
+  side,
+  iconOnly = false,
+  onAgentTypeChange
+}: Pick<
+  AgentConversationControlsProps,
+  'agentType' | 'canChangeAgentType' | 'side' | 'iconOnly' | 'onAgentTypeChange'
+>) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  if (!agentType) return null
+
+  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+  const label = t(caps.labelKey, caps.labelFallback)
+  const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)}
+      disabled={!canChangeAgentType}
+      aria-label={label}>
+      <Terminal size={20} aria-hidden className="shrink-0 text-muted-foreground" />
+      <span className={cn('max-w-40 truncate text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{label}</span>
+      {canChangeAgentType ? (
+        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      ) : null}
+    </Button>
+  )
+
+  if (!canChangeAgentType) return trigger
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent side={side} align="start" className="w-80 p-2">
+        <AgentRuntimeTiles
+          value={agentType}
+          ariaLabel={t('library.config.agent.field.runtime.label')}
+          t={t}
+          onValueChange={(next) => {
+            setOpen(false)
+            void onAgentTypeChange(next)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function AgentControl({
@@ -363,6 +420,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
   return (
     <>
       <AgentControl {...props} />
+      <RuntimeControl {...props} />
       <ModelControl {...props} />
       <WorkspaceControl {...props} />
     </>

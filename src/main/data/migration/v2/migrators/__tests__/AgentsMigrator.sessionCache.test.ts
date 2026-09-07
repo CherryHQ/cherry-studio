@@ -279,6 +279,7 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(agent.model).toBe(MODEL_ID)
     expect(session.id).not.toBe(LEGACY_SESSION_ID)
     expect(session.agentId).toBe(agent.id)
+    expect(session.agentType).toBe(agent.type)
     expect(session.modelId).toBe(MODEL_ID)
     expect(workspace.type).toBe('system')
     expect(workspace.path).toBe(path.join(agentSystemWorkspacesDir, '2026-07-22', session.id))

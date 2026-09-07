@@ -36,6 +36,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
@@ -207,7 +208,7 @@ const AgentChat = ({
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateSession } = useUpdateSession()
-  const agentModelFilter = useAgentModelFilter(activeAgent?.type)
+  const agentModelFilter = useAgentModelFilter(sessionSnapshot?.agentType)
   const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
@@ -309,6 +310,16 @@ const AgentChat = ({
       await updateSession({ id: sessionSnapshot.id, modelId: nextModel.id }, { showSuccessToast: false })
     },
     [activeModel?.id, isEmptyConversation, sessionSnapshot, skipModelSwitchConfirmationsForAppRun, updateSession]
+  )
+  const handleSessionAgentTypeChange = useCallback(
+    async (nextAgentType: AgentType) => {
+      if (!sessionSnapshot || !isEmptyConversation || nextAgentType === sessionSnapshot.agentType) return
+      await updateSession(
+        { id: sessionSnapshot.id, agentType: nextAgentType, modelId: null },
+        { showSuccessToast: false }
+      )
+    },
+    [isEmptyConversation, sessionSnapshot, updateSession]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -443,6 +454,7 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              agentType={sessionSnapshot.agentType}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -453,8 +465,10 @@ const AgentChat = ({
               selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
               shouldAutoSelectCreatedAgent
               agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+              canChangeAgentType={isEmptyConversation}
               canChangeModel
               onAgentChange={handleSessionAgentChange}
+              onAgentTypeChange={handleSessionAgentTypeChange}
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}

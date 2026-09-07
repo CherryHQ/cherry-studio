@@ -100,6 +100,7 @@ describe('AgentChatContextProvider', () => {
     mocks.getSession.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
+      agentType: 'claude-code',
       modelId: 'anthropic::claude-sonnet',
       workspace: { path: '/tmp' }
     })
@@ -237,6 +238,27 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ id: 'runtime:persistence' }),
       expect.objectContaining({ id: 'runtime:terminal' })
     ])
+  })
+
+  it('routes dispatch through the session runtime instead of the agent default', async () => {
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      capabilities: ['agent-session'],
+      connect: vi.fn(),
+      validateSession: mocks.runtimeValidateSession,
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'pi',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { path: '/tmp' }
+    })
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi' }))
   })
 
   it('preserves typed workspace validation errors for the dispatch boundary', async () => {
@@ -429,7 +451,13 @@ describe('AgentChatContextProvider', () => {
 
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'custom-runtime',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { path: '/tmp' }
+    })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(
       'Unsupported agent runtime type: custom-runtime'

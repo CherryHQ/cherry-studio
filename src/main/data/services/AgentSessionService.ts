@@ -34,6 +34,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -101,6 +102,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    agentType: row.session.agentType,
     // modelId is legitimately nullable when no model is selected or its model row was deleted.
     modelId: row.session.modelId as UniqueModelId | null,
     name: clean.name,
@@ -114,6 +116,10 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
+}
+
+function normalizeSessionAgentType(type: string): AgentType {
+  return (type === 'cherry-claw' ? 'claude-code' : type) as AgentType
 }
 
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
@@ -291,6 +297,7 @@ export class AgentSessionService {
     this.insertTx(tx, {
       id,
       agentId: dto.agentId,
+      agentType: normalizeSessionAgentType(agent.type),
       modelId: agent.model as UniqueModelId | null,
       name: dto.name,
       description: dto.description,
@@ -319,9 +326,9 @@ export class AgentSessionService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
-  private assertAgentExistsTx(tx: DbOrTx, agentId: string): { id: string; model: string | null } {
+  private assertAgentExistsTx(tx: DbOrTx, agentId: string): { id: string; model: string | null; type: string } {
     const [agent] = tx
-      .select({ id: agentsTable.id, model: agentsTable.model })
+      .select({ id: agentsTable.id, model: agentsTable.model, type: agentsTable.type })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
@@ -744,6 +751,7 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.agentType !== undefined) patch.agentType = dto.agentType
     if (dto.modelId !== undefined) patch.modelId = dto.modelId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
@@ -756,17 +764,23 @@ export class AgentSessionService {
               `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
             )
           }
+          const [current] = tx
+            .select({ agentId: sessionsTable.agentId, agentType: sessionsTable.agentType })
+            .from(sessionsTable)
+            .where(eq(sessionsTable.id, id))
+            .limit(1)
+            .all()
           if (dto.agentId !== undefined) {
             const agent = this.assertAgentExistsTx(tx, dto.agentId)
-            const [current] = tx
-              .select({ agentId: sessionsTable.agentId })
-              .from(sessionsTable)
-              .where(eq(sessionsTable.id, id))
-              .limit(1)
-              .all()
             if (current && current.agentId !== dto.agentId && dto.modelId === undefined) {
               patch.modelId = agent.model as UniqueModelId | null
             }
+            if (current && current.agentId !== dto.agentId && dto.agentType === undefined) {
+              patch.agentType = normalizeSessionAgentType(agent.type)
+            }
+          }
+          if (current && patch.agentType !== undefined && patch.agentType !== current.agentType) {
+            this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
           }
           return this.updateTx(tx, id, patch)
         }),
@@ -820,7 +834,7 @@ export class AgentSessionService {
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
     // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    this.assertSessionHasNoMessagesTx(tx, id, 'workspace')
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
@@ -854,7 +868,7 @@ export class AgentSessionService {
     return row
   }
 
-  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
+  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string, field: 'runtime' | 'workspace'): void {
     const [message] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
@@ -863,8 +877,8 @@ export class AgentSessionService {
       .all()
     if (message) {
       throw DataApiErrorFactory.invalidOperation(
-        'update session workspace',
-        'workspace cannot be changed after messages are sent'
+        `update session ${field}`,
+        `${field} cannot be changed after messages are sent`
       )
     }
   }
@@ -874,6 +888,7 @@ export class AgentSessionService {
     values: {
       id: string
       agentId: string
+      agentType: AgentType
       modelId: UniqueModelId | null
       name: string
       description?: string

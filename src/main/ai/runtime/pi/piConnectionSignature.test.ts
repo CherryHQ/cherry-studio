@@ -69,6 +69,8 @@ beforeEach(() => {
   mocks.getSession.mockReturnValue({
     id: 'session-1',
     agentId: 'agent-1',
+    agentType: 'pi',
+    modelId: 'provider::model',
     workspaceId: 'workspace-1',
     workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
   })
@@ -87,6 +89,14 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('uses the session model when the agent default is empty', async () => {
+    mocks.getAgent.mockReturnValue({ ...agent, model: null })
+
+    await expect(capturePiConnectionSnapshot('session-1', agent.id)).resolves.toMatchObject({
+      model: { id: 'provider::model' }
+    })
+  })
+
   it('ignores the live permission mode but covers every reconcilable external input', async () => {
     const baseline = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     mocks.getAgent.mockReturnValueOnce({

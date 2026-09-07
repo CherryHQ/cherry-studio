@@ -68,7 +68,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import type { AgentEntity } from '@shared/data/types/agent'
+import type { AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
@@ -281,6 +281,7 @@ const createSkillQuickPanelItems = (
 }
 
 type AgentComposerSessionSnapshot = {
+  agentType: AgentType
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
 }
@@ -315,6 +316,7 @@ type Props = {
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   canChangeAgent?: boolean
+  canChangeAgentType?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
@@ -344,6 +346,7 @@ const AgentComposerRoot = ({
   onAgentChange,
   agentChanging,
   canChangeAgent = false,
+  canChangeAgentType = false,
   workspaceId,
   onWorkspaceChange,
   workspaceChanging,
@@ -424,7 +427,7 @@ const AgentComposerRoot = ({
     return {
       agentId,
       sessionId,
-      agentType: agent.type,
+      agentType: session.agentType,
       accessiblePaths,
       slashCommands: sessionSlashCommands,
       knowledgeBaseIds: agent.knowledgeBaseIds ?? []
@@ -474,6 +477,7 @@ const AgentComposerRoot = ({
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
         canChangeAgent={canChangeAgent}
+        canChangeAgentType={canChangeAgentType}
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
@@ -516,6 +520,7 @@ interface InnerProps {
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
   canChangeAgent: boolean
+  canChangeAgentType: boolean
   onWorkspaceChange?: Props['onWorkspaceChange']
   workspaceChanging?: boolean
   canChangeModel: boolean
@@ -735,6 +740,7 @@ const AgentComposerInner = ({
   onAgentChange,
   agentChanging,
   canChangeAgent,
+  canChangeAgentType,
   onWorkspaceChange,
   workspaceChanging,
   canChangeModel,
@@ -775,7 +781,7 @@ const AgentComposerInner = ({
     customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
-  const agentModelFilter = useAgentModelFilter(agent?.type)
+  const agentModelFilter = useAgentModelFilter(sessionData?.agentType)
   const isModelDisabled = useAgentModelDisabled()
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
@@ -1355,6 +1361,13 @@ const AgentComposerInner = ({
     },
     [agent, updateAgent]
   )
+  const handleAgentTypeChange = useCallback(
+    async (agentType: AgentType) => {
+      if (!sessionData || agentType === sessionData.agentType) return
+      await updateSession({ id: sessionId, agentType, modelId: null }, { showSuccessToast: false })
+    },
+    [sessionData, sessionId, updateSession]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1680,6 +1693,7 @@ const AgentComposerInner = ({
 
   const controlSlots = renderControls({
     agent,
+    agentType: sessionData?.agentType,
     model,
     workspace,
     workspaceId,
@@ -1689,6 +1703,7 @@ const AgentComposerInner = ({
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
     agentTriggerMode: canChangeAgent ? 'selector' : 'edit',
+    canChangeAgentType,
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
     topBarPortalIconOnly,
@@ -1698,6 +1713,7 @@ const AgentComposerInner = ({
     isModelDisabled,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
+    onAgentTypeChange: handleAgentTypeChange,
     onWorkspaceChange,
     workspaceChanging
   })
@@ -1867,6 +1883,7 @@ const MissingAgentHomeComposerInner = ({
   })
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
+    agentType: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
     selectModelLabel: t('button.select_model'),
@@ -1875,11 +1892,13 @@ const MissingAgentHomeComposerInner = ({
     workspaceId: null,
     agentChanging,
     agentTriggerMode: 'selector',
+    canChangeAgentType: false,
     shouldAutoSelectCreatedAgent: true,
     topBarPortalAvailable,
     topBarPortalIconOnly,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
+    onAgentTypeChange: () => undefined,
     onModelSelect: () => undefined,
     // The workspace selector stays disabled until an agent creates a real session.
     onWorkspaceChange: undefined
@@ -1968,6 +1987,7 @@ export const AgentHomeComposer = (props: Props) => {
       key={props.agentId}
       {...props}
       canChangeAgent={props.canChangeAgent ?? true}
+      canChangeAgentType={props.canChangeAgentType ?? true}
       forceNarrowLayout
       renderControls={renderAgentHomeControls}
     />

@@ -306,8 +306,10 @@ describe('AgentsDbMappings', () => {
 
     const sessionInsert = find('agent_session')
     expect(sessionInsert).toContain(
-      'INSERT INTO agent_session (id, agent_id, model_id, name, description, workspace_id, order_key, last_activity_at, created_at, updated_at)'
+      'INSERT INTO agent_session (id, agent_id, agent_type, model_id, name, description, workspace_id, order_key, last_activity_at, created_at, updated_at)'
     )
+    expect(sessionInsert).toContain("CASE WHEN type = 'cherry-claw' THEN 'claude-code' ELSE type END")
+    expect(sessionInsert).toContain('FROM agent WHERE agent.id = sessions.agent_id) AS agent_type')
     expect(sessionInsert).toContain('(SELECT model FROM agent WHERE agent.id = sessions.agent_id) AS model_id')
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
     expect(sessionInsert).toContain(

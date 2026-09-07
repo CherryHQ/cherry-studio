@@ -8,6 +8,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import type { AgentType } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -94,7 +95,7 @@ const mocks = vi.hoisted(() => ({
     | {
         assistant?: { modelId?: string | null }
         model?: Model
-        session?: { agentId?: string }
+        session?: { agentId?: string; agentType?: AgentType }
       }
     | undefined,
   speedControlProps: undefined as
@@ -195,6 +196,7 @@ type TestComposerProps = Omit<
   >
 
 const createControlledSession = (): ControlledComposerProps['sessionOverride'] => ({
+  agentType: 'claude-code',
   workspaceId: mocks.sessionWorkspaceId,
   workspace: {
     id: mocks.sessionWorkspaceId,
@@ -1324,6 +1326,7 @@ describe('AgentComposer', () => {
         agentId="agent-1"
         sessionId="session-1"
         sessionOverride={{
+          agentType: 'pi',
           workspaceId: 'workspace-1',
           workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
         }}
@@ -1339,6 +1342,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+    expect(mocks.runtimeHostProps?.session?.agentType).toBe('pi')
   })
 
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
@@ -5406,6 +5410,7 @@ describe('AgentComposer', () => {
         agentId="agent-1"
         sessionId="session-1"
         sessionOverride={{
+          agentType: 'claude-code',
           workspaceId: 'system-workspace-1',
           workspace: {
             id: 'system-workspace-1',

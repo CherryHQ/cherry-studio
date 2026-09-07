@@ -827,20 +827,35 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('copies the agent model on create and updates only the target session model', async () => {
+  it('copies agent routing defaults on create and updates only the target session', async () => {
     await seedAgentModels()
     const first = await createSession('First model session')
     const second = await createSession('Second model session')
 
     expect(first.modelId).toBe(defaultModelId)
     expect(second.modelId).toBe(defaultModelId)
+    expect(first.agentType).toBe('claude-code')
+    expect(second.agentType).toBe('claude-code')
 
-    const updated = agentSessionService.update(first.id, { modelId: alternateModelId })
+    const updated = agentSessionService.update(first.id, { modelId: alternateModelId, agentType: 'pi' })
 
     expect(updated.modelId).toBe(alternateModelId)
+    expect(updated.agentType).toBe('pi')
     expect(agentSessionService.getById(second.id).modelId).toBe(defaultModelId)
+    expect(agentSessionService.getById(second.id).agentType).toBe('claude-code')
     const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-session-test'))
     expect(agent.model).toBe(defaultModelId)
+    expect(agent.type).toBe('claude-code')
+  })
+
+  it('rejects runtime changes after messages are sent', async () => {
+    const session = await createSession('Locked runtime session')
+    await insertSessionMessage(session.id, 'message-locks-runtime')
+
+    expect(captureError(() => agentSessionService.update(session.id, { agentType: 'pi' }))).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+    expect(agentSessionService.getById(session.id).agentType).toBe('claude-code')
   })
 
   it('rejects an unregistered session model without changing the stored model', async () => {

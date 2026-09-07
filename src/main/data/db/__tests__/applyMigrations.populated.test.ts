@@ -154,6 +154,37 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('backfills each existing session from its agent runtime', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0022_cold_lockheed'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-session-runtime', 'Workspace', '/tmp/session-runtime', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const insertAgent = sqlite.prepare(
+      `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, '', ?, ?, ?)`
+    )
+    insertAgent.run('agent-session-pi', 'pi', 'Pi Agent', 'a0', now, now)
+    insertAgent.run('agent-session-legacy', 'cherry-claw', 'Legacy Agent', 'a1', now, now)
+    const insertSession = sqlite.prepare(
+      `INSERT INTO agent_session
+         (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+       VALUES (?, ?, ?, 'workspace-session-runtime', ?, ?, ?, ?)`
+    )
+    insertSession.run('session-pi', 'agent-session-pi', 'Pi Session', 'a0', now, now, now)
+    insertSession.run('session-legacy', 'agent-session-legacy', 'Legacy Session', 'a1', now, now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT id, agent_type FROM agent_session ORDER BY id').all()).toEqual([
+      { id: 'session-legacy', agent_type: 'claude-code' },
+      { id: 'session-pi', agent_type: 'pi' }
+    ])
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0013_graceful_bloodstrike'))
     const now = Date.now()

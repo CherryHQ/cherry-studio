@@ -61,11 +61,12 @@ export async function captureDshConnectionSnapshot(
 ): Promise<DshConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  if (!session?.agentId || session.agentId !== agentId || !agent) {
     throw new DshInvalidConnectionSnapshotError(`Invalid dsh session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
+  const modelId = requestedModelId ?? session.modelId
+  if (!modelId) throw new DshInvalidConnectionSnapshotError(`Invalid dsh session snapshot: ${sessionId}`)
   const parsed = parseUniqueModelId(modelId)
   const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
     providerService.getByProviderId(parsed.providerId),

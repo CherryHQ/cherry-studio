@@ -90,6 +90,7 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,
+  agentType: overrides.agentType ?? 'claude-code',
   isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
 })
 
