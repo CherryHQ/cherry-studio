@@ -17,6 +17,8 @@ an accessibility snapshot with `eN` references and show changes by default.
 Old snapshot numbers were decorative; new references can target interaction tools.
 The snapshot `selector` argument is replaced by `scope`, which accepts a ref.
 Invalid tab IDs fail instead of silently falling back to the active tab.
+A targeted `reset` requires both `tabId` and `privateMode`; incomplete targets
+return an error without closing unrelated windows.
 
 ## What the user should do
 

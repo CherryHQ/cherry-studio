@@ -4,10 +4,12 @@ import type { CdpBrowserController } from '../controller'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
-export const ResetSchema = z.object({
-  privateMode: z.boolean().optional().describe('true=private window, false=normal window, omit=all windows'),
-  tabId: z.string().optional().describe('Close specific tab only (requires privateMode)')
-})
+export const ResetSchema = z
+  .object({
+    privateMode: z.boolean().optional().describe('true=private window, false=normal window, omit=all windows'),
+    tabId: z.string().min(1).optional().describe('Close specific tab only (requires privateMode)')
+  })
+  .refine((input) => input.tabId === undefined || input.privateMode !== undefined, 'privateMode is required with tabId')
 
 export const resetToolDefinition = {
   name: 'reset',

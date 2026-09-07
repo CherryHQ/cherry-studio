@@ -62,7 +62,7 @@ export async function handleWaitFor(controller: CdpBrowserController, args: unkn
     while (true) {
       options.signal?.throwIfAborted()
       if (Date.now() >= options.deadline) throw new BrowserSessionError('timeout')
-      if (input.ref) session.resolveRef(input.ref)
+      if (input.ref && !input.gone) session.resolveRef(input.ref)
       const result = await session.snapshot({ full: true }, options)
       const checks: boolean[] = []
       if (input.text !== undefined) checks.push(result.snapshot.nodes.some((node) => node.name.includes(input.text!)))

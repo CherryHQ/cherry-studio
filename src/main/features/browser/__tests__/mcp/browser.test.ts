@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
+import { handleWaitFor } from '../../mcp/tools/navigate'
+import { handleReset } from '../../mcp/tools/reset'
 import { createGuest } from '../guestFixture'
 
 vi.mock('electron', async () => {
@@ -125,6 +127,79 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it('does not close unrelated tabs for an incomplete reset target', async () => {
+    const c = controller()
+    const normal = await c.createTab(false)
+    const privateTab = await c.createTab(true)
+    expect((await handleReset(c, { tabId: normal.tabId })).isError).toBe(true)
+    expect((await handleReset(c, { tabId: '', privateMode: false })).isError).toBe(true)
+    await expect(c.reset(undefined, normal.tabId)).rejects.toMatchObject({ code: 'not_allowed' })
+    expect(normal.view.webContents.isDestroyed()).toBe(false)
+    expect(privateTab.view.webContents.isDestroyed()).toBe(false)
+    await c.reset(false, normal.tabId)
+    expect(normal.view.webContents.isDestroyed()).toBe(true)
+    expect(privateTab.view.webContents.isDestroyed()).toBe(false)
+  })
+
+  it('reports unknown close targets without closing another tab', async () => {
+    const c = controller()
+    const tab = await c.createTab()
+    await expect(c.closeTab(false, 'unknown')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(c.closeTab(true, tab.tabId)).rejects.toMatchObject({ code: 'not_found' })
+    expect(tab.view.webContents.isDestroyed()).toBe(false)
+  })
+
+  it('keeps a replacement window alive when a previous window finishes closing', async () => {
+    const c = controller()
+    await c.createTab()
+    const oldWindow = [...windows.values()][0]
+    const finishClose = oldWindow.close.bind(oldWindow)
+    vi.spyOn(oldWindow, 'close').mockImplementation(() => undefined)
+    await c.reset(false)
+    const replacement = await c.createTab()
+    try {
+      finishClose()
+      expect(replacement.view.webContents.isDestroyed()).toBe(false)
+      expect((await c.getSession(false, replacement.tabId)).session.guest).toBe(replacement.view.webContents)
+    } finally {
+      finishClose()
+    }
+  })
+
+  it('waits for resources already closing before disposal begins', async () => {
+    const c = controller()
+    const tab = await c.createTab()
+    const guest = tab.view.webContents
+    const finishGuest = vi.mocked(guest.close).getMockImplementation()!.bind(guest)
+    vi.mocked(guest.close).mockImplementation(() => undefined)
+    await c.reset(false)
+    let stopped = false
+    const closing = c.dispose().then(() => {
+      stopped = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    try {
+      expect(stopped).toBe(false)
+    } finally {
+      finishGuest()
+      await closing
+    }
+    expect(guest.isDestroyed()).toBe(true)
+  })
+
+  it('treats a ref from the previous document as gone after navigation', async () => {
+    const c = controller()
+    const { tabId } = await c.createTab()
+    const { session } = await c.getSession(false, tabId)
+    const before = await session.snapshot({ full: true })
+    const ref = before.snapshot.nodes.find((node) => node.ref)!.ref!
+    await c.open('https://example.com/next')
+    const result = await handleWaitFor(c, { tabId, ref, gone: true })
+    expect(result.isError).not.toBe(true)
+    expect(JSON.parse((result.content[0] as { text: string }).text).ok).toBe(true)
+    expect((await handleWaitFor(c, { tabId, ref, gone: false })).isError).toBe(true)
+  })
+
   it('keeps disposal pending until Electron reports the managed page destroyed', async () => {
     const c = controller()
     const { view } = await c.createTab()

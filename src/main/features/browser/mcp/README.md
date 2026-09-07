@@ -77,3 +77,8 @@ The MCP runtime currently has no trusted agent session/workdir or turn identity.
 Owners are connection-scoped; retention is not per turn. Uploads are deferred
 until that upstream context exists. WebMCP, inspection tools, retained-tab
 freezing, WebContentsView migration and visible-pane control are later layers.
+
+A targeted `reset` requires both `tabId` and `privateMode`; incomplete or unknown
+targets fail without closing other tabs. `wait_for({ ref, gone: true })` succeeds
+when navigation has invalidated that ref. Closing windows and contents stay owned
+until native destruction completes, and their callbacks cannot remove replacements.

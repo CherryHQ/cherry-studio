@@ -185,7 +185,7 @@ describe('browser snapshots', () => {
     const raw = fixture()
     const key = raw.dom!.strings.push('href') - 1
     const value = raw.dom!.strings.push(href) - 1
-    raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+    raw.dom!.documents[0].nodes.attributes![2] = [key, value]
     const tree = buildSnapshotTree(raw, (id) => `e${id}`)
     expect(tree.nodes.find((node) => node.backendNodeId === 3)?.props).toContain(`href=${safeHref}`)
     expect(JSON.stringify(tree)).not.toContain('SECRET')

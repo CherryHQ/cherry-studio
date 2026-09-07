@@ -28,6 +28,8 @@ export class CdpBrowserController {
   private closing?: Promise<void>
   private creatingTabs = 0
   private readonly openingWindows = new Map<string, Promise<WindowInfo>>()
+  private readonly closingWindows = new Set<WindowInfo>()
+  private readonly closingContents = new Set<Electron.WebContents>()
   private turndownServicePromise?: Promise<TurndownService>
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
@@ -63,11 +65,12 @@ export class CdpBrowserController {
     this.closing = Promise.resolve().then(async () => {
       nativeTheme.removeListener('updated', this.handleThemeUpdated)
       await Promise.allSettled(this.openingWindows.values())
-      const windows = [...this.windows.values()]
+      const windows = [...this.windows.values(), ...this.closingWindows]
       const pending = windows.flatMap((info) => [...info.tabs.values()].flatMap((tab) => [tab.ready, tab.popup]))
       const controller = new AbortController()
-      const closed = Promise.allSettled(
-        windows.flatMap((info) => {
+      const closed = Promise.allSettled([
+        ...[...this.closingContents].map((guest) => once(guest, 'destroyed', { signal: controller.signal })),
+        ...windows.flatMap((info) => {
           const contents = [...info.tabs.values()].map((tab) => tab.view.webContents)
           if (info.tabBarView) contents.push(info.tabBarView.webContents)
           return [
@@ -77,7 +80,7 @@ export class CdpBrowserController {
             ...(info.window.isDestroyed() ? [] : [once(info.window, 'closed', { signal: controller.signal })])
           ]
         })
-      )
+      ])
       try {
         await this.reset()
         await Promise.allSettled([...pending, closed])
@@ -122,7 +125,7 @@ export class CdpBrowserController {
     if (!tab) return
     windowInfo.tabs.delete(tabId)
     if (!windowInfo.window.isDestroyed()) windowInfo.window.removeBrowserView(tab.view)
-    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close({ waitForBeforeUnload: false })
+    this.closeContents(tab.view.webContents)
     if (windowInfo.activeTabId === tabId) {
       windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
       const next = windowInfo.activeTabId && windowInfo.tabs.get(windowInfo.activeTabId)
@@ -135,12 +138,18 @@ export class CdpBrowserController {
     if (!windowInfo.tabs.size && !this.creatingTabs) this.closeWindow(windowInfo)
   }
 
-  // All controller-initiated window closes go through WindowManager, which owns
-  // the BrowserWindow lifecycle; the per-window 'closed' listener does map cleanup.
+  private closeContents(guest: Electron.WebContents) {
+    if (guest.isDestroyed() || this.closingContents.has(guest)) return
+    this.closingContents.add(guest)
+    guest.once('destroyed', () => this.closingContents.delete(guest))
+    guest.close({ waitForBeforeUnload: false })
+  }
+
   private closeWindow(windowInfo: WindowInfo) {
-    if (!windowInfo.window.isDestroyed()) {
-      application.get('WindowManager').close(windowInfo.windowId)
-    }
+    if (windowInfo.window.isDestroyed() || this.closingWindows.has(windowInfo)) return
+    this.closingWindows.add(windowInfo)
+    if (this.windows.get(windowInfo.windowKey) === windowInfo) this.windows.delete(windowInfo.windowKey)
+    application.get('WindowManager').close(windowInfo.windowId)
   }
 
   private sendTabBarUpdate(windowInfo: WindowInfo) {
@@ -323,7 +332,6 @@ export class CdpBrowserController {
   }
 
   private async createBrowserWindow(
-    windowKey: string,
     privateMode: boolean,
     showWindow = false
   ): Promise<{ window: BrowserWindow; windowId: string }> {
@@ -341,20 +349,6 @@ export class CdpBrowserController {
       throw new Error('MCP browser window not found after open')
     }
     if (showWindow) win.show()
-
-    win.on('closed', () => {
-      const windowInfo = this.windows.get(windowKey)
-      if (windowInfo) {
-        this.windows.delete(windowKey)
-        if (windowInfo.tabBarView && !windowInfo.tabBarView.webContents.isDestroyed())
-          windowInfo.tabBarView.webContents.close({ waitForBeforeUnload: false })
-        const tabIds = Array.from(windowInfo.tabs.keys())
-        for (const tabId of tabIds) {
-          this.closeTabInternal(windowInfo, tabId)
-        }
-        this.windows.delete(windowKey)
-      }
-    })
 
     return { window: win, windowId }
   }
@@ -384,8 +378,8 @@ export class CdpBrowserController {
     const windowKey = this.getWindowKey(privateMode)
 
     let windowInfo = this.windows.get(windowKey)
-    if (!windowInfo) {
-      const { window, windowId } = await this.createBrowserWindow(windowKey, privateMode, showWindow)
+    if (!windowInfo || windowInfo.window.isDestroyed()) {
+      const { window, windowId } = await this.createBrowserWindow(privateMode, showWindow)
       windowInfo = {
         windowKey,
         privateMode,
@@ -395,16 +389,18 @@ export class CdpBrowserController {
         activeTabId: null,
         tabBarView: undefined
       }
+      const info = windowInfo
+      window.on('closed', () => {
+        if (this.windows.get(windowKey) === info) this.windows.delete(windowKey)
+        if (info.tabBarView) this.closeContents(info.tabBarView.webContents)
+        for (const tabId of [...info.tabs.keys()]) this.closeTabInternal(info, tabId)
+        this.closingWindows.delete(info)
+      })
       this.windows.set(windowKey, windowInfo)
       const tabBarView = this.createTabBarView(windowInfo)
       windowInfo.tabBarView = tabBarView
 
-      // Register resize listener once per window (not per tab)
-      // Capture windowKey to look up fresh windowInfo on each resize
-      windowInfo.window.on('resize', () => {
-        const info = this.windows.get(windowKey)
-        if (info) this.updateViewBounds(info)
-      })
+      window.on('resize', () => this.updateViewBounds(info))
 
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
@@ -512,7 +508,7 @@ export class CdpBrowserController {
         close: () => this.destroyTab(windowInfo, tabId)
       })
     } catch (error) {
-      view.webContents.close({ waitForBeforeUnload: false })
+      this.closeContents(view.webContents)
       if (!windowInfo.tabs.size) this.closeWindow(windowInfo)
       throw error
     } finally {
@@ -689,34 +685,11 @@ export class CdpBrowserController {
   }
 
   public async reset(privateMode?: boolean, tabId?: string) {
-    if (privateMode !== undefined && tabId) {
-      const windowKey = this.getWindowKey(privateMode)
-      const windowInfo = this.windows.get(windowKey)
-      if (windowInfo) {
-        this.closeTabInternal(windowInfo, tabId)
-        windowInfo.tabs.delete(tabId)
-
-        // If no tabs left, close the window
-        if (windowInfo.tabs.size === 0) {
-          this.closeWindow(windowInfo)
-          this.windows.delete(windowKey)
-          logger.info('Browser CDP window closed (last tab closed)', { windowKey, tabId })
-          return
-        }
-
-        if (windowInfo.activeTabId === tabId) {
-          windowInfo.activeTabId = windowInfo.tabs.keys().next().value ?? null
-          if (windowInfo.activeTabId) {
-            const newActiveTab = windowInfo.tabs.get(windowInfo.activeTabId)
-            if (newActiveTab && !windowInfo.window.isDestroyed()) {
-              windowInfo.window.setTopBrowserView(newActiveTab.view)
-              this.updateViewBounds(windowInfo)
-            }
-          }
-        }
-        this.sendTabBarUpdate(windowInfo)
-      }
-      logger.info('Browser CDP tab reset', { windowKey, tabId })
+    if (tabId !== undefined) {
+      if (privateMode === undefined) throw new BrowserSessionError('not_allowed')
+      const windowInfo = this.windows.get(this.getWindowKey(privateMode))
+      if (!windowInfo?.tabs.has(tabId)) throw new BrowserSessionError('not_found')
+      this.closeTabInternal(windowInfo, tabId)
       return
     }
 
