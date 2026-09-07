@@ -230,6 +230,7 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
+  // Every output write goes through smoothReset: a direct setTranslateOutput is replayed over by the queue's next frame.
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
   const {
     translate: runTranslate,
@@ -283,7 +284,7 @@ const TranslatePage: FC = () => {
     pdfHandleRef.current = null
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
-    if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
+    if (pdfTextFallbackStartedRef.current) smoothReset(prePdfOutputRef.current ?? '')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
@@ -294,7 +295,7 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, smoothReset])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -322,10 +323,10 @@ const TranslatePage: FC = () => {
     (value: string) => {
       setTranslateInput(value)
       if (isEmpty(value)) {
-        setTranslateOutput('')
+        smoothReset('')
       }
     },
-    [setTranslateInput, setTranslateOutput]
+    [setTranslateInput, smoothReset]
   )
 
   const onCopyInput = useCallback(async () => {
@@ -572,14 +573,14 @@ const TranslatePage: FC = () => {
     void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInput(translateOutput)
-    setTranslateOutput(translateInput)
+    smoothReset(translateInput)
   }, [
     isDetecting,
     safePersist,
     setSourceLanguage,
     setTargetLanguage,
     setTranslateInput,
-    setTranslateOutput,
+    smoothReset,
     sourceLanguage,
     targetLanguage,
     translateInput,
@@ -606,12 +607,14 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
+        if (isTranslating) cancel()
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
+        if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
-        setTranslateOutput(history.targetText)
+        smoothReset(history.targetText)
       }
 
       if (history.kind === 'file' || history.sourceLanguage) {
@@ -621,12 +624,14 @@ const TranslatePage: FC = () => {
       setHistoryOpen(false)
     },
     [
+      cancel,
+      isTranslating,
       resetPdfMode,
       safePersist,
       setSourceLanguage,
       setTargetLanguage,
       setTranslateInput,
-      setTranslateOutput,
+      smoothReset,
       t,
       targetLanguage
     ]
