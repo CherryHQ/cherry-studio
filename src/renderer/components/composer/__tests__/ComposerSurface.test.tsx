@@ -1747,7 +1747,7 @@ describe('ComposerSurface', () => {
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 
-  it('discards prompt-variable IME completion after the composer becomes read-only', async () => {
+  it('discards prompt-variable IME completion across a read-only restoration', async () => {
     mocks.selection = {
       from: 5,
       node: {
@@ -1767,6 +1767,14 @@ describe('ComposerSurface', () => {
 
     view.rerender(<ComposerSurface {...baseProps} editable={false} />)
     expect(mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '上海' })).toBe(false)
+    expect(mocks.transaction.setNodeMarkup).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+
+    expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
+    expect(mocks.transaction.setNodeMarkup).not.toHaveBeenCalled()
+
+    view.rerender(<ComposerSurface {...baseProps} editable />)
+    expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).not.toHaveBeenCalled()
     expect(mocks.dispatch).not.toHaveBeenCalled()
   })

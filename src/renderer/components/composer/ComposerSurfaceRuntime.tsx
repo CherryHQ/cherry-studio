@@ -1564,6 +1564,7 @@ export default function ComposerSurfaceRuntime({
         return false
       },
       handleTextInput: (view, from, to, insertedText) => {
+        if (!editableRef.current) return true
         const editor = editorRef.current
         if (!editor || editor.isDestroyed) return false
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
@@ -1640,8 +1641,16 @@ export default function ComposerSurfaceRuntime({
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          const nextValue = data || composingToken?.text || ''
 
-          if (!editableRef.current || !editor || editor.isDestroyed || !composingToken) {
+          if (!editableRef.current) {
+            promptVariableEditRef.current = null
+            promptVariableSkipTextInputRef.current =
+              composingToken && nextValue ? { tokenId: composingToken.tokenId, text: nextValue } : null
+            return false
+          }
+          if (!editor || editor.isDestroyed || !composingToken) {
             promptVariableEditRef.current = null
             promptVariableSkipTextInputRef.current = null
             return false
@@ -1649,8 +1658,6 @@ export default function ComposerSurfaceRuntime({
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
           if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
 
-          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
-          const nextValue = data || composingToken.text
           if (!nextValue) return true
           const limitedNextValue = getComposerInputTextWithinLimit(
             textRef.current,
