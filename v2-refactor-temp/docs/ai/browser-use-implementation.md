@@ -1161,3 +1161,7 @@ other website links open `/app/browser` tabs through main-window navigation, sha
 IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
 external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
 their existing handling.
+
+Standalone browser tabs synchronize page titles and favicons from Electron WebView events into the
+tab model. Main-frame document navigation clears the previous site's icon; missing or failed favicon
+images fall back to a globe. Subframe navigation does not change the tab metadata.

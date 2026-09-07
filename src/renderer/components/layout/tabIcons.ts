@@ -22,6 +22,7 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 
 export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
+  '/app/browser': Globe,
   '/app/agents': MousePointerClick,
   '/app/paintings': Palette,
   '/app/translate': Languages,

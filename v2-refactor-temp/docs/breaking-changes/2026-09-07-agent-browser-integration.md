@@ -21,6 +21,7 @@ off leaves manual browsing and saved login data available.
 History entries open directly in new browser tabs, without an Agent conversation. These tabs share
 website data with ordinary Agent browser panes. Their address bars search browsing history by title
 or URL, with mouse and keyboard selection.
+Browser tabs follow the current page title and favicon after navigation; missing or failed icons show a globe.
 
 Browser control now appears under the Agent’s built-in tools. Browser settings owns tool permissions
 (ask, allow or block); the legacy browser entry no longer appears in MCP settings or Agent MCP selection.

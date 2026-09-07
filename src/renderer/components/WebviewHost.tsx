@@ -10,6 +10,8 @@ import type {
   DidNavigateInPageEvent,
   DidStartNavigationEvent,
   IpcMessageEvent,
+  PageFaviconUpdatedEvent,
+  PageTitleUpdatedEvent,
   WebviewTag
 } from 'electron'
 import type { CSSProperties } from 'react'
@@ -38,6 +40,8 @@ interface Props {
   onReadyToShow?: () => void
   onDidNavigate?: (event: DidNavigateEvent | DidNavigateInPageEvent) => void
   onDidFailLoad?: (event: DidFailLoadEvent) => void
+  onPageTitleUpdated?: (event: PageTitleUpdatedEvent) => void
+  onPageFaviconUpdated?: (event: PageFaviconUpdatedEvent) => void
 }
 
 /**
@@ -64,7 +68,9 @@ export function WebviewHost({
   onDidFinishLoad,
   onReadyToShow,
   onDidNavigate,
-  onDidFailLoad
+  onDidFailLoad,
+  onPageTitleUpdated,
+  onPageFaviconUpdated
 }: Props) {
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [webview, setWebview] = useState<WebviewTag | null>(null)
@@ -148,6 +154,8 @@ export function WebviewHost({
     webview.addEventListener('did-navigate', handleNavigate)
     webview.addEventListener('did-navigate-in-page', handleNavigate)
     webview.addEventListener('did-fail-load', onDidFailLoad ?? noop)
+    webview.addEventListener('page-title-updated', onPageTitleUpdated ?? noop)
+    webview.addEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
 
     try {
       // Activity can resume an already-loaded guest without another dom-ready event.
@@ -166,6 +174,8 @@ export function WebviewHost({
       webview.removeEventListener('did-navigate', handleNavigate)
       webview.removeEventListener('did-navigate-in-page', handleNavigate)
       webview.removeEventListener('did-fail-load', onDidFailLoad ?? noop)
+      webview.removeEventListener('page-title-updated', onPageTitleUpdated ?? noop)
+      webview.removeEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
   }, [
@@ -176,6 +186,8 @@ export function WebviewHost({
     onDidStartLoading,
     onDidStartNavigation,
     onDomReady,
+    onPageTitleUpdated,
+    onPageFaviconUpdated,
     onReadyToShow,
     webview
   ])

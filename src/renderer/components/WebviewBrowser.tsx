@@ -1,7 +1,13 @@
 import { useAgentBrowserGuest } from '@renderer/hooks/agent/useAgentBrowserGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import type { DidFailLoadEvent, WebviewTag } from 'electron'
+import type {
+  DidFailLoadEvent,
+  DidStartNavigationEvent,
+  PageFaviconUpdatedEvent,
+  PageTitleUpdatedEvent,
+  WebviewTag
+} from 'electron'
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
@@ -20,6 +26,8 @@ interface Props {
     | typeof WebviewSecurityProfile.AgentHtmlArtifact
   agentSessionId?: string
   onNavigate?: (url: string) => void
+  onTitleChange?: (title: string) => void
+  onFaviconChange?: (url: string | undefined) => void
   target: WebviewAnnotationTarget
   isHostActive: boolean
   reloadKey?: number | string
@@ -32,6 +40,8 @@ export function WebviewBrowser({
   initialUrl,
   agentSessionId,
   onNavigate,
+  onTitleChange,
+  onFaviconChange,
   securityProfile,
   target,
   isHostActive,
@@ -59,9 +69,36 @@ export function WebviewBrowser({
     setLoadFailed(false)
   }, [])
 
-  const handleDomReady = useCallback(() => {
-    setIsReady(true)
-  }, [])
+  const handleDomReady = useCallback(
+    (guest: WebviewTag) => {
+      setIsReady(true)
+      if (onTitleChange) onTitleChange(guest.getTitle() || guest.getURL())
+    },
+    [onTitleChange]
+  )
+
+  const handleDidStartNavigation = useCallback(
+    (event: DidStartNavigationEvent) => {
+      if (!event.isMainFrame || event.isInPlace) return
+      onTitleChange?.(event.url)
+      onFaviconChange?.(undefined)
+    },
+    [onTitleChange, onFaviconChange]
+  )
+
+  const handlePageTitleUpdated = useCallback(
+    (event: PageTitleUpdatedEvent) => {
+      onTitleChange?.(event.title || webviewRef.current?.getURL() || initialUrl)
+    },
+    [initialUrl, onTitleChange]
+  )
+
+  const handlePageFaviconUpdated = useCallback(
+    (event: PageFaviconUpdatedEvent) => {
+      onFaviconChange?.(event.favicons.find((url) => /^https?:\/\//i.test(url) || url.startsWith('data:image/')))
+    },
+    [onFaviconChange]
+  )
 
   const handleDidFinishLoad = useCallback(() => {
     setIsReady(true)
@@ -104,6 +141,9 @@ export function WebviewBrowser({
           onWebviewChange={handleWebviewChange}
           onDomReady={handleDomReady}
           onDidStartLoading={handleDidStartLoading}
+          onDidStartNavigation={handleDidStartNavigation}
+          onPageTitleUpdated={handlePageTitleUpdated}
+          onPageFaviconUpdated={handlePageFaviconUpdated}
           onDidFinishLoad={handleDidFinishLoad}
           onDidFailLoad={handleDidFailLoad}
         />

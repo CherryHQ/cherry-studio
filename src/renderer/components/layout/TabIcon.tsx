@@ -1,8 +1,10 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
+import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 
 import type { Tab } from '../../hooks/tab'
@@ -18,6 +20,16 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
   // itself loads async (a size-stable placeholder covers that brief window).
   const Logo = useMiniAppLogo(tab.icon)
   const isMiniApp = tab.url.startsWith(MINI_APP_ROUTE_PREFIX)
+  if (tab.url === '/app/browser' || tab.url.startsWith('/app/browser?')) {
+    return (
+      <Avatar className={cn('rounded-[3px]', className)} style={{ width: size, height: size }}>
+        <AvatarImage src={tab.icon} alt="" referrerPolicy="no-referrer" />
+        <AvatarFallback className="rounded-none bg-transparent">
+          <Globe size={size} strokeWidth={1.6} />
+        </AvatarFallback>
+      </Avatar>
+    )
+  }
   if (tab.icon) {
     // Per-entity emoji (chat assistant / agent avatar), stored as `emoji:<glyph>`.
     if (tab.icon.startsWith(TAB_ICON_EMOJI_PREFIX)) {
