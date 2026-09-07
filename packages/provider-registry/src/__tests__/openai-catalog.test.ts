@@ -97,6 +97,20 @@ describe('OpenAI catalog', () => {
     })
   })
 
+  // The base catalog infers the platform-API ladder for gpt-5.6 (`none`…`xhigh`), which the Codex
+  // backend neither accepts (`none`) nor is limited to (`max`/`ultra`); each SKU carries its own.
+  it.each([
+    ['gpt-5-6-sol', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], 'low'],
+    ['gpt-5-6-terra', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], 'medium'],
+    ['gpt-5-6-luna', ['low', 'medium', 'high', 'xhigh', 'max'], 'medium'],
+    ['gpt-5-5', ['low', 'medium', 'high', 'xhigh'], 'medium']
+  ])('serves %s on Codex with the backend ladder, not the platform one', (modelId, values, defaultEffort) => {
+    const contract = loader.findOverride('openai-codex', modelId)?.reasoningContracts?.['openai-responses']
+
+    expect(contract?.support?.controls).toEqual([{ default: defaultEffort, kind: 'effort', values }])
+    expect(contract?.support?.defaultEffort).toBe(defaultEffort)
+  })
+
   it('enables OpenAI web search for GPT-6 Astra', () => {
     expect(isServerToolModelEligible('gpt-6-astra', 'openai', 'web-search')).toBe(true)
   })

@@ -20302,19 +20302,61 @@
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-4",
       "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
       "supportsFastMode": true
     },
     {
       "apiModelId": "gpt-5.4-mini",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-4-mini",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      }
     },
     {
       "apiModelId": "gpt-5.5",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-5",
       "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
       "supportsFastMode": true
     },
     {
@@ -20325,6 +20367,20 @@
       },
       "modelId": "gpt-5-6-luna",
       "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
       "supportsFastMode": true
     },
     {
@@ -20335,6 +20391,20 @@
       },
       "modelId": "gpt-5-6-sol",
       "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
       "supportsFastMode": true
     },
     {
@@ -20345,6 +20415,20 @@
       },
       "modelId": "gpt-5-6-terra",
       "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max", "ultra"]
+              }
+            ],
+            "defaultEffort": "medium"
+          }
+        }
+      },
       "supportsFastMode": true
     },
     {
