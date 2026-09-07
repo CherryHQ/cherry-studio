@@ -8,6 +8,38 @@ const prompt: LanguageModelV3CallOptions['prompt'] = [
 
 // Guards patches/@ai-sdk__openai@3.0.109.patch. DeepSeek's Responses API emits
 // response.reasoning_text.delta rather than OpenAI's reasoning summary delta event.
+describe('patched @ai-sdk/openai Responses model capabilities', () => {
+  it('does not send the Codex-only ultra effort to standard OpenAI Astra', async () => {
+    let requestBody: { reasoning?: { effort?: string } } = {}
+    const model = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://api.openai.com/v1',
+      fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+        requestBody = JSON.parse(init?.body as string)
+        return new Response(
+          JSON.stringify({
+            id: 'resp_1',
+            created_at: 0,
+            model: 'gpt-6-astra',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1 }
+          }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+      }
+    }).responses('gpt-6-astra')
+
+    const result = await model.doGenerate({
+      prompt,
+      providerOptions: { openai: { reasoningEffort: 'ultra' } }
+    })
+
+    expect(requestBody.reasoning?.effort).toBeUndefined()
+    expect(result.warnings).toContainEqual(expect.objectContaining({ type: 'unsupported', feature: 'reasoningEffort' }))
+  })
+})
+
 // Without the patch, the SDK accepts the event as an unknown chunk and silently
 // drops the reasoning text before it reaches Cherry Studio's stream pipeline.
 describe('patched @ai-sdk/openai Responses reasoning parser', () => {

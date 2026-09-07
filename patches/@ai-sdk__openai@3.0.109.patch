@@ -2,15 +2,6 @@ diff --git a/dist/index.js b/dist/index.js
 index 48ea06eecf6397b44f4176acea05664541cc4e1f..f6f18ef76f1971e36bd9cdc11123dc868b0965f2 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -69,7 +69,7 @@ function getOpenAILanguageModelCapabilities(modelId) {
-     supportsFlexProcessing,
-     supportsPriorityProcessing,
-     supportsConfigurationUpdate: isGpt6OrLaterModel,
--    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
-     isReasoningModel,
-     systemMessageMode,
-     supportsNonReasoningParameters
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
@@ -172,15 +163,6 @@ diff --git a/dist/index.mjs b/dist/index.mjs
 index 26483821603be3057bd67afc71143f97e8c33ac9..2cbea13c005abf6573beb2c0c86367043cb59cfd 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -55,7 +55,7 @@ function getOpenAILanguageModelCapabilities(modelId) {
-     supportsFlexProcessing,
-     supportsPriorityProcessing,
-     supportsConfigurationUpdate: isGpt6OrLaterModel,
--    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
-     isReasoningModel,
-     systemMessageMode,
-     supportsNonReasoningParameters
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
@@ -342,15 +324,6 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
 index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..be156e6df03cb0ba50118ff8c2b7b1dfb59aabc2 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -104,7 +104,7 @@ function getOpenAILanguageModelCapabilities(modelId) {
-     supportsFlexProcessing,
-     supportsPriorityProcessing,
-     supportsConfigurationUpdate: isGpt6OrLaterModel,
--    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
-     isReasoningModel,
-     systemMessageMode,
-     supportsNonReasoningParameters
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
@@ -512,15 +485,6 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..b391b8de8bb1160e7eada80c84edd92c2db24ea6 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -47,7 +47,7 @@ function getOpenAILanguageModelCapabilities(modelId) {
-     supportsFlexProcessing,
-     supportsPriorityProcessing,
-     supportsConfigurationUpdate: isGpt6OrLaterModel,
--    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
-     isReasoningModel,
-     systemMessageMode,
-     supportsNonReasoningParameters
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
@@ -739,15 +703,6 @@ diff --git a/src/openai-language-model-capabilities.ts b/src/openai-language-mod
 index c4b8d3a71df8690d4851fa0a79fae1ae2eba9144..9802a5d9cd0b2c3fc31b79bf7383c2e321ffd57c 100644
 --- a/src/openai-language-model-capabilities.ts
 +++ b/src/openai-language-model-capabilities.ts
-@@ -56,7 +56,7 @@ export function getOpenAILanguageModelCapabilities(
-     supportsPriorityProcessing,
-     supportsConfigurationUpdate: isGpt6OrLaterModel,
-     supportedReasoningEfforts: isGpt6OrLaterModel
--      ? ['low', 'medium', 'high', 'xhigh', 'max']
-+      ? ['low', 'medium', 'high', 'xhigh', 'max', ...(modelId.startsWith('gpt-6-astra') ? ['ultra'] : [])]
-       : undefined,
-     isReasoningModel,
-     systemMessageMode,
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
 index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868458ae737 100644
 --- a/src/responses/convert-to-openai-responses-input.ts

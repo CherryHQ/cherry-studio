@@ -106,7 +106,7 @@ export const MODEL_ICON_LOADERS = {
   'gpt-5-mini': () => import('./gpt-5-mini').then(({ Gpt5MiniIcon }) => Gpt5MiniIcon),
   'gpt-5-nano': () => import('./gpt-5-nano').then(({ Gpt5NanoIcon }) => Gpt5NanoIcon),
   'gpt-5-pro': () => import('./gpt-5-pro').then(({ Gpt5ProIcon }) => Gpt5ProIcon),
-  'gpt-6-astra': () => import('./gpt-6-astra').then(({ Gpt6AstraIcon }) => Gpt6AstraIcon),
+  'gpt-6-astra': () => import('./gpt-6-astra/gpt-6-astra').then(({ Gpt6AstraIcon }) => Gpt6AstraIcon),
   'gpt-audio': () => import('./gpt-audio').then(({ GptAudioIcon }) => GptAudioIcon),
   'gpt-audio-1-5': () => import('./gpt-audio-1-5').then(({ GptAudio15Icon }) => GptAudio15Icon),
   'gpt-audio-mini': () => import('./gpt-audio-mini').then(({ GptAudioMiniIcon }) => GptAudioMiniIcon),
