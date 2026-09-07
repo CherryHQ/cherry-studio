@@ -11,7 +11,7 @@ const suggestionResponseSchema = z
 export type ConversationSuggestions = [string, string, string]
 
 export interface ConversationSuggestionPersona {
-  name: string
+  name?: string
   description?: string
 }
 
@@ -32,7 +32,7 @@ export function normalizeConversationSuggestionPersona(
 
   return {
     ...persona,
-    name: persona.name.slice(0, CONVERSATION_SUGGESTION_PERSONA_NAME_MAX_LENGTH),
+    name: persona.name?.slice(0, CONVERSATION_SUGGESTION_PERSONA_NAME_MAX_LENGTH),
     description: persona.description?.slice(0, CONVERSATION_SUGGESTION_PERSONA_DESCRIPTION_MAX_LENGTH)
   }
 }

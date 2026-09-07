@@ -94,6 +94,23 @@ describe('conversation suggestion generation', () => {
     expect(oversizedContext.persona?.name).toBe(name)
   })
 
+  it('accepts persona metadata without a name', async () => {
+    const namelessContext: ConversationSuggestionRequestContext = {
+      ...context,
+      persona: { description: 'Reviews changes carefully' }
+    }
+    vi.mocked(ipcApi.request).mockResolvedValue({ text: '{"suggestions":["One","Two","Three"]}' })
+
+    await generateConversationSuggestions(namelessContext, model)
+
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
+      uniqueModelId: model.id,
+      reasoningEffort: 'none',
+      system: expect.any(String),
+      prompt: JSON.stringify(namelessContext)
+    })
+  })
+
   it.each([
     ['wrong count', '{"suggestions":["one","two"]}'],
     ['duplicates', '{"suggestions":["same","same","other"]}'],
