@@ -283,9 +283,21 @@ export function useDoctorController({
 
   const confirmEvidence = useCallback(() => {
     if (session.interaction.kind !== 'confirm-evidence') return
-    dispatch({ type: 'reveal-evidence', checkId: session.interaction.checkId })
+    dispatch({
+      type: 'reveal-evidence',
+      runId: session.interaction.runId,
+      checkId: session.interaction.checkId
+    })
     dispatch({ type: 'finish-interaction', kind: 'confirm-evidence' })
   }, [session.interaction])
+
+  const requestEvidence = useCallback(
+    (checkId: DoctorCheckId) => {
+      if (!viewModel.runId) return
+      dispatch({ type: 'confirm-evidence', runId: viewModel.runId, checkId })
+    },
+    [viewModel.runId]
+  )
 
   const setPanel = useCallback(
     (panel: DoctorPanel) => {
@@ -315,7 +327,7 @@ export function useDoctorController({
     setPanel,
     setPanelInteraction,
     toggleDevTools,
-    requestEvidence: (checkId: DoctorCheckId) => dispatch({ type: 'confirm-evidence', checkId }),
+    requestEvidence,
     viewModel
   }
 }

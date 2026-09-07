@@ -212,9 +212,9 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('requires confirmation before revealing consent-required evidence', () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
-    const { result } = renderHook(() =>
+  it('binds consent-required evidence confirmation to the report run', () => {
+    mocks.doctorState = completedDoctorState()
+    const { rerender, result } = renderHook(() =>
       useDoctorController({
         initialPanel: 'checks',
         onNavigate: vi.fn()
@@ -224,18 +224,28 @@ describe('useDoctorController', () => {
     act(() => result.current.requestEvidence('runtime-claude-login'))
     expect(result.current.session.interaction).toEqual({
       kind: 'confirm-evidence',
+      runId: 'completed-run',
       checkId: 'runtime-claude-login'
     })
-    expect(result.current.session.revealedEvidence).toEqual([])
+    expect(result.current.session.evidenceGrant).toBeUndefined()
 
     act(() => result.current.cancelConfirmation())
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
-    expect(result.current.session.revealedEvidence).toEqual([])
+    expect(result.current.session.evidenceGrant).toBeUndefined()
 
     act(() => result.current.requestEvidence('runtime-claude-login'))
+    const nextState = completedDoctorState()
+    if (nextState.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = { ...nextState, report: { ...nextState.report, runId: 'replacement-run' } }
+    rerender()
     act(() => result.current.confirmEvidence())
+
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
-    expect(result.current.session.revealedEvidence).toEqual(['runtime-claude-login'])
+    expect(result.current.session.evidenceGrant).toEqual({
+      runId: 'completed-run',
+      checkIds: ['runtime-claude-login']
+    })
+    expect(result.current.viewModel.runId).toBe('replacement-run')
   })
 
   it('keeps the shared Doctor report authoritative until the cache publishes a fixed result', async () => {

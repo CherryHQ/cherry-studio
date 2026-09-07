@@ -31,6 +31,7 @@ interface DoctorGroupViewModel {
 
 interface DoctorViewModel {
   readonly status: DoctorState['status']
+  readonly runId?: string
   readonly tier?: DoctorRunTier
   readonly report?: DoctorReport
   readonly rows: readonly DoctorRowViewModel[]
@@ -122,6 +123,7 @@ export function isDoctorRowExpandedByDefault(row: DoctorRowViewModel): boolean {
 
 export function buildDoctorViewModel(state: DoctorState, now = Date.now()): DoctorViewModel {
   const report = state.status === 'completed' ? state.report : undefined
+  const runId = state.status === 'completed' ? state.report.runId : state.status === 'idle' ? undefined : state.runId
   const isStale = report ? Date.parse(report.expiresAt) <= now : false
   const rows = rowsForState(state, isStale)
   const groups = DOMAIN_ORDER.flatMap((domain) => {
@@ -152,6 +154,7 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
 
   return {
     status: state.status,
+    runId,
     tier: state.status === 'running' ? state.tier : report?.tier,
     report,
     rows,
