@@ -1,3 +1,5 @@
+import { application } from '@application'
+import { MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import { messageTable } from '@data/db/schemas/message'
@@ -143,6 +145,44 @@ describe('openHandoffDraft', () => {
     expect(stream.start).not.toHaveBeenCalled()
   })
 
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.IMAGE_GENERATION])(
+    'skips an automatic %s model but rejects it when explicitly selected',
+    async (capability) => {
+      const validModelId = createSummaryModel()
+      const invalidModelId = 'handoff-provider::non-chat' as const
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: invalidModelId,
+          providerId: 'handoff-provider',
+          modelId: 'non-chat',
+          name: 'Non-chat',
+          capabilities: [capability],
+          supportsStreaming: false,
+          orderKey: 'a1'
+        })
+        .run()
+      const topic = topicService.create({ name: 'Model fallback' })
+      for (const modelId of [validModelId, invalidModelId]) {
+        messageService.create(topic.id, {
+          role: 'assistant',
+          status: 'success',
+          modelId,
+          data: { parts: [{ type: 'text', text: 'source evidence' }] }
+        })
+      }
+      await application.get('PreferenceService').set('feature.quick_assistant.model_id', invalidModelId)
+      const input = { sourceSessionId: topic.id, targetAgentId: 'target', task: 'continue', streamId }
+      expect(openHandoffDraft(input, listener).modelId).toBe(validModelId)
+      expect(stream.start.mock.calls[0][0].uniqueModelId).toBe(validModelId)
+      stream.start.mockClear()
+      expect(() => openHandoffDraft({ ...input, summaryModelId: invalidModelId }, listener)).toThrowError(
+        expect.objectContaining({ code: 'MODEL_UNAVAILABLE' })
+      )
+      expect(stream.start).not.toHaveBeenCalled()
+    }
+  )
+
   it('preserves evidence references while excluding private reasoning from a quoted prompt', () => {
     const topic = topicService.create({ name: `handoff evidence ${topicNumber}` })
     messageService.create(topic.id, {
@@ -155,6 +195,12 @@ describe('openHandoffDraft', () => {
       data: {
         parts: [
           { type: 'reasoning', text: 'private reasoning' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['private-kb-id'] } },
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'private-task-id', prompt: 'hidden background prompt' }
+          },
+          { type: 'data-code', data: { content: 'visible code evidence', language: 'text' } },
           {
             type: 'tool-read_file',
             toolCallId: 'call-1',
@@ -178,6 +224,10 @@ describe('openHandoffDraft', () => {
     )
     const prompt = stream.start.mock.calls[0][0].prompt
     expect(prompt).not.toContain('private reasoning')
+    expect(prompt).not.toContain('private-kb-id')
+    expect(prompt).not.toContain('private-task-id')
+    expect(prompt).not.toContain('hidden background prompt')
+    expect(prompt).toContain('visible code evidence')
     expect(prompt).toContain('Continue the investigation and fix the remaining issue.')
     expect(prompt).toContain('blob-1')
     expect(prompt).toContain('"omitted":true')

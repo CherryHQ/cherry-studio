@@ -7,6 +7,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { HandoffDraftOpen, HandoffDraftOpenResponse } from '@shared/ipc/schemas/ai'
+import { isNonChatModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 import { type FileUIPart, isToolUIPart } from 'ai'
 
@@ -24,12 +25,26 @@ export class HandoffDraftError extends Error {
   }
 }
 
-function materializePart(part: CherryMessagePart): Record<string, unknown> {
+function materializePart(part: CherryMessagePart): Record<string, unknown> | null {
   if (part.type === 'reasoning') return { type: 'reasoning', omitted: true }
   if (part.type === 'file') {
     return { type: 'file', filename: part.filename, mediaType: part.mediaType, reference: part.url }
   }
-  return { ...part }
+  // Only conversation evidence belongs in the prompt; runtime data parts stay local.
+  if (isToolUIPart(part)) return { ...part }
+  switch (part.type) {
+    case 'text':
+    case 'source-url':
+    case 'source-document':
+    case 'data-code':
+    case 'data-compact':
+    case 'data-error':
+    case 'data-translation':
+    case 'data-video':
+      return { ...part }
+    default:
+      return null
+  }
 }
 
 function resolveSummaryModel(requested: UniqueModelId | undefined, sourceModelIds: Array<string | null | undefined>) {
@@ -43,7 +58,9 @@ function resolveSummaryModel(requested: UniqueModelId | undefined, sourceModelId
     try {
       const provider = providerService.getByProviderId(providerId)
       if (isExternalCliProvider(provider)) continue
-      return { id: parsed.data, model: modelService.getByKey(providerId, modelId) }
+      const model = modelService.getByKey(providerId, modelId)
+      if (isNonChatModel(model)) continue
+      return { id: parsed.data, model }
     } catch {
       continue
     }
@@ -81,7 +98,7 @@ export function openHandoffDraft(input: HandoffDraftOpen, listener: StreamListen
       const handle = readCherryMeta(part)?.fileEntryId ?? part.url
       if (!attachments.has(handle)) attachments.set(handle, structuredClone(part))
     }
-    return `<source-message id="${message.id}" role="${message.role}" model="${message.modelId ?? ''}">\n${JSON.stringify(parts.map(materializePart))}\n</source-message>`
+    return `<source-message id="${message.id}" role="${message.role}" model="${message.modelId ?? ''}">\n${JSON.stringify(parts.map(materializePart).filter((part) => part !== null))}\n</source-message>`
   })
   const coverage = {
     source: source.source,
