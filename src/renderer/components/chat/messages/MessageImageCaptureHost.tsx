@@ -1,6 +1,5 @@
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import { memo } from 'react'
 
@@ -26,7 +25,7 @@ const MessageImageCaptureHost = ({
       data-testid={testId}
       inert
       {...{ [captureHostAttribute]: '' }}>
-      <MessageListProvider value={messageList} buildLaunchIndex={buildAgentLaunchIndex}>
+      <MessageListProvider value={messageList}>
         <MessageList />
       </MessageListProvider>
     </div>
