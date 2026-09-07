@@ -117,8 +117,18 @@ export function resolveAutoCompactWindow(
     return clamped
   }
   // For untrusted relays the MIN floor must not raise the budget above the
-  // safety-adjusted input room (e.g. 100K/60K effective + 32K leaves 28K; 100K would overflow).
-  return Math.min(clamped, Math.max(inputRoom, 0))
+  // safety-adjusted input room (e.g. 100K/60K effective + 32K leaves 28K;
+  // returning 100K would overflow the provider). The SDK requires
+  // autoCompactWindow >= 100K, so a safety-adjusted room below MIN cannot
+  // satisfy both constraints — the SDK floor wins and the margin is partially
+  // undone for that tiny window. This only affects windows near the 100K
+  // minimum (rare and unlikely to carry the 256K/128K overstatement from
+  // #18894); large windows stay capped to their safety-adjusted room.
+  const capped = Math.min(clamped, Math.max(inputRoom, 0))
+  if (capped < MIN_AUTO_COMPACT_WINDOW) {
+    return MIN_AUTO_COMPACT_WINDOW
+  }
+  return capped
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
