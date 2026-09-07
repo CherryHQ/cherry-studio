@@ -7,6 +7,7 @@
  */
 import type {
   ReasoningEffort,
+  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireProfile,
   ReasoningWireTarget
@@ -157,8 +158,7 @@ function resolveModeEffort(
 function resolveModeBudget(
   selection: CanonicalReasoningSelection,
   model: Model,
-  // The provider-registry union typing can be awkward here; treat as any to keep code straightforward
-  policy: any,
+  policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
   maxTokens: number | undefined
 ): number | undefined | null {
   let budget = selection === 'auto' ? policy.autoValue : undefined
