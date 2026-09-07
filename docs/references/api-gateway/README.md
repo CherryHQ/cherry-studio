@@ -268,17 +268,19 @@ before convergence; restart rebinds only when no lease is active.
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
-There is deliberately **no status/config pull IPC** — pulling running state or
-config over IPC would be an anti-pattern, since running lives in the shared
-cache and config lives in the Preference subsystem.
+There is deliberately **no general status/config pull IPC** — running state
+lives in the shared cache and config lives in the Preference subsystem. The
+only runtime lookup is `api_gateway.get_runtime_address`, used when a consumer
+needs the actual listener address after a port-conflict fallback.
 
 ### IpcApi (imperative actions only)
 
 | Route | Result | Handler |
 |---|---|---|
-| `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
+| `api_gateway.get_runtime_address` | `{ host, port } \| null` | `ApiGatewayService.getRuntimeAddress()` |
+| `api_gateway.start` | success includes `address: { host, port }` | `ApiGatewayService.start()` |
 | `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
-| `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
+| `api_gateway.restart` | success includes `address: { host, port }` | `ApiGatewayService.restart()` |
 
 `api_gateway.required` is a Main-to-renderer event for an Agent session whose
 model must use the gateway while the user's persisted gateway intent is off.
