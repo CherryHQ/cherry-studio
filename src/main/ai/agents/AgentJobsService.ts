@@ -11,7 +11,7 @@ import {
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -69,6 +69,7 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
+@ErrorHandling('fail-fast')
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
@@ -90,7 +91,8 @@ export class AgentJobsService extends BaseService {
     // Lifecycle awaits onReady before system-wide onAllReady. JobManager does
     // not schedule startup recovery until onAllReady, so persisted orphaned
     // agent tasks are gone before recovery can take its enabled-schedule
-    // snapshot or arm their timers.
+    // snapshot or arm their timers. This service is fail-fast because allowing
+    // startup to continue after reconciliation fails would re-arm the orphan.
     await this.reconcileOrphanedSchedules()
   }
 
@@ -144,7 +146,7 @@ export class AgentJobsService extends BaseService {
 
     const schedulePatch: UpdateJobScheduleDto = {}
     if (patch.name !== undefined) schedulePatch.name = patch.name
-    // Drop a value-identical trigger from the patch: the edit dialog submits full-field
+    // Drop a value-identical trigger: the edit dialog submits full-field
     // saves, and JobManager's field-presence re-arm would reset the phase.
     if (patch.trigger !== undefined && !triggersEqual(patch.trigger, existing.trigger)) {
       schedulePatch.trigger = patch.trigger
@@ -277,7 +279,7 @@ export class AgentJobsService extends BaseService {
   async reconcileOrphanedSchedules(): Promise<number> {
     const orphaned = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      return template !== null && !agentService.getAgent(template.agentId)
+      return template !== null && !agentService.agentExists(template.agentId)
     })
 
     const deletedIds: string[] = []
