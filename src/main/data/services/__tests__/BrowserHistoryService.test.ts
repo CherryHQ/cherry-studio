@@ -1,0 +1,64 @@
+import { browserVisitTable } from '@data/db/schemas/browserVisit'
+import { setupTestDatabase } from '@test-helpers/db'
+import Database from 'better-sqlite3'
+import { describe, expect, it } from 'vitest'
+
+import { browserHistoryService } from '../BrowserHistoryService'
+
+const list = (search?: string, offset = 0, limit = 25) => browserHistoryService.list({ search, offset, limit })
+
+describe('Browser history persistence', () => {
+  const dbh = setupTestDatabase()
+
+  it('persists sanitized visits across connections and keeps ordinary revisits distinct', () => {
+    const url = 'https://alice:secret@example.com/report?token=private&q=hello&code=oauth#access_token=hidden'
+    browserHistoryService.record({ url, title: url, visitedAt: 1234 })
+    browserHistoryService.record({ url, title: 'Report', visitedAt: 5678 })
+    const reopened = new Database(dbh.sqlite.name, { readonly: true })
+    try {
+      const rows = reopened.prepare('SELECT url, title, visited_at FROM browser_visit ORDER BY visited_at').all()
+      expect(rows).toEqual([
+        { url: 'https://example.com/report?q=hello', title: 'https://example.com/report?q=hello', visited_at: 1234 },
+        { url: 'https://example.com/report?q=hello', title: 'Report', visited_at: 5678 }
+      ])
+    } finally {
+      reopened.close()
+    }
+  })
+
+  it('deduplicates imports without changing original timestamps, and searches literal URL/title text', () => {
+    const visits = [
+      {
+        url: 'https://one.test/100%',
+        title: 'First report',
+        visitedAt: 100,
+        source: 'chrome:Default',
+        sourceKey: 'one'
+      },
+      { url: 'https://two.test/', title: 'SECOND report', visitedAt: 200, source: 'firefox:profile', sourceKey: 'two' }
+    ]
+    expect(browserHistoryService.importVisits(visits)).toBe(2)
+    expect(browserHistoryService.importVisits(visits)).toBe(0)
+    expect(list('report', 0, 1)).toMatchObject({ items: [{ title: 'SECOND report', visitedAt: 200 }], hasMore: true })
+    expect(list('report', 1, 1)).toMatchObject({ items: [{ title: 'First report', visitedAt: 100 }], hasMore: false })
+    expect(list('%').items.map((row) => row.title)).toEqual(['First report'])
+    expect(list('not found').items).toEqual([])
+  })
+
+  it('skips non-web/invalid visits and updates, deletes and clears stored records', () => {
+    for (const url of ['file:///private/file.html', 'data:text/html,secret', 'about:blank', 'invalid']) {
+      expect(browserHistoryService.record({ url, title: 'Excluded', visitedAt: 100 })).toBeUndefined()
+    }
+    expect(
+      browserHistoryService.record({ url: 'http://localhost/', title: 'bad timestamp', visitedAt: NaN })
+    ).toBeUndefined()
+    const id = browserHistoryService.record({ url: 'http://192.168.1.2/', title: '', visitedAt: 100 })!
+    browserHistoryService.updateTitle(id, 'Router', 'http://192.168.1.2/')
+    expect(list('router').items).toMatchObject([{ id, title: 'Router' }])
+    browserHistoryService.delete(id)
+    expect(list().items).toEqual([])
+    browserHistoryService.record({ url: 'http://localhost/', title: 'Local site', visitedAt: 100 })
+    browserHistoryService.clear()
+    expect(dbh.db.select().from(browserVisitTable).all()).toEqual([])
+  })
+})

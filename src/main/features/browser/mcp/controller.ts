@@ -5,12 +5,11 @@ import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
-import type { Protocol } from 'devtools-protocol'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
-import type TurndownService from 'turndown'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
+import { BrowserPageController } from './BrowserPageController'
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
 import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
@@ -21,7 +20,7 @@ import { logger, type TabInfo, userAgent, type WindowInfo } from './types'
  * Normal mode persists user data (cookies, localStorage, etc.) globally across all clients.
  * Private mode is ephemeral - data is cleared when the window closes.
  */
-export class CdpBrowserController {
+export class CdpBrowserController extends BrowserPageController {
   private windows: Map<string, WindowInfo> = new Map()
   private readonly owner = `mcp:${randomUUID()}`
   private disposed = false
@@ -31,7 +30,6 @@ export class CdpBrowserController {
   private readonly openingWindows = new Map<string, Promise<WindowInfo>>()
   private readonly closingWindows = new Set<WindowInfo>()
   private readonly closingContents = new Set<Electron.WebContents>()
-  private turndownServicePromise?: Promise<TurndownService>
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
   // nativeTheme is app-global, and one controller is created per MCP connection.
@@ -47,13 +45,8 @@ export class CdpBrowserController {
   }
 
   constructor(private readonly service: BrowserSessionService) {
+    super()
     nativeTheme.on('updated', this.handleThemeUpdated)
-  }
-
-  private getTurndownService(): Promise<TurndownService> {
-    return (this.turndownServicePromise ??= import('turndown').then(
-      ({ default: TurndownService }) => new TurndownService()
-    ))
   }
 
   /**
@@ -90,6 +83,10 @@ export class CdpBrowserController {
       }
     })
     return this.closing
+  }
+
+  public validateUrl(url: string): string {
+    return sanitizeRemoteUrl(url, undefined, true)
   }
 
   private getWindowKey(privateMode: boolean): string {
@@ -618,10 +615,15 @@ export class CdpBrowserController {
    * @param showWindow - If true, shows the browser window (default: false)
    * @returns Object containing the current URL, page title, and tab ID after navigation
    */
-  public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
-    // Reject non-http(s) schemes (e.g. file://) and local/private hosts before navigating
-    // (covers fetch() too, which routes through open()) to prevent local-file read / SSRF.
-    url = sanitizeRemoteUrl(url, undefined, true)
+  public async open(
+    url: string,
+    timeout = 10000,
+    privateMode = false,
+    newTab = false,
+    showWindow = false,
+    signal?: AbortSignal
+  ) {
+    url = this.validateUrl(url)
 
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const webContents = tab.view.webContents
@@ -630,10 +632,10 @@ export class CdpBrowserController {
       await settleAction(
         tab.session,
         async () => {
-          const result = await tab.session.send('Page.navigate', { url }, { deadline: Date.now() + timeout })
+          const result = await tab.session.send('Page.navigate', { url }, { deadline: Date.now() + timeout, signal })
           if (result.errorText) throw new Error(result.errorText)
         },
-        { deadline: Date.now() + timeout }
+        { deadline: Date.now() + timeout, signal }
       )
     })
 
@@ -665,25 +667,6 @@ export class CdpBrowserController {
   public async getSession(privateMode = false, tabId?: string) {
     const target = await this.getTab(privateMode, tabId)
     return { tabId: target.tabId, session: target.tab.session }
-  }
-
-  public async execute(code: string, timeout = 5000, privateMode = false, tabId?: string, signal?: AbortSignal) {
-    const { session } = await this.getSession(privateMode, tabId)
-    return session.run(async () => {
-      const result = await session.send(
-        'Runtime.evaluate',
-        {
-          expression: code,
-          awaitPromise: true,
-          returnByValue: true,
-          timeout
-        },
-        { deadline: Date.now() + timeout, signal }
-      )
-      if (result.exceptionDetails)
-        throw new Error(result.exceptionDetails.exception?.description ?? 'Script evaluation failed')
-      return result.result?.value ?? result.result?.description ?? null
-    })
   }
 
   public async reset(privateMode?: boolean, tabId?: string) {
@@ -730,90 +713,6 @@ export class CdpBrowserController {
     }
     this.windows.clear()
     logger.info('Browser CDP context reset (all windows)')
-  }
-
-  /**
-   * Fetches a URL and returns content in the specified format.
-   * @param url - The URL to fetch
-   * @param format - Output format: 'html', 'txt', 'markdown', or 'json' (default: 'markdown')
-   * @param timeout - Navigation timeout in milliseconds (default: 10000)
-   * @param privateMode - If true, uses private browsing mode (default: false)
-   * @param newTab - If true, always creates a new tab (useful for parallel requests)
-   * @param showWindow - If true, shows the browser window (default: false)
-   * @returns Object with tabId and content in the requested format. For 'json', content is parsed object or { data: rawContent } if parsing fails
-   */
-  public async fetch(
-    url: string,
-    format: 'html' | 'txt' | 'markdown' | 'json' = 'markdown',
-    timeout = 10000,
-    privateMode = false,
-    newTab = false,
-    showWindow = false,
-    selector?: string
-  ): Promise<{ tabId: string; content: string | object }> {
-    const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow)
-
-    let expression: string
-    const root = selector
-      ? `(document.querySelector(${JSON.stringify(selector)}) || document.body)`
-      : format === 'json' || format === 'txt'
-        ? 'document.body'
-        : 'document.documentElement'
-
-    if (format === 'json' || format === 'txt') {
-      expression = `${root}.innerText`
-    } else {
-      expression = `${root}.outerHTML`
-    }
-
-    const rawContent = String((await this.execute(expression, timeout, privateMode, tabId)) ?? '')
-
-    let content: string | object
-    if (format === 'markdown') {
-      content = (await this.getTurndownService()).turndown(rawContent)
-    } else if (format === 'json') {
-      try {
-        content = JSON.parse(rawContent)
-      } catch (parseError) {
-        logger.warn('JSON parse failed, returning raw content', {
-          url,
-          contentLength: rawContent.length,
-          error: parseError
-        })
-        content = { data: rawContent }
-      }
-    } else {
-      content = rawContent
-    }
-
-    return { tabId, content }
-  }
-
-  /**
-   * Takes a screenshot of the current page using CDP Page.captureScreenshot.
-   * @param options - Screenshot options
-   * @param privateMode - If true, targets private window (default: false)
-   * @param tabId - Optional specific tab ID to target
-   * @returns Base64-encoded image data
-   */
-  public async screenshot(
-    options: { fullPage?: boolean; format?: 'png' | 'jpeg'; quality?: number } = {},
-    privateMode = false,
-    tabId?: string
-  ): Promise<string> {
-    const { session } = await this.getSession(privateMode, tabId)
-
-    const format = options.format ?? 'png'
-    const params: Protocol.Page.CaptureScreenshotRequest = {
-      format,
-      captureBeyondViewport: options.fullPage ?? false
-    }
-    if (format === 'jpeg' && options.quality !== undefined) {
-      params.quality = options.quality
-    }
-
-    const result = await session.run(() => session.send('Page.captureScreenshot', params))
-    return result.data
   }
 
   /**

@@ -1,6 +1,7 @@
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,17 +21,18 @@ const mocks = vi.hoisted(() => ({
   gatewayFingerprint: 'gateway-1'
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
-      if (name === 'AgentSessionRuntimeService') {
-        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-      }
-      throw new Error(`Unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+    if (name === 'AgentSessionRuntimeService')
+      return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+    return get(name)
+  })
+  return result
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -183,6 +185,17 @@ describe('captureDshConnectionSnapshot', () => {
 
     expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(
       gatewaySignature
+    )
+  })
+  it('invalidates cached tools when Agent browser control changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    const disabled = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const enabled = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(enabled.signature).not.toBe(disabled.signature)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
+      disabled.signature
     )
   })
 })

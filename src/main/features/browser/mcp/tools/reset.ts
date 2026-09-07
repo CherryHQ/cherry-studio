@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
@@ -18,7 +18,7 @@ export const resetToolDefinition = {
   inputSchema: ResetSchema
 }
 
-export async function handleReset(controller: CdpBrowserController, args: unknown) {
+export async function handleReset(controller: BrowserController, args: unknown) {
   try {
     const { privateMode, tabId } = ResetSchema.parse(args)
     await controller.reset(privateMode, tabId)

@@ -53,7 +53,7 @@ import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSession
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
@@ -209,6 +209,11 @@ interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   browserUrl: string | null
+  browserProfile:
+    | typeof WebviewSecurityProfile.AgentBrowser
+    | typeof WebviewSecurityProfile.AgentDevPreview
+    | typeof WebviewSecurityProfile.AgentHtmlArtifact
+  openBrowserUrl: (url: string) => void
   acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlSource | null) => void
 }
 
@@ -344,6 +349,12 @@ function AgentRightPaneActionsProvider({
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
   const panelActions = useRightPanelActions()
+  useIpcOn('browser.pane.open_requested', (request) => {
+    if (request.sessionId !== sessionId) return
+    if (request.url) openBrowserUrl(request.url)
+    panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
+  })
+
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
@@ -468,7 +479,11 @@ function AgentRightPaneStateProvider({
     sessionId,
     tab: null
   }))
-  const [browserUrlState, setBrowserUrlState] = useState<{ sessionId?: string; url: string | null }>(() => ({
+  const [browserUrlState, setBrowserUrlState] = useState<{
+    sessionId?: string
+    url: string | null
+    profile?: AgentRightPaneRuntime['browserProfile']
+  }>(() => ({
     sessionId,
     url: null
   }))
@@ -528,13 +543,9 @@ function AgentRightPaneStateProvider({
         return
       }
       explicitBrowserBaselineRef.current = null
-      if (browserUrl !== url) setBrowserUrlState({ sessionId, url })
+      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
     },
     [browserUrl, messages, partsByMessageId, sessionId]
-  )
-  const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl, acceptDetectedBrowserUrl }),
-    [acceptDetectedBrowserUrl, browserUrl, messages, partsByMessageId]
   )
   const openBrowserUrl = useCallback(
     (url: string) => {
@@ -546,9 +557,23 @@ function AgentRightPaneStateProvider({
         waitingForHistory: isMessageHistoryLoading && !frontier,
         url
       }
-      setBrowserUrlState({ sessionId, url })
+      setBrowserUrlState({
+        sessionId,
+        url,
+        profile: url.startsWith('file:')
+          ? WebviewSecurityProfile.AgentHtmlArtifact
+          : WebviewSecurityProfile.AgentBrowser
+      })
     },
     [isMessageHistoryLoading, sessionId]
+  )
+  const browserProfile =
+    browserUrlState.sessionId === sessionId
+      ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
+      : WebviewSecurityProfile.AgentBrowser
+  const runtime = useMemo<AgentRightPaneRuntime>(
+    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
+    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
   )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
@@ -896,11 +921,9 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   return (
     <WebviewBrowser
       initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
-      securityProfile={
-        runtime.browserUrl?.startsWith('file:')
-          ? WebviewSecurityProfile.AgentHtmlArtifact
-          : WebviewSecurityProfile.AgentDevPreview
-      }
+      securityProfile={runtime.browserProfile}
+      agentSessionId={sessionId}
+      onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}

@@ -1,3 +1,4 @@
+import { useAgentBrowserGuest } from '@renderer/hooks/agent/useAgentBrowserGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { DidFailLoadEvent, WebviewTag } from 'electron'
@@ -13,7 +14,12 @@ import WebviewSearch from './WebviewSearch'
 
 interface Props {
   initialUrl: string
-  securityProfile: typeof WebviewSecurityProfile.AgentDevPreview | typeof WebviewSecurityProfile.AgentHtmlArtifact
+  securityProfile:
+    | typeof WebviewSecurityProfile.AgentBrowser
+    | typeof WebviewSecurityProfile.AgentDevPreview
+    | typeof WebviewSecurityProfile.AgentHtmlArtifact
+  agentSessionId?: string
+  onNavigate?: (url: string) => void
   target: WebviewAnnotationTarget
   isHostActive: boolean
   reloadKey?: number | string
@@ -24,6 +30,8 @@ interface Props {
 /** A shared browser surface for Agent previews and explicitly opened HTML artifacts. */
 export function WebviewBrowser({
   initialUrl,
+  agentSessionId,
+  onNavigate,
   securityProfile,
   target,
   isHostActive,
@@ -34,6 +42,7 @@ export function WebviewBrowser({
   const { t } = useTranslation()
   const webviewRef = useRef<WebviewTag | null>(null)
   const [webviewRevision, setWebviewRevision] = useState(0)
+  useAgentBrowserGuest(agentSessionId, webviewRef.current, webviewRevision)
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -72,6 +81,7 @@ export function WebviewBrowser({
         webviewRef={webviewRef}
         webviewRevision={webviewRevision}
         initialUrl={initialUrl}
+        onNavigate={onNavigate}
         isWebviewReady={isReady}
         isHostActive={isHostActive}
         target={target}
@@ -81,10 +91,11 @@ export function WebviewBrowser({
       <div className="relative min-h-0 flex-1 bg-white">
         <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={target.id} />
         <WebviewHost
-          key={guestAuthorizationKey}
+          key={`${agentSessionId ?? ''}:${guestAuthorizationKey}`}
           id={target.id}
           src={initialUrl}
           securityProfile={securityProfile}
+          allowPopups={!!agentSessionId}
           reloadKey={reloadKey}
           ariaLabel={target.label}
           testId="webview-browser-guest"
@@ -120,6 +131,7 @@ export function WebviewBrowser({
 }
 
 function getGuestAuthorizationKey(securityProfile: Props['securityProfile'], initialUrl: string): string {
+  if (securityProfile === WebviewSecurityProfile.AgentBrowser) return securityProfile
   if (securityProfile === WebviewSecurityProfile.AgentHtmlArtifact) return `${securityProfile}:${initialUrl}`
   if (initialUrl === 'about:blank') return `${securityProfile}:${initialUrl}`
 

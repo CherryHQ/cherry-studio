@@ -1,10 +1,9 @@
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import * as z from 'zod'
 
 import { settleAction } from '../../actions/settle'
 import { browserRefSchema } from '../../browserUse'
 import { BrowserSessionError } from '../../session/BrowserSessionError'
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
 import { targetShape } from './snapshot'
 
@@ -33,7 +32,7 @@ export const navigateToolDefinitions = [
 ]
 
 export async function handleHistory(
-  controller: CdpBrowserController,
+  controller: BrowserController,
   args: unknown,
   direction: -1 | 1,
   signal?: AbortSignal
@@ -46,7 +45,7 @@ export async function handleHistory(
         const history = await session.send('Page.getNavigationHistory', undefined, options)
         const entry = history.entries[history.currentIndex + direction]
         if (!entry) throw new BrowserSessionError('not_found')
-        if (entry.url !== 'about:blank') sanitizeRemoteUrl(entry.url, undefined, true)
+        if (entry.url !== 'about:blank') controller.validateUrl(entry.url)
         await session.send('Page.navigateToHistoryEntry', { entryId: entry.id }, options)
       },
       options
@@ -55,7 +54,7 @@ export async function handleHistory(
   })
 }
 
-export async function handleWaitFor(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleWaitFor(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = waitForSchema.parse(args)
   return browserResult(controller, input, signal, async (session, options) => {
     options.deadline = Date.now() + input.timeoutMs

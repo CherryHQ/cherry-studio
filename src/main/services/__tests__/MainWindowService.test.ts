@@ -18,6 +18,7 @@ const {
   loggerMock,
   previewSessionMock,
   agentDevSessionMock,
+  agentBrowserSessionMock,
   agentArtifactSessionMock,
   sessionFromPartitionMock,
   defaultSessionMock
@@ -68,8 +69,10 @@ const {
   }
   const previewSessionMock = createSessionMock()
   const agentDevSessionMock = createSessionMock()
+  const agentBrowserSessionMock = createSessionMock()
   const agentArtifactSessionMock = createSessionMock()
   const sessionFromPartitionMock = vi.fn((partition: string) => {
+    if (partition === 'persist:agent-browser') return agentBrowserSessionMock
     if (partition === 'agent-dev-preview') return agentDevSessionMock
     if (partition === 'agent-html-artifact') return agentArtifactSessionMock
     return previewSessionMock
@@ -109,6 +112,7 @@ const {
     loggerMock,
     previewSessionMock,
     agentDevSessionMock,
+    agentBrowserSessionMock,
     agentArtifactSessionMock,
     sessionFromPartitionMock,
     defaultSessionMock
@@ -574,6 +578,25 @@ describe('MainWindowService', () => {
         restrictedSession.on.mock.calls.find(([event]) => event === 'will-download')?.[1](downloadEvent)
         expect(downloadEvent.preventDefault).toHaveBeenCalledOnce()
       }
+    })
+
+    it('allows ordinary HTTP(S) including LAN while denying privileged schemes and URL credentials', async () => {
+      await (svc as any).onInit()
+      const handler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      const dispatch = (url: string, resourceType = 'mainFrame') =>
+        new Promise((resolve) => handler({ url, resourceType, webContentsId: 42 }, resolve))
+      for (const url of ['https://example.com/', 'http://localhost:9520/', 'http://192.168.1.2/', 'http://[::1]:9520/'])
+        await expect(dispatch(url)).resolves.toEqual({ cancel: false })
+      for (const url of [
+        'file:///etc/passwd',
+        'javascript:alert(1)',
+        'data:text/html,secret',
+        'https://user:pass@example.com/'
+      ])
+        await expect(dispatch(url)).resolves.toEqual({ cancel: true })
+      await expect(dispatch('blob:https://example.com/fixture', 'image')).resolves.toEqual({ cancel: false })
+      expect(agentBrowserSessionMock.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false)
+      expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(false)
     })
 
     it('enforces the bound dev origin for programmatic main-frame loads', async () => {

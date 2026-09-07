@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, render, screen } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import type { ReactNode } from 'react'
+import { Activity, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { WebviewBrowser } from '../WebviewBrowser'
@@ -25,9 +25,10 @@ vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: () => [false, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/usePreference', async () => {
+  const { MockUsePreference } = await import('@test-mocks/renderer/usePreference')
+  return MockUsePreference
+})
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn().mockResolvedValue(undefined) },
@@ -39,6 +40,34 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('WebviewBrowser', () => {
+  it('restores navigation when Activity resumes an already-loaded native guest', () => {
+    const browser = (
+      <WebviewBrowser
+        initialUrl="https://example.com"
+        securityProfile="agent-browser"
+        isHostActive
+        target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+      />
+    )
+    const view = render(<Activity mode="visible">{browser}</Activity>)
+    const guest = view.container.querySelector('webview')!
+    Object.assign(guest, {
+      getWebContentsId: () => 42,
+      isLoading: () => false,
+      stopFindInPage: vi.fn(),
+      getURL: () => 'https://example.com',
+      canGoBack: () => false,
+      canGoForward: () => false
+    })
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    view.rerender(<Activity mode="hidden">{browser}</Activity>)
+    view.rerender(<Activity mode="visible">{browser}</Activity>)
+    expect(view.container.querySelector('webview')).toBe(guest)
+    expect(screen.getByRole('textbox', { name: 'webview.navigation.address' })).toBeEnabled()
+  })
+
   it('activates navigation and annotations when its isolated guest becomes ready', () => {
     vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
     const { container } = render(
@@ -180,5 +209,51 @@ describe('WebviewBrowser', () => {
     )
 
     expect(view.container.querySelector('webview')).not.toBe(firstGuest)
+  })
+  it('preserves ordinary cross-origin navigation but replaces the guest across sessions and security modes', () => {
+    const target = { id: 'agent-browser:session-a', label: 'Browser' }
+    const view = render(
+      <WebviewBrowser
+        agentSessionId="session-a"
+        initialUrl="https://first.test"
+        securityProfile="agent-browser"
+        isHostActive
+        target={target}
+      />
+    )
+    const first = view.container.querySelector('webview')
+    expect(first).toHaveAttribute('partition', 'persist:agent-browser')
+    view.rerender(
+      <WebviewBrowser
+        agentSessionId="session-a"
+        initialUrl="http://192.168.1.2"
+        securityProfile="agent-browser"
+        isHostActive
+        target={target}
+      />
+    )
+    expect(view.container.querySelector('webview')).toBe(first)
+    view.rerender(
+      <WebviewBrowser
+        agentSessionId="session-b"
+        initialUrl="http://192.168.1.2"
+        securityProfile="agent-browser"
+        isHostActive
+        target={target}
+      />
+    )
+    const second = view.container.querySelector('webview')
+    expect(second).not.toBe(first)
+    view.rerender(
+      <WebviewBrowser
+        agentSessionId="session-b"
+        initialUrl="http://localhost:5173"
+        securityProfile="agent-dev-preview"
+        isHostActive
+        target={target}
+      />
+    )
+    expect(view.container.querySelector('webview')).not.toBe(second)
+    expect(view.container.querySelector('webview')).toHaveAttribute('partition', 'agent-dev-preview')
   })
 })

@@ -104,6 +104,7 @@ export async function capturePiConnectionSnapshot(
           mcpTools,
           linkedChannel,
           notificationContext,
+          browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           gatewayCredentials
         })

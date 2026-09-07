@@ -323,7 +323,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: snapshot.linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: snapshot.linkedChannel !== null
+      })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,

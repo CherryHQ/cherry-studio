@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { BrowserSessionError } from '../../session/BrowserSessionError'
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { browserResult } from './result'
 import { errorResponse, successResponse } from './utils'
@@ -20,7 +20,7 @@ export const executeToolDefinition = {
   inputSchema: ExecuteSchema
 }
 
-export async function handleExecute(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleExecute(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)
   try {
     const value = await controller.execute(code, timeout, privateMode ?? false, tabId, signal)

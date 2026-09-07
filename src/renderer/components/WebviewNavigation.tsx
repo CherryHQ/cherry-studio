@@ -31,6 +31,7 @@ interface Props {
   isHostActive: boolean
   target: WebviewAnnotationTarget
   onReload?: () => void
+  onNavigate?: (url: string) => void
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
   toolbarActions?: ReactNode
 }
@@ -71,6 +72,7 @@ export function WebviewNavigation({
   isHostActive,
   target,
   onReload,
+  onNavigate,
   onAnnotationSaved,
   toolbarActions
 }: Props) {
@@ -255,6 +257,10 @@ export function WebviewNavigation({
       addressInputRef.current?.blur()
 
       try {
+        if (onNavigate) {
+          onNavigate(normalizedAddress)
+          return
+        }
         void webview.loadURL(normalizedAddress).catch((error) => {
           logger.error('Failed to navigate WebView from address bar', error as Error, { targetId: target.id })
           restoreCurrentPageUrl()
@@ -266,7 +272,7 @@ export function WebviewNavigation({
         toast.error(t('webview.navigation.load_failed'))
       }
     },
-    [addressValue, restoreCurrentPageUrl, t, target.id, webviewRef]
+    [addressValue, onNavigate, restoreCurrentPageUrl, t, target.id, webviewRef]
   )
 
   const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {

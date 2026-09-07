@@ -6,7 +6,7 @@ import { click, hover, scroll } from '../../actions/mouse'
 import { settleAction } from '../../actions/settle'
 import { browserRefSchema, type CommandOptions } from '../../browserUse'
 import type { GuestSession } from '../../session/GuestSession'
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
 import { targetShape } from './snapshot'
 
@@ -50,7 +50,7 @@ export const interactionToolDefinitions = Object.entries(interactionSchemas).map
 
 export async function handleInteraction(
   name: keyof typeof interactionSchemas,
-  controller: CdpBrowserController,
+  controller: BrowserController,
   args: unknown,
   signal?: AbortSignal
 ) {

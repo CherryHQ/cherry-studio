@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
@@ -16,7 +16,7 @@ export const listTabsToolDefinition = {
   inputSchema: ListTabsSchema
 }
 
-export async function handleListTabs(controller: CdpBrowserController, args: unknown) {
+export async function handleListTabs(controller: BrowserController, args: unknown) {
   try {
     const { privateMode } = ListTabsSchema.parse(args)
     const tabs = await controller.listTabs(privateMode ?? false)
@@ -40,7 +40,7 @@ export const switchTabToolDefinition = {
   inputSchema: SwitchTabSchema
 }
 
-export async function handleSwitchTab(controller: CdpBrowserController, args: unknown) {
+export async function handleSwitchTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = SwitchTabSchema.parse(args)
     await controller.switchTab(privateMode ?? false, tabId)
@@ -64,7 +64,7 @@ export const closeTabToolDefinition = {
   inputSchema: CloseTabSchema
 }
 
-export async function handleCloseTab(controller: CdpBrowserController, args: unknown) {
+export async function handleCloseTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = CloseTabSchema.parse(args)
     await controller.closeTab(privateMode ?? false, tabId)

@@ -35,6 +35,7 @@ import { Route as SettingsDependenciesRouteImport } from './routes/settings/depe
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
+import { Route as SettingsBrowserRouteImport } from './routes/settings/browser'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -194,6 +195,11 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsBrowserRoute = SettingsBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
@@ -403,6 +410,7 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
@@ -457,6 +465,7 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
@@ -568,6 +578,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
@@ -621,6 +632,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
@@ -848,6 +860,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/settings/channels'
       preLoaderRoute: typeof SettingsChannelsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/browser': {
+      id: '/settings/browser'
+      path: '/browser'
+      fullPath: '/settings/browser'
+      preLoaderRoute: typeof SettingsBrowserRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/appearance': {
@@ -1124,6 +1143,7 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
   SettingsDataRoute: typeof SettingsDataRoute
@@ -1154,6 +1174,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,
   SettingsDataRoute: SettingsDataRoute,

@@ -43,6 +43,7 @@ export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
+  BROWSER: 'browser',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',

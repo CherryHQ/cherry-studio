@@ -247,6 +247,7 @@ export function buildPathRegistry() {
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
     // Feature-owned temp dirs (all under app.temp)
+    'feature.browser.import.temp': path.join(appTemp, 'browser-import'),
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
@@ -266,6 +267,29 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.browser.chrome': isMac
+      ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Google/Chrome/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'google-chrome'),
+    'external.browser.edge': isMac
+      ? path.join(sysHome, 'Library/Application Support/Microsoft Edge')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Microsoft/Edge/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'microsoft-edge'),
+    'external.browser.brave': isMac
+      ? path.join(sysHome, 'Library/Application Support/BraveSoftware/Brave-Browser')
+      : isWin
+        ? path.join(
+            process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'),
+            'BraveSoftware/Brave-Browser/User Data'
+          )
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'BraveSoftware/Brave-Browser'),
+    'external.browser.firefox': isMac
+      ? path.join(sysHome, 'Library/Application Support/Firefox/Profiles')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Mozilla/Firefox/Profiles')
+        : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.hermes.default_home': isWin

@@ -149,6 +149,13 @@ export function WebviewHost({
     webview.addEventListener('did-navigate-in-page', handleNavigate)
     webview.addEventListener('did-fail-load', onDidFailLoad ?? noop)
 
+    try {
+      // Activity can resume an already-loaded guest without another dom-ready event.
+      if (webview.getWebContentsId() && !webview.isLoading()) handleDomReady()
+    } catch {
+      // New guests report readiness through dom-ready once their native contents exist.
+    }
+
     return () => {
       webview.removeEventListener('ipc-message', handleGuestKeydown)
       webview.removeEventListener('dom-ready', handleDomReady)

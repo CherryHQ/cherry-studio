@@ -168,7 +168,10 @@ export async function buildClaudeCodeSessionSettings(
   const notificationContext =
     options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
-  const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
+  const mountedServers = resolveMountedMcpServers(agent, {
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    channelLinked: linkedChannelSnapshot !== null
+  })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path

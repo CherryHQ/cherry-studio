@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, imageResponse } from './utils'
 
@@ -19,10 +19,10 @@ export const screenshotToolDefinition = {
   inputSchema: ScreenshotSchema
 }
 
-export async function handleScreenshot(controller: CdpBrowserController, args: unknown) {
+export async function handleScreenshot(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   try {
     const { fullPage, format, quality, privateMode, tabId } = ScreenshotSchema.parse(args)
-    const base64 = await controller.screenshot({ fullPage, format, quality }, privateMode ?? false, tabId)
+    const base64 = await controller.screenshot({ fullPage, format, quality }, privateMode ?? false, tabId, signal)
     const mimeType = (format ?? 'png') === 'jpeg' ? 'image/jpeg' : 'image/png'
     return imageResponse(base64, mimeType)
   } catch (error) {

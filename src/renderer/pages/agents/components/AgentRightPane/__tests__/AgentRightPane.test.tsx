@@ -226,6 +226,7 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
+  useIpcOn: vi.fn(),
   ipcApi: { request: ipcRequestMock }
 }))
 
@@ -793,7 +794,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
-    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-security-profile', 'agent-dev-preview')
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-security-profile', 'agent-browser')
   })
 
   it('inserts saved annotations with a visible, boundary-safe prompt payload', async () => {

@@ -18,6 +18,7 @@ import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -325,6 +326,18 @@ export class MainWindowService extends BaseService {
 
   private setupAgentWebviewSessions() {
     this.setupRestrictedWebviewSession(
+      getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+      ({ url, resourceType }) => {
+        if (url === 'about:blank') return true
+        const protocol = new URL(url).protocol
+        if (resourceType !== 'mainFrame' && ['data:', 'blob:', 'ws:', 'wss:'].includes(protocol)) return true
+        normalizeBrowserUrl(url)
+        return true
+      },
+      undefined,
+      true
+    )
+    this.setupRestrictedWebviewSession(
       getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
       (details) => this.agentDevPreviewRequestPolicy.isAllowed(details),
       () => this.agentDevPreviewRequestPolicy.clear()
@@ -339,7 +352,8 @@ export class MainWindowService extends BaseService {
   private setupRestrictedWebviewSession(
     partition: string,
     isAllowed: (details: Electron.OnBeforeRequestListenerDetails) => boolean | Promise<boolean>,
-    clearPolicy?: () => void
+    clearPolicy?: () => void,
+    allowDownloads = false
   ) {
     const restrictedSession = session.fromPartition(partition)
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
@@ -351,7 +365,7 @@ export class MainWindowService extends BaseService {
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
-    restrictedSession.on('will-download', handleWillDownload)
+    if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       try {
         const result = isAllowed(details)
@@ -377,8 +391,18 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  private isBrowserEntryUrl(url: string): boolean {
+    try {
+      normalizeBrowserUrl(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   private setupWebviewSecurityProfiles(mainWindow: BrowserWindow) {
     const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const agentBrowserSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
     const agentDevSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview))
     const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
@@ -393,6 +417,9 @@ export class MainWindowService extends BaseService {
       if (securityProfile === WebviewSecurityProfile.MiniApp) return
 
       if (
+        (securityProfile === WebviewSecurityProfile.AgentBrowser &&
+          params.src !== 'about:blank' &&
+          !this.isBrowserEntryUrl(params.src)) ||
         (securityProfile === WebviewSecurityProfile.HtmlArtifactPreview &&
           !params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) ||
         (securityProfile === WebviewSecurityProfile.AgentDevPreview && !isAllowedAgentDevPreviewEntryUrl(params.src)) ||
@@ -418,7 +445,11 @@ export class MainWindowService extends BaseService {
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
-      if (webContents.session === agentDevSession || webContents.session === agentArtifactSession) {
+      if (
+        webContents.session === agentBrowserSession ||
+        webContents.session === agentDevSession ||
+        webContents.session === agentArtifactSession
+      ) {
         webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
         webContents.on('destroyed', () => {
           this.agentDevPreviewRequestPolicy.forget(webContents.id)

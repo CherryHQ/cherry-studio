@@ -30,6 +30,7 @@ const allowedMethods = [
   'DOM.enable',
   'DOM.getDocument',
   'DOM.describeNode',
+  'DOMStorage.setDOMStorageItem',
   'Accessibility.enable',
   'Accessibility.queryAXTree',
   'Accessibility.getFullAXTree',

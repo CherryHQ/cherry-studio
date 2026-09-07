@@ -9,6 +9,7 @@ import {
   Crop,
   FileBox,
   FileCode,
+  Globe,
   HardDrive,
   Info,
   Package,
@@ -67,6 +68,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/browser',
+    titleKey: 'settings.browser.title',
+    icon: createElement(Globe),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

@@ -18,6 +18,7 @@ const WEBVIEW_PARTITION = 'persist:webview'
 /** Sessions whose guests run the annotation preload: mini-app sites plus the agent browser panes. */
 const ANNOTATION_PARTITIONS = [
   WEBVIEW_PARTITION,
+  getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
   getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
   getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)
 ] as const
