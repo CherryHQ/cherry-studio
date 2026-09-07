@@ -1036,6 +1036,77 @@ describe('useInfiniteQuery integration', () => {
     expect(cache.has(secondPageKey)).toBe(false)
   })
 
+  it('keeps page zero refreshable after writing an empty page array', async () => {
+    let refreshed = false
+    const getSpy = spyGet().mockImplementation((async () => ({
+      items: [],
+      nextCursor: undefined,
+      activeNodeId: refreshed ? 'recovered' : 'initial'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('initial'))
+
+    await act(async () => {
+      await result.current.writeCache([])
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    expect(result.current.query.pages).toEqual([])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: [], _l: 1 })
+
+    refreshed = true
+    await act(async () => {
+      await result.current.query.refresh()
+    })
+
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('recovered'))
+    expect(getSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips page cache writes and rerenders when a functional writer returns the current pages', async () => {
+    spyGet().mockResolvedValue({ items: [], nextCursor: undefined, activeNodeId: 'unchanged' } as never)
+
+    const mutationKeys: unknown[] = []
+    scopedMutateWrapper.current = (mutate) => {
+      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
+      return (async (...args: unknown[]) => {
+        mutationKeys.push(args[0])
+        return invoke(...args)
+      }) as ScopedMutator
+    }
+
+    const { Wrapper } = makeWrapper()
+    let renderCount = 0
+    const { result } = renderHook(
+      () => {
+        renderCount++
+        return {
+          query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+          writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+        }
+      },
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    mutationKeys.length = 0
+    const settledRenderCount = renderCount
+
+    await act(async () => {
+      await result.current.writeCache((pages) => pages)
+    })
+
+    expect(mutationKeys).toEqual([infKey('/topics/t1/messages', { limit: 10 })])
+    expect(renderCount).toBe(settledRenderCount)
+  })
+
   it('does not synchronize page caches from an async write superseded by a newer write', async () => {
     spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
       items: [],

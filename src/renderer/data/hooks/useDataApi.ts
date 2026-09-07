@@ -968,6 +968,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       }
 
       let didCommit = false
+      let didChange = false
       let committedPages: Page[] | undefined
       let previousPages: Page[] | undefined
       const pages = (await mutate(
@@ -977,16 +978,18 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
           revalidate: false,
           populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
             didCommit = true
+            if (nextPages === currentPages) return currentPages
+            didChange = true
             previousPages = currentPages
             committedPages = nextPages ?? []
             // SWR Infinite stores its loaded page count beside the aggregate data.
-            const nextState = { ...cache.get(infiniteCacheKey), _l: committedPages.length }
+            const nextState = { ...cache.get(infiniteCacheKey), _l: Math.max(committedPages.length, 1) }
             cache.set(infiniteCacheKey, nextState)
             return committedPages
           }
         } as never
       )) as ResponseForPath<TPath, 'GET'>[] | undefined
-      if (!didCommit) return pages
+      if (!didCommit || !didChange) return pages
       // SWR returns superseded async values without committing them; only mirror the committed aggregate.
       const ownsAggregateCommit = () => cache.get(infiniteCacheKey)?.data === committedPages
       if (!ownsAggregateCommit()) return pages

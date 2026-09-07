@@ -184,7 +184,7 @@ React hooks for data operations.
 | Hook | Signature | Returns |
 |------|-----------|---------|
 | `useQuery` | `(path, options?)` | `{ data, loading, error, refetch, mutate }` |
-| `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
+| `useMutation` | `(method, path, options?)` | `{ trigger, isLoading, error }` |
 | `useInfiniteQuery` | `(path, options?)` | `{ pages, isLoading, error, loadNext, mutate }` |
 | `useWriteInfiniteCache` | `(path, options?)` | cache-only updater scoped to one infinite-query key |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
@@ -208,8 +208,8 @@ describe('Hooks', () => {
   })
 
   it('useMutation', async () => {
-    const { mutate } = useMutation('POST', '/topics')
-    const result = await mutate({ body: { name: 'New' } })
+    const { trigger } = useMutation('POST', '/topics')
+    const result = await trigger({ body: { name: 'New' } })
     expect(result.created).toBe(true)
   })
 
