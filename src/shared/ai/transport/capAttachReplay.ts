@@ -196,7 +196,7 @@ export function capAttachReplayChunks(
           const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
           if (tid) {
             const key = scopedPartKey(payload, 'tool-input', tid)
-            if (!seenToolInput.has(key) && !openParts.has(key) && !toolInfoByKey.has(key)) break
+            if (!seenToolInput.has(key)) break
           }
         }
         out.push(payload)
