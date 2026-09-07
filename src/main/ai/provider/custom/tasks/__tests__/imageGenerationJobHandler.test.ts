@@ -343,6 +343,20 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
+  it('accepts case-insensitive base64 markers with surrounding whitespace in inline data URLs', async () => {
+    const inline = `data:image/png; BASE64 ,${TINY_PNG_BASE64}`
+    submitMock.mockResolvedValue({ imageUrls: [inline] })
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({ files: [{ id: 'file-inline' }] })
+    expect(downloadMock).not.toHaveBeenCalled()
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'base64',
+      data: `data:image/png;base64,${TINY_PNG_BASE64}`,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+  })
+
   it('rejects invalid inline data instead of persisting it as an image', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['data:image/png;base64,YWJjMTIz'] })
 

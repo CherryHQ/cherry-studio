@@ -7,6 +7,8 @@ import * as z from 'zod'
 const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
 const SVG_MEDIA_TYPE = 'image/svg+xml'
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+const SVG_COMMENT_OR_CDATA_PATTERN = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g
+const SVG_DOCTYPE_PATTERN = /<!DOCTYPE\b/i
 const svgParser = new XMLParser({ ignoreAttributes: false, processEntities: false })
 
 export type GeneratedImageCandidate = {
@@ -21,7 +23,8 @@ export type GeneratedImageValidationResult =
 function isValidSvgImage(data: Buffer): boolean {
   try {
     const source = new TextDecoder('utf-8', { fatal: true }).decode(data)
-    if (/<!DOCTYPE\b/i.test(source) || XMLValidator.validate(source) !== true) return false
+    const markup = source.replace(SVG_COMMENT_OR_CDATA_PATTERN, '')
+    if (SVG_DOCTYPE_PATTERN.test(markup) || XMLValidator.validate(source) !== true) return false
 
     const document = svgParser.parse(source)
     const roots = Object.keys(document).filter((key) => key !== '?xml')

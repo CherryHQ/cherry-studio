@@ -688,6 +688,32 @@ describe('AiService', () => {
       expect(mockGenerateImage).toHaveBeenCalledOnce()
     })
 
+    it('keeps total URL download failure on the provider-error path', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockDownloadImageAsBase64.mockResolvedValue(null)
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        await options.experimental_download([
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false },
+          { url: new URL('https://example.com/b.png'), isUrlSupportedByModel: false }
+        ])
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).rejects.toThrow(/all downloads failed/i)
+      expect(mockDownloadImageAsBase64).toHaveBeenCalledTimes(2)
+    })
+
     it('rejects non-empty malformed base64 image data', async () => {
       const service = createService()
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -746,7 +772,7 @@ describe('AiService', () => {
       expect(createInternalEntry).not.toHaveBeenCalled()
     })
 
-    it('persists a valid SVG while rejecting non-SVG XML payloads', async () => {
+    it('persists valid SVG literals while rejecting non-SVG XML and real DTDs', async () => {
       const service = createService()
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
@@ -757,10 +783,18 @@ describe('AiService', () => {
       const dtdBase64 = Buffer.from(
         '<!DOCTYPE svg [<!ENTITY payload "unsafe">]><svg xmlns="http://www.w3.org/2000/svg"><text>&payload;</text></svg>'
       ).toString('base64')
+      const commentLiteralBase64 = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><!-- literal <!DOCTYPE svg> text --><rect width="1" height="1"/></svg>'
+      ).toString('base64')
+      const cdataLiteralBase64 = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text><![CDATA[literal <!DOCTYPE svg> text]]></text></svg>'
+      ).toString('base64')
       mockGenerateImage.mockResolvedValue({
         images: [
           { base64: TINY_SVG_BASE64, mediaType: 'image/svg+xml' },
           { base64: PREFIXED_SVG_BASE64, mediaType: 'image/svg+xml' },
+          { base64: commentLiteralBase64, mediaType: 'image/svg+xml' },
+          { base64: cdataLiteralBase64, mediaType: 'image/svg+xml' },
           { base64: textBase64, mediaType: 'image/svg+xml' },
           { base64: htmlBase64, mediaType: 'image/svg+xml' },
           { base64: dtdBase64, mediaType: 'image/svg+xml' }
@@ -780,17 +814,17 @@ describe('AiService', () => {
           paramValues: {}
         })
       ).resolves.toEqual({
-        files: [file, file],
+        files: [file, file, file, file],
         validation: {
-          receivedCount: 5,
+          receivedCount: 7,
           rejected: [
-            { index: 2, reason: 'invalid_image_data' },
-            { index: 3, reason: 'invalid_image_data' },
-            { index: 4, reason: 'invalid_image_data' }
+            { index: 4, reason: 'invalid_image_data' },
+            { index: 5, reason: 'invalid_image_data' },
+            { index: 6, reason: 'invalid_image_data' }
           ]
         }
       })
-      expect(createInternalEntry).toHaveBeenCalledTimes(2)
+      expect(createInternalEntry).toHaveBeenCalledTimes(4)
       expect(createInternalEntry).toHaveBeenNthCalledWith(1, {
         source: 'base64',
         data: `data:image/svg+xml;base64,${TINY_SVG_BASE64}`,
@@ -799,6 +833,16 @@ describe('AiService', () => {
       expect(createInternalEntry).toHaveBeenNthCalledWith(2, {
         source: 'base64',
         data: `data:image/svg+xml;base64,${PREFIXED_SVG_BASE64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(createInternalEntry).toHaveBeenNthCalledWith(3, {
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${commentLiteralBase64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      expect(createInternalEntry).toHaveBeenNthCalledWith(4, {
+        source: 'base64',
+        data: `data:image/svg+xml;base64,${cdataLiteralBase64}`,
         cleanupPolicy: 'delete_when_unreferenced'
       })
     })

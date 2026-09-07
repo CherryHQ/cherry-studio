@@ -912,6 +912,8 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    let remoteDownloadCount = 0
+    let remoteDownloadFailures = 0
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -923,12 +925,16 @@ export class AiService extends BaseService {
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
+        remoteDownloadCount += downloads.length
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
             const downloaded = await downloadImageAsBase64(url.toString())
             if (signal?.aborted) return null
-            if (!downloaded) return null
+            if (!downloaded) {
+              remoteDownloadFailures += 1
+              return null
+            }
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type
@@ -954,6 +960,11 @@ export class AiService extends BaseService {
       })
     } catch (error) {
       if (NoImageGeneratedError.isInstance(error)) {
+        if (remoteDownloadCount > 0 && remoteDownloadFailures === remoteDownloadCount) {
+          throw new Error(`Image generation produced ${remoteDownloadCount} URL(s) but all downloads failed`, {
+            cause: error
+          })
+        }
         return { files: [], validation: { receivedCount: 0, rejected: [] } }
       }
       throw error

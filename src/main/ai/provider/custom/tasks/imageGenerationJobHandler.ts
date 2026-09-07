@@ -10,6 +10,7 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { type GeneratedImageValidationResult, validateGeneratedImage } from '../../../utils/generatedImage'
 import { resolveProviderAiSdkConfig } from '../../config'
@@ -199,10 +200,9 @@ type ResolvedImageDataUrl = GeneratedImageValidationResult | { downloadFailed: t
 
 async function resolveImageDataUrl(url: string): Promise<ResolvedImageDataUrl> {
   if (url.startsWith('data:')) {
-    const separator = url.indexOf(',')
-    const [mediaType, ...parameters] = url.slice(5, separator).split(';')
-    if (separator < 0 || !mediaType || !parameters.includes('base64')) return { reason: 'invalid_image_data' }
-    return validateGeneratedImage({ mediaType, base64: url.slice(separator + 1) })
+    const parsed = parseDataUrl(url)
+    if (!parsed?.mediaType || !parsed.isBase64) return { reason: 'invalid_image_data' }
+    return validateGeneratedImage({ mediaType: parsed.mediaType, base64: parsed.data })
   }
   const downloaded = await downloadImageAsBase64(url)
   return downloaded
