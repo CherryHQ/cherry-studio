@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { CdpBrowserController } from '../controller'
 import { dialogToolDefinition, handleDialog } from './dialog'
 import { executeToolDefinition, handleExecute } from './execute'
+import { handleConsoleMessages, handleFind, handleNetworkRequests, inspectToolDefinitions } from './inspect'
 import { handleInteraction, interactionToolDefinitions } from './interact'
 import { handleHistory, handleWaitFor, navigateToolDefinitions } from './navigate'
 import { handleOpen, openToolDefinition } from './open'
@@ -29,6 +30,7 @@ export const toolDefinitions = [
   resetToolDefinition,
   dialogToolDefinition,
   ...interactionToolDefinitions,
+  ...inspectToolDefinitions,
   ...navigateToolDefinitions
 ]
 
@@ -53,5 +55,8 @@ export const toolHandlers: Record<
   select_option: (c, a, s) => handleInteraction('select_option', c, a, s),
   go_back: (c, a, s) => handleHistory(c, a, -1, s),
   go_forward: (c, a, s) => handleHistory(c, a, 1, s),
-  wait_for: handleWaitFor
+  wait_for: handleWaitFor,
+  find: handleFind,
+  console_messages: handleConsoleMessages,
+  network_requests: handleNetworkRequests
 }

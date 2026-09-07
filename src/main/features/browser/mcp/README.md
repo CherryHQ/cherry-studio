@@ -37,6 +37,9 @@ parallel work; operations on a single tab run serially.
 | `execute` | `code`, `timeout?` | JavaScript escape hatch; existing value output preserved; prefer dedicated input tools |
 | `screenshot` | `fullPage?`, `format?`, `quality?` | PNG/JPEG image |
 | `snapshot` | `full?`, `scope?`, `maxChars?` | Diff by default; `scope` is a ref, replacing the old CSS selector; cap 256–40,000 characters |
+| `find` | `role?`, `name?` (at least one) | Exact accessible role/name match in the main document, including offscreen elements; returns up to 100 refs without changing the diff baseline |
+| `console_messages` | `level?: error / warning / all`, `clear?` | Recent console output and uncaught exceptions; clear removes all entries matching the selected level after reading |
+| `network_requests` | `clear?` | Recent method, URL, status and completion/failure state, including redirect hops; clear removes all recorded requests after reading |
 | `click` | `ref`, `button?`, `clickCount?` | Real mouse events; covered left single clicks use a reported synthetic fallback |
 | `hover` | `ref` | Mouse movement; covered targets fail |
 | `scroll` | `ref?`, `pages?` | Scroll viewport or target; negative pages scroll up |
@@ -54,6 +57,18 @@ Snapshot and action results are JSON text with `ok`, `tabId`, `url`, `title`,
 the caller to re-snapshot. Pending dialogs and download state changes accompany
 results. Popups switch the active tab and report `newTabId`; the current result snapshot still
 belongs to the source tab, so observe the new tab explicitly. An `execute` interrupted by a page dialog returns the same error envelope.
+
+Inspection tools use the same result envelope and untrusted-data notice. `find` adds `matches`;
+console/network tools add `messages` / `requests`. Each includes `truncated` for the result limit.
+Console and network history keep 200 entries per managed tab across navigation, with 2,000-character
+text fields and 40,000-character entry-array output caps. An oversized result returns the newest
+entries in chronological order; `clear` also removes matching entries omitted from that result.
+Network summaries contain no request/response headers or bodies. Clearing inspection does not
+clear pending fetches used by action settling. Debugger detach and disposal clear history.
+
+Before an element action, a disconnected/missing node can recover once by its original full
+accessible role/name, only if that pair was and remains unique in the same document. Ambiguous
+matches require a fresh snapshot. Recovery never retries an action after it has started.
 
 JavaScript dialogs interrupt outstanding commands immediately. Managed dialogs
 are dismissed after 60 seconds and the next result reports `dismissedDialog` once.
@@ -75,7 +90,7 @@ tab closes its host window and tab bar. Borrowed pages are never reclaimed.
 
 The MCP runtime currently has no trusted agent session/workdir or turn identity.
 Owners are connection-scoped; retention is not per turn. Uploads are deferred
-until that upstream context exists. WebMCP, inspection tools, retained-tab
+until that upstream context exists. WebMCP, retained-tab
 freezing, WebContentsView migration and visible-pane control are later layers.
 
 A targeted `reset` requires both `tabId` and `privateMode`; incomplete or unknown

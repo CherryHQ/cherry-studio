@@ -20,7 +20,7 @@ export async function settleAction<T>(session: GuestSession, action: () => Promi
       (method === 'Page.frameStoppedLoading' && params.frameId === session.mainFrameId)
     )
       loaded = true
-    if (method === 'Network.requestWillBeSent' && ['Fetch', 'XHR'].includes(params.type)) {
+    if (method === 'Network.requestWillBeSent' && (params.type === 'Fetch' || params.type === 'XHR')) {
       requests.add(params.requestId)
       lastNetwork = Date.now()
     }

@@ -24,17 +24,21 @@ lives in the browser feature, its tabs use the shared service, and snapshot/acti
 retention likewise requires upstream session identity and a turn-ended signal. See the implementation
 plan for the remaining PR C/D boundaries.
 
+PR3 (C1–C2) is implemented locally on `browser-use-inspection`, based on PR2: same-document
+ref recovery, `find`, `console_messages` and `network_requests`. WebMCP remains a separate follow-up.
+
 ## Current state — `src/main/features/browser/mcp/`
 
-| Dimension | PR2 behavior |
+| Dimension | PR3 behavior |
 |---|---|
-| Tool surface | 18 tools: existing open/execute/screenshot/tab/reset tools plus actionable snapshot, click/type/hover/scroll/press_key/select_option, history, wait_for and handle_dialog |
+| Tool surface | 21 tools: PR2's 18 tools plus find, console_messages and network_requests |
 | Page representation | Main-process AX + DOM snapshot with actionable `eN` refs, diff output by default, scope by ref and 40,000-character cap |
 | Actions | Real mouse/key input and verified typing; native select events; reported synthetic fallback for covered left single clicks |
 | CDP | Shared `GuestSession` ownership, command allow-list, cancellation and deadlines |
 | Host | Hidden `BrowserWindow` + `BrowserView` tabs; `persist:default` / `private` partitions; BrowserView replacement is PR C |
-| Robustness | Navigation/network settling, dialog interruption/watchdog, originating-guest download updates, popup tab IDs, strict explicit tab targeting, global guest budgets |
-| Still pending | Upload authorization, OOPIF, inspection/WebMCP tools, retained-tab freezing, visible-pane control and coordinate actions |
+| Robustness | Navigation/network settling, dialog interruption/watchdog, download updates, popup IDs, explicit tab targeting, global budgets; one recovery before an action for uniquely named same-document replacements |
+| Inspection | Exact AX role/name search; per-managed-guest console/exception and network summaries, each bounded to 200 entries |
+| Still pending | Upload authorization, OOPIF, WebMCP tools, retained-tab freezing, visible-pane control and coordinate actions |
 
 ## What "browser use" converged on (9 projects read from source)
 
@@ -62,8 +66,11 @@ permission handlers.
 Not available to us: Chromium's built-in **Actor** framework (`chrome/browser/actor/`, the
 Gemini-in-Chrome agent — `chrome/` layer, Glic-only, no extension API) and its
 **AnnotatedPageContent** page representation (Blink code is present but has no CDP exposure);
-Chrome extension APIs (`chrome.debugger`); the CDP **`WebMCP`** domain (lands in Chromium 150 =
-Electron 43). Actor is still the best reference design: `PageTarget = variant<Point, DomNode{id, document token}>`,
+Chrome extension APIs (`chrome.debugger`). The running Electron 41.8.0 / Chromium 146.0.7680.216
+instance's `/json/protocol` does not advertise **`WebMCP`** (checked 2026-09-07).
+The experimental [CDP WebMCP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)
+exists in tip-of-tree and our protocol types; neither guarantees runtime availability or a particular
+Electron release. Actor is still the best reference design: `PageTarget = variant<Point, DomNode{id, document token}>`,
 three-stage validation (validate → time-of-use against the last observation → invoke, with a
 renderer-side hit-test that must land inside the target), per-tool `ActionResultCode` ranges, a
 page-settled observation state machine, and a handoff-button UI.
@@ -81,8 +88,9 @@ Node runtime (`cua_node` + `@oai/browser-desktop`). That is structurally our `We
   the model pulls docs on demand via `browser.documentation()`.
 - **AX text + element index + revision diff** as the primary representation (a Rust→WASM
   "revision" engine; the same engine drives macOS native apps in `@oai/sky`).
-- **WebMCP via preload polyfill** (`document.modelContext` shim relayed to main) — available today,
-  without waiting for native Chromium support.
+- **WebMCP via preload polyfill** (`document.modelContext` shim relayed to main) — observed in this
+  Codex bundle; this is an implementation reference, not evidence of native Electron support or
+  conformance to the current WebMCP draft.
 - **CDP allow-list**: `Target.*` blocked except `setAutoAttach`, `Page.navigate` intercepted for
   origin policy, `Fetch.enable` limited to non-Document patterns, `DOM.setFileInputFiles` blocked in
   favour of the file-chooser flow; per-origin `{access, downloads, uploads, full_cdp_access}` config.
@@ -101,7 +109,7 @@ the same three seams; browser use adds the *act* half.
 
 | Seam | Annotations today | What browser use reuses |
 |---|---|---|
-| Guest preload (`src/preload/webview.ts`, `WebviewAnnotationController.ts`) | Selection overlay (hover / click / marquee), pins, `selection_pending` → host editor, key replay to the host, session-scoped bridge protocol | Same injection point and bridge for highlight-on-action, "which element did the agent touch" pins, and future human handoff UI; WebMCP injection uses CDP in PR C |
+| Guest preload (`src/preload/webview.ts`, `WebviewAnnotationController.ts`) | Selection overlay (hover / click / marquee), pins, `selection_pending` → host editor, key replay to the host, session-scoped bridge protocol | Same injection point and bridge for highlight-on-action, "which element did the agent touch" pins, and future human handoff UI; WebMCP uses the capability-selected adapter described below |
 | Element locator (`WebviewElementLocator`) | `selector` (unique CSS through open shadow roots), `tagName`, `text`, `ariaLabel`, `role`, `styles`, optional `region { rect, elements[] }` | Becomes the human-authored **target**: an annotation is a `PageTarget` the agent can act on without re-discovering it. `styles` (position / z-index / offsets) is exactly the context an agent needs for layout fixes |
 | Main-side AX capture (`services/webview/annotationExport.ts`) | Acquires a borrowed `GuestSession` and calls `describeElement(annotation, budget, options)`; release detaches only after the last owner leaves | Shares debugger ownership and command cancellation with whole-page AX/DOM snapshots; annotation path/subtree formatting stays intact |
 | Host surface (`WebviewBrowser`, `AgentBrowserRightPanel`) | Composer-kernel editor popover, `onAnnotationSaved` → `webviewAnnotation` composer token (`formatAgentWebviewAnnotationPrompt`) | The pane the agent drives is the pane the user annotates; the token is the human → agent hand-off, browser use is the agent → page hand-off |
@@ -201,8 +209,9 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   `upload_file` waits for trusted runtime working-directory context; model-provided roots are not authority.
 - Dialog watchdog (`Page.javascriptDialogOpening`) so `execute` can never hang; downloads via
   `will-download` reported in the response.
-- WebMCP is scheduled for PR C: inject `navigator.modelContext` via
-  `Page.addScriptToEvaluateOnNewDocument`, covering hidden tabs with no preload as well as guests.
+- WebMCP is a separate follow-up (C3), outside the proposed PR3 inspection/ref-recovery scope.
+  Probe native CDP support first, then a compatible page API; report unsupported when neither works.
+  A bundled polyfill needs a separate compatibility decision, not unconditional injection.
 
 **P1 — real input and stability**
 - `Input.*` execution: centre point from `getContentQuads`, occlusion hit-test, JS fallback;
@@ -228,6 +237,27 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   (show → pause → user acts → resume without losing the page, cf. UI-TARS `call_user` and Chromium
   `handoff_button`); three-tier confirmation policy; URL allow/deny lists.
 
+## WebMCP integration boundary
+
+The [WebMCP Community Group draft](https://webmachinelearning.github.io/webmcp/), checked
+2026-09-07, uses `document.modelContext`: async `registerTool`, `getTools`, `executeTool`,
+registration/execution abort signals and `toolchange`. The former `navigator.modelContext` /
+`provideContext` / `unregisterTool` sketch is not the contract for this work. The draft and
+Chromium's experimental implementation can evolve independently; implementation must record
+the actual API shape and Electron/Chromium versions it tests.
+
+Cherry's first adapter covers tools owned by the managed tab's main document. It prefers native
+CDP discovery/invocation and can use an already-present compatible page API via the shared
+`GuestSession`. It never replaces an existing API or silently installs a legacy shim. Before
+bundling any polyfill, evaluate maintained implementations against the selected draft; browser
+permissions, cross-origin exposure and declarative forms cannot be promised by a small JS registry.
+
+Tool handles are document-bound, pending calls participate in session shutdown, and tool metadata
+and results remain untrusted even when they arrive over native CDP. Cancellation bounds Cherry's
+wait and requests cancellation of page work; it does not undo side effects or guarantee arbitrary
+page JavaScript stops. See [implementation §5.7](./browser-use-implementation.md#57-webmcp-adapter)
+for capability selection, result handling and acceptance gates.
+
 ## Invariants for reviewers
 
 - Guest pages stay untrusted: nothing from the page (text, selectors, WebMCP tool descriptions)
@@ -243,7 +273,8 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   annotation-target handoff contract before adding document/node identifiers to saved locators.
 - Upload authorization and per-turn retention require trusted context from the MCP runtime first;
   a connection-scoped owner is not an agent session, working directory or turn.
-- Electron 43 upgrade unlocks the native CDP `WebMCP` domain; the planned CDP-injected polyfill can then be
-  demoted to a fallback.
+- WebMCP delivery depends on a verified runtime/API combination. The current Electron runtime
+  lacks the advertised CDP domain; compatible page API availability still needs a real-page test.
+  Do not treat a dependency type update or a future Electron major version as the compatibility gate.
 - Full working notes (project-by-project source refs) live in
   `.context/research/browser-use-gap-analysis.md` on the `webview-agent-pane-browser` workspace.

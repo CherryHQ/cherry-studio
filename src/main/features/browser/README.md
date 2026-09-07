@@ -23,6 +23,8 @@ are left alone. `send()` infers method-specific inputs and results from the offi
 `devtools-protocol` types, restricted to the runtime allow-list. Parameterless commands
 can omit their arguments; pass `undefined` to provide command options. Protocol types
 describe the response envelope, not arbitrary JavaScript values returned by a page.
+Consumed events likewise use the official `ProtocolMapping.Events` discriminated union;
+unhandled events and child debugger sessions do not enter the main-frame event stream.
 
 Actions and snapshots use separate `async-mutex` locks so an action can capture a
 snapshot without locking itself out. Synchronous guest disposal cancels queued
@@ -35,6 +37,21 @@ or debugger detachment. Navigation during capture discards the result. Large AX
 trees omit DOM capture and all control values. Output is capped at 40,000
 characters and includes an untrusted-data notice. Scoped snapshots do not change
 the full-page diff baseline.
+
+Element actions check that a resolved node is still connected before performing effects.
+If it is gone, `recoverRef()` makes one main-document AX query using the full role/name
+recorded during observation. Recovery requires uniqueness both then and now. Ambiguous,
+unnamed, cross-document or already-referenced replacement targets remain `stale_ref`.
+The synchronous `resolveRef()` lookup stays side-effect-free; failed actions are never replayed.
+
+`find()` queries exact accessible role/name and returns at most 100 refs, including offscreen
+elements, without replacing the snapshot diff baseline. Managed queries use the same focus
+emulation as actions to let hidden-page AX updates complete. Managed sessions record console output,
+uncaught exceptions and network request summaries in owned `BrowserInspection` buffers.
+Each buffer holds 200 entries; page text fields cap at 2,000 characters and returned entry arrays
+at 40,000 serialized characters. Navigation preserves recent history; detach/disposal clears it.
+Reads can clear matching console levels or all requests without affecting network settling.
+Request headers, bodies and console remote-object handles are never retained in these buffers.
 
 Annotation capture preserves the existing isolated-world selector resolution,
 Shadow DOM traversal, request budgets, cancellation, and form-value suppression.

@@ -17,14 +17,15 @@ import {
   snapshotOptionsSchema,
   type TabRetention
 } from '../browserUse'
-import type { AccessibilityCaptureBudget } from '../snapshot/accessibilityTypes'
+import type { AccessibilityCaptureBudget, CdpAccessibilityNode } from '../snapshot/accessibilityTypes'
 import { buildSnapshotTree } from '../snapshot/buildSnapshotTree'
 import { captureSnapshot } from '../snapshot/captureSnapshot'
 import { createAccessibilityContext, describeElement } from '../snapshot/describeElement'
 import { diffSnapshot } from '../snapshot/diffSnapshot'
 import { sanitizeSnapshotUrl, serializeSnapshot, type SnapshotRevision } from '../snapshot/serializeSnapshot'
+import { BrowserInspection, type ConsoleLevel } from './BrowserInspection'
 import { BrowserSessionError } from './BrowserSessionError'
-import { cdpAllowList, type CdpCommandArgs, type CdpMethod } from './cdpAllowList'
+import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type CdpMethod } from './cdpAllowList'
 
 const logger = loggerService.withContext('GuestSession')
 
@@ -46,13 +47,15 @@ export class GuestSession implements Disposable {
   private nextRef = 1
   private readonly refs = new Map<BrowserRef, number>()
   private readonly nodeRefs = new Map<number, BrowserRef>()
+  private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
+  private readonly inspection = new BrowserInspection()
   private readonly pending = new Set<(error: Error) => void>()
   private dialogTimer?: ReturnType<typeof setTimeout>
   private revision?: SnapshotRevision
   private readonly snapshotMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
   private operations = 0
   private readonly actionMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
-  private readonly events = new Emitter<{ method: string; params: Record<string, any> }>()
+  private readonly events = new Emitter<CdpEvent>()
   readonly onEvent = this.events.event
   private readonly downloadItems = new Map<DownloadItem, () => void>()
   private readonly downloadUpdates = new Map<DownloadItem, { filename: string; state: string }>()
@@ -96,6 +99,7 @@ export class GuestSession implements Disposable {
     this.invalidateAnnotationContext()
     this.refs.clear()
     this.nodeRefs.clear()
+    this.refTargets.clear()
     this.revision = undefined
   }
 
@@ -114,7 +118,13 @@ export class GuestSession implements Disposable {
     for (const reject of [...this.pending]) reject(error)
   }
 
-  private readonly onMessage = (_event: Electron.Event, method: string, params: Record<string, any>) => {
+  private readonly onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
+    if (sessionId || !cdpEventMethods.has(method)) return
+    this.handleEvent({ method, params } as CdpEvent)
+  }
+
+  private handleEvent(event: CdpEvent) {
+    const { method, params } = event
     if (method === 'Page.frameNavigated' && !params.frame.parentId) {
       this.currentMainFrameId = params.frame.id
       this.currentDocumentId = params.frame.loaderId
@@ -141,13 +151,15 @@ export class GuestSession implements Disposable {
         this.dialogTimer.unref()
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
-    this.events.fire({ method, params })
+    if (this.ownership === 'managed') this.inspection.record(event)
+    this.events.fire(event)
   }
 
   private readonly onDetach = () => {
     this.attached = false
     this.invalidateDocument()
     this.clearDialog()
+    this.inspection.clear()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
   }
 
@@ -334,6 +346,80 @@ export class GuestSession implements Disposable {
     return id
   }
 
+  private rememberRefTargets(nodes: CdpAccessibilityNode[]) {
+    const candidates = new Map<string, { node: CdpAccessibilityNode; role: string; name: string; count: number }>()
+    for (const node of nodes) {
+      const role = node.role?.value
+      const name = node.name?.value
+      if (node.frameId && node.frameId !== this.mainFrameId) continue
+      const ref = node.backendDOMNodeId === undefined ? undefined : this.nodeRefs.get(node.backendDOMNodeId)
+      if (ref) this.refTargets.delete(ref)
+      if (typeof role !== 'string' || !role || typeof name !== 'string' || !name || name.length > 2000) continue
+      const key = JSON.stringify([role, name])
+      const group = candidates.get(key)
+      if (group) group.count++
+      else candidates.set(key, { node, role, name, count: 1 })
+    }
+    for (const { node, role, name, count } of candidates.values()) {
+      if (count !== 1 || node.ignored) continue
+      const ref = node.backendDOMNodeId === undefined ? undefined : this.nodeRefs.get(node.backendDOMNodeId)
+      if (ref) this.refTargets.set(ref, { role, name })
+    }
+  }
+
+  private async queryElements(query: { role?: string; name?: string }, options: CommandOptions) {
+    // Hidden managed tabs need focus emulation for Chromium to complete AX updates.
+    if (this.ownership === 'managed') await this.send('Emulation.setFocusEmulationEnabled', { enabled: true }, options)
+    const epoch = this.epoch
+    const { root } = await this.send('DOM.getDocument', { depth: 0 }, options)
+    if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+    const { nodes } = await this.send(
+      'Accessibility.queryAXTree',
+      { backendNodeId: root.backendNodeId, role: query.role, accessibleName: query.name },
+      options
+    )
+    if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+    return nodes.filter((node) => !node.frameId || node.frameId === this.mainFrameId)
+  }
+
+  async find(query: { role?: string; name?: string }, options: CommandOptions = {}) {
+    if (!query.role && !query.name) throw new BrowserSessionError('not_allowed')
+    const nodes = await this.queryElements(query, options)
+    const candidates = nodes.filter((node) => !node.ignored && node.backendDOMNodeId !== undefined)
+    const matches = candidates.slice(0, 100).map((node) => ({
+      ref: this.allocateRef(node.backendDOMNodeId!),
+      role: String(node.role?.value ?? '').slice(0, 200),
+      name: String(node.name?.value ?? '').slice(0, 200)
+    }))
+    this.rememberRefTargets(nodes)
+    return { matches, truncated: candidates.length > matches.length }
+  }
+
+  async recoverRef(ref: BrowserRef, options: CommandOptions = {}): Promise<number> {
+    const previous = this.resolveRef(ref)
+    const target = this.refTargets.get(ref)
+    if (!target) throw new BrowserSessionError('stale_ref')
+    const nodes = await this.queryElements(target, options)
+    if (this.resolveRef(ref) !== previous) throw new BrowserSessionError('stale_ref')
+    if (nodes.length !== 1 || nodes[0].ignored) throw new BrowserSessionError('stale_ref')
+    const id = nodes[0].backendDOMNodeId
+    if (id === undefined || id === previous || this.nodeRefs.has(id)) throw new BrowserSessionError('stale_ref')
+    this.nodeRefs.delete(previous)
+    this.nodeRefs.set(id, ref)
+    this.refs.set(ref, id)
+    return id
+  }
+
+  consoleMessages(level: ConsoleLevel = 'all', clear = false) {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    return this.inspection.consoleMessages(level, clear)
+  }
+
+  networkRequests(clear = false) {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    return this.inspection.networkRequests(clear)
+  }
+
   private allocateRef = (id: number): BrowserRef => {
     let ref = this.nodeRefs.get(id)
     if (!ref) {
@@ -361,6 +447,7 @@ export class GuestSession implements Disposable {
         const tree = buildSnapshotTree(raw, this.allocateRef, scope)
         const url = this.guest.getURL()
         const title = this.guest.getTitle()
+        this.rememberRefTargets(raw.ax)
         const snapshot: BrowserSnapshot = {
           ...tree,
           documentId: this.documentId,
@@ -465,6 +552,7 @@ export class GuestSession implements Disposable {
     for (const cleanup of this.downloadItems.values()) cleanup()
     this.downloadItems.clear()
     this.downloadUpdates.clear()
+    this.inspection.clear()
     this.events.dispose()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
     this.detach()

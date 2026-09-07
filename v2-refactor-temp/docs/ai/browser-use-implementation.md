@@ -16,12 +16,13 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 |---|---|---|
 | PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
-| PR C | PR B | Planned: inspection, ref recovery, WebMCP, retained-tab freezing, WebContentsView |
+| PR3 / C1–C2 — `browser-use-inspection` | PR B | Implemented locally: inspection and same-document ref recovery |
+| C3–C5 follow-ups | PR3 | Planned separately: WebMCP, retained-tab freezing, WebContentsView |
 | PR D | PR A | Planned independent branch: browser-data import (§10) |
 
 PR B is published as [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134) on
 `browser-use-mcp`, stacked on #20128.
-Sections below distinguish delivered PR A/B contracts from planned PR C/D work. `upload_file`
+Sections below distinguish delivered PR A/B/C1–C2 contracts from planned C3–C5/D work. `upload_file`
 is excluded from PR B until MCP calls carry trusted session/workdir context (§4); true per-turn
 retention has the same upstream identity dependency. P0/P1 are roadmap milestones, not PR numbers.
 
@@ -35,26 +36,27 @@ retention has the same upstream identity dependency. P0/P1 are roadmap milestone
 | Snapshot source | `Accessibility.getFullAXTree` + `DOMSnapshot.captureSnapshot`, serialised in main | Replaces the guest-side JS walker in `tools/snapshot.ts`; works without a preload |
 | Snapshot output | Diff against the previous snapshot of the same tab by default; `full: true` opts out | Cost is in the tokens, not the CDP call |
 | Input execution | Real `Input.*` events with a JS fallback when the hit-test says the point is occluded | What every mature project converged on |
-| WebMCP polyfill | Installed via `Page.addScriptToEvaluateOnNewDocument`, **not** via preload | Hidden MCP tabs have `preload: ''`; one mechanism covers both hidden tabs and `<webview>` guests. Preload injection stays a P3 option for guests the engine attaches to lazily |
+| WebMCP integration | Capability-selected adapter: native CDP first, compatible existing page API second, otherwise unsupported (§5.7) | Protocol types do not prove runtime support; do not replace a page API or bundle an unverified polyfill |
 | CDP surface | Explicit allow-list in `cdpAllowList.ts`; `GuestSession.send()` rejects anything else | Reviewable security boundary; `execute` stays the escape hatch |
 | Session ownership | Registry keyed by `webContents.id`; every session is `managed` (engine-created hidden tab) or `borrowed` (someone else's page, debugger only); owners acquire/release; retention marks per managed tab | Per-connection controllers are the leak |
 | Existing tools | `open`, `execute`, `screenshot`, `list_tabs`, `switch_tab`, `close_tab`, `reset` keep their names and input schemas; `snapshot` keeps its name but changes output | No prompt churn for the tools that already work |
 
 ## 2. Module layout
 
-Layout through PR B, with PR C additions marked by their later commit groups. PR A contains
+Layout through PR3, with later additions marked by their work packages. PR A contains
 the service, main-only contracts, session and snapshot modules; PR B adds `actions/` and `mcp/`.
-The WebMCP script, inspection tools and retained-tab freezing remain planned.
+PR3 adds inspection; the WebMCP adapter and retained-tab freezing remain planned.
 
 ```
 src/main/features/browser/browserUse.ts     main-only ref / snapshot / ownership / command types + zod schemas
-src/main/features/browser/webMcpPolyfill.ts  planned injected `navigator.modelContext` script (string)
 
 src/main/features/browser/
   index.ts                                  barrel: BrowserSessionService, GuestSession, types
   BrowserSessionService.ts                  lifecycle service: registry, budget, sweep timer, createMcpServer()
   session/
     GuestSession.ts                         one per webContents: debugger, refs, dialog, downloads, retention
+    WebMcpSession.ts                        planned C3: capability, tool registry, pending invocations
+    BrowserInspection.ts                   PR3: bounded console/exception and network summaries
     BrowserSessionError.ts                  typed command/session failures
     cdpAllowList.ts                         Typed CDP method whitelist and argument tuples
   snapshot/
@@ -160,11 +162,11 @@ is the planned tool surface, with C-only tools and deferred uploads delivered se
 | `go_back` / `go_forward` | `{ tabId?, privateMode? }` | `Page.getNavigationHistory` + `navigateToHistoryEntry` |
 | `wait_for` | `{ text?: string, ref?: BrowserRef, gone?: boolean, timeoutMs?: number }` | polls the snapshot tree at 250 ms; max 30 s |
 | `handle_dialog` | `{ accept: boolean, promptText?: string, tabId?, privateMode? }` | |
-| `find` | `{ role?: string, name?: string, tabId?, privateMode? }` | `Accessibility.queryAXTree`; returns refs |
-| `console_messages` | `{ tabId?, privateMode?, level?: 'error'\|'warning'\|'all', clear?: boolean }` | ring buffer of 200 per tab |
-| `network_requests` | `{ tabId?, privateMode?, clear?: boolean }` | ring buffer of 200 per tab: method, url, status, type |
-| `list_web_tools` | `{ tabId?, privateMode? }` | WebMCP tools the page registered |
-| `call_web_tool` | `{ name, args: unknown, tabId?, privateMode? }` | |
+| `find` | `{ role?: string, name?: string, tabId?, privateMode? }` | PR3: at least one exact AX filter; up to 100 refs including offscreen elements; does not change the diff baseline |
+| `console_messages` | `{ tabId?, privateMode?, level?: 'error'\|'warning'\|'all', clear?: boolean }` | PR3: 200 recent entries per managed tab; clear removes matching levels after reading |
+| `network_requests` | `{ tabId?, privateMode?, clear?: boolean }` | PR3: 200 recent request/redirect entries per managed tab: method, URL, status, type, completion/failure; clear after reading |
+| `list_web_tools` | `{ tabId?, privateMode? }` | C3: capability (`cdp` / `page-api` / `unsupported`) and bounded descriptors with document-bound `toolId` |
+| `call_web_tool` | `{ toolId: string, args: Record<string, unknown>, tabId?, privateMode? }` | C3: use an ID returned by listing; reject stale IDs rather than resolve a name in a later document |
 | `mark_tab` | `{ tabId, retention: TabRetention, privateMode? }` | |
 
 ## 4. `BrowserSessionService` and `GuestSession`
@@ -264,9 +266,13 @@ PR A attach sequence (`GuestSession.ensureAttached`): `attach('1.3')` → `Page.
 share initialization. Main-frame navigation and debugger detach invalidate refs and the previous
 snapshot; the ref counter never resets within the session. Dialog open/closed events update state.
 
-PR B adds download tracking and the Network events needed for settling. PR C adds console/network
-buffers, `freeze`/`thaw`, and `listWebTools`/`callWebTool` with the new-document polyfill. These are
-not PR A APIs. Download events must be attributed to their originating guest on the shared Electron
+PR B adds download tracking and the Network events needed for settling. PR3 adds console/network
+inspection and typed consumed events via `ProtocolMapping.Events`. `BrowserInspection` belongs to
+the guest, records only managed sessions, retains recent history across navigation and clears on
+detach/disposal. Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
+characters, returning the newest entries with `truncated` when needed. `clear` removes all selected
+entries, including ones omitted by the output cap, without touching the separate settling state.
+`freeze`/`thaw` and WebMCP (§5.7) remain follow-ups. Download events must be attributed to their originating guest on the shared Electron
 session; unrelated guests' downloads must never enter a tab's result.
 
 `cdpAllowList.ts` permits the delivered capture, action and dialog methods. Its literal list is checked
@@ -319,7 +325,20 @@ values/descendants and sanitizes data URLs and URL credentials in snapshot text 
 
 ### 5.2 Target resolution (`actions/resolveTarget.ts`)
 
-`resolveRef` → `DOM.scrollIntoViewIfNeeded({ backendNodeId })` → `DOM.getContentQuads` → centre of the largest quad → `DOM.getNodeForLocation({ x, y, includeUserAgentShadowDOM: true })`. If the hit node is the target or one of its descendants: `{ x, y, occluded: false }`. Otherwise `{ x, y, occluded: true }`; mouse actions then use the JS fallback (`DOM.resolveNode` → `Runtime.callFunctionOn(function(){ this.click() })`) and report `occluded` in the result so the model knows the click was synthetic.
+PR3 keeps `resolveRef()` synchronous. Before any element callback, `withElement()` resolves the
+node and checks `isConnected`. Only a missing/disconnected node triggers one `recoverRef()` query
+using the full role/name saved during observation. The pair must have been unique then and still
+match exactly one unignored node now; unnamed, oversized-name and ambiguous targets require a new
+snapshot. Main-document navigation or detach invalidates all recovery metadata. A replacement
+already assigned another ref is rejected rather than silently merging identities. No callback or
+input event is replayed after it starts, and cancellation/protocol failures retain their errors.
+Managed queries enable the existing focus emulation before querying AX: on Electron 41.8,
+the hidden-page query otherwise timed out in real acceptance. `find` shares this path.
+
+`resolveRef` → `DOM.scrollIntoViewIfNeeded({ backendNodeId })` → `DOM.getContentQuads` → centre of the largest quad → `DOM.getNodeForLocation`. PR3 adds `Page.getLayoutMetrics().cssLayoutViewport.pageX/pageY` to the hit-test point because this command takes document coordinates; quads and mouse input stay in viewport coordinates. This fixes actions on offscreen `find` results. If the hit node is the target or one of its descendants: `{ x, y, occluded: false }`. Otherwise `{ x, y, occluded: true }`; mouse actions then use the JS fallback (`DOM.resolveNode` → `Runtime.callFunctionOn(function(){ this.click() })`) and report `occluded` in the result so the model knows the click was synthetic.
+
+The coordinate conversion is verified against [Chromium's DOM agent](https://chromium.googlesource.com/chromium/src/+/6ea845148338bfc8456133393818f6df93c82c0e/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc)
+and the scrolled-page Electron acceptance case.
 
 ### 5.3 Mouse (`actions/mouse.ts`)
 
@@ -342,10 +361,90 @@ values/descendants and sanitizes data URLs and URL credentials in snapshot text 
 
 After every action: wait 100 ms for `Page.frameStartedNavigation` on the main frame; if it fires, wait for `Page.loadEventFired` (max 10 s) and set `navigated: true`; otherwise wait until no `Network.requestWillBeSent` / `loadingFinished` for 300 ms (max 5 s). Then take the diff snapshot for the result. `wait_for` reuses the same loop with a predicate over `buildSnapshotTree`.
 
-### 5.7 WebMCP polyfill (`src/main/features/browser/webMcpPolyfill.ts`)
+### 5.7 WebMCP adapter
 
-Main-world script, idempotent, installs `navigator.modelContext` when absent:
-`registerTool({ name, description, inputSchema, execute })`, `unregisterTool(name)`, `provideContext({ tools })`, and a private `__cherryModelContext = { list(): descriptors, call(name, args): Promise }`. The engine reads the list with `Runtime.evaluate('__cherryModelContext.list()')` and calls with `Runtime.evaluate(…, { awaitPromise: true, timeout })`. Tool descriptions are page data and go out with the untrusted-data notice. When Electron 43 lands, `list()` is served by the native `WebMCP` CDP domain and the script becomes a fallback.
+C3 is a separate follow-up to PR3's inspection/ref-recovery work. Nothing in this section is
+implemented by PR A/B. Initial scope is the managed tab's main document; iframe/OOPIF discovery,
+cross-origin exposure, declarative-form support and borrowed visible-pane integration are deferred.
+
+**Compatibility baseline (checked 2026-09-07)**
+
+- The [Community Group draft](https://webmachinelearning.github.io/webmcp/) is evolving, not a
+  W3C Standard. Its entry point is `document.modelContext`, with the contract below.
+- The [experimental CDP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)
+  is a separate browser-agent transport. It has event-based discovery and completion, not `list()`.
+- `package.json` pins Electron `41.8.0` and `devtools-protocol` `0.0.1692173`. The latter includes
+  WebMCP command/event types, while the running Electron / Chromium `146.0.7680.216` instance's
+  `/json/protocol` has no WebMCP domain. Page API compatibility has not been runtime-verified.
+  Remove the old assumption that Electron 43 necessarily unlocks native support.
+
+| Draft page API | Contract the adapter must respect |
+|---|---|
+| `registerTool(tool, { signal? })` | Async registration; aborting the registration signal removes the tool |
+| `getTools(options?)` | Async descriptors; retain only tools whose `window` is the current main window |
+| `executeTool(tool, inputObject?, { signal? })` | Takes a returned descriptor, not just a name; resolves to a serialized result string |
+| `toolchange` | Invalidate previously observed descriptors and refresh before another call |
+
+The old `navigator.modelContext`, `provideContext` and `unregisterTool` sketch is not this contract.
+Do not infer API compatibility from property presence alone or alias old APIs silently.
+
+**Capability selection**
+
+Probe through `GuestSession` when WebMCP is first requested. Install event listeners before trying
+`WebMCP.enable`; a missing/unsupported domain permits the page-API path. Debugger loss, navigation,
+permission failures and deadlines retain their actual errors rather than triggering a fallback.
+Re-evaluate after document replacement or debugger reattachment; never switch transports and
+retry a tool after invocation has begun, since that could repeat side effects.
+
+For native CDP, `toolsAdded` / `toolsRemoved` maintain the main-frame registry; enabling also
+announces existing tools. `invokeTool({ frameId, toolName, input })` returns an `invocationId`;
+wait for the matching `toolResponded` and interpret `Completed` / `Canceled` / `Error` separately.
+Bound initial discovery and test event ordering on the selected runtime. Reuse
+`ProtocolMapping.Commands` and `ProtocolMapping.Events` from the pinned official dependency,
+and add only consumed commands to `cdpAllowList.ts`.
+
+When CDP is unavailable, a compatible existing `document.modelContext` may be called in the
+current main-world execution context. Keep returned descriptors in that document and pass tool
+arguments as structured `Runtime.callFunctionOn` arguments, never interpolate them into JS.
+Serialize only metadata to main; never serialize a descriptor's `Window`. API shape checks plus
+a real fixture test establish compatibility; a page-provided implementation remains untrusted.
+With neither transport, `list_web_tools` reports `unsupported` with a reason, distinct from an
+available API with zero tools. `call_web_tool` returns an MCP tool error without executing JS.
+
+Bundling a polyfill is deferred. First compare maintained implementations with the chosen draft
+and record gaps before selecting a dependency or proposing custom code. If injection is later
+approved, it must precede site registration scripts on newly managed documents, avoid overwriting
+existing APIs, and track/remove its CDP script registration during cleanup. Late attachment cannot
+recover registrations a page skipped before the API existed. A private `__cherryModelContext`
+registry alone is not standards conformance or a security boundary.
+
+**Identity, results and ownership**
+
+`GuestSession` owns one dynamic `WebMcpSession`; `BrowserSessionService` retains lifecycle ownership
+through the guest. The child tracks subscriptions, document-local handles, deadlines and pending
+invocations, rather than becoming an application singleton. Each MCP call still belongs to its
+controller: disconnect cancels that controller's calls without disposing another owner's guest.
+
+Listing returns bounded, untrusted descriptors with opaque `toolId` values tied to the guest,
+document and observed registry revision. Navigation, context destruction, detach and observed
+registry changes invalidate them; calls reject stale IDs and require a fresh list. Recheck the
+descriptor before dispatch. Native invocation ultimately addresses a name, so this does not
+guarantee atomic registration identity if a page replaces a tool during dispatch.
+
+Accept a JSON object for input. Validate it against the advertised schema with an existing
+compatible JSON Schema validator; unsupported schemas fail explicitly, never trigger remote
+schema fetching or AI argument repair. Bound descriptor count, metadata/schema sizes and result
+text. Preserve the page API's serialized result without double encoding; normalize native output
+to MCP content and report truncation. Tool annotations are hints, never authorization or a reason
+to omit the untrusted-data notice.
+
+Abort/deadline/disconnect requests `WebMCP.cancelInvocation` or aborts the page call's controller,
+settles Cherry's pending result once, and ignores late completion. Cancellation is cooperative:
+`Runtime.evaluate.timeout` does not guarantee an async tool stops or its effects are undone.
+Disposal reuses one close Promise, cancels pending work, releases remote handles/listeners and
+disables the domain before guest detach where possible. Navigation/context loss also rejects
+pending calls. Service shutdown must await this cleanup; it must never wait indefinitely for a
+page's uncooperative Promise.
 
 ## 6. Annotation export migration
 
@@ -442,15 +541,32 @@ PR B validation:
   background-tab snapshots, and disconnect during a pending command with native destruction awaited.
   Synthetic protocol and download handlers existed only in the smoke harness.
 
-### PR C — `feat(browser-mcp): P1 stability, inspection and WebMCP`
+### PR C work packages — stability, inspection and follow-ups
+
+PR3 implements C1–C2 locally on `browser-use-inspection`. C3 ships separately after its runtime compatibility gate (§5.7);
+C4–C5 remain separately scoped work. These labels identify work packages, not one required PR.
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
-| C1 | `feat(browser-mcp): recover re-rendered refs by role and name` | `GuestSession.resolveRef` fallback via `Accessibility.queryAXTree`, only when the ref's `documentId` equals the current one and its `backendNodeId` no longer resolves (SPA re-render); cross-document refs stay `stale_ref` | `GuestSession.test.ts`: same-document re-render recovers, cross-document with an identical role+name does not |
-| C2 | `feat(browser-mcp): add find, console_messages and network_requests` | `tools/inspect.ts`, ring buffers in `GuestSession` | `inspect.test.ts` |
-| C3 | `feat(browser-mcp): inject the WebMCP polyfill and expose page tools` | `features/browser/webMcpPolyfill.ts`, `tools/webMcp.ts` | `webMcpPolyfill.test.ts` (jsdom), `webMcp.test.ts` |
+| C1 | `feat(browser-mcp): recover re-rendered refs by role and name` | `withElement` validates before effects; `GuestSession.recoverRef` queries a unique same-document replacement; `resolveRef` remains synchronous | `refRecovery.test.ts`: replacement, ambiguity, full names, navigation/detach, cancellation, no action replay |
+| C2 | `feat(browser-mcp): add find, console_messages and network_requests` | `tools/inspect.ts`, guest-owned `BrowserInspection`, official event types | `inspection.test.ts`: bounds, filtering/clear, redirect/failure, ownership and independent settling; MCP transport tests |
+| C3 | `feat(browser-mcp): expose page tools through a capability-selected WebMCP adapter` | `session/WebMcpSession.ts`, `GuestSession` ownership, typed CDP events/allow-list, `tools/webMcp.ts` | `WebMcpSession.test.ts`, `webMcp.test.ts`, real Electron capability and invocation acceptance (§8.4 / §9); bundled polyfill deferred |
 | C4 | `feat(browser-session): expose retention marks and freeze retained tabs` | Extend PR A's existing sweep with freeze/thaw + `mark_tab` tool; retention marks change eviction order and freeze eligibility only, no turn scoping (§4 "Turn boundary") | `BrowserSessionService.test.ts` freeze/evict cases |
 | C5 | `refactor(browser-mcp): replace BrowserView tabs with WebContentsView` | `controller.ts`, `types.ts`, `tabbarHtml.ts` | existing controller tests; manual (§9) |
+
+PR3 validation:
+
+- 143 focused tests passed across browser engine/actions/inspection/MCP, annotation export and
+  MCP runtime suites. `pnpm lint`, `pnpm test:lint` and `pnpm docs:check` passed; the full test suite
+  was intentionally skipped under the workspace's local validation override.
+- Electron 41.8.0 with Chromium 146 passed 26 real MCP interaction steps against
+  `tests/fixtures/browser-use/inspection.html`, with HTTP responses supplied by the smoke harness.
+- Verified 21-tool discovery, offscreen `find` and click, unchanged snapshot diff baseline, one
+  recovered click after node replacement, ambiguity rejection without effects, cross-document
+  staleness, console warnings/exceptions and filtered clear, slow-request settling, redirect hops,
+  failed requests, guest isolation and tracked server cleanup.
+- Runtime verification exposed two issues fixed in this layer: hidden AX queries need focus
+  emulation, and DOM hit testing needs document coordinates after scrolling (§5.2).
 
 Deferred (tracked as follow-ups, not in these PRs): the upstream turn signal (agent session id on
 MCP tool calls + a turn-ended event, §4 "Turn boundary") without which `temporary` cannot mean
@@ -458,7 +574,7 @@ per-turn; trusted runtime workdir context and `upload_file`; per-origin CDP poli
 
 ## 8. Automated test plan
 
-PR A/B results are recorded in §7. The following checklist also includes future coverage;
+PR A/B/PR3 results are recorded in §7. The following checklist also includes future coverage;
 planned fixtures and test files are not evidence that those checks have run.
 
 Projects come from `vitest.config.*`: `main` (node), `shared`, `preload`, `renderer` (jsdom).
@@ -477,7 +593,8 @@ and `tests/fixtures/browser-use/form.html`; the other fixtures below are planned
 | `long.html` — 400 list items | viewport band, cap, `(K more nodes)` |
 | `dialogs.html` — buttons that call `alert` / `confirm` / `prompt`, a `beforeunload` handler | dialog watchdog |
 | `spa.html` — `pushState` navigation and a fetch that resolves after 800 ms | settle: in-document navigation keeps refs, network-quiet wait |
-| `webmcp.html` — registers one tool via `navigator.modelContext` | polyfill |
+| `inspection.html` — rebuild/duplicate a button, emit console/exception data, make slow/redirect/failed requests, offscreen target | PR3: real Electron ref recovery and inspection; smoke harness supplies HTTP responses |
+| `webmcp.html` — awaits `document.modelContext.registerTool`; includes a delayed abort-aware tool and registration removal | C3: API compatibility, discovery, result/error/cancellation and registry invalidation; explicitly report unsupported API |
 
 The HTML files double as the manual acceptance pages (§9).
 
@@ -526,10 +643,25 @@ use a fake `GuestSession` and assert the result envelope: `dialog` present when 
 appended after actions, `stale_ref` text includes the hint to re-snapshot, unknown tool name rejected
 by the registry.
 
-### 8.4 Main-only contracts and jsdom
+### 8.4 Main-only contracts and WebMCP adapter
 
 - `snapshot.test.ts`: engine ref/options schemas (PR A); adapter input schemas added in PR B.
-- `webMcpPolyfill.test.ts` with `// @vitest-environment jsdom`: evaluating the script twice keeps one registry; `registerTool` + `__cherryModelContext.list()` round-trips descriptors; `call` rejects for an unknown name and propagates the tool's promise.
+- C3 `WebMcpSession.test.ts`: native unavailable selects a compatible page API; neither available
+  reports unsupported rather than an empty success. Permission/debugger failures do not masquerade
+  as capability absence; an invocation failure never retries through another transport.
+- Discovery tests: initial and later registrations appear; removals invalidate handles; child-frame
+  tools are excluded; replacing a document with an identically named tool cannot execute an old ID.
+  Exercise events arriving during enable and immediately after invocation acknowledgement.
+- Execution tests: match concurrent results by invocation ID, preserve serialized page results,
+  reject invalid inputs and unsupported schemas, bound oversized output, and return tool failures
+  as MCP errors. Missing/changed descriptors cannot dispatch a name-only fallback.
+- Lifecycle tests: timeout, caller abort, controller disconnect, navigation and guest disposal settle
+  pending calls once; late results cannot resurrect them. Disconnect affects only that owner's work,
+  repeated close callers await the same cleanup, and shutdown completes even if page work ignores abort.
+- Real Electron acceptance is required for every claimed transport. Record Electron/Chromium and
+  draft/protocol versions, capability outcome, event ordering and fixture results. Mock/jsdom tests
+  alone cannot establish native WebMCP support or polyfill conformance. On the current runtime,
+  verify unsupported behavior; successful invocation needs a separately verified compatible API.
 
 ### 8.5 Gates per commit
 
@@ -556,7 +688,7 @@ are what the tool text must contain.
 | 8 | Open DevTools on the hidden window's tab, run `snapshot` | `debugger_unavailable`; close DevTools, `snapshot` works again |
 | 9 | Acquire a borrowed engine session for the annotation guest, export annotations while that session is held, then release it | export contains the AX path and does not detach the other owner; the hidden MCP tab and visible pane remain different guests until P3 |
 | 10 | Open 5 tabs, wait 5 min | only marked tabs survive; `app.getAppMetrics()` logged before/after shows the freed renderer processes |
-| 11 | `webmcp.html`: `list_web_tools`, `call_web_tool` | the page's tool is listed with the untrusted-data notice and returns its value |
+| 11 | C3 `webmcp.html`: list/call, abort, remove registration, navigate, disconnect | record capability and runtime versions; supported paths list untrusted metadata and return the expected result; unsupported is explicit; stale IDs cannot run a later document's tool; pending calls settle on cancellation/cleanup |
 | 12 | Perf: `open https://github.com/CherryHQ/cherry-studio/pulls`, `snapshot` ×3 | logged capture + serialise time < 1 s each, output ≤ 40 000 chars, diff #2 and #3 < 2 000 chars |
 
 Record the numbers of #10 and #12 in the PR description; they are the acceptance criteria for the
