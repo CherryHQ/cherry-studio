@@ -1168,3 +1168,16 @@ images fall back to a globe. Subframe navigation does not change the tab metadat
 Address bars show `host / page title` (including non-default ports) while unfocused, falling back to
 the host when no title is available. Focusing reveals and selects the complete URL. Blur or Escape
 discards unsubmitted edits and restores the compact display. Page title events keep this display current.
+
+
+Ordinary WebView popup policy is installed once by `BrowserSessionService` at guest creation,
+including guests in detached windows. HTTP(S) GET links with `target="_blank"` or `window.open`
+navigate the owning Agent pane in place, or open an internal browser tab for standalone guests.
+The global external-link preference does not redirect links originating inside the browser.
+Agent bindings supply ownership without replacing the native handler; manual browsing remains
+available after control is disabled or detached. POST popups, unsupported URL schemes and isolated
+preview/artifact popups remain blocked. Service shutdown replaces the routing with deny-only cleanup.
+
+Main-renderer readiness is revoked only for main-document navigation, renderer crashes and window
+destruction. Child-frame/WebView loading and same-document navigation keep the existing IPC receivers
+ready, so browser tabs and protocol requests do not remain queued behind an unrelated page load.

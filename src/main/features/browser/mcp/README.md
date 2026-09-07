@@ -18,8 +18,9 @@ Shutdown failures are reported after remaining guest leases are released.
 The `browser` server mounted by Agent runtimes uses `AgentBrowserController`, bound to a trusted
 Agent/Session and its visible right-pane guest. It exposes 18 tools: `switch_tab`, `close_tab` and
 `reset` are absent. `open` reveals/navigates that page; private/new-tab requests are rejected.
-`list_tabs` returns only that session's target. Popups are denied and subsequent action results
-report `popupUnsupported`; no hidden replacement tab is created. Calls on this single-page host
+`list_tabs` returns only that session's target. Ordinary HTTP(S) popup links navigate the same visible
+page. Unsupported destinations, POST popups and isolated preview/artifact popups remain blocked;
+subsequent action results report `popupUnsupported`. No hidden replacement tab is created. Calls on this single-page host
 are serialized, and target revocation cancels active and queued work.
 
 The UI owns these guests. Control uses borrowed leases with explicit inspection observers;

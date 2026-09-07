@@ -67,6 +67,9 @@ exposes a browser group opt-out. Old browser MCP bindings are excluded from the 
 Browser settings owns per-tool ask/allow/deny permissions. Runtime approval gates enforce these
 permissions, and dispatch rechecks denial before executing queued actions. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
+The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
+links navigate an Agent-bound guest in place or open a standalone browser tab. Agent attachment and
+control revocation do not replace this handler; shutdown removes the routing along with history tracking.
 History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
 lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and
 run as tracked, cancellable operations of this lifecycle service. Cookie decryption uses per-import

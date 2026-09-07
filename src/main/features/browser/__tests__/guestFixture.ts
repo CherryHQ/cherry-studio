@@ -26,6 +26,7 @@ export function createGuest(id = 1) {
     session: new EventEmitter(),
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
+    setWindowOpenHandler: vi.fn(),
     isDevToolsOpened: vi.fn(() => false),
     getTitle: vi.fn(() => 'Test page'),
     getURL: vi.fn(() => 'https://example.com'),

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
@@ -9,6 +10,8 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { session, type WebContents, webContents } from 'electron'
 
 import { BrowserSessionError } from './session/BrowserSessionError'
+
+const logger = loggerService.withContext('AgentBrowserRegistry')
 
 export interface AgentBrowserContext {
   agentId: string
@@ -63,19 +66,36 @@ export class AgentBrowserRegistry implements Disposable {
       if (this.targets.get(sessionId)?.tabId !== tabId) return
       this.targets.delete(sessionId)
       guest.removeListener('destroyed', dispose)
-      if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
       abort.abort(new BrowserSessionError('not_found'))
       this.changed.fire()
     }
     this.targets.set(sessionId, { agentId: owner.agentId, sessionId, tabId, guest, windowId: senderId, abort, dispose })
-    guest.setWindowOpenHandler(() => {
-      const target = this.targets.get(sessionId)
-      if (target?.tabId === tabId) target.popupBlocked = true
-      return { action: 'deny' }
-    })
     guest.once('destroyed', dispose)
     this.changed.fire()
     return { tabId }
+  }
+
+  handlePopup(guest: WebContents, details: Electron.HandlerDetails): boolean {
+    const target = [...this.targets.values()].find((target) => target.guest === guest)
+    if (!target) return false
+    if (
+      guest.session !== session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)) ||
+      details.postBody
+    ) {
+      target.popupBlocked = true
+      return true
+    }
+    let url: string
+    try {
+      url = normalizeBrowserUrl(details.url)
+    } catch {
+      target.popupBlocked = true
+      return true
+    }
+    void guest.loadURL(url, { httpReferrer: details.referrer }).catch((error) => {
+      logger.warn('Failed to navigate browser popup in the Agent pane', { error })
+    })
+    return true
   }
 
   detach(sessionId: string, tabId: string, senderId: WindowId | null): void {

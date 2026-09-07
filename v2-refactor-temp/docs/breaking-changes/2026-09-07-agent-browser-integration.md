@@ -22,6 +22,8 @@ History entries open directly in new browser tabs, without an Agent conversation
 website data with ordinary Agent browser panes. Their address bars search browsing history by title
 or URL, with mouse and keyboard selection. Website addresses show the domain and page title until focused;
 clicking reveals and selects the full URL. Blur or Escape restores the compact address.
+Website links that request a new window now navigate within the Agent browser pane, or open a new
+built-in browser tab when browsing outside an Agent. Manual clicks keep working with Agent control off.
 Browser tabs follow the current page title and favicon after navigation; missing or failed icons show a globe.
 
 Browser control now appears under the Agent’s built-in tools. Browser settings owns tool permissions

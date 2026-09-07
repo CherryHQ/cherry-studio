@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -329,27 +330,36 @@ describe('ProtocolService', () => {
 
     it('queues URLs again while the main renderer reloads or recovers from a crash', async () => {
       await (service as any).onInit()
-      const listeners = new Map<string, () => void>()
+      const listeners = new EventEmitter()
       const onWindowCreated = windowManagerMock.onWindowCreatedByType.mock.calls[0][1] as (managed: {
         window: { webContents: { on: (event: string, listener: () => void) => void } }
       }) => void
       onWindowCreated({
         window: {
           webContents: {
-            on: (event: string, listener: () => void) => listeners.set(event, listener)
+            on: (event: string, listener: () => void) => listeners.on(event, listener)
           }
         }
       })
       await markProtocolHandlingReady()
 
-      listeners.get('did-start-loading')?.()
+      listeners.emit('did-start-loading')
+      listeners.emit('did-start-navigation', {}, 'https://child.test/', false, false)
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
+      handlersMock.handleNavigateProtocolUrl.mockClear()
+      listeners.emit('did-start-navigation', {}, 'http://localhost:5173/#route', true, true)
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
+      handlersMock.handleNavigateProtocolUrl.mockClear()
+      listeners.emit('did-start-navigation', {}, 'http://localhost:5173/', false, true)
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
       expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
-      listeners.get('render-process-gone')?.()
+      listeners.emit('render-process-gone')
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 

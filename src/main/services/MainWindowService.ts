@@ -92,7 +92,9 @@ export class MainWindowService extends BaseService {
         // Tab attach delivery is only valid while the renderer's listener is
         // mounted; a reload or crash tears it down. Mirrors ProtocolService's
         // readiness reset wiring.
-        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+          if (isMainFrame && !isInPlace) resetMainRendererTabAttachDelivery()
+        })
         window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
@@ -453,12 +455,6 @@ export class MainWindowService extends BaseService {
         webContents.session === agentDevSession ||
         webContents.session === agentArtifactSession
       ) {
-        webContents.setWindowOpenHandler(({ url }) => {
-          if (webContents.session === agentBrowserSession) {
-            void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
-          }
-          return { action: 'deny' }
-        })
         webContents.on('destroyed', () => {
           this.agentDevPreviewRequestPolicy.forget(webContents.id)
           this.agentHtmlArtifactRequestPolicy.forget(webContents.id)
@@ -525,16 +521,20 @@ export class MainWindowService extends BaseService {
       ['http:', 'https:'].includes(parsed.protocol) &&
       application.get('PreferenceService').get('app.browser.open_links_in_browser')
     ) {
-      const normalized = normalizeBrowserUrl(url)
-      openTabInMainWindow({
-        id: randomUUID(),
-        type: 'route',
-        url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
-        title: parsed.hostname
-      })
+      this.openBrowserTab(url)
       return
     }
     await shell.openExternal(url)
+  }
+
+  openBrowserTab(url: string): void {
+    const normalized = normalizeBrowserUrl(url)
+    openTabInMainWindow({
+      id: randomUUID(),
+      type: 'route',
+      url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
+      title: new URL(normalized).hostname
+    })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {

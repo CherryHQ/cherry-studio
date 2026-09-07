@@ -142,7 +142,7 @@ export function WebviewBrowser({
           id={target.id}
           src={initialUrl}
           securityProfile={securityProfile}
-          allowPopups={!!agentSessionId}
+          allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
           reloadKey={reloadKey}
           ariaLabel={target.label}
           testId="webview-browser-guest"

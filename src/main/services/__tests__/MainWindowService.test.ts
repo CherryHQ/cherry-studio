@@ -46,7 +46,7 @@ const {
     'app.use_system_title_bar': false
   }
   const windowManagerMock = {
-    getWindowsByType: vi.fn(() => []),
+    getWindowsByType: vi.fn<() => unknown[]>(() => []),
     getWindow: vi.fn(),
     getWindowId: vi.fn(),
     getWindowIdByWebContents: vi.fn(),
@@ -188,6 +188,7 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { app, session, shell } from 'electron'
 
 import { contextMenu } from '../ContextMenu'
+import { markMainRendererReadyForTabAttach, resetMainRendererTabAttachDelivery } from '../mainWindowNavigation'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -318,6 +319,59 @@ describe('MainWindowService', () => {
     vi.clearAllMocks()
   })
 
+  it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
+    await (svc as any).onInit()
+    const created = (
+      windowManagerMock.onWindowCreatedByType.mock.calls as unknown as [
+        string,
+        (event: { window: MockBrowserWindow }) => void
+      ][]
+    )[0][1]
+    created({ window: win })
+    Object.assign(win.webContents, { isLoadingMainFrame: () => false, isCrashed: () => false })
+    windowManagerMock.getWindowsByType.mockReturnValue([win])
+    windowManagerMock.getWindowId.mockReturnValue('main-ready-test')
+    windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+    windowManagerMock.getWindow.mockReturnValue(win)
+    const ipc = createMockApplication().get('IpcApiService') as { send: ReturnType<typeof vi.fn> }
+    const emit = (event: string, ...args: unknown[]) => {
+      for (const [name, listener] of win.webContents.on.mock.calls) if (name === event) listener(...args)
+    }
+    try {
+      markMainRendererReadyForTabAttach('main-ready-test')
+      ipc.send.mockClear()
+      emit('did-start-loading')
+      emit('did-start-navigation', {}, 'https://child.test/', false, false)
+      svc.openBrowserTab('https://first.test/')
+      expect(ipc.send).toHaveBeenCalledWith(
+        'main-ready-test',
+        'tab.attached',
+        expect.objectContaining({
+          url: '/app/browser?url=https%3A%2F%2Ffirst.test%2F'
+        })
+      )
+      ipc.send.mockClear()
+      emit('did-start-navigation', {}, 'http://localhost:5173/#route', true, true)
+      svc.openBrowserTab('https://second.test/')
+      expect(ipc.send).toHaveBeenCalledOnce()
+      ipc.send.mockClear()
+      emit('did-start-navigation', {}, 'http://localhost:5173/', false, true)
+      svc.openBrowserTab('https://queued.test/')
+      expect(ipc.send).not.toHaveBeenCalled()
+      markMainRendererReadyForTabAttach('main-ready-test')
+      expect(ipc.send).toHaveBeenCalledWith(
+        'main-ready-test',
+        'tab.attached',
+        expect.objectContaining({
+          url: '/app/browser?url=https%3A%2F%2Fqueued.test%2F'
+        })
+      )
+    } finally {
+      resetMainRendererTabAttachDelivery()
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+    }
+  })
+
   describe('website links', () => {
     beforeEach(async () => {
       const actual = await vi.importActual<typeof ExternalUrlSafety>('@main/utils/externalUrlSafety')
@@ -350,6 +404,23 @@ describe('MainWindowService', () => {
       await svc.openWebsite('mailto:test@example.com')
       await svc.openWebsite('javascript:alert(1)')
       expect(vi.mocked(shell.openExternal).mock.calls).toEqual([['https://example.com'], ['mailto:test@example.com']])
+    })
+    it('keeps explicit browser-tab navigation internal regardless of the global website preference', () => {
+      prefValues['app.browser.open_links_in_browser'] = false
+      const url = 'https://www.bilibili.com/video/BV1Satr6zETw/?p=2#part'
+      svc.openBrowserTab(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({ url: `/app/browser?${new URLSearchParams({ url })}` })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      vi.mocked(navigation.showMainWindow).mockClear()
+      for (const invalid of ['javascript:alert(1)', 'file:///tmp/index.html', 'https://user:pass@example.com'])
+        expect(() => svc.openBrowserTab(invalid)).toThrow('Unsupported browser URL')
+      expect(navigation.showMainWindow).not.toHaveBeenCalled()
     })
     it('uses the system browser by default', async () => {
       await svc.openWebsite('https://example.com')
@@ -562,23 +633,6 @@ describe('MainWindowService', () => {
       const generatedDocumentNavigation = { preventDefault: vi.fn() }
       navigationHandler(generatedDocumentNavigation, `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}%3Ch1%3ENext%3C%2Fh1%3E`)
       expect(generatedDocumentNavigation.preventDefault).not.toHaveBeenCalled()
-    })
-
-    it.each([agentDevSessionMock, agentArtifactSessionMock])('denies popups for Agent guests', (restrictedSession) => {
-      ;(svc as any).setupWebviewSecurityProfiles(win)
-      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'did-attach-webview')?.[1]
-      if (!listener) throw new Error('did-attach-webview listener was not registered')
-      const guestWebContents = {
-        id: 42,
-        on: vi.fn(),
-        session: restrictedSession,
-        setWindowOpenHandler: vi.fn()
-      }
-
-      listener({}, guestWebContents)
-
-      const windowOpenHandler = guestWebContents.setWindowOpenHandler.mock.calls[0]?.[0]
-      expect(windowOpenHandler?.({ url: 'https://example.com' })).toEqual({ action: 'deny' })
     })
 
     it('denies permissions, downloads, local targets, and identifying user-agent tokens', () => {

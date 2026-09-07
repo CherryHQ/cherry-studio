@@ -9,7 +9,7 @@ import type { WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { session, webContents } from 'electron'
+import { app, session, webContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSessionService } from '../BrowserSessionService'
@@ -23,12 +23,22 @@ const windowId = 'main:browser-test' as WindowId
 
 describe('Agent browser authority and control lifetime', () => {
   const dbh = setupTestDatabase()
+  let events: EventEmitter
   let service: BrowserSessionService
   let controller: AgentBrowserController
   let fixture: ReturnType<typeof createGuest>
   const host = {} as Electron.WebContents
 
   beforeEach(async () => {
+    events = new EventEmitter()
+    vi.spyOn(app, 'on').mockImplementation((event, listener) => {
+      events.on(event, listener)
+      return app
+    })
+    vi.spyOn(app, 'removeListener').mockImplementation((event, listener) => {
+      events.removeListener(event, listener)
+      return app
+    })
     dbh.db
       .insert(agentTable)
       .values({ id: agentId, name: 'Agent', type: 'claude-code', instructions: '', orderKey: 'a0' })
@@ -64,6 +74,9 @@ describe('Agent browser authority and control lifetime', () => {
     Object.assign(fixture.mock, {
       getType: () => 'webview',
       setWindowOpenHandler: vi.fn(),
+      loadURL: vi.fn(async (url: string) => {
+        fixture.mock.getURL.mockReturnValue(url)
+      }),
       hostWebContents: host,
       session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)),
       isLoadingMainFrame: () => true
@@ -147,11 +160,45 @@ describe('Agent browser authority and control lifetime', () => {
     expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(tabId)
   })
 
-  it('denies popup windows and reports the unsupported action once to the owning controller', () => {
+  it('navigates ordinary popup links in the same guest, including after Agent control is detached', async () => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    events.emit('web-contents-created', {}, fixture.guest)
     const handler = vi.mocked(fixture.guest.setWindowOpenHandler).mock.calls.at(-1)![0]
-    expect(handler({ url: 'https://example.com' } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
-    expect(controller.takeHostEvents(tabId)).toEqual({ popupUnsupported: true })
+    const url = 'https://www.bilibili.com/video/BV1Satr6zETw/?p=2#part'
+    expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+    await Promise.resolve()
+    expect(fixture.guest.getURL()).toBe(url)
     expect(controller.takeHostEvents(tabId)).toEqual({})
+    await application.get('PreferenceService').set('app.browser.agent_control.enabled', false)
+    service.agentBrowser.detach(sessionId, tabId, windowId)
+    const nextUrl = 'http://192.168.1.2:8080/reports'
+    handler({ url: nextUrl } as Electron.HandlerDetails)
+    await Promise.resolve()
+    expect(fixture.guest.getURL()).toBe(nextUrl)
+    expect(fixture.guest.setWindowOpenHandler).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['javascript:alert(1)', 'file:///tmp/index.html', 'https://user:pass@example.com', 'about:blank'])(
+    'blocks unsupported popup %s without navigating and reports it once',
+    (url) => {
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      expect(service.agentBrowser.handlePopup(fixture.guest, { url } as Electron.HandlerDetails)).toBe(true)
+      expect(fixture.guest.getURL()).toBe('https://example.com')
+      expect(controller.takeHostEvents(tabId)).toEqual({ popupUnsupported: true })
+      expect(controller.takeHostEvents(tabId)).toEqual({})
+    }
+  )
+
+  it.each([WebviewSecurityProfile.AgentDevPreview, WebviewSecurityProfile.AgentHtmlArtifact])(
+    'keeps popup navigation disabled for %s',
+    (profile) => {
+      fixture.mock.session = session.fromPartition(getWebviewPartition(profile))
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      events.emit('web-contents-created', {}, fixture.guest)
+      const handler = vi.mocked(fixture.guest.setWindowOpenHandler).mock.calls.at(-1)![0]
+      expect(handler({ url: 'https://www.bilibili.com' } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+      expect(fixture.guest.getURL()).toBe('https://example.com')
+      expect(controller.takeHostEvents(tabId)).toEqual({ popupUnsupported: true })
+    }
+  )
 })

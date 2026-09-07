@@ -1,11 +1,25 @@
+import { EventEmitter } from 'node:events'
+
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import { createGuest } from './guestFixture'
 
+let events: EventEmitter
 let service: BrowserSessionService
 beforeEach(async () => {
+  events = new EventEmitter()
+  vi.spyOn(app, 'on').mockImplementation((event, listener) => {
+    events.on(event, listener)
+    return app
+  })
+  vi.spyOn(app, 'removeListener').mockImplementation((event, listener) => {
+    events.removeListener(event, listener)
+    return app
+  })
   vi.useFakeTimers()
   BaseService.resetInstances()
   service = new BrowserSessionService()
@@ -14,6 +28,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await service._doStop()
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('Browser session ownership', () => {
@@ -93,5 +108,31 @@ describe('Browser session ownership', () => {
     expect(borrowed.mock.isDestroyed()).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
     expect(borrowed.mock.listenerCount('destroyed')).toBe(0)
+  })
+})
+
+describe('Ordinary browser popup lifecycle', () => {
+  it('handles guests from any host and stops opening tabs after service shutdown', async () => {
+    const { guest, mock } = createGuest(500)
+    let handler!: Parameters<Electron.WebContents['setWindowOpenHandler']>[0]
+    Object.assign(mock, {
+      getType: () => 'webview',
+      session: session.fromPartition('persist:agent-browser'),
+      isLoadingMainFrame: () => true,
+      setWindowOpenHandler: (next: typeof handler) => {
+        handler = next
+      }
+    })
+    events.emit('web-contents-created', {}, guest)
+    const url = 'https://www.bilibili.com/video/BV1Satr6zETw/?p=2#part'
+    const openTab = vi.mocked(application.get('MainWindowService').openBrowserTab)
+    openTab.mockClear()
+    expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+    expect(openTab).toHaveBeenCalledWith(url)
+    openTab.mockClear()
+    await service._doStop()
+    expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+    expect(openTab).not.toHaveBeenCalled()
+    expect(mock.isDestroyed()).toBe(false)
   })
 })

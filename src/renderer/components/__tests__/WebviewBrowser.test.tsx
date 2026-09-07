@@ -58,6 +58,7 @@ describe('WebviewBrowser', () => {
       })
     const address = screen.getByRole('combobox', { name: 'webview.navigation.address' })
     emit('dom-ready')
+    expect(guest).toHaveAttribute('allowpopups')
     expect(address).toHaveValue('github.com / Maizzle framework')
     act(() => address.focus())
     expect(address).toHaveValue(url)
@@ -261,6 +262,7 @@ describe('WebviewBrowser', () => {
     )
     const first = view.container.querySelector('webview')
     expect(first).toHaveAttribute('partition', 'persist:agent-browser')
+    expect(first).toHaveAttribute('allowpopups')
     view.rerender(
       <WebviewBrowser
         agentSessionId="session-a"
@@ -293,5 +295,6 @@ describe('WebviewBrowser', () => {
     )
     expect(view.container.querySelector('webview')).not.toBe(second)
     expect(view.container.querySelector('webview')).toHaveAttribute('partition', 'agent-dev-preview')
+    expect(view.container.querySelector('webview')).toHaveAttribute('allowpopups')
   })
 })

@@ -40,29 +40,46 @@ export class BrowserSessionService extends BaseService {
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
-    const histories = new Map<Electron.WebContents, () => void>()
+    const guests = new Map<Electron.WebContents, () => void>()
+    const ordinary = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    const profiles = [
+      ordinary,
+      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview)),
+      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
+    ]
     const track = (_event: Electron.Event | undefined, guest: Electron.WebContents) => {
       if (
         guest.isDestroyed() ||
         guest.getType() !== 'webview' ||
-        guest.session !== session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)) ||
-        histories.has(guest)
+        !profiles.includes(guest.session) ||
+        guests.has(guest)
       )
         return
-      const release = trackBrowserHistory(guest)
+      guest.setWindowOpenHandler((details) => {
+        if (!this.agentBrowser.handlePopup(guest, details) && guest.session === ordinary && !details.postBody) {
+          try {
+            application.get('MainWindowService').openBrowserTab(details.url)
+          } catch (error) {
+            logger.warn('Blocked unsupported browser popup', { error })
+          }
+        }
+        return { action: 'deny' }
+      })
+      const release = guest.session === ordinary ? trackBrowserHistory(guest) : () => {}
       const dispose = () => {
+        if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
         release()
         guest.removeListener('destroyed', dispose)
-        histories.delete(guest)
+        guests.delete(guest)
       }
-      histories.set(guest, dispose)
+      guests.set(guest, dispose)
       guest.once('destroyed', dispose)
     }
     for (const guest of webContents.getAllWebContents()) track(undefined, guest)
     app.on('web-contents-created', track)
     this.registerDisposable(() => {
       app.removeListener('web-contents-created', track)
-      for (const dispose of histories.values()) dispose()
+      for (const dispose of guests.values()) dispose()
     })
     this.registerInterval(() => this.sweep(), 60_000)
     this.registerDisposable(
