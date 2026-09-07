@@ -151,4 +151,24 @@ describe('useConversationSuggestions runtime state', () => {
     await waitFor(() => expect(second.result.current.suggestions).toEqual(generated))
     expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
   })
+
+  it('reuses cached suggestions when only the bounded-out persona description suffix changes', async () => {
+    const descriptionPrefix = 'x'.repeat(2000)
+    const { rerender, result } = renderHook(
+      ({ description }) =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-bounded-persona',
+          outputLanguage: 'en-US',
+          fallback,
+          persona: { name: 'Assistant', description }
+        }),
+      { initialProps: { description: `${descriptionPrefix} first suffix` }, wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
+    rerender({ description: `${descriptionPrefix} second suffix` })
+
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
+  })
 })

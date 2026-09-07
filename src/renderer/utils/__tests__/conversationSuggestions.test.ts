@@ -72,6 +72,28 @@ describe('conversation suggestion generation', () => {
     expect(oversizedContext.persona?.description).toBe(description)
   })
 
+  it('bounds oversized persona names before sending the generation request', async () => {
+    const name = 'x'.repeat(2500)
+    const oversizedContext: ConversationSuggestionRequestContext = {
+      ...context,
+      persona: { name, description: 'Reviews changes carefully' }
+    }
+    vi.mocked(ipcApi.request).mockResolvedValue({ text: '{"suggestions":["One","Two","Three"]}' })
+
+    await generateConversationSuggestions(oversizedContext, model)
+
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
+      uniqueModelId: model.id,
+      reasoningEffort: 'none',
+      system: expect.any(String),
+      prompt: JSON.stringify({
+        ...oversizedContext,
+        persona: { name: 'x'.repeat(200), description: 'Reviews changes carefully' }
+      })
+    })
+    expect(oversizedContext.persona?.name).toBe(name)
+  })
+
   it.each([
     ['wrong count', '{"suggestions":["one","two"]}'],
     ['duplicates', '{"suggestions":["same","same","other"]}'],

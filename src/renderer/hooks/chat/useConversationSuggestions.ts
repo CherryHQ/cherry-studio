@@ -4,7 +4,8 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { generateConversationSuggestions } from '@renderer/utils/aiGeneration'
 import {
   type ConversationSuggestionPersona,
-  type ConversationSuggestions
+  type ConversationSuggestions,
+  normalizeConversationSuggestionPersona
 } from '@renderer/utils/conversationSuggestions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
@@ -46,6 +47,7 @@ export function useConversationSuggestions({
   const defaultUsable = Boolean(active && defaultModel?.isEnabled && !isNonChatModel(defaultModel))
   const generationModel = dedicatedUsable ? dedicatedModel : defaultUsable ? defaultModel : undefined
   const modelPending = Boolean(dedicatedId && dedicatedLoading) || Boolean(fallbackId && defaultLoading)
+  const normalizedPersona = normalizeConversationSuggestionPersona(persona)
   const key =
     active && !modelPending && generationModel
       ? [
@@ -54,8 +56,8 @@ export function useConversationSuggestions({
           conversationId,
           outputLanguage,
           generationModel.id,
-          persona?.name ?? '',
-          persona?.description ?? ''
+          normalizedPersona?.name ?? '',
+          normalizedPersona?.description ?? ''
         ]
       : null
   const fetchSuggestions = generationModel
@@ -76,7 +78,7 @@ export function useConversationSuggestions({
             }),
             timeZone,
             randomSeed: `${now.getTime()}-${Math.random().toString(36).slice(2)}`,
-            persona
+            persona: normalizedPersona
           },
           generationModel
         )

@@ -12,6 +12,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import {
   type ConversationSuggestionRequestContext,
+  normalizeConversationSuggestionPersona,
   parseConversationSuggestions
 } from '@renderer/utils/conversationSuggestions'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -25,8 +26,6 @@ import { isFileUIPart } from 'ai'
 import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
-
-const CONVERSATION_SUGGESTION_PERSONA_DESCRIPTION_MAX_LENGTH = 2000
 
 const CONVERSATION_SUGGESTIONS_PROMPT = `Generate exactly three concise prompts that a user can put into an AI conversation input.
 Return only valid JSON in this shape: {"suggestions":["...","...","..."]}.
@@ -143,15 +142,10 @@ export async function fetchGenerate({
 }
 
 export async function generateConversationSuggestions(context: ConversationSuggestionRequestContext, model: Model) {
-  const boundedContext = context.persona?.description
-    ? {
-        ...context,
-        persona: {
-          ...context.persona,
-          description: context.persona.description.slice(0, CONVERSATION_SUGGESTION_PERSONA_DESCRIPTION_MAX_LENGTH)
-        }
-      }
-    : context
+  const boundedContext = {
+    ...context,
+    persona: normalizeConversationSuggestionPersona(context.persona)
+  }
   const response = await fetchGenerate({
     prompt: CONVERSATION_SUGGESTIONS_PROMPT,
     content: JSON.stringify(boundedContext),
