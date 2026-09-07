@@ -185,16 +185,13 @@ export class DshStreamAdapter {
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
     if (this.suppressedToolCallIds.has(callId)) return
-    // A stream-presented approval from a suppressed autonomous turn can arrive
-    // after the next host turn has begun (beginTurn clears grace). The bridge
-    // path carries no turn id, so we cannot correlate directly — defer and let
-    // the session's `tool/call` (which does carry turn) decide. The host's own
-    // approval will still materialize when its `tool/call` arrives.
     if (this.suppressedTurn !== undefined) return
-    // While awaiting the host's `turn/start`, a bridge approval racing ahead
-    // cannot be classified — an autonomous approval arriving here would be
-    // emitted into the host response. Defer so the later `tool/call` decides.
-    if (this.pendingHostTurn) return
+    // While awaiting host turn/start within the grace window, a bridge approval
+    // racing ahead cannot be classified — defer so the later tool/call decides.
+    if (this.pendingHostTurn) {
+      const graceAt = this.hostTurnEndedAt ?? this.savedHostTurnEndedAt
+      if (graceAt !== undefined && Date.now() - graceAt < POST_HOST_TURN_GRACE_MS) return
+    }
     if (this.ensureTurnOpen()) {
       this.suppressedToolCallIds.add(callId)
       return
