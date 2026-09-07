@@ -18,6 +18,13 @@ export function getPathFromEnvironment(env: Record<string, string | undefined>):
   return pathKey ? env[pathKey] : undefined
 }
 
+/** Whether a PATH string contains a mise-owned directory (e.g. `~/.local/share/mise/shims`). */
+export function hasMiseInPath(pathValue: string | undefined): boolean {
+  if (!pathValue) return false
+  const delimiter = isWin ? ';' : ':'
+  return pathValue.split(delimiter).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+}
+
 /**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.
