@@ -846,16 +846,13 @@ export class AgentService {
             return { ...this.deleteAgentTx(tx, id), sessionImpact }
           }
 
-          // One timestamp for the agent and the sessions moved with it, so
-          // `restoreAgent` can bring back exactly that set.
           const trashedAt = Date.now()
           const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
           const trashed =
             options.deleteSessions === true
               ? agentSessionService.trashByAgentIdTx(tx, id, {
                   validateAgent: false,
-                  deletedAt: trashedAt,
-                  preserveTaskScheduleRelations: true
+                  deletedAt: trashedAt
                 })
               : {
                   trashedIds: [],
@@ -925,24 +922,17 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /** Restore a trashed agent and the sessions trashed with it. */
+  /** Restore a trashed agent. Related sessions remain independently restorable. */
   restoreAgent(id: string): AgentEntity {
-    const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
-      const [trashed] = tx
-        .select({ deletedAt: agentsTable.deletedAt })
-        .from(agentsTable)
-        .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (trashed?.deletedAt == null) throw DataApiErrorFactory.notFound('Agent', id)
-
-      const [restored] = tx.update(agentsTable).set({ deletedAt: null }).where(eq(agentsTable.id, id)).returning().all()
-      return {
-        row: restored,
-        restoredSessionIds: agentSessionService.restoreTrashedWithAgentTx(tx, id, trashed.deletedAt)
-      }
-    })
-    if (restoredSessionIds.length > 0) agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(agentsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Agent', id)
     this.notifyReadModelChange([id], 'membership')
 
     const database = application.get('DbService').getDb()

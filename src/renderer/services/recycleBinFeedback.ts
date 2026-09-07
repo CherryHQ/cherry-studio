@@ -37,6 +37,18 @@ interface RestoreRecycleBinItemsInput {
   refresh: () => Promise<unknown>
 }
 
+interface RestoreRecycleBinItemTarget {
+  id: string
+  restore: RestoreRecycleBinItemsInput['restore']
+  getActive: RestoreRecycleBinItemsInput['getActive']
+}
+
+interface RestoreRecycleBinUndoGroupInput {
+  primary: RestoreRecycleBinItemTarget
+  related: Omit<RestoreRecycleBinItemsInput, 'refresh'>
+  refresh: RestoreRecycleBinItemsInput['refresh']
+}
+
 async function restoreOrConfirmActive(
   id: string,
   restore: RestoreRecycleBinItemsInput['restore'],
@@ -54,16 +66,10 @@ async function restoreOrConfirmActive(
   }
 }
 
-export async function restoreRecycleBinItems(input: RestoreRecycleBinItemsInput): Promise<BatchUndoResult> {
+async function restoreItems(input: Omit<RestoreRecycleBinItemsInput, 'refresh'>): Promise<BatchUndoResult> {
   const outcomes = await Promise.allSettled(
     input.ids.map((id) => restoreOrConfirmActive(id, input.restore, input.getActive))
   )
-  try {
-    await input.refresh()
-  } catch (error) {
-    logger.warn('Failed to refresh after Recycle Bin restore', error as Error)
-  }
-
   return outcomes.reduce<BatchUndoResult>(
     (result, outcome, index) => {
       const id = input.ids[index]
@@ -75,9 +81,37 @@ export async function restoreRecycleBinItems(input: RestoreRecycleBinItemsInput)
   )
 }
 
+async function refreshAfterRestore(refresh: RestoreRecycleBinItemsInput['refresh']): Promise<void> {
+  try {
+    await refresh()
+  } catch (error) {
+    logger.warn('Failed to refresh after Recycle Bin restore', error as Error)
+  }
+}
+
+export async function restoreRecycleBinItems(input: RestoreRecycleBinItemsInput): Promise<BatchUndoResult> {
+  const result = await restoreItems(input)
+  await refreshAfterRestore(input.refresh)
+  return result
+}
+
 export async function restoreRecycleBinItem(input: Omit<RestoreRecycleBinItemsInput, 'ids'> & { id: string }) {
   const result = await restoreRecycleBinItems({ ...input, ids: [input.id] })
   const failure = result.failed[0]
+  if (failure) throw new Error(failure.error)
+}
+
+/** Undo one UI delete operation without making unrelated entities part of the primary entity's restore contract. */
+export async function restoreRecycleBinUndoGroup(input: RestoreRecycleBinUndoGroupInput): Promise<void> {
+  let relatedResult: BatchUndoResult = { restored: [], failed: [] }
+  try {
+    await restoreOrConfirmActive(input.primary.id, input.primary.restore, input.primary.getActive)
+    relatedResult = await restoreItems(input.related)
+  } finally {
+    await refreshAfterRestore(input.refresh)
+  }
+
+  const failure = relatedResult.failed[0]
   if (failure) throw new Error(failure.error)
 }
 

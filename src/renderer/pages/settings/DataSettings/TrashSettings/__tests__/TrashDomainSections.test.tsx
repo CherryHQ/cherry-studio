@@ -155,7 +155,7 @@ beforeEach(async () => {
 })
 
 describe('Trash domain batch adapters', () => {
-  it('refreshes topics when restoring an assistant', () => {
+  it('refreshes only assistant resources when restoring an assistant', () => {
     render(
       <AssistantTrashSection
         retentionDays={30}
@@ -167,11 +167,17 @@ describe('Trash domain batch adapters', () => {
 
     const refresh = mocks.mutationOptions.get('POST /assistants/:id/restore')?.refresh
 
-    expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual([
-      '/assistants',
-      '/assistants/assistant-1',
-      '/topics'
-    ])
+    expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual(['/assistants', '/assistants/assistant-1'])
+  })
+
+  it('refreshes only agent resources when restoring an agent', () => {
+    render(
+      <AgentTrashSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
+    )
+
+    const refresh = mocks.mutationOptions.get('POST /agents/:agentId/restore')?.refresh
+
+    expect(refresh?.({ args: { params: { agentId: 'agent-1' } } })).toEqual(['/agents', '/agents/agent-1'])
   })
 
   it.each(dataDomainCases)(

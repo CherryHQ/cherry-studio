@@ -67,6 +67,7 @@ import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
+  restoreRecycleBinUndoGroup,
   showRecycleBinBatchUndo,
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
@@ -1010,17 +1011,24 @@ export function Topics({
             return
           }
 
+          const deletedTopicIds = result.deletedTopicIds ?? []
           showRecycleBinUndo({
             itemName: assistantName,
             onUndo: () =>
-              restoreRecycleBinItem({
-                id: assistantId,
-                restore: restoreAssistant,
-                getActive: (id) => dataApiService.get(`/assistants/${id}`),
+              restoreRecycleBinUndoGroup({
+                primary: {
+                  id: assistantId,
+                  restore: restoreAssistant,
+                  getActive: (id) => dataApiService.get(`/assistants/${id}`)
+                },
+                related: {
+                  ids: deletedTopicIds,
+                  restore: restoreTopic,
+                  getActive: (id) => dataApiService.get(`/topics/${id}`)
+                },
                 refresh: refreshAssistantResources
               })
           })
-          const deletedTopicIds = result.deletedTopicIds ?? []
           if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
           if (currentActiveTopicId && deletedTopicIds.includes(currentActiveTopicId)) {
             try {
@@ -1055,6 +1063,7 @@ export function Topics({
       onActiveAssistantDeleted,
       refreshAssistantResources,
       restoreAssistant,
+      restoreTopic,
       t
     ]
   )

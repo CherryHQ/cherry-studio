@@ -17,7 +17,11 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinUndoGroup,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { SESSION_UNKNOWN_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
@@ -113,7 +117,7 @@ export function AgentResourceList({
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`, '/agent-sessions']
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
   })
   const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
     refresh: ['/agent-sessions']
@@ -364,21 +368,20 @@ export function AgentResourceList({
           } else {
             showRecycleBinUndo({
               itemName: agentName,
-              onUndo: async () => {
-                try {
-                  await restoreAgent({ params: { agentId } })
-                } catch (err) {
-                  if (!isDataApiNotFoundError(err)) throw err
-                  await refreshAfterRestore()
-                  try {
-                    await dataApiService.get(`/agents/${agentId}`)
-                    return
-                  } catch {
-                    throw err
-                  }
-                }
-                await refreshAfterRestore()
-              }
+              onUndo: () =>
+                restoreRecycleBinUndoGroup({
+                  primary: {
+                    id: agentId,
+                    restore: (id) => restoreAgent({ params: { agentId: id } }),
+                    getActive: (id) => dataApiService.get(`/agents/${id}`)
+                  },
+                  related: {
+                    ids: deletedSessionIds,
+                    restore: (id) => restoreSession({ params: { sessionId: id } }),
+                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+                  },
+                  refresh: refreshAfterRestore
+                })
             })
           }
         } catch (err) {

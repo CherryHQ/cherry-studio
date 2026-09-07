@@ -609,6 +609,12 @@ describe('classic layout entity resource list actions', () => {
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
     expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledWith('topic-1')
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledWith('topic-not-loaded')
   })
 
   it.each(['selection reconciliation', 'Assistant refresh', 'Topic refresh'] as const)(
@@ -1341,6 +1347,12 @@ describe('classic layout entity resource list actions', () => {
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-not-loaded' } })
   })
 
   it('does not fail Agent Undo when restore succeeds but follow-up refreshes reject', async () => {

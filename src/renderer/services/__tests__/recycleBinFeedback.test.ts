@@ -8,6 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
+  restoreRecycleBinUndoGroup,
   showRecycleBinBatchUndo,
   showRecycleBinUndo
 } from '../recycleBinFeedback'
@@ -184,6 +185,31 @@ describe('recycleBinFeedback', () => {
     ).rejects.toThrow('restore failed')
 
     expect(getActive).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('undoes only the primary item and related IDs returned by the delete operation', async () => {
+    const calls: string[] = []
+    const restorePrimary = vi.fn(async (id: string) => {
+      calls.push(`primary:${id}`)
+    })
+    const restoreRelated = vi.fn(async (id: string) => {
+      calls.push(`related:${id}`)
+    })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+
+    await restoreRecycleBinUndoGroup({
+      primary: { id: 'assistant-1', restore: restorePrimary, getActive: vi.fn() },
+      related: {
+        ids: ['topic-1', 'topic-2'],
+        restore: restoreRelated,
+        getActive: vi.fn()
+      },
+      refresh
+    })
+
+    expect(calls).toEqual(['primary:assistant-1', 'related:topic-1', 'related:topic-2'])
+    expect(restoreRelated).toHaveBeenCalledTimes(2)
     expect(refresh).toHaveBeenCalledOnce()
   })
 })

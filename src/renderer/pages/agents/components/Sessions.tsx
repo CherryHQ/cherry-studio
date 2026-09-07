@@ -49,6 +49,7 @@ import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
+  restoreRecycleBinUndoGroup,
   showRecycleBinBatchUndo,
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
@@ -1150,7 +1151,7 @@ const Sessions = ({
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`, '/agent-sessions']
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
   })
 
   const createSessionFromSeed = useCallback(
@@ -1324,10 +1325,17 @@ const Sessions = ({
             showRecycleBinUndo({
               itemName: agent?.name || t('common.unnamed'),
               onUndo: () =>
-                restoreRecycleBinItem({
-                  id: agentId,
-                  restore: (id) => restoreAgent({ params: { agentId: id } }),
-                  getActive: (id) => dataApiService.get(`/agents/${id}`),
+                restoreRecycleBinUndoGroup({
+                  primary: {
+                    id: agentId,
+                    restore: (id) => restoreAgent({ params: { agentId: id } }),
+                    getActive: (id) => dataApiService.get(`/agents/${id}`)
+                  },
+                  related: {
+                    ids: deletedSessionIds,
+                    restore: restoreSession,
+                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+                  },
                   refresh: refreshAgentResources
                 })
             })

@@ -21,6 +21,7 @@ import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/u
 import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItems,
+  restoreRecycleBinUndoGroup,
   showRecycleBinBatchUndo,
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
@@ -486,21 +487,20 @@ export function AssistantResourceList({
           }
           showRecycleBinUndo({
             itemName: assistantName,
-            onUndo: async () => {
-              try {
-                await restoreAssistant(assistantId)
-              } catch (err) {
-                if (!isDataApiNotFoundError(err)) throw err
-                await refreshAfterRestore()
-                try {
-                  await dataApiService.get(`/assistants/${assistantId}`)
-                  return
-                } catch {
-                  throw err
-                }
-              }
-              await refreshAfterRestore()
-            }
+            onUndo: () =>
+              restoreRecycleBinUndoGroup({
+                primary: {
+                  id: assistantId,
+                  restore: restoreAssistant,
+                  getActive: (id) => dataApiService.get(`/assistants/${id}`)
+                },
+                related: {
+                  ids: deletedTopicIds,
+                  restore: restoreTopic,
+                  getActive: (id) => dataApiService.get(`/topics/${id}`)
+                },
+                refresh: refreshAfterRestore
+              })
           })
         } catch (err) {
           logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
@@ -523,6 +523,7 @@ export function AssistantResourceList({
       refreshAssistants,
       refreshTopics,
       restoreAssistant,
+      restoreTopic,
       t
     ]
   )

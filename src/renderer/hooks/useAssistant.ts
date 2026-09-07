@@ -101,7 +101,7 @@ export function useAssistantMutations() {
     ]
   })
   const { trigger: restoreTrigger } = useMutation('POST', '/assistants/:id/restore', {
-    refresh: [...ASSISTANTS_REFRESH_KEYS, '/topics']
+    refresh: ASSISTANTS_REFRESH_KEYS
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)

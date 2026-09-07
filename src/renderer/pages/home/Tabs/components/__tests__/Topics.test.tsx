@@ -3727,6 +3727,12 @@ describe('Topics', () => {
       expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a', 'topic-not-loaded'])
     )
     await vi.waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(assistantMutationMocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
+    expect(topicDataMocks.restoreTopic).toHaveBeenCalledWith('topic-a')
+    expect(topicDataMocks.restoreTopic).toHaveBeenCalledWith('topic-not-loaded')
   })
 
   it('offers Assistant Undo when active reconciliation and post-delete refreshes reject', async () => {

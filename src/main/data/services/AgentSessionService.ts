@@ -965,15 +965,11 @@ export class AgentSessionService {
     return result
   }
 
-  /**
-   * Move sessions to the Recycle Bin: write `deletedAt`, purge pins, normally detach bound
-   * tasks, and fail pending deliveries. Agent-wide trash preserves bindings because it also
-   * suspends those tasks; own messages remain untouched so restore is lossless.
-   */
+  /** Move sessions to the Recycle Bin, detach bound tasks, and fail pending deliveries. */
   trashByIdsTx(
     tx: DbOrTx,
     ids: string[],
-    options: { requireAll?: boolean; deletedAt?: number; preserveTaskScheduleRelations?: boolean } = {}
+    options: { requireAll?: boolean; deletedAt?: number } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
@@ -993,7 +989,7 @@ export class AgentSessionService {
 
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
-    if (taskScheduleIds.length > 0 && options.preserveTaskScheduleRelations !== true) {
+    if (taskScheduleIds.length > 0) {
       this.updateTaskScheduleRelationTx(
         tx,
         null,
@@ -1011,7 +1007,7 @@ export class AgentSessionService {
   trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
-    options: { validateAgent?: boolean; deletedAt?: number; preserveTaskScheduleRelations?: boolean } = {}
+    options: { validateAgent?: boolean; deletedAt?: number } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
@@ -1021,26 +1017,8 @@ export class AgentSessionService {
       .all()
       .map((row) => row.id)
     return this.trashByIdsTx(tx, ids, {
-      deletedAt: options.deletedAt,
-      preserveTaskScheduleRelations: options.preserveTaskScheduleRelations
+      deletedAt: options.deletedAt
     })
-  }
-
-  /**
-   * Restore the sessions moved to the Recycle Bin in the same operation as their agent —
-   * matched on the shared deletion timestamp, so sessions the user trashed
-   * separately stay in the trash. A session trashed in the very same
-   * millisecond as its agent would be restored too; harmless and unreachable
-   * through the UI's two round-trips.
-   */
-  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
-    return tx
-      .update(sessionsTable)
-      .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
-      .returning({ id: sessionsTable.id })
-      .all()
-      .map((row) => row.id)
   }
 
   restore(id: string): AgentSessionEntity {

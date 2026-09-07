@@ -738,7 +738,7 @@ describe('AgentJobsService', () => {
       ])
     })
 
-    it('restores the sticky task session trashed with its Agent', () => {
+    it('detaches a sticky task session trashed with its Agent', () => {
       const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
       const session = agentSessionService.create({
         agentId: AGENT_ID,
@@ -759,14 +759,14 @@ describe('AgentJobsService', () => {
       expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
       agentService.restoreAgent(AGENT_ID)
 
-      expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBe(session.id)
+      expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBeNull()
       expect(
         dbh.db
           .select({ taskScheduleId: agentSessionTable.taskScheduleId })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: task.id })
+      ).toEqual({ taskScheduleId: null })
     })
 
     it('trashing and restoring also preserves a legacy task whose template has no workspace', async () => {

@@ -1177,7 +1177,7 @@ describe('AgentService', () => {
       expect(session).toEqual({ agentId: id, deletedAt: null })
     })
 
-    it('cascades one timestamp only to active sessions and restores exactly that batch', async () => {
+    it('trashes only active sessions and restores the agent independently', async () => {
       const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
       await dbh.db.insert(agentWorkspaceTable).values([
         { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
@@ -1196,15 +1196,11 @@ describe('AgentService', () => {
       const result = agentService.deleteAgent(id, { deleteSessions: true })
 
       expect(result).toEqual({ deleted: true, deletedSessionIds: ['session-with-agent'] })
-      const [trashedAgent] = await dbh.db
-        .select({ deletedAt: agentTable.deletedAt })
-        .from(agentTable)
-        .where(eq(agentTable.id, id))
       const trashedSessions = await dbh.db
         .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
-      expect(trashedSessions.find((session) => session.id === 'session-with-agent')?.deletedAt).toBe(
-        trashedAgent.deletedAt
+      expect(trashedSessions.find((session) => session.id === 'session-with-agent')?.deletedAt).toEqual(
+        expect.any(Number)
       )
       expect(trashedSessions.find((session) => session.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
@@ -1223,11 +1219,11 @@ describe('AgentService', () => {
       const sessions = await dbh.db
         .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
-      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).not.toBeNull()
       expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).not.toBeNull()
     })
 
-    it('does not reclaim a cascade-trashed session that was independently restored and reassigned', async () => {
+    it('does not reclaim a related session that was independently restored and reassigned', async () => {
       const { id } = await insertAgent({ id: 'agent-former-owner-001' })
       const nextOwner = await insertAgent({ id: 'agent-next-owner-001' })
       await dbh.db.insert(agentWorkspaceTable).values({

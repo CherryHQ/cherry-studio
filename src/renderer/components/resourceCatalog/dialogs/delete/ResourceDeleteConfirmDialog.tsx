@@ -10,7 +10,11 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinUndoGroup,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -53,8 +57,9 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { trigger: restoreAssistant } = useMutation('POST', '/assistants/:id/restore', {
-    refresh: ['/assistants', '/assistants/*', '/topics']
+    refresh: ['/assistants', '/assistants/*']
   })
+  const { trigger: restoreTopic } = useMutation('POST', '/topics/:id/restore', { refresh: ['/topics'] })
   const refreshAffected = useCallback(async () => {
     const outcomes = await Promise.allSettled(['/assistants', '/assistants/*', '/topics'].map((key) => invalidate(key)))
     for (const outcome of outcomes) {
@@ -65,6 +70,7 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
   }, [invalidate])
   const onDelete = useCallback(
     async (deleteTopics: boolean) => {
+      let deletedTopicIds: string[] = []
       try {
         const result = await deleteAssistant({ deleteTopics })
         await refreshAffected()
@@ -72,7 +78,7 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
           toast.info(t('recycle_bin.already_moved'))
           return
         }
-        const deletedTopicIds = result.deletedTopicIds ?? []
+        deletedTopicIds = result.deletedTopicIds ?? []
         if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
       } catch (error) {
         if (!isDataApiNotFoundError(error)) throw error
@@ -83,24 +89,32 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
 
       showRecycleBinUndo({
         itemName: resource.name,
-        onUndo: async () => {
-          try {
-            await restoreAssistant({ params: { id: resource.id } })
-          } catch (error) {
-            if (!isDataApiNotFoundError(error)) throw error
-            await refreshAffected()
-            try {
-              await dataApiService.get(`/assistants/${resource.id}`)
-              return
-            } catch {
-              throw error
-            }
-          }
-          await refreshAffected()
-        }
+        onUndo: () =>
+          restoreRecycleBinUndoGroup({
+            primary: {
+              id: resource.id,
+              restore: (id) => restoreAssistant({ params: { id } }),
+              getActive: (id) => dataApiService.get(`/assistants/${id}`)
+            },
+            related: {
+              ids: deletedTopicIds,
+              restore: (id) => restoreTopic({ params: { id } }),
+              getActive: (id) => dataApiService.get(`/topics/${id}`)
+            },
+            refresh: refreshAffected
+          })
       })
     },
-    [closeConversationTabs, deleteAssistant, refreshAffected, resource.id, resource.name, restoreAssistant, t]
+    [
+      closeConversationTabs,
+      deleteAssistant,
+      refreshAffected,
+      resource.id,
+      resource.name,
+      restoreAssistant,
+      restoreTopic,
+      t
+    ]
   )
 
   return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
@@ -115,7 +129,7 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
   const closeConversationTabs = useCloseConversationTabs()
   const deleteSessionsOnly = isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ['/agents', '/agents/*', '/agent-sessions']
+    refresh: ['/agents', '/agents/*']
   })
   const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
     refresh: ['/agent-sessions']
@@ -183,21 +197,20 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
       if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
       showRecycleBinUndo({
         itemName: resource.name,
-        onUndo: async () => {
-          try {
-            await restoreAgent({ params: { agentId: resource.id } })
-          } catch (error) {
-            if (!isDataApiNotFoundError(error)) throw error
-            await refreshAffected()
-            try {
-              await dataApiService.get(`/agents/${resource.id}`)
-              return
-            } catch {
-              throw error
-            }
-          }
-          await refreshAffected()
-        }
+        onUndo: () =>
+          restoreRecycleBinUndoGroup({
+            primary: {
+              id: resource.id,
+              restore: (id) => restoreAgent({ params: { agentId: id } }),
+              getActive: (id) => dataApiService.get(`/agents/${id}`)
+            },
+            related: {
+              ids: deletedSessionIds,
+              restore: (id) => restoreSession({ params: { sessionId: id } }),
+              getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+            },
+            refresh: refreshAffected
+          })
       })
     },
     [

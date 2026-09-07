@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   restoreAgent: vi.fn(),
   restoreAssistant: vi.fn(),
   restoreSession: vi.fn(),
+  restoreTopic: vi.fn(),
   showRecycleBinBatchUndo: vi.fn(),
   showRecycleBinUndo: vi.fn(),
   toastError: vi.fn(),
@@ -65,7 +67,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
         ? mocks.restoreAgent
         : method === 'POST' && path === '/agent-sessions/:sessionId/restore'
           ? mocks.restoreSession
-          : mocks.restoreAssistant
+          : method === 'POST' && path === '/topics/:id/restore'
+            ? mocks.restoreTopic
+            : mocks.restoreAssistant
   })
 }))
 
@@ -78,7 +82,8 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
-vi.mock('@renderer/services/recycleBinFeedback', () => ({
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
   showRecycleBinBatchUndo: mocks.showRecycleBinBatchUndo,
   showRecycleBinUndo: mocks.showRecycleBinUndo
 }))
@@ -124,6 +129,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.restoreAgent.mockResolvedValue(undefined)
     mocks.restoreAssistant.mockResolvedValue(undefined)
     mocks.restoreSession.mockResolvedValue(undefined)
+    mocks.restoreTopic.mockResolvedValue(undefined)
     mocks.uninstallSkill.mockResolvedValue(undefined)
   })
 
@@ -180,6 +186,11 @@ describe('ResourceDeleteConfirmDialog', () => {
       })
     )
     expect(mocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-2'])
+
+    await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(mocks.restoreSession).toHaveBeenCalledExactlyOnceWith({ params: { sessionId: 'session-2' } })
   })
 
   it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
@@ -274,6 +285,11 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
     expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+
+    await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(mocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
+    expect(mocks.restoreTopic).toHaveBeenCalledExactlyOnceWith({ params: { id: 'topic-1' } })
   })
 
   it('keeps the owner dialog open after a failed delete and allows retry', async () => {

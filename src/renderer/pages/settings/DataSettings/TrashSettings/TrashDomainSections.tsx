@@ -254,10 +254,8 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   const totalPages = Math.ceil(total / 50)
   useDataChange('/agents', () => void refresh())
 
-  // `/agent-sessions` too: restoring an agent also restores the sessions moved to the Recycle Bin with
-  // it, and a stale session-trash row would still offer a purge that hard-deletes a live one.
   const restoreMutation = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`, '/agent-sessions']
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
   })
 
   const restoreItem = (item: TrashItem) =>
@@ -444,7 +442,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   useDataChange('/assistants', () => void refresh())
 
   const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
-    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`, '/topics']
+    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`]
   })
   const deleteMutation = useMutation('DELETE', '/assistants/:id')
 

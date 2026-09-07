@@ -3775,6 +3775,12 @@ describe('Sessions', () => {
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-a')
+    expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-not-loaded')
   })
 
   it('refreshes a stale agent result without changing selection or offering Undo', async () => {
