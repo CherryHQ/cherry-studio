@@ -7,6 +7,8 @@ import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts, AgentSessionFlowRecoveryOrphan } from '../../ai/agentSessionFlowParts'
+
+export type CacheAgentSessionFlowRecoveryOrphans = AgentSessionFlowRecoveryOrphan[]
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
@@ -189,7 +191,6 @@ export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
 export type CacheAgentSessionFlowParts = AgentSessionFlowParts
-export type CacheAgentSessionFlowRecoveryOrphan = AgentSessionFlowRecoveryOrphan
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.

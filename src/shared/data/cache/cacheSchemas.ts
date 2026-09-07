@@ -293,7 +293,6 @@ export type SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
-  'agent.session.flow_recovery_orphan.${sessionId}.${rootToolCallId}': CacheValueTypes.CacheAgentSessionFlowRecoveryOrphan
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -348,7 +347,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
-  'agent.session.flow_recovery_orphan.${sessionId}.${rootToolCallId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -504,12 +502,15 @@ export type MainPersistCacheSchema = {
   // a @main enum (no reverse import), so the key type is `string`; the
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+  // Teardown-orphaned detached-flow chunks, restart-safe so a reopen can still deliver them.
+  'agent.session.flow_recovery_orphans': CacheValueTypes.CacheAgentSessionFlowRecoveryOrphans
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
-  'window.bounds': {}
+  'window.bounds': {},
+  'agent.session.flow_recovery_orphans': []
 }
 
 // ============================================================================

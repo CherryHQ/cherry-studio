@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
+  cacheSetPersist: vi.fn(),
+  cacheGetPersist: vi.fn(),
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
@@ -286,7 +288,9 @@ describe('AgentSessionRuntimeService', () => {
         return {
           setShared: mocks.cacheSetShared,
           getShared: mocks.cacheGetShared,
-          deleteShared: mocks.cacheDeleteShared
+          deleteShared: mocks.cacheDeleteShared,
+          setPersist: mocks.cacheSetPersist,
+          getPersist: mocks.cacheGetPersist
         }
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
@@ -2560,7 +2564,7 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       entry.currentTurn.controller = { enqueue: vi.fn() } as never
-      mocks.cacheSetShared.mockClear()
+      mocks.cacheSetPersist.mockClear()
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       ;(service as any).handleRuntimeEvent(entry, {
@@ -2571,16 +2575,16 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
       await service.closeSession('session-1')
-      const orphanCall = mocks.cacheSetShared.mock.calls.find(
-        ([key]) => typeof key === 'string' && key.includes('flow_recovery_orphan')
-      )
-      expect(orphanCall).toBeDefined()
+      expect(mocks.cacheSetPersist).toHaveBeenCalledWith('agent.session.flow_recovery_orphans', [
+        expect.objectContaining({ sessionId: 'session-1', rootToolCallId: 'task-root', chunks: [orphanChunk] })
+      ])
 
       // A reopened session recovers the row and replays the orphan first.
       mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
-      mocks.cacheGetShared.mockImplementation((key) =>
-        typeof key === 'string' && key.includes('flow_recovery_orphan') ? [orphanChunk] : undefined
-      )
+      const orphannedAt = Date.now()
+      mocks.cacheGetPersist.mockReturnValue([
+        { sessionId: 'session-1', rootToolCallId: 'task-root', orphannedAt, chunks: [orphanChunk] }
+      ])
       mocks.replaceMessageParts.mockClear()
       service.beginTurn(baseTurnInput)
       const reopenedEntry = getEntry(service)

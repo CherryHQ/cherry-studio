@@ -9,10 +9,13 @@ export const AGENT_SESSION_FLOW_PARTS_CACHE_KEY = (sessionId: string, messageId:
   `agent.session.flow_parts.${sessionId}.${messageId}` as const
 
 /**
- * Detached chunks whose host row had not committed when the session closed. Kept per root briefly
- * so a reopen that finds the row can still deliver them instead of dropping the output.
+ * Detached chunks whose host row had not committed when the session closed. Persisted (restart-safe)
+ * so a reopen that finds the row can still deliver them; `orphannedAt` lets stale entries expire.
  */
-export type AgentSessionFlowRecoveryOrphan = UIMessageChunk[]
-
-export const AGENT_SESSION_FLOW_RECOVERY_ORPHAN_CACHE_KEY = (sessionId: string, rootToolCallId: string) =>
-  `agent.session.flow_recovery_orphan.${sessionId}.${rootToolCallId}` as const
+export interface AgentSessionFlowRecoveryOrphan {
+  sessionId: string
+  rootToolCallId: string
+  /** Epoch ms of the teardown that orphaned the batch. */
+  orphannedAt: number
+  chunks: UIMessageChunk[]
+}
