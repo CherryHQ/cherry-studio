@@ -2,11 +2,12 @@ import type { Group } from '@shared/data/types/group'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useGroupMutations, useGroups } from '../useGroups'
+import { useGroupMutations, useGroupReorder, useGroups } from '../useGroups'
 
 const mocks = vi.hoisted(() => ({
   createGroup: vi.fn(),
   deleteGroup: vi.fn(),
+  reorderGroup: vi.fn(),
   updateGroup: vi.fn(),
   refetch: vi.fn(),
   useMutation: vi.fn(),
@@ -42,9 +43,11 @@ describe('group hooks', () => {
       trigger:
         method === 'POST' && path === '/groups'
           ? mocks.createGroup
-          : method === 'PATCH'
-            ? mocks.updateGroup
-            : mocks.deleteGroup,
+          : method === 'PATCH' && path === '/groups/:id/order'
+            ? mocks.reorderGroup
+            : method === 'PATCH'
+              ? mocks.updateGroup
+              : mocks.deleteGroup,
       isLoading: false,
       error: undefined
     }))
@@ -63,6 +66,31 @@ describe('group hooks', () => {
 
     expect(mocks.useQuery).toHaveBeenCalledWith('/groups', { query: { entityType: 'assistant' } })
     expect(result.current.groups).toEqual([cached])
+  })
+
+  it('can defer the group list query for a hidden surface', () => {
+    renderHook(() => useGroups('assistant', { enabled: false }))
+
+    expect(mocks.useQuery).toHaveBeenCalledWith('/groups', {
+      enabled: false,
+      query: { entityType: 'assistant' }
+    })
+  })
+
+  it('reorders a group and refreshes group collections', async () => {
+    mocks.reorderGroup.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() => useGroupReorder())
+
+    await act(async () => {
+      await result.current.reorderGroup('group-b', { before: 'group-a' })
+    })
+
+    expect(mocks.useMutation).toHaveBeenCalledWith('PATCH', '/groups/:id/order', { refresh: ['/groups'] })
+    expect(mocks.reorderGroup).toHaveBeenCalledWith({
+      body: { before: 'group-a' },
+      params: { id: 'group-b' }
+    })
   })
 
   it('uses the supplied entity type and refresh targets for mutations', async () => {

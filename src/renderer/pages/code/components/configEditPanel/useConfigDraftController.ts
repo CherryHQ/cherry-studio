@@ -37,8 +37,10 @@ interface ConfigDraftControllerOptions
   onClose: () => void
   /** Present when editing the Cherry gateway provider — drives gateway-addressed drafts + matching. */
   gateway?: CliConfigGatewayContext
-  /** Enabled models by unique id, used to resolve the gateway model's `apiModelId` for matching. */
+  /** Gateway-routable models by unique id, used for matching and gateway address resolution. */
   models?: Map<UniqueModelId, Model>
+  /** True while `models` is still being queried — an empty map is not yet meaningful. */
+  isModelsLoading?: boolean
 }
 
 interface ConfigDraftController {
@@ -64,6 +66,7 @@ export function useConfigDraftController({
   apiKeys,
   gateway,
   models,
+  isModelsLoading,
   onSubmit
 }: ConfigDraftControllerOptions): ConfigDraftController {
   const { t } = useTranslation()
@@ -136,8 +139,8 @@ export function useConfigDraftController({
 
   const resolveManagedOptions = useCallback(
     (modelMode: ClaudeModelMode, config: Record<string, unknown>, modelId: UniqueModelId | undefined) =>
-      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId),
-    [cliTool, provider.id]
+      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId, gateway ? models : undefined),
+    [cliTool, gateway, models, provider.id]
   )
 
   const createManagedDraft = useCallback(
@@ -178,7 +181,6 @@ export function useConfigDraftController({
     isCurrentProvider,
     cliTool,
     providerId: provider.id,
-    connectionMatchesProvider,
     initialModelId,
     initialConfig,
     initialClaudeModelMode,
@@ -189,13 +191,13 @@ export function useConfigDraftController({
   useEffect(() => {
     if (initialLoadHasRunRef.current) return
     if (apiKeys === undefined) return // wait for the apiKeys query to resolve (even to an empty array) before judging managed/foreign
+    if (isModelsLoading) return // likewise for the gateway model map: an in-flight query looks identical to "no routable model"
     initialLoadHasRunRef.current = true
 
     const {
       isCurrentProvider,
       cliTool,
       providerId,
-      connectionMatchesProvider,
       initialModelId,
       initialConfig,
       initialClaudeModelMode,
@@ -217,16 +219,27 @@ export function useConfigDraftController({
       initialConfig,
       initialClaudeModelMode,
       initialDraftSeed,
+      // Read live rather than from the ref: both close over `models`, and a first-frame snapshot
+      // would judge managed/foreign against a model map that had not loaded yet.
       connectionMatchesProvider,
-      gateway
+      gateway,
+      gatewayModels: gateway ? models : undefined
     }).then((nextDraft) => {
       if (loadId !== loadIdRef.current) return
       commitLoadedDraft(nextDraft)
     })
-  }, [apiKeys])
+    // Re-runs before the gates pass are free — `initialLoadHasRunRef` latches the one real load.
+  }, [apiKeys, isModelsLoading, connectionMatchesProvider, models])
   /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
-  const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error
+  // A managed submit needs something to address the CLI file with — the primary model in common
+  // mode, a resolvable role model in detailed mode. Without it the parent skips the write, so the
+  // active provider's files would keep their old contents while the preference moved on (either
+  // mode flip can land here). Mirror the parent's rejection by refusing to arm Save at all.
+  const managedSubmitModelId = resolveManagedOptions(claudeModelMode, draft.config, draft.modelId).cliConfigModelId
+  const canSubmit = isForeignDraft
+    ? draft.files.length > 0 && !draft.error
+    : !draft.error && !(isCurrentProvider && !managedSubmitModelId)
   const canSave = canSubmit && isDirty
 
   const handleModelSelect = useCallback(
@@ -362,7 +375,7 @@ export function useConfigDraftController({
         const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
         const sanitizedConfig = sanitizeCliConfigBlob(cliTool, current.config)
         const cliConfigModelId = isClaudeDetailedSubmit
-          ? getClaudeContextModelId(provider.id, sanitizedConfig)
+          ? getClaudeContextModelId(provider.id, sanitizedConfig, gateway ? models : undefined)
           : current.modelId
         const nextConfig =
           cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
@@ -394,7 +407,19 @@ export function useConfigDraftController({
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id, t])
+  }, [
+    canSave,
+    claudeModelMode,
+    cliTool,
+    commitDraft,
+    createManagedDraft,
+    gateway,
+    models,
+    onSubmit,
+    onClose,
+    provider.id,
+    t
+  ])
 
   return {
     draft,

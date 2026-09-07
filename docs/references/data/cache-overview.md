@@ -1,3 +1,12 @@
+---
+description: Three-tier cache architecture (memory, shared, persist) - key types, design invariants, process responsibilities
+sources:
+  - src/main/data/CacheService.ts
+  - src/renderer/data/CacheService.ts
+  - src/renderer/data/hooks/useCache.ts
+  - src/shared/data/cache
+---
+
 # Cache System Overview
 
 Three-tier cache for regenerable data. In-process memory, cross-window shared state, and localStorage-backed persistence.
@@ -97,7 +106,7 @@ Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messa
 | `useSharedCache` / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
 | `useSharedCacheValue` — read-only observer for main-owned keys: no default write-back, no pin, no setter; `undefined` on physical miss | Shared | Fixed + Template |
 | `useSharedCacheSelector` — multi-key read-only aggregate observer: values tuple → selector → selection-level bail-out | Shared | Fixed + Template |
-| `usePersistCache` / `getPersist` / `setPersist` / `hasPersist` / `deletePersist` | Persist | Fixed only |
+| `usePersistCache` / `getPersist` / `setPersist` (value **or** `(prev) => next`) / `hasPersist` / `deletePersist` | Persist | Fixed only |
 | `isSharedCacheReady` / `onSharedCacheReady`          | Shared  | —                       |
 | `getStats(includeDetails?: boolean)`                 | All     | —                       |
 

@@ -11,13 +11,10 @@
  * `MessagePartsRenderer` to render inline citations from text-part metadata.
  */
 
-import { loggerService } from '@logger'
 import type { Citation } from '@renderer/types/message'
 import type { WebSearchSource } from '@renderer/types/webSearchProvider'
 import type { CitationReference, ContentReference } from '@shared/data/types/message'
 import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory } from '@shared/data/types/message'
-
-const logger = loggerService.withContext('partsToBlocks')
 
 export type CitationReferenceView = {
   citationBlockId?: string
@@ -28,8 +25,8 @@ export type CitationReferenceView = {
  * Convert ContentReference[] (new format) to inline citationReferences shape.
  * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
  *
- * Note: Only web citations are converted. Knowledge and memory citations are not
- * supported by this inline reference format and are silently dropped.
+ * Knowledge/memory citations carry no web-search source; their inline `[N]`
+ * markers resolve through the default plain-bracket normalization branch.
  */
 export function convertReferencesToCitationReferences(
   references: ContentReference[],
@@ -38,16 +35,11 @@ export function convertReferencesToCitationReferences(
   const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
   if (citations.length === 0) return undefined
 
-  const nonWebCitations = citations.filter((ref) => !isWebCitation(ref))
-  if (nonWebCitations.length > 0) {
-    logger.warn('Non-web citations dropped during inline citation conversion (knowledge/memory not supported)', {
-      droppedCount: nonWebCitations.length
-    })
-  }
-
-  return citations.filter(isWebCitation).map((ref) => ({
+  return citations.map((ref) => ({
     citationBlockId: blockId,
-    citationBlockSource: (ref.content?.source ?? undefined) as WebSearchSource | undefined
+    citationBlockSource: isWebCitation(ref)
+      ? ((ref.content?.source ?? undefined) as WebSearchSource | undefined)
+      : undefined
   }))
 }
 
@@ -181,15 +173,27 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
 
     if (isKnowledgeCitation(ref)) {
       const knowledge = Array.isArray(ref.content) ? ref.content : []
+      // Keep the migrated item id as the display number so inline [N] markers
+      // in the text resolve; on a collision with an already-claimed number
+      // (possible in mixed migrated data) fall back to sequential assignment.
+      const usedNumbers = new Set(all.filter((citation) => citation.number > 0).map((citation) => citation.number))
       all.push(
-        ...knowledge.map((item) => ({
-          number: 0,
-          url: item.sourceUrl || '',
-          title: item.sourceUrl || '',
-          content: item.content,
-          showFavicon: true,
-          type: 'knowledge'
-        }))
+        ...knowledge.map((item) => {
+          const number = item.id > 0 && !usedNumbers.has(item.id) ? item.id : 0
+          if (number > 0) usedNumbers.add(number)
+          // v1 stored a file source as the whole markdown link `[name](http://file/x)`, so the
+          // raw value is neither a linkable URL nor a readable title. Unwrap it the way v1's own
+          // renderer did; the main process routes `http://file/` back to the stored file.
+          const fileMatch = item.sourceUrl?.match(/\[(.*?)]\(http:\/\/file\/(.*?)\)/)
+          return {
+            number,
+            url: fileMatch ? `http://file/${fileMatch[2]}` : item.sourceUrl || '',
+            title: fileMatch ? fileMatch[1] : item.sourceUrl || '',
+            content: item.content,
+            showFavicon: true,
+            type: 'knowledge'
+          }
+        })
       )
       continue
     }

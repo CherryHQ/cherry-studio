@@ -605,6 +605,12 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  * - `entityIds` always holds primary keys of the entities the endpoint
  *   returns (e.g. '/pins' uses `Pin.id`, never `Pin.entityId`). Plural — a
  *   batch operation emits one entry.
+ * - `routeParams` optionally narrows a template endpoint to concrete path
+ *   parameters (for example `{ topicId }`). Renderer subscriptions pass their
+ *   concrete parameters to `useDataChange`, which filters mismatched effects;
+ *   omitted means "no claim — assume relevant". This is separate from
+ *   `dimension`, which describes a query family rather than identifying one
+ *   concrete route instance.
  *
  * The three kinds are facets, NOT mutually exclusive: one write commonly emits
  * several entries for the same endpoint (e.g. a rename is projection +
@@ -617,28 +623,34 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  * receives the same object instances, so the fields are `readonly` — never
  * mutate an effect in a listener.
  */
-export type DataApiDataChangeEffect =
-  | {
-      readonly endpoint: ScalarGetPaths
-      readonly kind?: never
-      readonly dimension?: never
-      readonly entityIds?: readonly string[]
-    }
-  | {
-      readonly endpoint: CollectionGetPaths
-      readonly kind: 'projection'
-      readonly dimension?: never
-      readonly entityIds?: readonly string[]
-    }
-  | {
-      readonly endpoint: CollectionGetPaths
-      readonly kind: 'membership'
-      readonly dimension?: string
-      readonly entityIds?: readonly string[]
-    }
-  | {
-      readonly endpoint: CollectionGetPaths
-      readonly kind: 'order'
-      readonly dimension: string
-      readonly entityIds?: readonly string[]
-    }
+type DataApiDataChangeRouteScope = {
+  readonly routeParams?: Readonly<Record<string, string>>
+}
+
+export type DataApiDataChangeEffect = DataApiDataChangeRouteScope &
+  (
+    | {
+        readonly endpoint: ScalarGetPaths
+        readonly kind?: never
+        readonly dimension?: never
+        readonly entityIds?: readonly string[]
+      }
+    | {
+        readonly endpoint: CollectionGetPaths
+        readonly kind: 'projection'
+        readonly dimension?: never
+        readonly entityIds?: readonly string[]
+      }
+    | {
+        readonly endpoint: CollectionGetPaths
+        readonly kind: 'membership'
+        readonly dimension?: string
+        readonly entityIds?: readonly string[]
+      }
+    | {
+        readonly endpoint: CollectionGetPaths
+        readonly kind: 'order'
+        readonly dimension: string
+        readonly entityIds?: readonly string[]
+      }
+  )

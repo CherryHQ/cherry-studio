@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 
 describe('PreferenceSeeder', () => {
   const dbh = setupTestDatabase()
+  const toolbarKey = 'chat.input.toolbar.pinned_tools'
+  const modelToolsPreferredKey = 'chat.web_search.model_tools_preferred'
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
@@ -64,5 +66,52 @@ describe('PreferenceSeeder', () => {
 
     const after = (await dbh.db.select().from(preferenceTable)).length
     expect(after).toBe(before)
+  })
+
+  it('keeps clear context unpinned in the default chat toolbar', async () => {
+    new PreferenceSeeder().run(dbh.db)
+
+    const [toolbar] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, toolbarKey)))
+    expect(toolbar.value).toEqual(['composer:new-conversation', 'web-search'])
+  })
+
+  it('defaults web tools to model-native capabilities', async () => {
+    new PreferenceSeeder().run(dbh.db)
+
+    const [preference] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, modelToolsPreferredKey)))
+    expect(preference?.value).toBe(true)
+  })
+
+  it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
+    const sidebarKey = 'ui.sidebar.favorites'
+    const persisted = [
+      { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
+      { id: 'translate', type: 'app' }
+    ]
+    const generatedDefault = DefaultPreferences.default[sidebarKey]
+
+    expect(generatedDefault[0]).toEqual({ id: 'agents', type: 'app' })
+    expect(persisted).not.toEqual(generatedDefault)
+
+    await dbh.db.insert(preferenceTable).values({
+      scope: 'default',
+      key: sidebarKey,
+      value: persisted
+    })
+
+    new PreferenceSeeder().run(dbh.db)
+
+    const [row] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, sidebarKey)))
+    expect(row.value).toEqual(persisted)
   })
 })

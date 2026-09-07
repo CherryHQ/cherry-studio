@@ -27,12 +27,14 @@ describe('useResizeDrag', () => {
 
   it('cleans up on mouse up and ignores later mouse movement', () => {
     const onMove = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
     expect(result.current.isResizing).toBe(true)
     expect(document.body.style.cursor).toBe('col-resize')
     expect(document.body.style.userSelect).toBe('none')
+    expect(onEnd).not.toHaveBeenCalled()
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
@@ -47,19 +49,23 @@ describe('useResizeDrag', () => {
     expect(result.current.isResizing).toBe(false)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+    expect(onEnd).toHaveBeenCalledTimes(1)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 140 }))
+      document.dispatchEvent(new MouseEvent('mouseup'))
     })
 
     expect(onMove).toHaveBeenCalledTimes(1)
+    expect(onEnd).toHaveBeenCalledTimes(1)
   })
 
   it('restores the previous document resize styles on window blur', () => {
     const onMove = vi.fn()
+    const onEnd = vi.fn()
     document.body.style.cursor = 'grab'
     document.body.style.userSelect = 'text'
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
     expect(document.body.style.cursor).toBe('col-resize')
@@ -72,6 +78,7 @@ describe('useResizeDrag', () => {
     expect(result.current.isResizing).toBe(false)
     expect(document.body.style.cursor).toBe('grab')
     expect(document.body.style.userSelect).toBe('text')
+    expect(onEnd).toHaveBeenCalledTimes(1)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 140 }))
@@ -96,7 +103,8 @@ describe('useResizeDrag', () => {
 
   it('cleans up when the document becomes hidden', () => {
     const onMove = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
 
@@ -111,11 +119,13 @@ describe('useResizeDrag', () => {
     expect(result.current.isResizing).toBe(false)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+    expect(onEnd).toHaveBeenCalledTimes(1)
   })
 
   it('cleans up when the pointer leaves the document', () => {
     const onMove = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
 
@@ -126,11 +136,13 @@ describe('useResizeDrag', () => {
     expect(result.current.isResizing).toBe(false)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+    expect(onEnd).toHaveBeenCalledTimes(1)
   })
 
   it('cleans up on unmount', () => {
     const onMove = vi.fn()
-    const { result, unmount } = renderHook(() => useResizeDrag({ onMove }))
+    const onEnd = vi.fn()
+    const { result, unmount } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
 
@@ -140,6 +152,7 @@ describe('useResizeDrag', () => {
 
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+    expect(onEnd).toHaveBeenCalledTimes(1)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 140 }))
@@ -149,8 +162,9 @@ describe('useResizeDrag', () => {
   })
 
   it('ends the drag when onMove invokes the provided stop callback', () => {
+    const onEnd = vi.fn()
     const onMove = vi.fn((_moveEvent: MouseEvent, stop: () => void) => stop())
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
     expect(result.current.isResizing).toBe(true)
@@ -163,6 +177,7 @@ describe('useResizeDrag', () => {
     expect(result.current.isResizing).toBe(false)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
+    expect(onEnd).toHaveBeenCalledTimes(1)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 200 }))
@@ -173,10 +188,12 @@ describe('useResizeDrag', () => {
 
   it('cleans up the previous drag when a new drag starts', () => {
     const onMove = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove }))
+    const onEnd = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
 
     startDrag(result.current.startResizing)
     startDrag(result.current.startResizing)
+    expect(onEnd).toHaveBeenCalledTimes(1)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
@@ -190,6 +207,7 @@ describe('useResizeDrag', () => {
     })
 
     expect(result.current.isResizing).toBe(false)
+    expect(onEnd).toHaveBeenCalledTimes(2)
 
     act(() => {
       document.dispatchEvent(new MouseEvent('mousemove', { clientX: 200 }))
@@ -197,132 +215,6 @@ describe('useResizeDrag', () => {
 
     // A single mouseup fully ended the active drag — no leftover listener from drag #1.
     expect(onMove).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not call onEnd merely on drag start', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    expect(onEnd).not.toHaveBeenCalled()
-  })
-
-  it('calls onEnd exactly once when the drag ends via mouseup', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
-    })
-    expect(onEnd).not.toHaveBeenCalled()
-
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mouseup'))
-    })
-    expect(onEnd).toHaveBeenCalledTimes(1)
-
-    // A later mouseup on an already-ended drag must not refire onEnd.
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mouseup'))
-    })
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd exactly once on window blur', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    act(() => {
-      window.dispatchEvent(new Event('blur'))
-    })
-
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd exactly once when the document becomes hidden', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    Object.defineProperty(document, 'hidden', {
-      configurable: true,
-      value: true
-    })
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd exactly once when the pointer leaves the document', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mouseleave'))
-    })
-
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd exactly once on unmount', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result, unmount } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    act(() => {
-      unmount()
-    })
-
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd exactly once when onMove invokes the provided stop callback', () => {
-    const onEnd = vi.fn()
-    const onMove = vi.fn((_moveEvent: MouseEvent, stop: () => void) => stop())
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 120 }))
-    })
-
-    expect(onEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onEnd for the first drag when a new drag cleans it up', () => {
-    const onMove = vi.fn()
-    const onEnd = vi.fn()
-    const { result } = renderHook(() => useResizeDrag({ onMove, onEnd }))
-
-    startDrag(result.current.startResizing)
-    startDrag(result.current.startResizing)
-
-    // Starting the second drag tore down the first one, which fires onEnd once.
-    expect(onEnd).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      document.dispatchEvent(new MouseEvent('mouseup'))
-    })
-
-    // The second (active) drag ending fires onEnd again — twice total.
     expect(onEnd).toHaveBeenCalledTimes(2)
   })
 })

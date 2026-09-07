@@ -1,5 +1,5 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
-import { Cherryin } from '@cherrystudio/ui/icons'
+import { Cherryin } from '@cherrystudio/ui/icons/providers'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -11,7 +11,7 @@ import { cn } from '@renderer/utils/style'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('CherryInOauth')
@@ -42,6 +42,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   // `oauth.has_token` returns only a boolean — the access/refresh tokens stay in
   // the main process and never reach the renderer (null = status not loaded yet).
   const [remoteHasOAuthToken, setRemoteHasOAuthToken] = useState<boolean | null>(null)
+  const topupInProgressRef = useRef(false)
 
   const refreshHasToken = useCallback(async () => {
     try {
@@ -86,6 +87,19 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       setOauthTokenOverride(null)
     }
   }, [oauthTokenOverride, remoteHasOAuthToken])
+
+  // Top-up happens in the system browser (see WindowManager.setWindowOpenHandler),
+  // so the balance refresh must wait for the user to come back.
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      if (topupInProgressRef.current) {
+        topupInProgressRef.current = false
+        void fetchData()
+      }
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    return () => window.removeEventListener('focus', handleWindowFocus)
+  }, [fetchData])
 
   const handleOAuthLogin = useCallback(async () => {
     try {
@@ -149,6 +163,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {
+    topupInProgressRef.current = true
     window.open(CHERRYIN_TOPUP_URL, '_blank')
   }, [])
 

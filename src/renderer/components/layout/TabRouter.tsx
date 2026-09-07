@@ -2,10 +2,22 @@ import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrys
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
+import type { AppRouter } from '@renderer/types/router'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
+// The annotation keeps this in step with the registered `AppRouter`: options that change the
+// router's type fail here instead of silently diverging from what pages are typed against.
+const createTabRouter = (url: string): AppRouter =>
+  createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [url] }),
+    // defaultErrorComponent contains a route render error to its tab; without it the
+    // error bubbles to the window-level boundary and tears down the whole window.
+    defaultErrorComponent: RouteErrorFallback
+  })
 
 interface TabRouterProps {
   tab: Tab
@@ -21,18 +33,19 @@ interface TabRouterProps {
  */
 export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   // Create independent router instance per tab (only once)
-  const router = useMemo(() => {
-    const history = createMemoryHistory({ initialEntries: [tab.url] })
-    // defaultErrorComponent contains a route render error to its tab; without it the
-    // error bubbles to the window-level boundary and tears down the whole window.
-    return createRouter({ routeTree, history, defaultErrorComponent: RouteErrorFallback })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const router = useMemo(() => createTabRouter(tab.url), [tab.id])
+
+  // External retargets update tab.url before an async route can replace the outgoing page.
+  // Cover that interval so teardown effects cannot repaint stale page loading UI.
+  const [resolvedHref, setResolvedHref] = useState(tab.url)
+  const transitionUrl = tab.url !== resolvedHref ? tab.url : null
 
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
+      setResolvedHref(nextHref)
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
@@ -43,7 +56,14 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
-      void router.navigate({ to: tab.url })
+      // Split path and query: a query-bearing href string in `to` loses the
+      // search through validateSearch round-trips (route-dependent), so pass
+      // the parsed query as the structured `search` param instead
+      const [pathname, search] = tab.url.split('?')
+      void router.navigate({
+        to: pathname,
+        search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+      })
     }
   }, [router, tab.url])
 
@@ -67,6 +87,13 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
               <RouterProvider router={router} />
             </DialogPortalContainerProvider>
           </PortalContainerProvider>
+          {transitionUrl && (
+            <div
+              data-testid="tab-route-transition-cover"
+              className="absolute inset-0 z-50 bg-card"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </TabIdProvider>
     </Activity>

@@ -1,0 +1,46 @@
+diff --git a/dist/index.js b/dist/index.js
+index c9f2fdf5d8ff99b50f66ed7d3a381836af81ca6b..a85f83a459f5ccce43fbe9f999715ce31c37b172 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -94,7 +94,17 @@ var ReactChatState = class {
+       ]);
+       __privateGet(this, _callMessagesCallbacks).call(this);
+     };
+-    this.snapshot = (value) => structuredClone(value);
++    // PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — the original
++    // structuredClone was O(message bytes) per chunk, melting long streams (vercel/ai#18624).
++    this.snapshot = (value) => {
++      if (!(value && Array.isArray(value.parts))) return structuredClone(value);
++      const snapshot = { ...value, parts: value.parts.map((part) => ({ ...part })) };
++      if ("metadata" in value) {
++        const metadata = value.metadata;
++        snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++      }
++      return snapshot;
++    };
+     this["~registerMessagesCallback"] = (onChange, throttleWaitMs) => {
+       const callback = throttleWaitMs ? throttle(onChange, throttleWaitMs) : onChange;
+       __privateGet(this, _messagesCallbacks).add(callback);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 708310cf6da231725070b9fab4fb38d074ecec86..62bed03ed9fb525e61c3aea96cd09a0b212ed55c 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -58,7 +58,17 @@ var ReactChatState = class {
+       ]);
+       __privateGet(this, _callMessagesCallbacks).call(this);
+     };
+-    this.snapshot = (value) => structuredClone(value);
++    // PATCHED(cherry): structural-sharing snapshot (mirrors vercel/ai#18692) — the original
++    // structuredClone was O(message bytes) per chunk, melting long streams (vercel/ai#18624).
++    this.snapshot = (value) => {
++      if (!(value && Array.isArray(value.parts))) return structuredClone(value);
++      const snapshot = { ...value, parts: value.parts.map((part) => ({ ...part })) };
++      if ("metadata" in value) {
++        const metadata = value.metadata;
++        snapshot.metadata = Array.isArray(metadata) ? [...metadata] : metadata !== null && typeof metadata === "object" ? { ...metadata } : metadata;
++      }
++      return snapshot;
++    };
+     this["~registerMessagesCallback"] = (onChange, throttleWaitMs) => {
+       const callback = throttleWaitMs ? throttle(onChange, throttleWaitMs) : onChange;
+       __privateGet(this, _messagesCallbacks).add(callback);

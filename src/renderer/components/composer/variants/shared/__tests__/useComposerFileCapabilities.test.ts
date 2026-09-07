@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/utils/model', () => mocks)
 
 const model = (id: string) => ({ id }) as unknown as Model
-const containsAll = (haystack: string[], needles: string[]) => needles.every((n) => haystack.includes(n))
+const containsAll = (haystack: string[], needles: readonly string[]) => needles.every((n) => haystack.includes(n))
 const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
 
 beforeEach(() => {
@@ -44,6 +44,12 @@ describe('useComposerFileCapabilities', () => {
       expect(result.current.canAddImageFile).toBe(true)
       expect(result.current.canAddTextFile).toBe(true)
       expect(containsAll(result.current.supportedExts, ALL_EXTS)).toBe(true)
+    })
+
+    it('allows common archive formats', () => {
+      const { result } = renderHook(() => useComposerFileCapabilities(model('m1')))
+
+      expect(containsAll(result.current.supportedExts, archiveExts)).toBe(true)
     })
   })
 

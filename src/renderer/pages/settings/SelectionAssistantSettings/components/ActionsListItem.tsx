@@ -91,9 +91,9 @@ const Item = ({
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border/60 bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
+      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border-subtle bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
       disabled && 'opacity-70 hover:bg-muted/30',
-      className === 'non-draggable' && 'relative cursor-default border-border/80 bg-muted/50 hover:bg-muted/50',
+      className === 'non-draggable' && 'relative cursor-default border-border bg-muted/50 hover:bg-muted/50',
       className
     )}
     {...props}
@@ -109,14 +109,17 @@ const ItemName = ({
   disabled,
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { disabled: boolean }) => (
-  <span className={cn('ml-2 truncate', disabled ? 'text-foreground-muted' : 'text-foreground', className)} {...props} />
+  <span
+    className={cn('ml-2 truncate', disabled ? 'text-foreground-disabled' : 'text-foreground', className)}
+    {...props}
+  />
 )
 
 const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean }) => (
   <div
     className={cn(
       'mx-2 flex items-center justify-center',
-      disabled ? 'text-muted-foreground/70' : 'text-muted-foreground group-hover/action-item:text-foreground',
+      disabled ? 'text-foreground-disabled' : 'text-muted-foreground group-hover/action-item:text-foreground',
       className
     )}
     {...props}

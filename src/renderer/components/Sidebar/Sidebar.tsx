@@ -1,10 +1,11 @@
 import './Sidebar.css'
 
+import { MenuItem } from '@cherrystudio/ui'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
@@ -23,6 +24,7 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -30,6 +32,7 @@ export interface SidebarProps {
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
+  onHeaderClick?: () => void
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -43,6 +46,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  isFullscreen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -50,13 +54,16 @@ export function Sidebar({
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
+  onHeaderClick,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const contextMenuOpenRef = useRef(false)
+  const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
@@ -67,11 +74,45 @@ export function Sidebar({
     <div
       className={cn(
         'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-8 rounded-lg' : 'size-9 rounded-lg'
+        size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
       )}>
       {logoNode}
     </div>
   )
+
+  const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean) => {
+    const content = (
+      <>
+        {renderLogo(size)}
+        {showTitle && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
+      </>
+    )
+
+    if (!onHeaderClick) return content
+
+    if (showTitle) {
+      return (
+        <MenuItem
+          variant="ghost"
+          icon={<span className="flex size-4 items-center justify-center">{renderLogo(size)}</span>}
+          label={title}
+          aria-label={title || undefined}
+          onClick={onHeaderClick}
+          className="cursor-pointer rounded-xl text-sidebar-foreground [-webkit-app-region:no-drag]"
+        />
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        aria-label={title || undefined}
+        onClick={onHeaderClick}
+        className="flex min-w-0 cursor-pointer items-center [-webkit-app-region:no-drag]">
+        {content}
+      </button>
+    )
+  }
 
   const handleDismiss = useCallback(() => {
     onDismiss?.()
@@ -94,13 +135,30 @@ export function Sidebar({
   const handleContextMenuOpenChange = useCallback(
     (open: boolean) => {
       contextMenuOpenRef.current = open
+      setContextMenuOpen(open)
 
       if (open) {
         clearHoverDismiss()
         return
       }
 
-      if (isFloating && !floatingPointerInsideRef.current) {
+      if (isFloating && !floatingPointerInsideRef.current && !footerOverlayOpenRef.current) {
+        scheduleHoverDismiss()
+      }
+    },
+    [clearHoverDismiss, isFloating, scheduleHoverDismiss]
+  )
+
+  const handleFooterOverlayOpenChange = useCallback(
+    (open: boolean) => {
+      footerOverlayOpenRef.current = open
+
+      if (open) {
+        clearHoverDismiss()
+        return
+      }
+
+      if (isFloating && !floatingPointerInsideRef.current && !contextMenuOpenRef.current) {
         scheduleHoverDismiss()
       }
     },
@@ -113,7 +171,14 @@ export function Sidebar({
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
-  const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
+  const footerProps = {
+    user,
+    actions,
+    extensionsLabel,
+    onExtensionsClick,
+    onOverlayOpenChange: handleFooterOverlayOpenChange
+  }
+  const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
 
   // --- Floating sidebar ---
   if (isFloating) {
@@ -121,13 +186,14 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            windowDragClassName,
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             floatingPointerInsideRef.current = false
-            if (!contextMenuOpenRef.current) {
+            if (!contextMenuOpenRef.current && !footerOverlayOpenRef.current) {
               scheduleHoverDismiss()
             }
           }}
@@ -135,9 +201,13 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
-            {renderLogo()}
-            <span className="truncate text-sidebar-foreground text-sm">{title}</span>
+          <div
+            className={cn(
+              'flex shrink-0 px-2',
+              isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+              windowDragClassName
+            )}>
+            {renderHeaderIdentity('default', true)}
           </div>
 
           {showSearch && (
@@ -202,14 +272,19 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
+        windowDragClassName,
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
       <div
-        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
-        {renderLogo(layout === 'icon' ? 'sm' : 'default')}
-        {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
+        className={cn(
+          'flex shrink-0',
+          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+          windowDragClassName,
+          layout === 'full' ? 'px-2' : 'justify-center'
+        )}>
+        {renderHeaderIdentity(layout === 'icon' ? 'sm' : 'default', layout === 'full')}
       </div>
 
       {/* Search */}

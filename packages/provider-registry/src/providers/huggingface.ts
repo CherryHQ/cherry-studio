@@ -3,10 +3,15 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'huggingface',
   name: 'Hugging Face',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'anthropic-messages': {
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1/'
+    },
     'openai-responses': {
-      adapterFamily: 'huggingface',
+      adapterFamily: 'open-responses',
       baseUrl: 'https://router.huggingface.co/v1/'
     }
   },

@@ -1,12 +1,15 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import type * as UseModelModule from '@renderer/hooks/useModel'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  agentPinReadMock,
+  agentReadMock,
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
@@ -17,6 +20,8 @@ const {
   useProvidersMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  agentPinReadMock: vi.fn(),
+  agentReadMock: vi.fn(),
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
@@ -66,14 +71,33 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create/steps/CapabilitySte
   CapabilityStep: () => <div data-testid="capability-step" />
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
+  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
 })
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+  useInfiniteQuery: () => ({
+    pages: [{ items: [], total: 0 }],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn()
+  }),
   useMutation: useMutationMock,
   useQuery: useQueryMock
+}))
+
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({ createAgent: createAgentMock, isCreatingAgent: false }),
+  useAgentMutationsById: () => ({ updateAgent: updateAgentMock })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -86,16 +110,14 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderById: () => ({ provider: undefined }),
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
-}))
-
-vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
-  useAgentTools: () => ({ tools: [], isLoading: false, error: undefined })
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
@@ -103,6 +125,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: () => {},
   useInstalledSkills: () => ({
     skills: [],
     loading: false
@@ -136,8 +159,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.placeholder': 'Describe this agent',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.label': 'Model',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
@@ -150,6 +171,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
+          'library.config.prompt.label': 'System Prompt',
+          'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.agent.create_new': 'Create agent',
           'selector.agent.empty_text': 'No agents yet. Create one first.',
           'selector.agent.search_placeholder': 'Search agents',
@@ -158,6 +181,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.common.unpin': 'Unpin',
           'library.config.dialogs.create.agent_title': 'New Agent',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
           'library.config.dialogs.create.description_placeholder': 'Describe this resource',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
           'library.config.dialogs.create.submit': 'Create',
@@ -167,11 +191,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.basic': 'Basic info',
           'library.config.dialogs.create.step.capability': 'Capabilities',
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
-          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.basic_tab': 'Basic',
-          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
           'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'
@@ -180,7 +203,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 import { toast } from '@renderer/services/toast'
 
 import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
@@ -256,13 +278,18 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: AGENTS_RESPONSE,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    refetch: refetchAgentsMock,
-    mutate: vi.fn()
+  useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
+    const enabled = path !== '/agents' || options?.enabled !== false
+    if (path === '/agents' && enabled) agentReadMock()
+    const data = enabled ? (path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE) : undefined
+    return {
+      data,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAgentsMock,
+      mutate: vi.fn()
+    }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'PATCH' && path.startsWith('/agents/')) {
@@ -290,14 +317,17 @@ beforeEach(() => {
     ...AGENTS_RESPONSE.items[0],
     name: 'Renamed Agent'
   })
-  usePinsMock.mockReturnValue({
-    isLoading: false,
-    isRefreshing: false,
-    isMutating: false,
-    error: undefined,
-    pinnedIds: [],
-    refetch: refetchPinsMock,
-    togglePin: togglePinMock
+  usePinsMock.mockImplementation((_entityType: string, options?: { enabled?: boolean }) => {
+    if (options?.enabled !== false) agentPinReadMock()
+    return {
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: refetchPinsMock,
+      togglePin: togglePinMock
+    }
   })
   useProvidersMock.mockReturnValue({
     providers: [{ id: 'provider', endpointConfigs: { 'anthropic-messages': {} } }]
@@ -307,6 +337,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 function renderSelector(onChange = vi.fn()) {
@@ -325,20 +356,23 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
-  it('sets the default popover target height', () => {
+  it('defers selector reads until the popover opens', () => {
     renderSelector()
+
+    expect(agentReadMock).not.toHaveBeenCalled()
+    expect(agentPinReadMock).not.toHaveBeenCalled()
+
     openPopover()
 
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-    })
+    expect(agentReadMock).toHaveBeenCalled()
+    expect(agentPinReadMock).toHaveBeenCalled()
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
   })
 
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()
 
-    expect(useQueryMock).toHaveBeenCalledWith('/agents', { query: { limit: 500 } })
     expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Beta Agent/ })).toBeInTheDocument()
     const options = screen.getAllByRole('option')
@@ -437,7 +471,6 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(usePinsMock).toHaveBeenCalledWith('agent')
     expect(screen.getByText('Pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
@@ -487,20 +520,18 @@ describe('AgentSelector', () => {
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        body: {
-          type: 'claude-code',
-          name: 'Created Agent',
-          model: MODEL.id,
-          planModel: MODEL.id,
-          smallModel: MODEL.id,
-          description: 'Created from selector',
-          instructions: '',
-          knowledgeBaseIds: [],
-          skillIds: [],
-          configuration: {
-            avatar: '🤖',
-            permission_mode: 'bypassPermissions'
-          }
+        type: 'claude-code',
+        name: 'Created Agent',
+        model: MODEL.id,
+        planModel: MODEL.id,
+        smallModel: MODEL.id,
+        description: 'Created from selector',
+        instructions: '',
+        knowledgeBaseIds: [],
+        skillIds: [],
+        configuration: {
+          avatar: '🤖',
+          permission_mode: 'auto'
         }
       })
     )
@@ -550,7 +581,7 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
-  it('keeps the selector closed after editing an agent from a row action', async () => {
+  it('keeps the selector closed and the edit dialog open after auto-saving an agent', async () => {
     renderSelector()
     openPopover()
 
@@ -558,11 +589,11 @@ describe('AgentSelector', () => {
 
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Renamed Agent' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
@@ -579,8 +610,11 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
+    expect(onDialogCloseAutoFocus).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
   it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
@@ -597,12 +631,11 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Saved Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
-    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 
   it('does not show the empty state while the agents query is loading', () => {

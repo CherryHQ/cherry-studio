@@ -9,7 +9,6 @@ import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorContent = ({
   isLoading,
-  hasBases,
   sections,
   groups,
   groupById,
@@ -50,19 +49,17 @@ const BaseNavigatorContent = ({
   // shape keeps the accordion.
   const flatSection = groups.length === 0 && sections.length === 1 && sections[0].groupId === null ? sections[0] : null
 
+  // `pt-1 pb-3` mirrors the assistant and agent rails' list padding — the top inset is
+  // what separates the first row from the create action above it.
   return (
-    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-2.5 pb-3">
+    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden pt-1 pb-3">
       {isLoading ? (
         <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
           {t('common.loading')}
         </div>
-      ) : !hasBases ? (
-        // Truly empty (no bases at all — empty groups may still exist and are
-        // deliberately hidden behind the state) names the list state here; the
-        // content pane carries the "build knowledge with AI" invitation.
-        <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
       ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
-        // Bases exist but nothing survived filtering — the search matched nothing.
+        // KnowledgePage normally owns the zero-base empty state; keep a defensive fallback
+        // for a transient empty collection while navigator data changes.
         <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
       ) : flatSection ? (
         <div className="space-y-1">

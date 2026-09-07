@@ -1,3 +1,9 @@
+---
+description: Lifecycle internals — bootstrap phases, hooks, service states, events, and parallel initialization ordering
+sources:
+  - src/main/core/lifecycle
+---
+
 # Lifecycle Overview
 
 IoC container + service lifecycle management with phased bootstrap and parallel initialization.
@@ -87,7 +93,7 @@ Key points:
 - Best for: window management, tray, system shortcuts, theme management, IPC handlers that need Electron APIs.
 - This is the default phase — if you omit `@ServicePhase`, the service is placed here.
 
-> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn('PreferenceService')` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
+> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn(['PreferenceService'])` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
 
 **Background** — Fire-and-forget
 
@@ -151,6 +157,31 @@ After all phases complete:
 | `onPause()`    | When the service is being paused (requires `Pausable`)   | Yes          |
 | `onResume()`   | When the service is being resumed (requires `Pausable`)  | Yes          |
 
+#### Teardown time contract
+
+| Path | Ceiling |
+| ---- | ------- |
+| Shutdown (`stopAll()` / `destroyAll()`) | `SERVICE_STOP_TIMEOUT_MS` (5s), per service, per pass |
+| Runtime (`stop()` / `restart()`) | none |
+
+**Expiry abandons the wait, it does not cancel the hook.** The framework logs, records the service in the pass summary, and moves on; the hook keeps running. What is true *at the deadline*:
+
+| Timed-out hook | State at the deadline | Not emitted | Then |
+| -------------- | --------------------- | ----------- | ---- |
+| `onStop()` | `Stopping`, set on entry; disposables not yet cleaned | `SERVICE_STOPPED` | `destroyAll()` skips a service whose stop is still in flight |
+| `onDestroy()` | **whatever it was before the call** — `_doDestroy` writes no state until it finishes. `Stopped` after a normal stop, `Stopping` after a failed one, `Ready` when `destroyAll()` runs without a preceding stop (bootstrap aborted before `stopAll` had anything to do) | `SERVICE_DESTROYED` | nothing further; the pass is over |
+
+An abandoned hook that settles later completes its own teardown, but how far depends on **how** it settles:
+
+| Settles | `_doStop()` | `_doDestroy()` |
+| ------- | ----------- | -------------- |
+| Fulfilled | disposes, then → `Stopped` | disposes, then → `Destroyed` |
+| Rejected | disposes (the call sits in a `finally`), state stays `Stopping` | neither — no disposal, state unchanged |
+
+In all four cases **the recorded outcome stands**: no event fires and the summary is not amended. Whether a late-settling `onStop()` still gets its `onDestroy()` is therefore a race against `destroyAll()` reaching that service, and must not be relied on.
+
+The ceiling only bounds *async waits*. A synchronously blocking hook — a sync `fs` call, a long loop — cannot be preempted by a timer and still hangs the process, as does the whole-shutdown fuse (`SHUTDOWN_TIMEOUT_MS`). Timing also starts at the hook's first `await`, so a long synchronous prefix pushes the real bound past 5s.
+
 ### Automatic Resource Cleanup
 
 BaseService uses a single unified Disposable tracking mechanism. All resources — IPC handlers, event subscriptions, recurring timers, signals, cleanup functions — are tracked as Disposables and cleaned up together during the stop lifecycle.
@@ -169,6 +200,13 @@ Cleanup flow:
 ```
 onStop() → all disposables disposed → state = Stopped
 ```
+
+Both arrows follow `onStop()` settling, whichever way it settles:
+
+- **`onStop()` throws** — disposal still runs (its call sits in a `finally`); only the `Stopped` transition is skipped, so the state is left at `Stopping`. `onDestroy()` still runs: nothing is executing underneath it.
+- **`onStop()` is abandoned at the ceiling** — neither arrow has run *yet*. `_doDestroy` skips a service whose stop is still in flight, rather than tearing down resources that stop may still be using. If the hook settles later, disposal runs then, and the `Stopped` transition too if it resolved rather than threw — see the teardown time contract above.
+
+Note the predicate: **stop still in flight**, not `state === Stopping`. Both cases land on `Stopping`, but only one of them still has something running.
 
 `_doDestroy` is idempotent — calling it on an already-destroyed service is a safe no-op.
 
@@ -194,7 +232,7 @@ class BackgroundReporterService extends BaseService {
 - `ALL_SERVICES_READY` is emitted **immediately after all hooks have been invoked**, not after they finish. Listeners MUST NOT assume `onAllReady` side effects have completed when this event fires.
 - Called at most once per service instance — `restart()` does **not** re-trigger it (guarded by `_allReadyCalled`).
 - Errors thrown synchronously or via the returned Promise are caught by an async `.catch` in the framework, logged, and emitted as `SERVICE_ERROR` (in a microtask) — they never propagate to bootstrap.
-- **Do not `await` long-running business work directly in `onAllReady`.** Because the framework no longer awaits the hook, in-hook `await`s become silent background work. If a service needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the resulting Promise on the instance, and join it from `onStop`. See [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern).
+- **Do not `await` long-running business work directly in `onAllReady`.** Because the framework no longer awaits the hook, in-hook `await`s become silent background work. If a service needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the resulting Promise on the instance, and join it from `onStop`. That join is bounded on the shutdown path — see [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern).
 
 ### `onAllReady` Hook vs `ALL_SERVICES_READY` Event
 
@@ -253,6 +291,8 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 | `SERVICE_STOPPING`     | `{ name, state }`        | Service is being stopped              |
 | `SERVICE_STOPPED`      | `{ name, state }`        | Service is stopped                    |
 | `SERVICE_DESTROYED`    | `{ name, state }`        | Service is destroyed                  |
+| `SERVICE_ACTIVATED`    | `{ name, state }`        | Activatable service loaded its resources |
+| `SERVICE_DEACTIVATED`  | `{ name, state }`        | Activatable service released its resources |
 | `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
 | `ALL_SERVICES_READY`   | (none)                   | All `onAllReady` hooks have been invoked (NOT necessarily completed — see [onAllReady](#onallready-system-wide-readiness)) |
 
@@ -266,7 +306,7 @@ The lifecycle system provides two typed primitives for this, avoiding ad-hoc `Ev
 |---|---|---|
 | "Service B must init after Service A" | `@DependsOn` | PreferenceService depends on DbService |
 | "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | MainWindowService fires `onMainWindowCreated` |
-| "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | DbService signals `migrationComplete` |
+| "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | Available framework primitive; no production service currently exposes one |
 | "Tell a specific service to do something" | Direct method call via `application.get()` | `windowService.showMainWindow()` |
 
 ### Emitter / Event (Repeatable)
@@ -275,7 +315,7 @@ A producer service owns an `Emitter<T>` (private) and exposes its `Event<T>` (pu
 
 ### Signal (One-shot)
 
-A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately.
+A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately. The primitive is implemented and unit-tested but currently has no production consumer; introduce one only for a concrete one-shot completion contract, not as speculative service surface.
 
 For full usage patterns and code examples, see [Service Events](./lifecycle-usage.md#service-events-emitter--event) and [Signal](./lifecycle-usage.md#signal-one-shot-completion).
 

@@ -12,8 +12,10 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -33,6 +35,7 @@ type Props = {
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -51,9 +54,11 @@ const AgentSessionMessages = ({
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openDiagnosticReport,
   deleteMessage,
   respondToolApproval
 }: Props) => {
+  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -61,6 +66,7 @@ const AgentSessionMessages = ({
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
+  const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
   const assistantProfile = useMemo(
     () =>
@@ -72,6 +78,25 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+  const backgroundTaskAnchorMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'assistant') continue
+      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      if (parts.length > 0) return message.id
+    }
+    return undefined
+  }, [messages, partsByMessageId])
+  const messageTail = useMemo(
+    () =>
+      backgroundTaskAnchorMessageId
+        ? {
+            messageId: backgroundTaskAnchorMessageId,
+            content: <AgentSessionBackgroundTasks sessionId={sessionId} />
+          }
+        : undefined,
+    [backgroundTaskAnchorMessageId, sessionId]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -79,12 +104,14 @@ const AgentSessionMessages = ({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: sessionAssistantId,
       name: sessionName,
+      lastActivityAt: sessionLastActivityAt,
       createdAt: sessionCreatedAt,
       updatedAt: sessionUpdatedAt,
       messages: []
     }),
-    [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
+    [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
+  const diagnosticReport = useMemo(() => ({ location: t('error.diagnostic_report.locations.agent') }), [t])
 
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
@@ -99,19 +126,25 @@ const AgentSessionMessages = ({
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
+    openDiagnosticReport,
+    diagnosticReport,
     deleteMessage,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path
+    workspacePath: session?.workspace?.path,
+    messageTail
   })
 
+  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
+  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
+  // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
-    void ipcApi.request('ai.prewarm_agent_session', { sessionId }).catch((error) => {
-      logger.warn('Failed to prewarm agent session', error as Error)
+    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
+      logger.warn('Failed to acquire agent session warm lease', error as Error)
     })
     return () => {
-      void ipcApi.request('ai.close_agent_session_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to close agent session warm query', error as Error)
+      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
+        logger.warn('Failed to release agent session warm lease', error as Error)
       })
     }
   }, [sessionId])
@@ -119,7 +152,7 @@ const AgentSessionMessages = ({
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
       <MessageListProvider value={messageList}>
-        <MessageList />
+        <MessageList enableSearch />
       </MessageListProvider>
     </AskUserQuestionOptimisticInputProvider>
   )

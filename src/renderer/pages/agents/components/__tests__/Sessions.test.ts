@@ -20,6 +20,7 @@ const session = (overrides: Partial<SessionListItem> = {}) =>
     workspaceId: 'workspace-1',
     workspace: workspace('/Users/jd/project-a'),
     pinned: false,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     ...overrides
   }) as SessionListItem
 
@@ -70,25 +71,25 @@ describe('buildCreateSessionSeedIndex', () => {
         id: 'pinned-session',
         agentId: 'agent-pinned',
         pinned: true,
-        updatedAt: '2026-01-05T00:00:00.000Z'
+        lastActivityAt: '2026-01-05T00:00:00.000Z'
       }),
       session({
         id: 'older-session',
         agentId: 'agent-older',
         workspaceId: 'workspace-older',
-        updatedAt: '2026-01-02T00:00:00.000Z'
+        lastActivityAt: '2026-01-02T00:00:00.000Z'
       }),
       session({
         id: 'newer-session',
         agentId: 'agent-newer',
         workspaceId: 'workspace-newer',
-        updatedAt: '2026-01-03T00:00:00.000Z'
+        lastActivityAt: '2026-01-03T00:00:00.000Z'
       }),
       session({
         id: 'other-session',
         agentId: 'agent-other',
         workspaceId: 'workspace-other',
-        updatedAt: '2026-01-04T00:00:00.000Z'
+        lastActivityAt: '2026-01-04T00:00:00.000Z'
       })
     ]
     const groupIdBySessionId = new Map([
@@ -121,12 +122,12 @@ describe('buildCreateSessionSeedIndex', () => {
         session({
           id: 'older-session',
           agentId: 'agent-older',
-          updatedAt: '2026-01-02T00:00:00.000Z'
+          lastActivityAt: '2026-01-02T00:00:00.000Z'
         }),
         session({
           id: 'newer-session',
           agentId: undefined,
-          updatedAt: '2026-01-03T00:00:00.000Z'
+          lastActivityAt: '2026-01-03T00:00:00.000Z'
         })
       ],
       () => 'group-a'

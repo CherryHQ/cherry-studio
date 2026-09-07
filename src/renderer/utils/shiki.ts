@@ -11,6 +11,8 @@ export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 const logger = loggerService.withContext('Shiki')
 const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
 const READABLE_TEXT_COLOR = 'var(--foreground)'
+const languageLoadPromises = new WeakMap<HighlighterGeneric<any, any>, Map<string, Promise<string>>>()
+const themeLoadPromises = new WeakMap<HighlighterGeneric<any, any>, Map<string, Promise<string>>>()
 
 // Literal white fallbacks (including #ffffffff with alpha). Shiki colorReplacements matches by exact, lowercased value, so enumerate each one.
 const LITERAL_WHITE_COLOR_REPLACEMENTS: Record<string, string> = {
@@ -87,10 +89,19 @@ export async function loadLanguageIfNeeded(
   highlighter: HighlighterGeneric<any, any>,
   language: string
 ): Promise<string> {
-  const shiki = await getShiki()
+  if (highlighter.getLoadedLanguages().includes(language)) return language
 
-  let loadedLanguage = language
-  if (!highlighter.getLoadedLanguages().includes(language)) {
+  let loads = languageLoadPromises.get(highlighter)
+  if (!loads) {
+    loads = new Map()
+    languageLoadPromises.set(highlighter, loads)
+  }
+
+  const pendingLoad = loads.get(language)
+  if (pendingLoad) return pendingLoad
+
+  const loadPromise = (async () => {
+    const shiki = await getShiki()
     try {
       if (['text', 'ansi'].includes(language)) {
         await highlighter.loadLanguage(language as SpecialLanguage)
@@ -101,11 +112,18 @@ export async function loadLanguageIfNeeded(
       }
     } catch (error) {
       await highlighter.loadLanguage('text')
-      loadedLanguage = 'text'
+      return 'text'
     }
-  }
+    return language
+  })()
 
-  return loadedLanguage
+  loads.set(language, loadPromise)
+
+  try {
+    return await loadPromise
+  } finally {
+    if (loads.get(language) === loadPromise) loads.delete(language)
+  }
 }
 
 /**
@@ -115,10 +133,19 @@ export async function loadLanguageIfNeeded(
  * @returns 实际加载的主题
  */
 export async function loadThemeIfNeeded(highlighter: HighlighterGeneric<any, any>, theme: string): Promise<string> {
-  const shiki = await getShiki()
+  if (highlighter.getLoadedThemes().includes(theme)) return theme
 
-  let loadedTheme = theme
-  if (!highlighter.getLoadedThemes().includes(theme)) {
+  let loads = themeLoadPromises.get(highlighter)
+  if (!loads) {
+    loads = new Map()
+    themeLoadPromises.set(highlighter, loads)
+  }
+
+  const pendingLoad = loads.get(theme)
+  if (pendingLoad) return pendingLoad
+
+  const loadPromise = (async () => {
+    const shiki = await getShiki()
     try {
       const themeImportFn = shiki.bundledThemes[theme]
       const themeData = await themeImportFn()
@@ -128,11 +155,30 @@ export async function loadThemeIfNeeded(highlighter: HighlighterGeneric<any, any
       logger.debug(`Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
       const oneLightTheme = await shiki.bundledThemes['one-light']()
       await highlighter.loadTheme(oneLightTheme)
-      loadedTheme = 'one-light'
+      return 'one-light'
     }
-  }
+    return theme
+  })()
 
-  return loadedTheme
+  loads.set(theme, loadPromise)
+
+  try {
+    return await loadPromise
+  } finally {
+    if (loads.get(theme) === loadPromise) loads.delete(theme)
+  }
+}
+
+export async function loadLanguageAndThemeIfNeeded(
+  highlighter: HighlighterGeneric<any, any>,
+  language: string,
+  theme: string
+): Promise<{ loadedLanguage: string; loadedTheme: string }> {
+  const [loadedLanguage, loadedTheme] = await Promise.all([
+    loadLanguageIfNeeded(highlighter, language),
+    loadThemeIfNeeded(highlighter, theme)
+  ])
+  return { loadedLanguage, loadedTheme }
 }
 
 /**
@@ -251,9 +297,9 @@ export async function getMarkdownIt(theme: string, markdown: string) {
 async function loadMarkdownLanguage(markdown: string, highlighter: HighlighterGeneric<BundledLanguage, BundledTheme>) {
   const codeBlockRegex = /```(\w+)?/g
   let match: string[] | null
+  const languages = new Set<string>()
   while ((match = codeBlockRegex.exec(markdown)) !== null) {
-    if (match[1]) {
-      await loadLanguageIfNeeded(highlighter, match[1])
-    }
+    if (match[1]) languages.add(match[1])
   }
+  await Promise.all([...languages].map((language) => loadLanguageIfNeeded(highlighter, language)))
 }

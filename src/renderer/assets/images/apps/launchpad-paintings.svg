@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="board" x1="5" y1="6" x2="18" y2="21" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4D8"/>
+      <stop offset=".56" stop-color="#EBC88E"/>
+      <stop offset="1" stop-color="#C99455"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="7" y1="2" x2="14.5" y2="9.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7B84F"/>
+      <stop offset=".55" stop-color="#D9882D"/>
+      <stop offset="1" stop-color="#AD5C25"/>
+    </linearGradient>
+    <linearGradient id="ferrule" x1="14" y1="9" x2="16" y2="11" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset=".55" stop-color="#D5DCE5"/>
+      <stop offset="1" stop-color="#9DA8B7"/>
+    </linearGradient>
+    <linearGradient id="bristles" x1="14.5" y1="11.5" x2="17.6" y2="16.7" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#83C9FF"/>
+      <stop offset=".58" stop-color="#4B83F3"/>
+      <stop offset="1" stop-color="#3657C9"/>
+    </linearGradient>
+    <linearGradient id="red" x1="5" y1="9" x2="8" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF9A84"/>
+      <stop offset="1" stop-color="#F34C3E"/>
+    </linearGradient>
+    <linearGradient id="yellow" x1="6.5" y1="13" x2="10" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF58A"/>
+      <stop offset="1" stop-color="#F5BC20"/>
+    </linearGradient>
+    <linearGradient id="green" x1="10.5" y1="15" x2="14" y2="19" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A4E77D"/>
+      <stop offset="1" stop-color="#4AB85B"/>
+    </linearGradient>
+    <clipPath id="board-shape">
+      <path d="M10.7 5.3C6.1 5.5 2.8 8.8 2.8 13.2c0 4.7 3.9 7.9 9 7.9 5.4 0 9.4-3.3 9.4-7.3 0-2.3-1.5-3.5-3.9-3.7-1.4-.1-1.8-1.2-.6-1.7 1.1-.4.9-1.5-.1-2.1-1.5-.9-3.7-1.2-5.9-1Z"/>
+    </clipPath>
+  </defs>
+  <path d="M10.7 5.3C6.1 5.5 2.8 8.8 2.8 13.2c0 4.7 3.9 7.9 9 7.9 5.4 0 9.4-3.3 9.4-7.3 0-2.3-1.5-3.5-3.9-3.7-1.4-.1-1.8-1.2-.6-1.7 1.1-.4.9-1.5-.1-2.1-1.5-.9-3.7-1.2-5.9-1Z" fill="#A96D3C" fill-opacity=".5" transform="translate(.15 .45)"/>
+  <path d="M10.7 5.3C6.1 5.5 2.8 8.8 2.8 13.2c0 4.7 3.9 7.9 9 7.9 5.4 0 9.4-3.3 9.4-7.3 0-2.3-1.5-3.5-3.9-3.7-1.4-.1-1.8-1.2-.6-1.7 1.1-.4.9-1.5-.1-2.1-1.5-.9-3.7-1.2-5.9-1Z" fill="url(#board)"/>
+  <g clip-path="url(#board-shape)">
+    <path d="M2.5 10.5C5.4 5.7 11.1 4.2 17.4 6.6 11.8 6.5 7.1 8.5 3 13l-.5-2.5Z" fill="#FFFFFF" fill-opacity=".3"/>
+    <path d="M2.4 16.5c5 2.5 11.1 2.5 18.2-.4-1.4 4.4-5.2 6.6-10.1 6-4.3-.5-7-2.4-8.1-5.6Z" fill="#92582E" fill-opacity=".14"/>
+  </g>
+  <circle cx="6.2" cy="10.6" r="1.55" fill="url(#red)"/>
+  <circle cx="7.8" cy="15.1" r="1.55" fill="url(#yellow)"/>
+  <circle cx="12.2" cy="17" r="1.55" fill="url(#green)"/>
+  <g fill="#FFFFFF" fill-opacity=".5">
+    <ellipse cx="5.75" cy="10.15" rx=".5" ry=".3" transform="rotate(-28 5.75 10.15)"/>
+    <ellipse cx="7.35" cy="14.65" rx=".5" ry=".3" transform="rotate(-28 7.35 14.65)"/>
+    <ellipse cx="11.75" cy="16.55" rx=".5" ry=".3" transform="rotate(-28 11.75 16.55)"/>
+  </g>
+  <path d="M7 3.25c-.3-.3-.3-.75 0-1.05l.2-.2c.3-.3.75-.3 1.05 0l6.3 6.55-1.1 1.1L7 3.25Z" fill="url(#handle)"/>
+  <path d="M7.45 2.75c-.12-.12-.12-.3 0-.42.12-.12.3-.12.42 0l6.15 6.22-.42.42-6.15-6.22Z" fill="#FFE5A2" fill-opacity=".42"/>
+  <path d="m13.45 9.65 1.1-1.1 1.6 1.6-1.1 1.1-1.6-1.6Z" fill="url(#ferrule)"/>
+  <path d="M15.05 11.25c.3-.45.68-.82 1.1-1.1 1.05.78 1.62 1.82 1.6 3.1-.02 1.05-.45 1.97-1.3 2.75.05-.7-.35-1.15-1.15-1.42-.85-.28-1.18-.92-.9-1.78.15-.55.37-1.07.65-1.55Z" fill="url(#bristles)"/>
+  <path d="M15.45 11.18c.2-.25.43-.47.7-.65.62.6.97 1.3 1.05 2.12.03.4-.02.78-.17 1.13-.22-.55-.62-.93-1.2-1.13-.42-.15-.63-.47-.63-.97.05-.18.13-.35.25-.5Z" fill="#FFFFFF" fill-opacity=".27"/>
+</svg>

@@ -23,15 +23,15 @@ describe('useTopicNamingErrorNotification', () => {
     vi.clearAllMocks()
   })
 
-  it('shows an error toast with the translated title and original message on ai.topic_naming_failed', () => {
+  it('shows an error toast with the translated title and original message on ai.topic.naming_failed', () => {
     let emitFailed: ((payload: { message: string }) => void) | undefined
     mockUseIpcOn.mockImplementation((event: string, handler: (payload: { message: string }) => void) => {
-      if (event === 'ai.topic_naming_failed') emitFailed = handler
+      if (event === 'ai.topic.naming_failed') emitFailed = handler
     })
 
     renderHook(() => useTopicNamingErrorNotification())
 
-    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.topic_naming_failed', expect.any(Function))
+    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.topic.naming_failed', expect.any(Function))
 
     act(() => {
       emitFailed?.({ message: 'Invalid signature' })

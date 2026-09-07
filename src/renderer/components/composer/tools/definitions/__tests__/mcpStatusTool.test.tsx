@@ -3,14 +3,19 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { act, render, waitFor } from '@testing-library/react'
+import { Globe2, Settings2 } from 'lucide-react'
+import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as { mcps?: string[] } | undefined,
+  agentIds: [] as Array<string | null>,
   loggerError: vi.fn(),
   mcpServers: [] as McpServer[],
+  mcpServerOptions: [] as Array<{ enabled?: boolean } | undefined>,
   open: vi.fn(),
-  registerLaunchers: vi.fn<(launchers: unknown[]) => () => void>(() => () => undefined),
+  openSettingsTab: vi.fn(),
+  registerLaunchers: vi.fn<(launchers: unknown[], footerActions?: unknown[]) => () => void>(() => () => undefined),
   toastError: vi.fn(),
   updateAgent: vi.fn(),
   updateAssistant: vi.fn(),
@@ -22,7 +27,10 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({ agent: mocks.agent })
+  useAgent: (id: string | null) => {
+    mocks.agentIds.push(id)
+    return { agent: mocks.agent }
+  }
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
@@ -30,7 +38,10 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
-  useMcpServers: () => ({ mcpServers: mocks.mcpServers })
+  useMcpServers: (_query: unknown, options?: { enabled?: boolean }) => {
+    mocks.mcpServerOptions.push(options)
+    return { mcpServers: mocks.mcpServers, isLoading: false }
+  }
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
@@ -50,8 +61,12 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: mocks.toastError }
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
 const editDialogMocks = vi.hoisted(() => ({ openResourceEditDialog: vi.fn() }))
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   openResourceEditDialog: editDialogMocks.openResourceEditDialog
 }))
 
@@ -60,6 +75,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '../../types'
 import {
   buildMcpConfigFooterItem,
+  buildMcpGlobalConfigFooterItem,
   buildMcpStatusItems,
   createMcpStatusLauncher,
   McpStatusComposerRuntime,
@@ -77,7 +93,13 @@ const translations: Record<string, string> = {
   'library.config.tools.mode.manual.label': 'Manual',
   'agent.settings.tooling.mcp.toggle': 'Toggle MCP server',
   'common.save_failed': 'Save failed',
-  'settings.quickPanel.mcp.disabled': 'MCP is disabled for this assistant'
+  'settings.quickPanel.mcp.disabled': 'MCP is disabled for this assistant',
+  'settings.quickPanel.mcp.manageCurrentAgent': 'Manage current Agent MCP servers',
+  'settings.quickPanel.mcp.manageCurrentAssistant': 'Manage current Assistant MCP servers',
+  'settings.quickPanel.mcp.manageGlobal': 'Manage global MCP servers',
+  'settings.quickPanel.scope.currentAgent': 'Current Agent',
+  'settings.quickPanel.scope.currentAssistant': 'Current Assistant',
+  'settings.quickPanel.scope.global': 'Global'
 }
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any
@@ -121,7 +143,9 @@ describe('mcpStatusTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.agent = undefined
+    mocks.agentIds = []
     mocks.mcpServers = []
+    mocks.mcpServerOptions = []
     mocks.updateAgent.mockResolvedValue({})
     mocks.updateAssistant.mockResolvedValue({})
   })
@@ -382,8 +406,7 @@ describe('mcpStatusTool', () => {
   })
 
   it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
-    const footer = buildMcpConfigFooterItem({ kind: 'assistant', id: 'a1', initialTab: 'tools.mcp' }, t)!
-    const launcher = createMcpStatusLauncher([footer], t, 'disabled')
+    const launcher = createMcpStatusLauncher([], t, 'disabled', false)
 
     expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
     expect(launcher.disabled).toBeFalsy()
@@ -391,7 +414,41 @@ describe('mcpStatusTool', () => {
 
     const quickPanel = { open: vi.fn() }
     launcher.action?.({ quickPanel } as any)
-    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [footer] }))
+    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [] }))
+    expect(quickPanel.open.mock.calls[0][0]).not.toHaveProperty('footerActions')
+  })
+
+  it('registers scoped MCP management actions alongside its launcher', async () => {
+    renderMcpRuntime({
+      assistant: { id: 'assistant-1', settings: { mcpMode: 'manual' }, mcpServerIds: [] },
+      scope: TopicType.Chat
+    })
+    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
+
+    const footerActions = mocks.registerLaunchers.mock.calls.at(-1)?.[1] as Array<{
+      id: string
+      panelSymbol: string
+      order: number
+    }>
+    expect(footerActions).toEqual([
+      expect.objectContaining({ id: 'mcp-status:open-config', panelSymbol: 'mcp-status', order: 10 }),
+      expect.objectContaining({ id: 'mcp-status:open-global-config', panelSymbol: 'mcp-status', order: 20 })
+    ])
+  })
+
+  it('defers MCP server and session-agent reads until the launcher opens', async () => {
+    renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
+    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
+
+    expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
+    expect(mocks.agentIds.at(-1)).toBeNull()
+
+    act(() => {
+      openLatestRegisteredPanel()
+    })
+
+    await waitFor(() => expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: true }))
+    expect(mocks.agentIds.at(-1)).toBe('agent-1')
   })
 
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
@@ -409,7 +466,10 @@ describe('mcpStatusTool', () => {
     renderMcpRuntime({ assistant, scope: TopicType.Chat })
     await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
 
-    const items = openLatestRegisteredPanel()
+    let items: ReturnType<typeof openLatestRegisteredPanel> = []
+    act(() => {
+      items = openLatestRegisteredPanel()
+    })
     act(() => {
       items[0].action?.({})
       items[0].action?.({})
@@ -479,14 +539,35 @@ describe('mcpStatusTool', () => {
     expect(resolveMcpConfigTarget({ scope: TopicType.Chat })).toBeNull()
   })
 
-  it('builds a pinned MCP config footer that opens the edit dialog', () => {
+  it('builds an accessible MCP footer action that opens the edit dialog', () => {
     expect(buildMcpConfigFooterItem(null, t)).toBeNull()
 
     const target = { kind: 'agent', id: 'agent-1', initialTab: 'tools.mcp' } as const
     const footer = buildMcpConfigFooterItem(target, t)
-    expect(footer).toMatchObject({ id: 'mcp-status:open-config', fixedToBottom: true })
+    expect(footer).toMatchObject({
+      id: 'mcp-status:open-config',
+      ariaLabel: 'Manage current Agent MCP servers'
+    })
+    const footerIcon = footer?.icon
+    expect(isValidElement(footerIcon) && footerIcon.type === Settings2).toBe(true)
+    expect(footer).not.toHaveProperty('fixedToBottom')
 
     footer?.action?.({} as any)
     expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)
+  })
+
+  it('opens the global MCP server settings from the global footer action', () => {
+    const action = buildMcpGlobalConfigFooterItem(t)
+
+    expect(action).toMatchObject({
+      id: 'mcp-status:open-global-config',
+      ariaLabel: 'Manage global MCP servers'
+    })
+    const globalIcon = action.icon
+    expect(isValidElement(globalIcon) && globalIcon.type === Globe2).toBe(true)
+
+    action.action({} as any)
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/mcp/servers')
   })
 })

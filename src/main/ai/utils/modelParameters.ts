@@ -1,35 +1,35 @@
 /**
- * Assistant + Model/Provider capabilities → final `temperature` / `topP`
- * / `maxOutputTokens`.
+ * Sampling settings + Model/Provider capabilities → final `temperature` / `topP`
+ * / `maxOutputTokens`. The settings come from an assistant, or from a feature
+ * that keeps its own (translate).
  */
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { SamplingSettings } from '@main/ai/types'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
 import {
-  isClaude46SeriesModel,
   isClaude47SeriesModel,
   isClaudeReasoningModel,
   isGemini3Model,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
-  isSupportedThinkingTokenClaudeModel,
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
 } from '@shared/utils/model'
-import { isAwsBedrockProvider } from '@shared/utils/provider'
 
 import type { ResolvedReasoningInvocation } from './reasoningSerializers'
 
 const logger = loggerService.withContext('modelParameters')
 
+/** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
+export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
+
 /** `undefined` falls back to the provider default. */
 export function getTemperature(
-  assistant: Assistant,
+  settings: GatedSampling,
   model: Model,
   reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
 ): number | undefined {
@@ -38,8 +38,7 @@ export function getTemperature(
     return undefined
   }
 
-  const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  if (!enableTemperature) return undefined
+  if (!settings.enableTemperature) return undefined
 
   if (isClaude47SeriesModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
@@ -56,14 +55,14 @@ export function getTemperature(
     return undefined
   }
 
-  let temperature = assistant.settings?.temperature ?? DEFAULT_ASSISTANT_SETTINGS.temperature
+  let temperature = settings.temperature
 
   if (isMaxTemperatureOneModel(model) && temperature > 1) {
     logger.info(`Model ${model.id} has max temperature of 1, clamping temperature from ${temperature} to 1`)
     temperature = 1
   }
 
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTopP) {
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTopP) {
     logger.info(`Model ${model.id} only accepts one of temperature and topP, both enabled; keeping temperature`)
   }
 
@@ -72,7 +71,7 @@ export function getTemperature(
 
 /** Temperature wins when both are enabled on mutually-exclusive models. */
 export function getTopP(
-  assistant: Assistant,
+  settings: GatedSampling,
   model: Model,
   reasoning: Pick<ResolvedReasoningInvocation, 'kind'>
 ): number | undefined {
@@ -81,8 +80,7 @@ export function getTopP(
     return undefined
   }
 
-  const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  if (!enableTopP) return undefined
+  if (!settings.enableTopP) return undefined
 
   if (isClaude47SeriesModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
@@ -94,12 +92,12 @@ export function getTopP(
     return undefined
   }
 
-  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTemperature) {
     logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
     return undefined
   }
 
-  let topP = assistant.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP
+  let topP = settings.topP
 
   if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
     const clampedTopP = Math.max(0.95, Math.min(topP, 1))
@@ -137,30 +135,21 @@ export function getTimeout(model: Model): number {
   return DEFAULT_TIMEOUT
 }
 
-/** For Claude thinking-token models (pre-4.6) the AI SDK adds the budget on top, so subtract. */
-export function getMaxTokens(
-  assistant: Assistant,
-  model: Model,
-  provider: Provider,
+/**
+ * Anthropic Messages providers add the explicit thinking budget on top of
+ * `maxOutputTokens`. Cherry Studio's limit is the total generated-token cap,
+ * so pass the non-thinking remainder to the SDK. Adaptive thinking has no
+ * explicit budget and therefore needs no adjustment.
+ */
+export function adjustMaxOutputTokensForReasoning(
+  maxOutputTokens: number | undefined,
+  endpointType: EndpointType | undefined,
   reasoning: Pick<ResolvedReasoningInvocation, 'budgetTokens'>
 ): number | undefined {
-  const enableMaxTokens = assistant.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  let maxTokens = assistant.settings?.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
-
-  if (!enableMaxTokens || maxTokens === undefined) return undefined
-
-  // Claude 4.6 adaptive thinking has no budgetTokens, so no subtraction.
-  const isAnthropicLike =
-    provider.id === 'anthropic' || provider.presetProviderId === 'anthropic' || isAwsBedrockProvider(provider)
-  if (
-    isSupportedThinkingTokenClaudeModel(model) &&
-    !isClaude46SeriesModel(model) &&
-    !isClaude47SeriesModel(model) &&
-    isAnthropicLike
-  ) {
-    const budget = reasoning.budgetTokens
-    if (budget) maxTokens -= budget
+  if (maxOutputTokens === undefined || endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    return maxOutputTokens
   }
 
-  return maxTokens
+  const budget = reasoning.budgetTokens
+  return budget ? Math.max(1, maxOutputTokens - budget) : maxOutputTokens
 }

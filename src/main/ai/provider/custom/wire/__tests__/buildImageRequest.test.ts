@@ -2,7 +2,6 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { AppProviderId } from '../../../../types'
-import { asConcreteProviderId } from '../../../../types'
 import { splitParamValues } from '../../../../utils/imageOptions'
 import { resolveProviderOptionsKey } from '../../../endpoint'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
@@ -19,7 +18,7 @@ import {
 // the legacy buildImageProviderOptions emitter while it still existed.)
 
 /** Run a provider's registration (WIRE_REGISTRY, else the diffusion default) and
- *  deliver under `sdkConfig.optionsKey`, exactly as `AiService.generateImage` does —
+ *  deliver under `sdkConfig.providerOptionsKey`, exactly as `AiService.generateImage` does —
  *  so the ids whose SDK package reads its own namespace (google-vertex → `vertex`,
  *  doubao → `bytedance`, cherryin-chat → `cherryin`) are asserted end to end. */
 function engine(
@@ -209,6 +208,10 @@ describe('buildVendorProviderOptions — Google native image family (contribute 
       vertex: { imageConfig: { imageSize: '2K' } }
     })
   })
+
+  it.each(['google', 'google-vertex'])('omits automatic imageResolution for %s', (providerId) => {
+    expect(engine(providerId, { imageResolution: 'auto', numImages: 1 })).toEqual({})
+  })
 })
 
 describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', () => {
@@ -278,7 +281,7 @@ function compatEngine(
   const { vendorBag } = splitParamValues(paramValues)
   const registration = resolveWireRegistration('openai-compatible')
   return buildVendorProviderOptions(
-    resolveProviderOptionsKey('openai-compatible', asConcreteProviderId(concreteId)),
+    resolveProviderOptionsKey('openai-compatible', { actualProviderId: concreteId }),
     paramValues,
     registration,
     vendorBag
@@ -337,5 +340,25 @@ describe('buildVendorProviderOptions — a dropped vendor bag is observable', ()
       aihubmix: { seed: 9, imageResolution: '2K' }
     })
     expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildVendorProviderOptions — MiniMax image API', () => {
+  it('maps output, optimizer, and watermark fields under the MiniMax key', () => {
+    expect(
+      engine('minimax', {
+        numImages: 3,
+        aspectRatio: '16:9',
+        outputFormat: 'base64',
+        promptEnhancement: true,
+        addWatermark: true
+      })
+    ).toEqual({
+      minimax: {
+        response_format: 'base64',
+        prompt_optimizer: true,
+        aigc_watermark: true
+      }
+    })
   })
 })

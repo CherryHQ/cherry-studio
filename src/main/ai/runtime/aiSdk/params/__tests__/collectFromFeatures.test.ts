@@ -1,5 +1,7 @@
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveProviderOptionsKey } from '../../../provider/endpoint'
 import { collectFromFeatures } from '../collectFromFeatures'
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -15,18 +17,18 @@ function makeScope(): RequestScope {
     capabilities: undefined,
     sdkConfig: {
       providerId: 'p1' as never,
+      providerOptionsKey: resolveProviderOptionsKey('p1' as never),
       providerSettings: {} as never,
-      modelId: 'm1',
-      concreteProviderId: 'p1' as never,
-      presetProviderId: 'p1' as never,
-      optionsKey: 'p1' as never
+      modelId: 'm1'
     },
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible' as never,
     reasoningProfile: { format: 'none', wire: { disabled: true } },
     reasoning: { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
-    mcpToolIds: new Set()
+    mcpToolIds: new Set(),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 

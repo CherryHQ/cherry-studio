@@ -43,13 +43,26 @@ export const SHORTCUT_FUNCTION_KEYS = [
   'F9',
   'F10',
   'F11',
-  'F12'
+  'F12',
+  'F13',
+  'F14',
+  'F15',
+  'F16',
+  'F17',
+  'F18',
+  'F19',
+  'F20',
+  'F21',
+  'F22',
+  'F23',
+  'F24'
 ] as const
 
 export const SHORTCUT_SYMBOLS = ['=', '-', '[', ']', ',', '.', '/', '\\', ';', "'", '`'] as const
 
 export const SHORTCUT_NAMED_KEYS = [
   'Escape',
+  'CapsLock',
   'Enter',
   'Tab',
   'Space',
@@ -84,6 +97,15 @@ export type ShortcutToken =
   | ShortcutNamedKey
 
 export type ShortcutBinding = readonly ShortcutToken[]
+
+export interface KeyboardEventLike {
+  key: string
+  code?: string
+  ctrlKey?: boolean
+  metaKey?: boolean
+  altKey?: boolean
+  shiftKey?: boolean
+}
 
 const shortcutTokens = [
   ...SHORTCUT_MODIFIERS,
@@ -189,7 +211,7 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
     return upper
   }
 
-  if (/^F(?:[1-9]|1[0-2])$/.test(upper) && isShortcutToken(upper)) {
+  if (/^F(?:[1-9]|1\d|2[0-4])$/.test(upper) && isShortcutToken(upper)) {
     return upper as ShortcutFunctionKey
   }
 
@@ -259,6 +281,37 @@ const acceleratorKeyMap: Record<string, ShortcutToken> = {
 export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined =>
   acceleratorKeyMap[key] ?? normalizeShortcutToken(key)
 
+const getEventKeyToken = (event: KeyboardEventLike) => {
+  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
+  const fromKey = convertKeyToAccelerator(event.key)
+  const token = fromCode ?? fromKey
+
+  return token && !isShortcutModifier(token) ? token : undefined
+}
+
+export const getShortcutBindingFromKeyboardEvent = (
+  event: KeyboardEventLike,
+  platform?: 'darwin' | 'win32' | 'linux'
+): ShortcutBinding => {
+  const binding: ShortcutToken[] = []
+
+  if (platform === 'darwin') {
+    if (event.metaKey) binding.push('CommandOrControl')
+    if (event.ctrlKey) binding.push('Ctrl')
+  } else {
+    if (event.ctrlKey) binding.push('CommandOrControl')
+    if (event.metaKey) binding.push(platform ? 'Meta' : 'CommandOrControl')
+  }
+
+  if (event.altKey) binding.push('Alt')
+  if (event.shiftKey) binding.push('Shift')
+
+  const keyToken = getEventKeyToken(event)
+  if (keyToken) binding.push(keyToken)
+
+  return normalizeShortcutBinding(binding)
+}
+
 export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string => {
   return accelerator
     .map((key) => {
@@ -322,7 +375,8 @@ export const isValidShortcut = (binding: ShortcutBinding): boolean => {
 
   const hasModifier = binding.some(isShortcutModifier)
   const hasNonModifier = binding.some((key) => !isShortcutModifier(key))
-  const isSpecialKey = binding.length === 1 && (binding[0] === 'Escape' || isShortcutFunctionKey(binding[0]))
+  const isSpecialKey =
+    binding.length === 1 && (binding[0] === 'Escape' || binding[0] === 'CapsLock' || isShortcutFunctionKey(binding[0]))
 
   return (hasModifier && hasNonModifier) || isSpecialKey
 }

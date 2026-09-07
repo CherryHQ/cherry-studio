@@ -52,7 +52,7 @@ function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): 
   return entry
 }
 
-async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<void> {
+export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<{ unlinkFailed: boolean }> {
   const physical = entry.origin === 'internal' ? resolvePhysicalPath(entry) : undefined
   deps.versionCache.invalidate(entry.id)
   if (entry.origin === 'external') {
@@ -72,8 +72,10 @@ async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Pro
         physical,
         err
       })
+      return { unlinkFailed: true }
     }
   }
+  return { unlinkFailed: false }
 }
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {

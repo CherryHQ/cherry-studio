@@ -10,7 +10,6 @@ import {
   getSelectedMessagesPlainText,
   getSelectedMessagesRichClipboardContent
 } from '@renderer/components/chat/messages/utils/messageSelection'
-import { messagesToMarkdown } from '@renderer/services/ExportService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -143,10 +142,11 @@ export function useMessageSelectionController({
 
       const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
       const exportMessages = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
-      const contentToSave =
-        exportMessages.length > 0
-          ? await messagesToMarkdown(exportMessages)
-          : getSelectedMessagesPlainText(ids, latestMessages, latestPartsByMessageId)
+      const contentToSave = exportMessages.length
+        ? await import('@renderer/services/ExportService').then(({ messagesToMarkdown }) =>
+            messagesToMarkdown(exportMessages)
+          )
+        : getSelectedMessagesPlainText(ids, latestMessages, latestPartsByMessageId)
 
       if (!contentToSave) return
 
@@ -185,13 +185,14 @@ export function useMessageSelectionController({
 
       try {
         for (const messageId of ids) {
-          await deleteMessage(messageId)
+          await deleteMessage(messageId, { selectedMessageIds: ids })
         }
         toast.success(t('message.delete.success'))
-        toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to delete selected messages:', error as Error)
         toast.error(t('message.delete.failed'))
+      } finally {
+        toggleMultiSelectMode(false)
       }
     },
     [deleteMessage, ensureSelection, t, toggleMultiSelectMode]

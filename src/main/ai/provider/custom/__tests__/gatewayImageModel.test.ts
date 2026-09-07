@@ -1,6 +1,10 @@
 import type { ImageModelV3CallOptions, LanguageModelV3 } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { splitParamValues } from '../../../utils/imageOptions'
+import { buildVendorProviderOptions } from '../wire/buildImageRequest'
+import { DEFAULT_DIFFUSION_REGISTRATION } from '../wire/wireProfile'
+
 const baseImageModel = vi.fn()
 const languageModel = vi.fn()
 
@@ -32,6 +36,11 @@ const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageMod
 /** Minimal LanguageModelV3 whose doGenerate returns a single image file part. */
 const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn>): LanguageModelV3 =>
   ({ doGenerate }) as unknown as LanguageModelV3
+
+const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
+  const { vendorBag } = splitParamValues(paramValues)
+  return buildVendorProviderOptions('gateway', paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
+}
 
 describe('isGatewayGeminiImageModel', () => {
   it('matches gemini chat-image ids (with or without google/ prefix)', () => {
@@ -76,6 +85,24 @@ describe('createGatewayGeminiImageModel', () => {
     await model.doGenerate(callOptions({ aspectRatio: '16:9' }))
 
     expect(doGenerate.mock.calls[0][0].providerOptions.google.imageConfig).toEqual({ aspectRatio: '16:9' })
+  })
+
+  it('moves the inherited Gateway resolution into google.imageConfig without dropping routing options', async () => {
+    const doGenerate = vi.fn().mockResolvedValue({
+      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
+      finishReason: 'stop',
+      usage: {},
+      response: { headers: {} }
+    })
+    const model = createGatewayGeminiImageModel(fakeLanguageModel(doGenerate), 'google/gemini-3.1-flash-image')
+    const providerOptions = gatewayProviderOptions({ imageResolution: '2K' })
+    providerOptions.gateway.only = ['google']
+
+    await model.doGenerate(callOptions({ providerOptions }))
+
+    const sent = doGenerate.mock.calls[0][0]
+    expect(sent.providerOptions.gateway).toEqual({ only: ['google'] })
+    expect(sent.providerOptions.google.imageConfig).toEqual({ imageSize: '2K' })
   })
 
   it('preserves other provider options and deep-merges existing imageConfig', async () => {

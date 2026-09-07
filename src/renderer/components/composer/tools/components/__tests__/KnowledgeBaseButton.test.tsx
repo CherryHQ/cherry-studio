@@ -2,6 +2,7 @@ import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
@@ -9,7 +10,9 @@ import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
 const mocks = vi.hoisted(() => ({
   knowledgeBases: [] as KnowledgeBase[],
   language: 'en',
+  knowledgeQueryOptions: vi.fn(),
   translationSuffix: '',
+  openRoute: vi.fn(),
   quickPanel: {
     isVisible: false,
     symbol: '',
@@ -22,10 +25,18 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases })
+  useKnowledgeBases: (options?: { enabled?: boolean }) => {
+    mocks.knowledgeQueryOptions(options)
+    return { bases: mocks.knowledgeBases, isLoading: false }
+  }
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: mocks.openRoute
+}))
+
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   FileSearch: () => <span data-testid="file-search-icon" />
 }))
 
@@ -70,6 +81,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     mocks.quickPanel.isVisible = false
     mocks.quickPanel.symbol = ''
     mocks.quickPanel.updateList.mockReset()
+    mocks.knowledgeQueryOptions.mockReset()
     mocks.language = 'en'
     mocks.translationSuffix = ''
     mocks.knowledgeBases = [
@@ -134,6 +146,14 @@ describe('KnowledgeBaseToolRuntime', () => {
     )
     const openedOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
     expect(openedOptions.queryAnchor).toBeUndefined()
+    expect(openedOptions.footerActions).toBeUndefined()
+    const registeredFooterActions = vi.mocked(launcher.registerLaunchers).mock.calls[0][1]
+    if (!registeredFooterActions) throw new Error('Expected the knowledge-base footer action to be registered')
+    expect(registeredFooterActions).toEqual([
+      expect.objectContaining({ id: 'knowledge-base:manage', ariaLabel: 'chat.input.knowledge_base_manage' })
+    ])
+    registeredFooterActions[0].action({} as never)
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge')
 
     const panelList = openedOptions.list
     expect(panelList).toEqual([
@@ -172,6 +192,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     render(<KnowledgeBaseToolRuntime launcher={launcher} configuredKnowledgeBaseIds={[]} onSelect={onSelect} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: false })
 
     const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     expect(knowledgeLauncher).toMatchObject({
@@ -185,6 +206,8 @@ describe('KnowledgeBaseToolRuntime', () => {
       source: 'root-panel',
       triggerInfo: { type: 'button' }
     } as never)
+
+    await waitFor(() => expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: true }))
 
     expect(quickPanel.open).toHaveBeenCalledWith(
       expect.objectContaining({

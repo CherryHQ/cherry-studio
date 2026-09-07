@@ -2,200 +2,166 @@ import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
-import { buildTokenhubTransport } from '../../tokenhub/tokenhubTransport'
+import { buildTokenhubTransport } from '../../tokenhub/tokenhubProvider'
 import { captureImageRequest, submitWithResponse } from './captureRequest'
 
 /**
- * TokenHub (Tencent MaaS Hunyuan) request boundary. Pins the wire per
- * https://cloud.tencent.com/document/product/1823/130080: submit posts the
- * Hunyuan job fields in snake_case (`logo_add`, `negative_prompt`,
- * `resolution`), the lite model is a synchronous OpenAI-style endpoint, and
- * polling posts `{ model, id }` to `/v1/api/image/query`.
+ * TokenHub image request boundary. The `/v1/wand/*` routes and request fields
+ * follow https://cloud.tencent.com/document/product/1823/130080.
  * Retrieved 2026-07-27.
  */
 
 const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
+const HUNYUAN = { id: 'hy-image-v3', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
+const SEEDREAM = { id: 'seedream-image-v5.0-lite', endpoint: '/v1/wand/si-image/generation', isSync: true }
+const VIDU = { id: 'vidu-image-q2', endpoint: '/v1/wand/vidu-image/generation' }
 
 function submitInput(
   overrides: Partial<ImageGenerationSubmitInput<VendorBag>> = {}
 ): ImageGenerationSubmitInput<VendorBag> {
   return {
-    modelId: 'hy-image-v3.0',
+    modelId: 'hy-image-v3',
     prompt: 'a fox',
     n: 1,
     size: undefined,
     seed: undefined,
     files: undefined,
     mask: undefined,
-    modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/submit', isSync: false, mode: 'generate' },
+    modelDescriptor: HUNYUAN,
     providerParams: {},
     ...overrides
   }
 }
 
 describe('tokenhub transport — outbound submit body', () => {
-  it('posts the Hunyuan snake_case fields to the registry endpoint on the host origin', async () => {
+  it('posts Hunyuan fields to the registry endpoint on the host origin', async () => {
     const transport = buildTokenhubTransport(settings)
     const captured = await captureImageRequest(
       transport,
       submitInput({
+        size: '1280x768',
         seed: 42,
-        aspectRatio: '16:9',
-        providerParams: { negativePrompt: 'blurry', addWatermark: false }
+        files: [{ type: 'url', url: 'https://ref.example/a.jpg' }],
+        providerParams: { promptEnhancement: true }
       })
     )
-    expect(captured.url).toBe('https://tokenhub.tencentmaas.com/v1/api/image/submit')
+
+    expect(captured.url).toBe('https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v3-generation')
     expect(captured.method).toBe('POST')
     expect(captured.body).toEqual({
-      model: 'hy-image-v3.0',
+      model: 'hy-image-v3',
       prompt: 'a fox',
+      images: ['https://ref.example/a.jpg'],
+      size: '1280x768',
       seed: 42,
-      negative_prompt: 'blurry',
-      logo_add: false,
-      resolution: '1280:720'
+      revise: true
     })
   })
 
-  it('omits unset optional fields entirely', async () => {
+  it('posts Seedream image and sequential-generation fields', async () => {
     const transport = buildTokenhubTransport(settings)
-    const captured = await captureImageRequest(transport, submitInput())
-    expect(captured.body).toEqual({ model: 'hy-image-v3.0', prompt: 'a fox' })
-  })
-
-  it('posts the lite model synchronously with rsp_img_type url and returns the finished images', async () => {
-    const transport = buildTokenhubTransport(settings)
-    const liteInput = submitInput({
-      modelId: 'hy-image-lite',
-      modelDescriptor: { id: 'hy-image-lite', endpoint: '/v1/api/image/lite', isSync: true, mode: 'generate' }
-    })
-    const captured = await captureImageRequest(transport, liteInput)
-    expect(captured.url).toBe('https://tokenhub.tencentmaas.com/v1/api/image/lite')
-    expect(captured.body).toEqual({ model: 'hy-image-lite', prompt: 'a fox', rsp_img_type: 'url' })
-
-    const result = await submitWithResponse(transport, liteInput, {
-      data: [{ url: 'https://img.example/1.png' }]
-    })
-    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img.example/1.png'] })
-  })
-
-  it('returns the job id as taskId and fails loudly when the response has none', async () => {
-    const transport = buildTokenhubTransport(settings)
-    await expect(submitWithResponse(transport, submitInput(), { id: 'job-1', status: 'queued' })).resolves.toEqual({
-      kind: 'submitted',
-      taskId: 'job-1'
-    })
-    await expect(submitWithResponse(transport, submitInput(), { status: 'queued' })).rejects.toThrow(
-      /Invalid JSON response/
+    const captured = await captureImageRequest(
+      transport,
+      submitInput({
+        modelId: 'seedream-image-v5.0-lite',
+        modelDescriptor: SEEDREAM,
+        providerParams: {
+          imageResolution: '4K',
+          outputFormat: 'png',
+          addWatermark: false,
+          sequentialImageGeneration: 'auto',
+          maxImages: 4
+        }
+      })
     )
+
+    expect(captured.url).toBe('https://tokenhub.tencentmaas.com/v1/wand/si-image/generation')
+    expect(captured.body).toEqual({
+      model: 'seedream-image-v5.0-lite',
+      prompt: 'a fox',
+      response_format: 'url',
+      size: '4K',
+      output_format: 'png',
+      watermark: false,
+      sequential_image_generation: 'auto',
+      sequential_image_generation_options: { max_images: 4 }
+    })
+  })
+
+  it('posts Vidu fields and requires a non-empty task id', async () => {
+    const transport = buildTokenhubTransport(settings)
+    const input = submitInput({
+      modelId: 'vidu-image-q2',
+      modelDescriptor: VIDU,
+      aspectRatio: '9:16',
+      seed: 7,
+      providerParams: { resolution: '2K' }
+    })
+    const captured = await captureImageRequest(transport, input)
+
+    expect(captured.url).toBe('https://tokenhub.tencentmaas.com/v1/wand/vidu-image/generation')
+    expect(captured.body).toEqual({
+      model: 'vidu-image-q2',
+      prompt: 'a fox',
+      aspect_ratio: '9:16',
+      resolution: '2K',
+      seed: 7
+    })
+    await expect(submitWithResponse(transport, input, { task_id: 'task-1', state: 'created' })).resolves.toEqual({
+      kind: 'submitted',
+      taskId: 'task-1'
+    })
+    await expect(submitWithResponse(transport, input, { state: 'created' })).rejects.toThrow(/Invalid JSON response/)
   })
 })
 
-describe('tokenhub transport — poll', () => {
-  function pollWithResponses(responses: unknown[]) {
+describe('tokenhub transport — task query', () => {
+  it('queries the encoded Vidu task id and normalizes success', async () => {
     const transport = buildTokenhubTransport(settings)
-    const spy = vi.spyOn(globalThis, 'fetch')
-    for (const body of responses) {
-      spy.mockResolvedValueOnce(new Response(JSON.stringify(body), { status: 200 }))
-    }
-    return { transport, spy, done: () => spy.mockRestore() }
-  }
-
-  it('queries { model, id } and returns the urls on completion (model id from the descriptor)', async () => {
-    const { transport, spy, done } = pollWithResponses([
-      { status: 'completed', data: [{ url: 'https://img.example/a.png' }] }
-    ])
-    try {
-      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
-      const state = await transport.task.query('job-1', {
-        signal: new AbortController().signal,
-        modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
-        headers: undefined,
-        providerParams: {}
-      })
-      expect(state).toEqual({ kind: 'completed', imageUrls: ['https://img.example/a.png'] })
-      const [url, init] = spy.mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('https://tokenhub.tencentmaas.com/v1/api/image/query')
-      expect(JSON.parse(init.body as string)).toEqual({ model: 'hy-image-v3.0', id: 'job-1' })
-    } finally {
-      done()
-    }
-  })
-
-  it('normalizes a failed status', async () => {
-    const { transport, done } = pollWithResponses([{ status: 'failed' }])
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ state: 'success', creations: [{ url: 'https://img.example/a.png' }] }))
+      )
     try {
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
       await expect(
-        transport.task.query('job-1', {
+        transport.task.query('task/1', {
           signal: new AbortController().signal,
-          modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
+          modelDescriptor: VIDU,
           headers: undefined,
           providerParams: {}
         })
-      ).resolves.toEqual({ kind: 'failed', message: 'TokenHub image task failed' })
+      ).resolves.toEqual({ kind: 'completed', imageUrls: ['https://img.example/a.png'] })
+
+      const [url, init] = fetchSpy.mock.calls[0]
+      expect(url).toBe('https://tokenhub.tencentmaas.com/v1/wand/vidu-image/tasks/task%2F1')
+      expect(init?.method).toBe('GET')
     } finally {
-      done()
+      fetchSpy.mockRestore()
     }
   })
 
-  it('rejects a missing or unknown status instead of assuming pending', async () => {
-    for (const response of [{}, { status: 'waiting' }]) {
-      const { transport, done } = pollWithResponses([response])
+  it('rejects missing and unknown states instead of treating them as pending', async () => {
+    const transport = buildTokenhubTransport(settings)
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+
+    for (const response of [{}, { state: 'waiting' }]) {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
       try {
-        if (transport.task.kind !== 'supported') throw new Error('expected task transport')
         await expect(
-          transport.task.query('job-1', {
+          transport.task.query('task-1', {
             signal: new AbortController().signal,
-            modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/query' },
+            modelDescriptor: VIDU,
             headers: undefined,
             providerParams: {}
           })
-        ).rejects.toThrow('Invalid JSON response')
+        ).rejects.toThrow(/Invalid JSON response/)
       } finally {
-        done()
+        fetchSpy.mockRestore()
       }
-    }
-  })
-
-  it('requires the persisted model descriptor', async () => {
-    const transport = buildTokenhubTransport(settings)
-    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
-    await expect(
-      transport.task.query('job-1', {
-        signal: new AbortController().signal,
-        modelDescriptor: undefined,
-        headers: undefined,
-        providerParams: {}
-      })
-    ).rejects.toThrow(/requires a persisted modelDescriptor/)
-  })
-
-  it('does not retain submit-time task→model state', async () => {
-    const { transport, done } = pollWithResponses([{ id: 'job-1' }])
-    try {
-      await transport.submit({
-        modelId: 'hy-image-v3.0',
-        prompt: 'a cat',
-        n: 1,
-        size: undefined,
-        seed: undefined,
-        files: undefined,
-        mask: undefined,
-        providerParams: {},
-        modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/submit' }
-      } satisfies ImageGenerationSubmitInput<VendorBag>)
-
-      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
-      await expect(
-        transport.task.query('job-1', {
-          signal: new AbortController().signal,
-          modelDescriptor: undefined,
-          headers: undefined,
-          providerParams: {}
-        })
-      ).rejects.toThrow(/requires a persisted modelDescriptor/)
-    } finally {
-      done()
     }
   })
 })

@@ -89,7 +89,7 @@ application's own files.
 
 It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
-(`cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
+(`Data/cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 `Local Storage`, …) AND, on Windows and Linux, application logs
 (`logs/` — macOS keeps them in `~/Library/Logs` instead).
@@ -156,8 +156,12 @@ Or pass it inline for a single dev process:
 CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 ```
 
-The trimmed suffix is appended to the default path. Empty or whitespace-only
-values fall back to `Dev`.
+The trimmed suffix is appended to the default path. It must be a single path
+component — no path separator, drive colon, Windows-reserved character
+(`* ? " < > |`), control character, or trailing dot. Empty or whitespace-only
+values fall back to `Dev`; a value breaking those rules aborts startup rather
+than falling back, since silently reusing `Dev` would merge an instance meant
+to be isolated into the shared dev directories.
 
 ### No barrel export
 

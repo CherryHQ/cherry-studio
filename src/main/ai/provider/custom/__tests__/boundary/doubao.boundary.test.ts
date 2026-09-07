@@ -44,7 +44,7 @@ const file = (byte: number): NonNullable<ImageModelV3CallOptions['files']>[numbe
   ({ mediaType: 'image/png', data: new Uint8Array([byte]) }) as NonNullable<ImageModelV3CallOptions['files']>[number]
 
 /** What `AiService.generateImage` delivers for a canonical param bag — under
- *  `sdkConfig.optionsKey`, exactly as the service computes it. */
+ *  `sdkConfig.providerOptionsKey`, exactly as the service computes it. */
 const deliver = (paramValues: Record<string, unknown>) =>
   buildVendorProviderOptions(resolveProviderOptionsKey('doubao'), paramValues, WIRE_REGISTRY.doubao, paramValues)
 

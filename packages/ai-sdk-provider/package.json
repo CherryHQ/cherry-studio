@@ -29,13 +29,13 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
-    "@ai-sdk/google": "^3.0.64",
+    "@ai-sdk/google": "^3.0.113",
     "@ai-sdk/openai": "^3.0.53",
-    "@ai-sdk/openai-compatible": "^2.0.62"
+    "@ai-sdk/openai-compatible": "^2.0.72"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.14",
-    "@ai-sdk/provider-utils": "^4.0.40"
+    "@ai-sdk/provider": "^3.0.15",
+    "@ai-sdk/provider-utils": "^4.0.48"
   },
   "devDependencies": {
     "tsdown": "^0.20.3",

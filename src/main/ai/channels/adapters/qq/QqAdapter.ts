@@ -113,13 +113,22 @@ class QqAdapter extends ChannelAdapter {
   /** Number of rapid disconnects before invalidating session */
   private readonly maxRapidDisconnects = 3
 
+  private readonly mentionOnly: boolean
+
+  /** Dedup: msg ids seen recently (id → timestamp) to suppress duplicate @mention events. */
+  private readonly seenMsgIds = new Map<string, number>()
+
+  private readonly DEDUP_TTL_MS = 10_000
+  private readonly DEDUP_MAX_ENTRIES = 500
+
   constructor(config: ChannelAdapterConfig<'qq'>) {
     super(config)
-    const { app_id, client_secret, allowed_chat_ids } = config.channelConfig
+    const { app_id, client_secret, allowed_chat_ids, mention_only } = config.channelConfig
     this.appId = app_id
     this.clientSecret = client_secret
     this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
+    this.mentionOnly = mention_only ?? true
   }
 
   protected override async checkReady(): Promise<boolean> {
@@ -372,7 +381,11 @@ class QqAdapter extends ChannelAdapter {
         await this.handleC2CMessage(data as QqMessage)
         break
       case 'GROUP_AT_MESSAGE_CREATE':
+        // Dedup lives inside handleGroupMessage (same layer as handleGroupFullMessage).
         await this.handleGroupMessage(data as QqMessage)
+        break
+      case 'GROUP_MESSAGE_CREATE':
+        await this.handleGroupFullMessage(data as QqMessage)
         break
       case 'AT_MESSAGE_CREATE':
         await this.handleGuildMessage(data as QqMessage)
@@ -392,7 +405,72 @@ class QqAdapter extends ChannelAdapter {
   private async handleGroupMessage(msg: QqMessage): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
-    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
+    // Must run before any await — processMessage downloads attachments, so an interleaved twin
+    // event would otherwise observe "not seen" while the first copy is still in flight.
+    // AT events are handled in both mention modes; mention_only only gates FULL events.
+    if (!this.markIfNew(msg.id)) return
+    await this.processGroupMessage(msg, chatId)
+  }
+
+  /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
+  private async handleGroupFullMessage(msg: QqMessage): Promise<void> {
+    const chatId = `group:${msg.group_openid}`
+    if (!this.isAllowed(chatId, msg.group_openid)) return
+
+    // mention_only mode: ignore non-@ messages (they already arrive via GROUP_AT_MESSAGE_CREATE)
+    if (this.mentionOnly) return
+
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
+    if (!this.markIfNew(msg.id)) return
+
+    await this.processGroupMessage(msg, chatId)
+  }
+
+  /** Dedup gate shared by both group-message paths: false if already seen within the TTL window, otherwise marks and returns true. */
+  private markIfNew(msgId: string): boolean {
+    if (this.wasSeen(msgId)) return false
+    this.markSeen(msgId)
+    return true
+  }
+
+  /**
+   * Run the shared group-message pipeline; on failure, roll back the dedup mark so a
+   * twin event (or a platform re-push) can retry the message. The error is rethrown —
+   * the rollback must not swallow it.
+   */
+  private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
+    try {
+      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    } catch (err) {
+      this.seenMsgIds.delete(msg.id)
+      throw err
+    }
+  }
+
+  /**
+   * Mark a msg id as seen for dedup purposes.  Enforces the advertised
+   * cap with oldest-first eviction — mirroring `recordInbound` — so the
+   * map can never grow beyond the cap regardless of TTL.
+   */
+  private markSeen(msgId: string): void {
+    this.seenMsgIds.set(msgId, Date.now())
+    while (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
+      const oldest = this.seenMsgIds.keys().next().value
+      if (oldest === undefined) break
+      this.seenMsgIds.delete(oldest)
+    }
+  }
+
+  /** Check whether a msg id was already processed (dedup). Cleans stale entries inline. */
+  private wasSeen(msgId: string): boolean {
+    const ts = this.seenMsgIds.get(msgId)
+    if (ts === undefined) return false
+    if (Date.now() - ts > this.DEDUP_TTL_MS) {
+      this.seenMsgIds.delete(msgId)
+      return false
+    }
+    return true
   }
 
   private async handleGuildMessage(msg: QqMessage): Promise<void> {
@@ -514,8 +592,10 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private parseContent(content: string): string {
-    // Remove @bot mentions and trim
-    return content.replace(/<@!\d+>/g, '').trim()
+    // Strip inline @mention syntax. The platform already removes the bot prefix; this
+    // cleans mentions of *other* users, whose alphanumeric openids the old digit-only
+    // regex missed. The trailing whitespace is consumed so mentions don't leave gaps.
+    return content.replace(/<@![^>]*>\s*/g, '').trim()
   }
 
   private isAllowed(chatId: string, rawId?: string): boolean {

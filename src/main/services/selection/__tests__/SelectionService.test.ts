@@ -1,7 +1,23 @@
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { WindowType } from '@main/core/window/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { getApplicationIdMock } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getApplicationId: getApplicationIdMock
+}))
+
+vi.mock('@main/core/platform', () => ({
+  isDev: false,
+  isLinux: false,
+  isMac: true,
+  isWin: false
+}))
 
 const { SelectionService } = await import('../SelectionService')
 
@@ -50,6 +66,18 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     return activate
   }
 
+  /** Fetch the `feature.selection.enabled` change handler that onInit() subscribed. */
+  const getEnabledChangeHandler = () => {
+    const subscribeChange = (
+      application.get('PreferenceService') as unknown as { subscribeChange: ReturnType<typeof vi.fn> }
+    ).subscribeChange
+    const handler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
+      | ((enabled: boolean) => void)
+      | undefined
+    expect(handler).toBeDefined()
+    return handler!
+  }
+
   it('defers activation past the boot critical path when the feature is enabled', async () => {
     prefGet.mockReturnValue(true)
     const activate = wireActivation()
@@ -80,23 +108,163 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     const activate = wireActivation()
 
     await svc._doInit() // registers the `feature.selection.enabled` subscription
-    const subscribeChange = (
-      application.get('PreferenceService') as unknown as { subscribeChange: ReturnType<typeof vi.fn> }
-    ).subscribeChange
-    const enabledHandler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
-      | ((enabled: boolean) => void)
-      | undefined
-    expect(enabledHandler).toBeDefined()
+    const enabledHandler = getEnabledChangeHandler()
 
     svc.onAllReady() // enabled → schedules the deferred warm-up
 
     // The user disables before the deferred warm-up fires. The old code activated unconditionally
     // from the setImmediate; the reconciler re-reads the desired state and never activates.
-    enabledHandler!(false)
+    enabledHandler(false)
 
     await flushImmediate()
 
     expect(activate).not.toHaveBeenCalled()
     expect(svc.isActivated).toBe(false)
+  })
+
+  it('suspends the SelectionAction pool when disabled before the deferred warm-up activates', async () => {
+    // Disable before the warm-up ever activated: the reconciler settles without deactivate(),
+    // so only the subscription's direct suspend stops the eager warmup.
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+    const activate = wireActivation()
+    const suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> })
+      .suspendPool
+
+    await svc._doInit()
+    expect(suspendPool).not.toHaveBeenCalled()
+
+    svc.onAllReady()
+    getEnabledChangeHandler()(false)
+
+    await flushImmediate()
+
+    expect(activate).not.toHaveBeenCalled()
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+  })
+
+  it('resumes the pool after a rapid disable→enable on an already-active service', async () => {
+    // false→true with no yield in between: the reconciler settles without re-running
+    // onActivate(), so only the subscription's direct resume undoes the direct suspend.
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+    const activate = wireActivation()
+    const wm = application.get('WindowManager') as unknown as {
+      suspendPool: ReturnType<typeof vi.fn>
+      resumePool: ReturnType<typeof vi.fn>
+    }
+
+    await svc._doInit()
+    svc.onAllReady()
+    await flushImmediate() // deferred warm-up activates the service
+    expect(svc.isActivated).toBe(true)
+
+    const enabledHandler = getEnabledChangeHandler()
+    enabledHandler(false)
+    expect(wm.suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+    enabledHandler(true)
+    expect(wm.resumePool).toHaveBeenCalledWith(WindowType.SelectionAction)
+
+    await flushImmediate()
+
+    // No deactivate/activate cycle ran — the subscription itself restored the pool.
+    expect(activate).toHaveBeenCalledTimes(1)
+    expect(svc.isActivated).toBe(true)
+  })
+})
+
+describe('SelectionService.onInit — SelectionAction pool suspension', () => {
+  let svc: TestableSelectionService
+  let prefGet: ReturnType<typeof vi.spyOn>
+  let suspendPool: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService() as TestableSelectionService
+    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> }).suspendPool
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('suspends the SelectionAction pool when the feature is disabled at boot', async () => {
+    // Without the onInit suspend, the eager warmup would pre-create a standby renderer.
+    prefGet.mockReturnValue(false)
+
+    await svc._doInit()
+
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+  })
+
+  it('leaves the pool warmup untouched when the feature is enabled at boot', async () => {
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+
+    await svc._doInit()
+
+    expect(suspendPool).not.toHaveBeenCalled()
+  })
+})
+
+describe('SelectionService macOS toolbar', () => {
+  const createToolbarHarness = () => {
+    const svc = new SelectionService()
+    const toolbarWindow = {
+      isDestroyed: vi.fn(() => false),
+      setBounds: vi.fn(),
+      setFocusable: vi.fn(),
+      setPosition: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
+      showInactive: vi.fn()
+    }
+    const access = svc as unknown as {
+      toolbarWindow: typeof toolbarWindow
+      calculateToolbarPosition: () => { x: number; y: number }
+      getToolbarRealSize: () => { toolbarWidth: number; toolbarHeight: number }
+      showToolbarAtPosition: (point: { x: number; y: number }, orientation: string, programName: string) => void
+    }
+    access.toolbarWindow = toolbarWindow
+    vi.spyOn(access, 'calculateToolbarPosition').mockReturnValue({ x: 10, y: 20 })
+    vi.spyOn(access, 'getToolbarRealSize').mockReturnValue({ toolbarWidth: 100, toolbarHeight: 40 })
+
+    return { access, toolbarWindow }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    ['global', 'com.kangfenmao.CherryStudio'],
+    ['China', 'com.cherryai.cherrystudio.cn']
+  ])('preserves selection inside the %s edition', (_edition, applicationId) => {
+    getApplicationIdMock.mockReturnValue(applicationId)
+    const { access, toolbarWindow } = createToolbarHarness()
+
+    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', applicationId)
+
+    expect(toolbarWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+    expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+
+  it('treats the other edition as an external app', () => {
+    getApplicationIdMock.mockReturnValue('com.kangfenmao.CherryStudio')
+    const { access, toolbarWindow } = createToolbarHarness()
+
+    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.cherryai.cherrystudio.cn')
+
+    expect(toolbarWindow.setFocusable).toHaveBeenCalledWith(false)
+    expect(toolbarWindow.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
+    expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
   })
 })

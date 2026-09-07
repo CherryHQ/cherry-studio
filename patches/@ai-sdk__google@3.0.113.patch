@@ -1,0 +1,84 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -866,7 +866,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -2931,7 +2931,7 @@
+       parameters
+     };
+     const { responseHeaders, value: response } = await (0, import_provider_utils14.postJsonToApi)({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: (0, import_provider_utils14.combineHeaders)(await (0, import_provider_utils14.resolve)(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -3083,7 +3083,7 @@
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = (0, import_provider_utils14.lazySchema)(
+   () => (0, import_provider_utils14.zodSchema)(
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -874,7 +874,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -2974,7 +2974,7 @@
+       parameters
+     };
+     const { responseHeaders, value: response } = await postJsonToApi3({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: combineHeaders3(await resolve3(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -3126,7 +3126,7 @@
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = lazySchema11(
+   () => zodSchema11(
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -649,7 +649,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -633,7 +633,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts

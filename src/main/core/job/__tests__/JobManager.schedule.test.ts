@@ -139,6 +139,38 @@ describe('JobManager schedule control APIs', () => {
   // ----------------------------------------------------------------------
 
   describe('by-id', () => {
+    it('persists the next automatic fire as soon as cron, interval and once schedules are armed', () => {
+      const cron = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-cron',
+        trigger: { kind: 'cron', expr: '0 0 1 1 *' },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const beforeInterval = Date.now()
+      const interval = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-interval',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const onceAt = Date.now() + 120_000
+      const once = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(jobScheduleService.getById(cron.id)?.nextRun).not.toBeNull()
+      const intervalNextRun = jobScheduleService.getById(interval.id)?.nextRun
+      expect(intervalNextRun).not.toBeNull()
+      expect(Date.parse(intervalNextRun ?? '')).toBeGreaterThanOrEqual(beforeInterval + 60_000)
+      expect(jobScheduleService.getById(once.id)?.nextRun).toBe(new Date(onceAt).toISOString())
+    })
+
     it('pauseJobScheduleById returns true for existing, false for missing', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
@@ -149,6 +181,23 @@ describe('JobManager schedule control APIs', () => {
 
       expect(await jobManager.pauseJobScheduleById(snap.id)).toBe(true)
       expect(await jobManager.pauseJobScheduleById('does-not-exist')).toBe(false)
+    })
+
+    it('pause clears nextRun and resume computes a new automatic fire', async () => {
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'pause-resume-next-run',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).not.toBeNull()
+
+      await jobManager.pauseJobScheduleById(schedule.id)
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBeNull()
+
+      expect(jobManager.resumeJobScheduleById(schedule.id)).toBe(true)
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).not.toBeNull()
     })
 
     it('resumeJobScheduleById returns true for existing, false for missing', async () => {
@@ -215,6 +264,72 @@ describe('JobManager schedule control APIs', () => {
       })
 
       expect(await jobManager.triggerJobScheduleNow(DUMMY_TYPE, 'evening')).toBe(true)
+    })
+
+    it('manual interval and early-once runs preserve their automatic fire', async () => {
+      const interval = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'manual-interval',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const onceAt = Date.now() + 120_000
+      const once = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'manual-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const intervalNextRun = jobScheduleService.getById(interval.id)?.nextRun
+      const onceNextRun = jobScheduleService.getById(once.id)?.nextRun
+      expect(intervalNextRun).not.toBeNull()
+      expect(onceNextRun).not.toBeNull()
+
+      expect(await jobManager.triggerJobScheduleNowById(interval.id)).toBe(true)
+      expect(await jobManager.triggerJobScheduleNowById(once.id)).toBe(true)
+
+      expect(jobScheduleService.getById(interval.id)).toMatchObject({ nextRun: intervalNextRun })
+      expect(jobScheduleService.getById(once.id)).toMatchObject({ nextRun: onceNextRun })
+      expect(jobScheduleService.getById(interval.id)?.lastRun).not.toBeNull()
+      expect(jobScheduleService.getById(once.id)?.lastRun).not.toBeNull()
+    })
+
+    it('clears nextRun after a once schedule fires naturally', async () => {
+      const onceAt = Date.now() + 10
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'natural-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBe(new Date(onceAt).toISOString())
+
+      await new Promise((resolve) => setTimeout(resolve, 40))
+
+      expect(jobScheduleService.getById(schedule.id)).toMatchObject({ nextRun: null })
+      expect(jobScheduleService.getById(schedule.id)?.lastRun).not.toBeNull()
+    })
+
+    it('advances persisted nextRun after an interval fires naturally', async () => {
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'natural-interval',
+        trigger: { kind: 'interval', ms: 20 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const initialNextRun = jobScheduleService.getById(schedule.id)?.nextRun
+      expect(initialNextRun).not.toBeNull()
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+
+      const advancedNextRun = jobScheduleService.getById(schedule.id)?.nextRun
+      // Bound against the fire cadence, not Date.now(): a stalled event loop
+      // can let the interval fire again and leave the last write in the past.
+      expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThanOrEqual(Date.parse(initialNextRun ?? '') + 20)
     })
 
     it('unregisterJobSchedule(type, name) deletes the row', async () => {
@@ -290,6 +405,8 @@ describe('JobManager schedule control APIs', () => {
 
       expect(updated?.enabled).toBe(true)
       expect(armSpy).toHaveBeenCalledTimes(1)
+      expect(updated?.nextRun).not.toBeNull()
+      expect(Date.parse(updated?.nextRun ?? '')).toBeLessThanOrEqual(Date.now() + 30_000)
     })
 
     it('(b) trigger + enabled false: disposes and does not re-arm', async () => {

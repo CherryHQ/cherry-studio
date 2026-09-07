@@ -9,10 +9,12 @@ export interface ImagePreviewItem {
 }
 
 export interface ImagePreviewTransform {
-  scale: number
-  rotate: number
   flipX: boolean
   flipY: boolean
+  zoom: number
+  rotation: number
+  offsetX: number
+  offsetY: number
 }
 
 export interface ImagePreviewLabels {

@@ -14,11 +14,12 @@ import { type MutationFeedbackOptions, useMutationFeedback } from './useMutation
 const logger = loggerService.withContext('translate/useTranslateLanguages')
 
 export const useTranslateLanguages = (options?: {
+  enabled?: boolean
   add?: MutationFeedbackOptions
   update?: MutationFeedbackOptions
   remove?: MutationFeedbackOptions
 }) => {
-  const { data, error } = useQuery('/translate/languages')
+  const { data, error, refetch } = useQuery('/translate/languages', { enabled: options?.enabled })
   const { t } = useTranslation()
 
   const toastedRef = useRef(false)
@@ -138,7 +139,7 @@ export const useTranslateLanguages = (options?: {
   const status: 'loading' | 'error' | 'ready' =
     languages !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
 
-  return { languages, getLabel, getLanguage, add, update, remove, error, status }
+  return { languages, getLabel, getLanguage, add, update, remove, error, status, refetch }
 }
 
 export const useLanguages = useTranslateLanguages

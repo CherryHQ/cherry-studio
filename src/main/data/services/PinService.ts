@@ -21,6 +21,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type PinRow, pinTable } from '@data/db/schemas/pin'
 import { classifySqliteError } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -28,6 +29,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePinDto } from '@shared/data/api/schemas/pins'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
 import { and, asc, eq, inArray } from 'drizzle-orm'
@@ -46,6 +48,32 @@ function rowToPin(row: PinRow): Pin {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'order'): void {
+  if (pins.length === 0) return
+
+  const pinIds = [...new Set(pins.map((pin) => pin.id))]
+  const effects: DataApiDataChangeEffect[] = [
+    kind === 'membership'
+      ? { endpoint: '/pins', kind: 'membership', entityIds: pinIds }
+      : { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: pinIds },
+    { endpoint: '/pins/:id', entityIds: pinIds }
+  ]
+
+  for (const entityType of ['topic', 'session'] as const) {
+    const entityIds = [...new Set(pins.filter((pin) => pin.entityType === entityType).map((pin) => pin.entityId))]
+    if (entityIds.length === 0) continue
+
+    const endpoint = entityType === 'topic' ? '/topics' : '/agent-sessions'
+    effects.push(
+      kind === 'membership'
+        ? { endpoint, kind: 'membership', dimension: 'pinned', entityIds }
+        : { endpoint, kind: 'order', dimension: 'pinned', entityIds }
+    )
+  }
+
+  notifyDataApiDataChange(effects)
 }
 
 export class PinService {
@@ -95,14 +123,14 @@ export class PinService {
    * the TOCTOU concurrency fallback.
    */
   pin(dto: CreatePinDto): Pin {
-    return this.db.transaction((tx) => {
+    const result = this.db.transaction((tx) => {
       const [existing] = tx
         .select()
         .from(pinTable)
         .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
         .limit(1)
         .all()
-      if (existing) return rowToPin(existing)
+      if (existing) return { pin: rowToPin(existing), created: false }
 
       try {
         const inserted = insertWithOrderKey(
@@ -120,7 +148,7 @@ export class PinService {
           entityType: mapped.entityType,
           entityId: mapped.entityId
         })
-        return mapped
+        return { pin: mapped, created: true }
       } catch (e) {
         if (classifySqliteError(e)?.kind !== 'unique') throw e
 
@@ -131,21 +159,24 @@ export class PinService {
           .limit(1)
           .all()
         if (!winner) throw e
-        return rowToPin(winner)
+        return { pin: rowToPin(winner), created: false }
       }
     })
+    if (result.created) notifyPinReadModelChange([result.pin], 'membership')
+    return result.pin
   }
 
   /**
    * Unpin by pin id. Hard delete.
    */
   unpin(id: string): void {
-    const [row] = this.db.delete(pinTable).where(eq(pinTable.id, id)).returning({ id: pinTable.id }).all()
+    const [row] = this.db.delete(pinTable).where(eq(pinTable.id, id)).returning().all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Pin', id)
     }
 
+    notifyPinReadModelChange([rowToPin(row)], 'membership')
     logger.info('Deleted pin', { id })
   }
 
@@ -154,12 +185,14 @@ export class PinService {
    * from the target row — callers do not pass scope.
    */
   reorder(id: string, anchor: OrderRequest): void {
-    this.db.transaction((tx) =>
+    const pins = this.db.transaction((tx) => {
       applyScopedMoves(tx, pinTable, [{ id, anchor }], {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
-    )
+      return tx.select().from(pinTable).where(eq(pinTable.id, id)).all().map(rowToPin)
+    })
+    notifyPinReadModelChange(pins, 'order')
   }
 
   /**
@@ -167,12 +200,21 @@ export class PinService {
    * span multiple entityTypes with a VALIDATION_ERROR.
    */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
-    this.db.transaction((tx) =>
+    if (moves.length === 0) return
+    const ids = [...new Set(moves.map((move) => move.id))]
+    const pins = this.db.transaction((tx) => {
       applyScopedMoves(tx, pinTable, moves, {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
-    )
+      return tx.select().from(pinTable).where(inArray(pinTable.id, ids)).all().map(rowToPin)
+    })
+    notifyPinReadModelChange(pins, 'order')
+  }
+
+  /** Publish after a caller-owned transaction purges pins through the Tx helpers below. */
+  notifyPurged(): void {
+    notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
   }
 
   /**

@@ -1,5 +1,7 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+extraMetadata:
+  cherryEdition: global
 electronLanguages:
   - zh-CN
   - zh-TW
@@ -21,6 +23,7 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!electron-builder.cn.config.cjs"
   - "!.*"
   - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
@@ -63,6 +66,7 @@ files:
   - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
+  - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
@@ -77,8 +81,24 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
+  # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
+  - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
+  - "node_modules/sharp/**"
+  - "node_modules/@img/colour/**"
+  - "node_modules/detect-libc/**"
+  - "node_modules/semver/**"
+  - "node_modules/node-pty/**"
+  - "node_modules/koffi/**"
+  - "node_modules/@koromix/koffi-*/**"
+  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
+  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -87,6 +107,9 @@ extraResources:
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -94,6 +117,8 @@ win:
     sign: scripts/win-sign.js
   verifyUpdateCodeSignature: false
 nsis:
+  # Preserve the existing global installer identity so either edition replaces the same Windows installation.
+  guid: 41a4ccd8-bcc0-5710-9eee-0e164da68057
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
@@ -106,6 +131,8 @@ nsis:
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
+  # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
+  unpackDirName: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -151,52 +178,68 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta Is Here
+    Cherry Studio 2.0.12 - Features, Fixes, and Improvements
 
-    ✨ New Experience
-    - [V2] This is the first public Beta of Cherry Studio V2, with a cleaner look and a simpler workspace
-    - [Tabs] Chats, mini apps, tools, and detached windows now feel more like working in a browser, with tabs you can pin or move out
-    - [Pages] Chat, Settings, Knowledge, Translation, Mini Apps, Launchpad, Code Tools, and Resource Library have all been rebuilt for V2
-    - [Library] Assistants, agents, and skills now live together in one Resource Library, with search, tags, import/export, and clearer detail views
-    - [Migration] V2 includes a guided upgrade flow for your existing settings, chats, agents, knowledge bases, files, models, providers, MCP servers, and preferences
+    ✨ New Features
+    - [Settings] Settings gains a sidebar search: find any setting row across all sections (title/description/aliases, Chinese pinyin included), jump to it with scroll + highlight, full keyboard navigation.
+    - [Settings] Settings search now covers all sections with static settings rows, including MCP tabs.
+    - [Translation] The translate model now has its own temperature, top-p and reasoning effort settings, editable from the translation settings panel and the translate page toolbar.
+    - [Markdown] Markdown previews outside chat now use the same rich renderer as chat messages. In agent session messages and rendered artifact Markdown previews, workspace links open files in the artifact pane and directories in the system file manager; relative links resolve from the agent workspace root.
 
-    🚀 New Capabilities
-    - [Chat] Branching conversations are easier to follow, and the message area and input box are ready for the new V2 chat experience
-    - [Knowledge] Knowledge bases are more flexible: add URLs and notes, tune chunking, handle folders better, browse long source lists, and import documents through File Processing
-    - [Providers] Provider and model management is easier, with grouped lists, model search, model deletion, clearer validation, and better model details
-    - [Web Search] Web Search now separates keyword search from URL reading, with better defaults and improved access through the Jina China mirror
-    - [Code Tools] Code tools now open from a gallery-style page, with per-tool settings and support for Qoder CLI and Kimi Code
-    - [MCP] MCP servers are easier to discover, install, and manage from the refreshed marketplace
-    - [Translate] Image OCR in Translation now uses the same File Processing flow as the rest of the app
+    🐛 Bug Fixes
+    - [Cherry Cloud] Cherry Cloud models now honor server-declared capabilities, support configured OpenAI Chat Completions routes, and remain compatible with older model-list responses. Message token details now also show time to first token without requiring the expanded runtime breakdown.
+    - [Chat] Preserve partial chat responses and show a clear, retryable error when a provider stream ends without a finish reason.
+    - [Chat] Fix middle-click (autoscroll) scrolling in the chat message list so it no longer vibrates or jumps.
+    - [Chat] Sent image attachments now appear as compact filename chips with real image thumbnails, including after reopening a conversation.
+    - [Model Health] Model health check results no longer linger after leaving the provider page.
+    - [Filesystem MCP] Allow grep searches to use regular expression syntax supported by ripgrep.
+    - [Knowledge Base] Empty knowledge bases now appear in the knowledge list.
+    - [Chat Export] Prevent fraction denominators from being clipped when exporting conversations as images.
+    - [OpenClaw] Prevent the OpenClaw gateway from failing to start when Cherry Studio uses a socks5 proxy.
+    - [Web Search] Web fetch no longer sends localhost, LAN, or locally-unresolvable URLs to Jina Reader when the built-in fetch fails, regardless of the “Allow fetching local network addresses” setting.
+    - [Topics] Pinned topics and agent sessions now keep their text aligned with unpinned items in owner-grouped lists.
+    - [Agent] The task progress capsule now always tracks the main agent's task plan; todo lists written by spawned subagents no longer replace it.
+    - [Agent] Fixed the permission-mode popup showing two highlighted rows at once, and tooltips no longer pop up on their own when the panel opens.
+    - [PDF Preview] Preserve colors in colored PDF documents.
+    - [Models] Fix reasoning mode not being available for Xunfei MaaS (讯飞星辰) custom models — their model IDs are now recognized and expose the reasoning toggle/effort controls.
+    - [UI] Improved Skills detail scrolling and Sidebar avatar and title-bar alignment.
+
+    💄 Improvements
+    - [Input Fields] Number fields across settings, model options, MCP servers, assistants and painting parameters no longer show the browser's native spinner buttons, and no longer change value when the mouse wheel scrolls over a focused field. They step with the arrow keys, announce their allowed range to screen readers, and the API gateway port now tells you when a value is out of range instead of quietly applying a different one.
 
     ⚡ Performance
-    - [Startup] The app does less heavy work at launch, so startup should feel lighter
-    - [Data] Local data now uses the new V2 storage system, making chats, knowledge bases, settings, files, providers, and models more reliable
-    - [Agents] Agent and chat startup no longer has to wait on every MCP server refresh
-    - [Jobs] Image generation, file processing, OCR, indexing, and recovery now run through a smoother background job system
+    - [Paintings] Improved painting history refresh performance by reusing unchanged hydrated records.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.1 - V2 Beta 来了
+    Cherry Studio 2.0.12 - 新功能、修复与改进
 
-    ✨ 全新体验
-    - [V2] 这是 Cherry Studio V2 的第一个公开 Beta，界面更清爽，工作区也更顺手
-    - [标签页] 聊天、小程序、工具和独立窗口现在更像浏览器标签页，可以固定，也可以分离出去
-    - [页面] 聊天、设置、知识库、翻译、小程序、启动台、代码工具和资源库都已经按 V2 重新打造
-    - [资源库] 助手、智能体和技能现在集中在一个资源库里管理，支持搜索、标签、导入导出和更清晰的详情页
-    - [迁移] V2 提供引导式升级流程，迁移已有设置、聊天、智能体、知识库、文件、模型、提供商、MCP 服务和偏好设置
+    ✨ 新功能
+    - [设置] 设置侧边栏新增搜索功能：可搜索所有设置项（标题/描述/别名，支持中文拼音），点击跳转并高亮显示，支持完整的键盘导航。
+    - [设置] 设置搜索现覆盖所有包含静态设置行的部分，包括 MCP 标签页。
+    - [翻译] 翻译模型现在可以单独设置温度、Top-P 和推理强度，在翻译设置面板和翻译页工具栏均可调整。
+    - [Markdown] 聊天外的 Markdown 预览现在使用与聊天消息相同的富渲染器。在智能体会话和渲染的产物 Markdown 预览中，工作区链接在产物面板中打开文件，目录在系统文件管理器中打开；相对链接从智能体工作区根目录解析。
 
-    🚀 新能力
-    - [聊天] 多分支对话更容易看懂，消息区和输入框也已经为新的 V2 聊天体验打好基础
-    - [知识库] 知识库更灵活了：可以添加 URL 和笔记，调整分块方式，更好地处理文件夹，浏览长数据源列表，并通过文件处理导入文档
-    - [提供商] 提供商和模型管理更顺手，支持分组列表、模型搜索、删除模型、更清晰的校验和更完整的模型信息
-    - [网络搜索] 网络搜索现在区分关键词搜索和 URL 读取，默认配置更清楚，并通过 Jina 国内镜像改善访问体验
-    - [代码工具] 代码工具改成画廊式入口，每个工具都有独立设置，并支持 Qoder CLI 和 Kimi Code
-    - [MCP] MCP 服务可以在改版后的市场里更方便地发现、安装和管理
-    - [翻译] 翻译里的图片 OCR 现在和应用里的文件处理流程保持一致
+    🐛 问题修复
+    - [樱桃云] 樱桃云模型现在遵循服务器声明的功能，支持配置的 OpenAI Chat Completions 路由，并与旧版模型列表响应保持兼容。消息令牌详情现在也显示首个令牌时间，无需展开运行时明细。
+    - [对话] 当服务商流在没有结束原因的情况下终止时，保留部分对话响应并显示清晰的可重试错误。
+    - [对话] 修复聊天消息列表中的中键自动滚动不再抖动或跳跃。
+    - [对话] 发送的图片附件现在显示为紧凑的文件名芯片，带有真实的图片缩略图，包括重新打开对话后。
+    - [模型健康] 离开服务商页面后，模型健康检查结果不再残留。
+    - [文件系统 MCP] 允许 grep 搜索使用 ripgrep 支持的正则表达式语法。
+    - [知识库] 空知识库现在显示在知识库列表中。
+    - [对话导出] 防止导出对话图片时分数分母被裁剪。
+    - [OpenClaw] 防止 Cherry Studio 使用 socks5 代理时 OpenClaw 网关启动失败。
+    - [联网搜索] 当内置获取失败时，Web 获取不再将 localhost、局域网或本地无法解析的 URL 发送到 Jina Reader，无论”允许获取本地网络地址”设置如何。
+    - [话题] 固定的话题和智能体会话现在在按所有者分组的列表中与未固定项目保持文本对齐。
+    - [智能体] 任务进度胶囊现在始终跟踪主智能体的任务计划；子智能体编写的待办列表不再替换它。
+    - [智能体] 修复权限模式弹出窗口同时显示两个高亮行的问题，工具提示不再在面板打开时自动弹出。
+    - [PDF 预览] 在彩色 PDF 文档中保留颜色。
+    - [模型] 修复讯飞星辰自定义模型无法使用推理模式的问题 —— 其模型 ID 现在被识别并显示推理开关/强度控制。
+    - [界面] 改进技能详情滚动和侧边栏头像及标题栏对齐。
+
+    💄 改进
+    - [输入字段] 设置、模型选项、MCP 服务器、助手和绘画参数中的数字字段不再显示浏览器的原生微调按钮，鼠标滚轮滚动聚焦字段时不再改变值。它们使用方向键步进，向屏幕阅读器宣布允许的范围，API 网关端口现在会告诉您值何时超出范围，而不是悄悄应用不同的值。
 
     ⚡ 性能优化
-    - [启动] 启动时少做重活，打开应用应该更轻快
-    - [数据] 本地数据换到新的 V2 存储系统，聊天、知识库、设置、文件、提供商和模型数据存储会更可靠
-    - [智能体] 智能体和聊天启动时不再需要等待所有 MCP 服务刷新
-    - [任务] 图片生成、文件处理、OCR、索引和恢复流程现在由后台任务系统处理，更顺畅也更稳
+    - [绘画] 通过重用未更改的水合记录改进绘画历史刷新性能。
     <!--LANG:END-->

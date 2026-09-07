@@ -31,12 +31,26 @@ export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
 }
 
 // ── Value-type helpers ───────────────────────────────────────────────────────
-// A blank text input (`''`) must read as "omitted", not coerce to `0`/`NaN`.
-const blankToUndefined = (v: unknown): unknown => (v === '' || v == null ? undefined : v)
+/**
+ * Normalize only finite numbers and numeric strings from form controls.
+ * Other JavaScript-coercible values (booleans and arrays) stay invalid instead
+ * of silently becoming `0`, `1`, or another number at submission time.
+ */
+export function normalizeImageParamNumber(value: unknown): unknown {
+  if (value == null) return undefined
+  if (typeof value === 'number') return value
+  if (typeof value !== 'string') return value
+
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const numeric = Number(trimmed)
+  return Number.isFinite(numeric) ? numeric : value
+}
+
 const optString = z.string().optional()
 const optBool = z.boolean().optional()
-const optNumber = z.preprocess(blankToUndefined, z.coerce.number().optional())
-const optInt = z.preprocess(blankToUndefined, z.coerce.number().int().optional())
+const optNumber = z.preprocess(normalizeImageParamNumber, z.number().finite().optional())
+const optInt = z.preprocess(normalizeImageParamNumber, z.number().finite().int().optional())
 
 /**
  * Catalog. Plain object literal + `as const satisfies` so per-key schema types
@@ -89,6 +103,14 @@ export const IMAGE_PARAM_CATALOG = {
   upscaleFactor: { schema: optNumber }
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
+/** Parse one dynamic form value through its canonical catalog schema. */
+export function parseImageParamValue(key: string, value: unknown): unknown {
+  const entry = (IMAGE_PARAM_CATALOG as Record<string, ImageParamCatalogEntry>)[key]
+  if (!entry) return undefined
+  const parsed = entry.schema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
 /** Static value type of a canonical param, derived from its catalog schema. */
 export type ParamValue<K extends CanonicalParamKey> = z.infer<(typeof IMAGE_PARAM_CATALOG)[K]['schema']>
 
@@ -100,7 +122,7 @@ export type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> }
  * `z.object` whose `z.infer` is exactly {@link ParamValues}. The one `as` is on
  * the dynamic `Object.fromEntries` SHAPE (provably the catalog keys → their
  * schemas); the output type then flows without a cast. Consumers (the
- * `ai.generate_image` IPC payload) use this to validate + coerce the bag with zod
+ * `ai.image.generate` IPC payload) use this to validate + coerce the bag with zod
  * AT THE BOUNDARY — non-catalog keys are stripped, per-model option/range
  * constraints stay in the renderer's `buildParamsSchema`.
  */

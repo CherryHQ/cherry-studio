@@ -1,11 +1,13 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
+import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
+import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
+import { scrollElementIntoView } from '@renderer/utils/dom'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
-import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, GripVertical, Plus, Trash2 } from 'lucide-react'
+import React, { useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
 import Scrollbar from '../Scrollbar'
@@ -28,7 +30,16 @@ import { ToC } from './TableOfContent'
 import { Toolbar } from './Toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
 import { useRichEditor } from './useRichEditor'
+
 const logger = loggerService.withContext('RichEditor')
+const SEARCH_MATCHES_HIGHLIGHT = 'rich-editor-search-matches'
+const CURRENT_MATCH_HIGHLIGHT = 'rich-editor-search-current'
+
+const clearContentSearchHighlights = () => {
+  if (!supportsCustomHighlights()) return
+  CSS.highlights.delete(SEARCH_MATCHES_HIGHLIGHT)
+  CSS.highlights.delete(CURRENT_MATCH_HIGHLIGHT)
+}
 
 /**
  * Create fixed-position highlight overlay at element location
@@ -144,6 +155,7 @@ const RichEditor = ({
   onMarkdownChange,
   onBlur,
   editable = true,
+  autoFocus = true,
   className = '',
   wrapperStyle,
   showToolbar = true,
@@ -152,11 +164,15 @@ const RichEditor = ({
   initialCommands,
   onCommandsReady,
   showTableOfContents = false,
+  lineBreaks = false,
   enableContentSearch = false,
   isFullWidth = false,
   fontFamily = 'default',
   fontSize = 16,
-  enableSpellCheck = false
+  enableSpellCheck = false,
+  ariaLabel,
+  enableImageInsertion = true,
+  disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
@@ -168,7 +184,11 @@ const RichEditor = ({
     onBlur,
     placeholder,
     editable,
+    autoFocus,
     enableSpellCheck,
+    ariaLabel,
+    enableImageInsertion,
+    disabledCommands,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
       const iconMap: Record<string, React.ReactNode> = {
@@ -191,7 +211,12 @@ const RichEditor = ({
   })
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const contentSearchRef = useRef<ContentSearchRef>(null)
+  const contentSearchRef = useRef<FindBarRef>(null)
+  const [contentSearchState, setContentSearchState] = useState<FindBarState>(() => ({
+    ...INITIAL_FIND_BAR_STATE
+  }))
+  const [contentSearchCursor, setContentSearchCursor] = useState<{ criteriaKey: string; index: number } | null>(null)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const contentSearchFilter = useMemo<NodeFilter>(
     () => ({
       acceptNode(node) {
@@ -200,6 +225,88 @@ const RichEditor = ({
       }
     }),
     []
+  )
+  const deferredContentSearchQuery = useDeferredValue(contentSearchState.query).trim()
+  const contentSearchCriteriaKey = `${deferredContentSearchQuery}\u0000${contentSearchState.caseSensitive ? '1' : '0'}${contentSearchState.wholeWord ? '1' : '0'}`
+  const contentSearchRanges = useMemo(() => {
+    const target = scrollContainerRef.current
+    if (
+      !enableContentSearch ||
+      !contentSearchState.enabled ||
+      !deferredContentSearchQuery ||
+      !target ||
+      (!markdown && !target.textContent)
+    ) {
+      return []
+    }
+
+    return findRangesInScope(
+      target,
+      deferredContentSearchQuery,
+      {
+        caseSensitive: contentSearchState.caseSensitive,
+        wholeWord: contentSearchState.wholeWord
+      },
+      contentSearchFilter
+    )
+  }, [
+    contentSearchFilter,
+    contentSearchState.caseSensitive,
+    contentSearchState.enabled,
+    contentSearchState.wholeWord,
+    deferredContentSearchQuery,
+    enableContentSearch,
+    markdown
+  ])
+  const contentSearchCurrentIndex =
+    contentSearchRanges.length === 0
+      ? -1
+      : contentSearchCursor?.criteriaKey === contentSearchCriteriaKey
+        ? Math.min(contentSearchCursor.index, contentSearchRanges.length - 1)
+        : 0
+
+  useEffect(() => {
+    if (enableContentSearch) return
+    setContentSearchState((current) => (current.enabled ? { ...current, enabled: false } : current))
+  }, [enableContentSearch])
+
+  useEffect(() => {
+    clearContentSearchHighlights()
+    if (
+      !enableContentSearch ||
+      !contentSearchState.enabled ||
+      contentSearchRanges.length === 0 ||
+      !supportsCustomHighlights()
+    ) {
+      return
+    }
+
+    CSS.highlights.set(SEARCH_MATCHES_HIGHLIGHT, new Highlight(...contentSearchRanges))
+    const currentRange = contentSearchRanges[contentSearchCurrentIndex]
+    if (!currentRange) return
+
+    CSS.highlights.set(CURRENT_MATCH_HIGHLIGHT, new Highlight(currentRange))
+    const target = scrollContainerRef.current
+    const parentElement = currentRange.startContainer.parentElement
+    if (target && parentElement) {
+      scrollElementIntoView(parentElement, target)
+    }
+  }, [contentSearchCurrentIndex, contentSearchRanges, contentSearchState.enabled, enableContentSearch])
+
+  useEffect(() => clearContentSearchHighlights, [])
+
+  const navigateContentSearch = useCallback(
+    (delta: 1 | -1) => {
+      if (contentSearchRanges.length === 0) return
+      const nextIndex =
+        contentSearchCurrentIndex < 0
+          ? delta > 0
+            ? 0
+            : contentSearchRanges.length - 1
+          : (contentSearchCurrentIndex + delta + contentSearchRanges.length) % contentSearchRanges.length
+      setContentSearchCursor({ criteriaKey: contentSearchCriteriaKey, index: nextIndex })
+    },
+    [contentSearchCriteriaKey, contentSearchCurrentIndex, contentSearchRanges.length]
   )
 
   const onKeyDownEditor = useCallback(
@@ -239,6 +346,18 @@ const RichEditor = ({
     { enableOnContentEditable: true, enabled: enableContentSearch },
     [enableContentSearch]
   )
+
+  // Show the back-to-top button once the content is scrolled down far enough
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setShowBackToTop(container.scrollTop > 240)
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Table action menu state
   const [tableActionMenu, setTableActionMenu] = useState<{
@@ -411,10 +530,12 @@ const RichEditor = ({
           break
         }
         case 'undo':
-          editor.chain().focus().undo().run()
+          editor.view.focus()
+          editor.commands.undo()
           break
         case 'redo':
-          editor.chain().focus().redo().run()
+          editor.view.focus()
+          editor.commands.redo()
           break
         case 'blockMath': {
           // Math is handled by the MathInputDialog component in toolbar
@@ -504,6 +625,7 @@ const RichEditor = ({
       $isFullWidth={isFullWidth}
       $fontFamily={fontFamily}
       $fontSize={fontSize}
+      $lineBreaks={lineBreaks}
       style={wrapperStyle}
       onKeyDown={onKeyDownEditor}>
       {showToolbar && (
@@ -512,6 +634,8 @@ const RichEditor = ({
           formattingState={formattingState}
           onCommand={handleCommand}
           scrollContainer={scrollContainerRef}
+          enableImageInsertion={enableImageInsertion}
+          disabledCommands={disabledCommands}
         />
       )}
       <Scrollbar
@@ -532,15 +656,23 @@ const RichEditor = ({
           <EditorContent style={{ minHeight: '100%' }} editor={editor} />
         </StyledEditorContent>
       </Scrollbar>
+      <Tooltip content={t('richEditor.backToTop')}>
+        <button
+          type="button"
+          className={`BackToTopButton ${showBackToTop ? 'is-visible' : ''}`}
+          onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <ChevronsUp size={16} />
+        </button>
+      </Tooltip>
       {enableContentSearch && (
-        <ContentSearch
+        <FindBar
           ref={contentSearchRef}
-          searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={false}
-          onIncludeUserChange={() => {}}
+          matchCount={contentSearchRanges.length}
+          currentIndex={contentSearchCurrentIndex}
+          onNavigate={navigateContentSearch}
+          onStateChange={setContentSearchState}
+          placement="editor"
           showUserToggle={false}
-          positionMode="absolute"
         />
       )}
       {showTableOfContents && (

@@ -57,6 +57,14 @@ describe('assistant catalog presets', () => {
     await waitFor(() => expect(result.current.presets).toHaveLength(2))
     expect(assistantCatalogMocks.read).toHaveBeenCalledWith('/resources/data/agents-en.json', 'utf-8')
     expect(result.current.presets.map((preset) => preset.id)).toEqual(['preset-product', 'preset-business'])
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not load assistant presets while disabled', () => {
+    const { result } = renderHook(() => useAssistantCatalogPresets({ enabled: false }))
+
+    expect(assistantCatalogMocks.read).not.toHaveBeenCalled()
+    expect(result.current).toEqual({ isLoading: false, presets: [] })
   })
 
   it('keeps my assistants first and orders known system groups before custom groups', () => {

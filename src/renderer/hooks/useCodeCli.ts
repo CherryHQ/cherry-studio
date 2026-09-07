@@ -7,7 +7,7 @@ import type {
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -30,7 +30,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = () => {
+export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (tool: CodeCli) => void) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -40,11 +40,17 @@ export const useCodeCli = () => {
   configsRef.current = configs
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
 
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
 
-  const selectTool = useCallback((tool: CodeCli) => {
-    setSelectedCliTool(tool)
-  }, [])
+  useEffect(() => setSelectedCliTool(initialTool), [initialTool])
+
+  const selectTool = useCallback(
+    (tool: CodeCli) => {
+      setSelectedCliTool(tool)
+      onToolChange?.(tool)
+    },
+    [onToolChange]
+  )
 
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 

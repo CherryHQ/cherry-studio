@@ -13,9 +13,10 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { ServiceRegistry } from './serviceRegistry'
@@ -240,6 +241,11 @@ export class Application {
    * Shutdown the application.
    * Stops and destroys all lifecycle-managed services gracefully.
    * Also handles legacy service cleanup (bootConfig, logger).
+   *
+   * Each service carries its own teardown ceiling (see `stopAll`), so a stuck
+   * `onStop()` no longer costs the services behind it their turn. Whether this
+   * shutdown was clean is stated on the `Shutdown complete` line — that is the
+   * first line to read when diagnosing one.
    */
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
@@ -261,12 +267,21 @@ export class Application {
     }
 
     // Stop all lifecycle-managed services (reverse init order)
-    await this.lifecycleManager.stopAll()
+    const stopSummary = await this.lifecycleManager.stopAll()
 
     // Destroy all lifecycle-managed services
-    await this.lifecycleManager.destroyAll()
+    const destroySummary = await this.lifecycleManager.destroyAll()
 
-    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
+    // Kept per pass rather than concatenated: a service that times out in stop
+    // is then skipped in destroy, so a flat list would carry its name twice with
+    // no way to tell which pass each entry came from.
+    const elapsed = `${(performance.now() - start).toFixed(3)}ms`
+    const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+    if (unclean) {
+      logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
+    } else {
+      logger.info(`Shutdown complete (${elapsed})`)
+    }
 
     // Close logger LAST — after this point, no more logging
     loggerService.finish()
@@ -419,6 +434,12 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
+    // Last resort, not the working mechanism. Starvation is handled one level
+    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
+    // only catches the case where enough services burn their whole ceiling to
+    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
+    // every timer here it is powerless against a synchronously blocking
+    // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
@@ -473,6 +494,7 @@ export class Application {
 
       event.preventDefault()
 
+      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
         process.exit(1)
@@ -507,17 +529,17 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })
 
-    ipcMain.handle(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)
       return hold.id
     })
 
-    ipcMain.handle(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
       const hold = this.ipcQuitHolds.get(holdId)
       if (hold) {
         hold.dispose()

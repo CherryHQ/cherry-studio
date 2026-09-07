@@ -110,10 +110,11 @@ describe('PromptEditorField', () => {
 
     const editorContainer = screen.getByTestId('editor-empty-area').parentElement
     expect(editorContainer).toHaveClass('bg-background')
-    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-border-hover')
-    expect(editorContainer).toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
+    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-ring')
+    expect(editorContainer).toHaveClass('focus-within:border-ring')
+    expect(editorContainer).not.toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
     expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
-    expect(editorContainer).not.toHaveClass('border-border/20', 'focus-within:border-border/40')
+    expect(editorContainer).not.toHaveClass('border-border-subtle', 'focus-within:border-border-subtle')
   })
 
   it('marks the prompt theme as dark in dark mode', () => {
@@ -169,13 +170,13 @@ describe('PromptEditorField', () => {
       return getComputedStyle(tokens[occurrence])
     }
 
-    expect(tokenStyle('#').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
+    expect(tokenStyle('#').color).toBe('var(--muted-foreground)')
     expect(tokenStyle(' Heading').color).toBe('var(--foreground)')
     expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
-    expect(tokenStyle('**').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
+    expect(tokenStyle('**').color).toBe('var(--muted-foreground)')
     expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
-    expect(tokenStyle('link').color).toBe('var(--primary)')
-    expect(tokenStyle('[').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
+    expect(tokenStyle('link').color).toBe('var(--link)')
+    expect(tokenStyle('[').color).toBe('var(--muted-foreground)')
     expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
 
     view.destroy()
@@ -190,6 +191,18 @@ describe('PromptEditorField', () => {
 
     expect(preview).toHaveClass('text-xs', 'min-h-0', 'flex-1')
     expect(editorFrame).toHaveClass('flex-col', 'border-border')
+  })
+
+  // Regression guard for #18377: the prompt preview container must carry the
+  // `prompt-preview` scope class so the scoped CSS rule can restore visible
+  // line breaks (global `.markdown p { white-space: normal }` collapses soft
+  // newlines; the scoped override re-enables pre-wrap here only).
+  it('marks the preview container with the prompt-preview scope class (#18377)', () => {
+    render(<PromptEditorField label={<span>Prompt</span>} value="Line one\nLine two" onChange={vi.fn()} />)
+
+    const preview = screen.getByTestId('markdown').parentElement
+
+    expect(preview).toHaveClass('prompt-preview')
   })
 
   it('does not submit a parent form when toggling preview', () => {

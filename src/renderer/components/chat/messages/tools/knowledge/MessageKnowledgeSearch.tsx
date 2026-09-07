@@ -21,7 +21,7 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
       }
     />
   ) : (
-    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-muted-foreground leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
   )
@@ -59,7 +59,7 @@ export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse:
     <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:p-0">
       {outputParse.data.map((result: KbSearchOutputItem) => (
         <li key={result.id} className="flex min-w-0 gap-2">
-          <span className="shrink-0 text-foreground-muted">{result.id}</span>
+          <span className="shrink-0 text-foreground-tertiary">{result.id}</span>
           <span className="min-w-0 truncate">{result.content}</span>
         </li>
       ))}

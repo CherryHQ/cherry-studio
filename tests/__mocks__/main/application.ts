@@ -49,6 +49,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -70,6 +72,12 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
+/** Minimal JobManager mock for handler registration and startup enqueues. */
+export const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -79,7 +87,8 @@ export const defaultServiceInstances = {
   FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
-  IpcApiService: mockIpcApiService
+  IpcApiService: mockIpcApiService,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */

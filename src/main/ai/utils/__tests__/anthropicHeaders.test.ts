@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { makeAssistant, makeModel, makeProvider } from '../../__tests__/fixtures'
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { addAnthropicHeaders } from '../anthropicHeaders'
 
 const claudeModel = () =>
@@ -8,43 +8,38 @@ const claudeModel = () =>
 
 describe('addAnthropicHeaders', () => {
   it('adds interleaved-thinking beta for Claude 4.5 reasoning on direct Anthropic', () => {
-    const headers = addAnthropicHeaders(
-      makeAssistant(),
-      claudeModel(),
-      makeProvider({ id: 'anthropic', name: 'Anthropic' })
-    )
+    const headers = addAnthropicHeaders(claudeModel(), makeProvider({ id: 'anthropic', name: 'Anthropic' }))
     expect(headers).toContain('interleaved-thinking-2025-05-14')
   })
 
   it('skips interleaved-thinking on Bedrock', () => {
     const headers = addAnthropicHeaders(
-      makeAssistant(),
       claudeModel(),
       makeProvider({ id: 'aws-bedrock', presetProviderId: 'aws-bedrock', authType: 'iam-aws' })
     )
     expect(headers).not.toContain('interleaved-thinking-2025-05-14')
   })
 
-  it('adds web-search beta for Claude 4 series on Vertex when web search is enabled', () => {
+  it('adds web-search beta for Claude 4 series on Vertex when search routed to the server side', () => {
     const headers = addAnthropicHeaders(
-      makeAssistant({ settings: { enableWebSearch: true } }),
       makeModel({ id: 'anthropic::claude-sonnet-4-20250101', providerId: 'anthropic' }),
-      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' })
+      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' }),
+      true
     )
     expect(headers).toContain('web-search-2025-03-05')
   })
 
-  it('does NOT add web-search on Vertex when web search is disabled', () => {
+  it('does NOT add web-search on Vertex when search is off or routed to the client tools', () => {
     const headers = addAnthropicHeaders(
-      makeAssistant({ settings: { enableWebSearch: false } }),
       makeModel({ id: 'anthropic::claude-sonnet-4-20250101', providerId: 'anthropic' }),
-      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' })
+      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' }),
+      false
     )
     expect(headers).not.toContain('web-search-2025-03-05')
   })
 
   it('returns an empty list for non-qualifying model/provider combos', () => {
-    const headers = addAnthropicHeaders(makeAssistant(), makeModel(), makeProvider({ id: 'openai' }))
+    const headers = addAnthropicHeaders(makeModel(), makeProvider({ id: 'openai' }))
     expect(headers).toEqual([])
   })
 })

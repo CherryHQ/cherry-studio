@@ -1,137 +1,61 @@
-import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import SelectionActionUserModal from '../SelectionActionUserModal'
 
-const testData = vi.hoisted(() => {
-  const longAssistantName =
-    'AssistantWithAnExtremelyLongUnbrokenNameThatShouldNeverForceTheSelectionAssistantModalToGrowHorizontally'
-
-  return {
-    longAssistantName,
-    assistants: [
-      {
-        id: 'assistant-chatgpt-import',
-        name: longAssistantName
-      }
-    ]
-  }
-})
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key
-  })
-}))
-
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistants: () => ({
-    assistants: testData.assistants
-  })
-}))
-
-vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({
-    defaultModel: undefined
-  })
-}))
-
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: ({ className }: { className?: string }) => <span data-testid="model-avatar" className={className} />
+  default: () => null
 }))
 
 vi.mock('@renderer/components/CopyButton', () => ({
-  default: () => <button type="button" aria-label="copy-placeholder" />
+  default: () => null
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
-  return vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
-})
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistants: () => ({ assistants: [] })
+}))
 
-beforeAll(() => {
-  if (!HTMLElement.prototype.hasPointerCapture) {
-    HTMLElement.prototype.hasPointerCapture = () => false
-  }
-  if (!HTMLElement.prototype.releasePointerCapture) {
-    HTMLElement.prototype.releasePointerCapture = () => {}
-  }
-  if (!HTMLElement.prototype.setPointerCapture) {
-    HTMLElement.prototype.setPointerCapture = () => {}
-  }
-  HTMLElement.prototype.scrollIntoView = () => {}
-})
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
 
-afterEach(() => {
-  cleanup()
-})
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
 
 describe('SelectionActionUserModal', () => {
-  it('left-aligns assistant names while using the available select row width', () => {
-    render(
-      <SelectionActionUserModal
-        isModalOpen={true}
-        editingAction={{
-          id: 'user-action',
-          name: 'Custom action',
-          enabled: true,
-          isBuiltIn: false,
-          assistantId: 'assistant-chatgpt-import'
-        }}
-        onOk={vi.fn()}
-        onCancel={vi.fn()}
-      />
-    )
+  it('keeps the footer accessible when editing a long prompt', () => {
+    const longPrompt = 'Keep the prompt inside the dialog.\n'.repeat(200)
+    const onOk = vi.fn()
+    const editingAction: SelectionActionItem = {
+      id: 'user-long-prompt',
+      name: 'Long prompt',
+      enabled: true,
+      isBuiltIn: false,
+      prompt: longPrompt
+    }
 
-    const assistantName = screen.getByText(testData.longAssistantName)
-    expect(assistantName).toHaveClass('min-w-0', 'flex-1', 'truncate', 'text-left')
-    expect(assistantName).toHaveAttribute('title', testData.longAssistantName)
-    expect(assistantName).not.toHaveClass('max-w-[calc(100%-60px)]')
-    expect(assistantName.parentElement).toHaveClass('min-w-0', 'w-full')
-    expect(screen.getByTestId('model-avatar')).toHaveClass('shrink-0')
-  })
+    render(<SelectionActionUserModal isModalOpen editingAction={editingAction} onOk={onOk} onCancel={vi.fn()} />)
 
-  it('clips long assistant options to the select width', async () => {
-    render(
-      <SelectionActionUserModal
-        isModalOpen={true}
-        editingAction={{
-          id: 'user-action',
-          name: 'Custom action',
-          enabled: true,
-          isBuiltIn: false,
-          assistantId: 'assistant-chatgpt-import'
-        }}
-        onOk={vi.fn()}
-        onCancel={vi.fn()}
-      />
-    )
+    const prompt = screen.getByPlaceholderText('selection.settings.user_modal.prompt.placeholder')
+    const dialogContent = screen.getByTestId('dialog-content')
+    const scrollableBody = dialogContent.children[1]
 
-    const trigger = screen.getByRole('combobox')
-    expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
-    expect(trigger).toHaveClass(
-      'min-w-0',
-      'overflow-hidden',
-      '*:data-[slot=select-value]:min-w-0',
-      '*:data-[slot=select-value]:flex-1',
-      '*:data-[slot=select-value]:overflow-hidden'
-    )
-    expect(trigger.querySelector('[data-slot="select-value"]')).toBeInTheDocument()
-
-    fireEvent.pointerDown(trigger)
-    fireEvent.click(trigger)
-
-    const content = await screen.findByRole('listbox')
-    expect(content).toHaveClass('w-(--radix-select-trigger-width)', 'max-w-(--radix-select-trigger-width)')
-    const option = within(content).getByText(testData.longAssistantName).closest('[role="option"]')
-    expect(option).toBeInstanceOf(HTMLElement)
-    const optionElement = option as HTMLElement
-    expect(optionElement).toHaveClass('overflow-hidden')
-    expect(within(optionElement).getByText(testData.longAssistantName).parentElement).toHaveClass(
-      'max-w-full',
+    expect(prompt).toHaveValue(longPrompt)
+    // These layout utilities are the viewport/scroll contract that prevents issue #19358.
+    expect(dialogContent).toHaveClass(
+      'max-h-[calc(100vh-2rem)]',
+      'grid-rows-[auto_minmax(0,1fr)_auto]',
       'overflow-hidden'
     )
+    expect(scrollableBody).toHaveClass('min-h-0', 'overflow-y-auto')
+    expect(prompt).toHaveClass('max-h-40', 'overflow-y-auto', 'resize-none')
+    const confirmButton = screen.getByRole('button', { name: 'common.confirm' })
+    expect(confirmButton).toBeVisible()
+
+    fireEvent.click(confirmButton)
+
+    expect(onOk).toHaveBeenCalledWith(editingAction)
   })
 })

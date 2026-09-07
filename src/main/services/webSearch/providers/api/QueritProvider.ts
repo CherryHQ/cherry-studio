@@ -29,17 +29,43 @@ const QueritSearchResponseSchema = z.object({
   results: z.object({
     result: z
       .array(
-        z.object({
-          title: z.string(),
+        z.looseObject({
+          title: z.string().optional(),
           snippet: z.string().optional(),
-          url: z.string()
+          url: z.string().optional(),
+          site_name: z.string().optional()
         })
       )
       .default([])
   })
 })
 
+const QueritContentsParamsSchema = z.object({
+  urls: z.array(z.string()).min(1).max(10),
+  format: z.string(),
+  extrasMeta: z.boolean()
+})
+
+const QueritContentsResponseSchema = z.object({
+  error_code: z.number(),
+  error_msg: z.string(),
+  results: z
+    .array(
+      z.object({
+        url: z.string().optional(),
+        content: z.string().optional(),
+        extrasMeta: z
+          .looseObject({
+            title: z.string().optional()
+          })
+          .optional()
+      })
+    )
+    .default([])
+})
+
 type QueritSearchContext = ApiKeyRequestSearchContext<z.infer<typeof QueritSearchParamsSchema>>
+type QueritContentsContext = ApiKeyRequestSearchContext<z.infer<typeof QueritContentsParamsSchema>>
 
 export class QueritProvider extends BaseWebSearchProvider {
   async searchKeywords(
@@ -51,6 +77,25 @@ export class QueritProvider extends BaseWebSearchProvider {
     const searchPayload = await this.executeSearch(context)
 
     return this.buildFinalResponse(context, searchPayload)
+  }
+
+  async fetchUrls(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
+    const context = this.prepareContentsContext(query, config, httpOptions)
+    const contentsPayload = await this.executeContents(context)
+
+    return this.buildContentsResponse(context, contentsPayload)
+  }
+
+  private buildHeaders(apiKey: string): Record<string, string> {
+    return {
+      ...defaultAppHeaders(),
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    }
   }
 
   private prepareSearchContext(
@@ -84,11 +129,7 @@ export class QueritProvider extends BaseWebSearchProvider {
   private async executeSearch(context: QueritSearchContext) {
     const response = await net.fetch(context.requestUrl, {
       method: 'POST',
-      headers: {
-        ...defaultAppHeaders(),
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${context.apiKey}`
-      },
+      headers: this.buildHeaders(context.apiKey),
       body: JSON.stringify(context.requestBody),
       signal: context.signal
     })
@@ -116,12 +157,90 @@ export class QueritProvider extends BaseWebSearchProvider {
       providerId: this.provider.id,
       capability: 'searchKeywords',
       inputs: [context.query],
-      results: (searchPayload.results?.result || []).map((result) => ({
-        title: result.title,
-        content: result.snippet || '',
-        url: result.url,
-        sourceInput: context.query
-      }))
+      results: (searchPayload.results?.result || []).flatMap((result) => {
+        const url = result.url?.trim()
+        if (!url) return []
+
+        return [
+          {
+            title: result.title?.trim() || result.site_name?.trim() || result.snippet?.trim() || url,
+            content: result.snippet || '',
+            url,
+            sourceInput: context.query
+          }
+        ]
+      })
+    }
+  }
+
+  private prepareContentsContext(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): QueritContentsContext {
+    const url = query.trim()
+
+    return {
+      apiKey: this.resolveApiKey(),
+      query: url,
+      maxResults: config.maxResults,
+      requestUrl: this.resolveApiUrl('fetchUrls', '/v1/contents'),
+      requestBody: QueritContentsParamsSchema.parse({
+        urls: [url],
+        format: 'markdown',
+        // Querit only returns the page title when metadata is requested.
+        extrasMeta: true
+      }),
+      signal: httpOptions?.signal ?? undefined
+    }
+  }
+
+  private async executeContents(context: QueritContentsContext) {
+    const response = await net.fetch(context.requestUrl, {
+      method: 'POST',
+      headers: this.buildHeaders(context.apiKey),
+      body: JSON.stringify(context.requestBody),
+      signal: context.signal
+    })
+
+    if (!response.ok) {
+      await this.throwHttpError('Querit contents failed', response)
+    }
+
+    return this.parseJsonResponse(response, QueritContentsResponseSchema, {
+      operation: 'contents',
+      requestUrl: context.requestUrl
+    })
+  }
+
+  private buildContentsResponse(
+    context: QueritContentsContext,
+    contentsPayload: z.infer<typeof QueritContentsResponseSchema>
+  ): WebSearchResponse {
+    if (contentsPayload.error_code !== 200) {
+      throw new Error(`Querit contents failed: ${contentsPayload.error_msg}`)
+    }
+
+    const page = contentsPayload.results[0]
+    const content = page?.content?.trim()
+
+    if (!page || !content) {
+      throw new Error(`Querit contents returned empty content for ${context.query}`)
+    }
+
+    return {
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'fetchUrls',
+      inputs: [context.query],
+      results: [
+        {
+          title: page.extrasMeta?.title?.trim() || context.query,
+          content,
+          url: page.url || context.query,
+          sourceInput: context.query
+        }
+      ]
     }
   }
 }

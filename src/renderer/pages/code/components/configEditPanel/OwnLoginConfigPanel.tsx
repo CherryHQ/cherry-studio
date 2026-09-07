@@ -43,6 +43,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const initialConfig = useMemo(
     () => sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {}),
     [cliTool, providerConfig]
@@ -134,22 +135,25 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       <DialogContent
         size="lg"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          cancelButtonRef.current?.focus({ preventScroll: true })
+        }}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border/30" />
+            <CliIcon id={cliTool} size={22} className="size-[22px] shrink-0 rounded-md border border-border-subtle" />
             <span className="min-w-0 truncate">{t('code.own_login.title', { toolName })}</span>
           </DialogTitle>
         </DialogHeader>
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
-          <SettingGroup theme={theme} className="border-t-0 pt-0">
+          <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
             <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
             {toolFields}
           </SettingGroup>
           {files.length > 0 && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
                 <CliConfigEditor files={files} error={error} onChange={handleFilesChange} />
               </AdvancedConfigToggle>
@@ -158,7 +162,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         </SettingContainer>
 
         <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
+          <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSave} loading={submitting}>

@@ -1,3 +1,11 @@
+---
+description: Cache usage examples - useCache/useSharedCache/usePersistCache hooks and direct CacheService APIs per tier
+sources:
+  - src/renderer/data/hooks/useCache.ts
+  - src/renderer/data/CacheService.ts
+  - src/main/data/CacheService.ts
+---
+
 # Cache Usage Guide
 
 Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [cache-schema-guide.md](./cache-schema-guide.md).
@@ -17,6 +25,8 @@ Import from `@data/hooks/useCache`.
 Value type is inferred from the schema. The writable hooks pin the cache entry (refcounted) — the key cannot be `delete`d while any hook is mounted; `useSharedCacheValue` does NOT pin (and never writes a default), so an owner's deletion always passes through. Hooks do **not** accept a TTL option; using TTL under a writable hook logs a warning and is discouraged (see [Design Invariant #4](./cache-overview.md#design-invariants)).
 
 **Pick the shared hook by writer provenance.** If this window writes the key, use `useSharedCache`. If another process owns it (typically a Main service publishing via `setShared`) and this window only displays it, use `useSharedCacheValue` — mounting the writable hook seeds the schema default back into the cache and broadcasts it, which can clobber the owner's value during the mount race. Apply `?? fallback` with a reference-stable default (module-level const, or an unconditionally evaluated `useMemo` — never a hook call on the right side of `??`).
+
+**Write-only call sites take no hook.** If a component only ever writes a key, call `cacheService.setPersist(key, ...)` directly. `const [, setX] = usePersistCache(key)` still registers `useSyncExternalStore`, so every write to that key rerenders a consumer that never reads it. The updater form is what makes dropping the hook safe — it resolves `prev` at write time, so no render-time snapshot is needed. The test is the data flow, not the destructuring: a site is write-only only if the value it writes never derives from **that key's** rendered value (a concrete value recomputed from other state qualifies).
 
 The setter accepts a concrete value **or a functional updater** `(prev) => next`, like React's `useState`. The updater resolves against the **latest stored value** at write time (not the render-time snapshot), so read-modify-write stays correct across an `await` — prefer it whenever the next value derives from the current one. `prev` is shallow-readonly: the updater MUST be pure and return a new value (mutating `prev` in place is short-circuited by `isEqual` and silently skips the re-render — see [Design Invariant #1](./cache-overview.md#design-invariants)). Keep it side-effect-free too: don't smuggle a derived value out of the updater (e.g. into an outer variable) to drive post-write work, and don't rely on how often or when it runs — to react to *what changed* (e.g. dispose resources for removed items), derive it in a `useEffect` that watches the value. For `useSharedCache` the updater resolves against the local window's value only; it is not cross-window atomic.
 
@@ -92,12 +102,15 @@ Before the initial sync from Main completes, `getShared()` returns `undefined`. 
 
 ```typescript
 cacheService.setPersist('ui.sidebar.width', 300)
+// Updater form — `prev` is the latest persisted value, resolved at write time.
+// This is how write-only call sites write correctly without subscribing.
+cacheService.setPersist('ui.tab.pinned_tabs', (prev) => [tab, ...prev.filter((t) => t.id !== tab.id)].slice(0, 10))
 cacheService.getPersist('ui.sidebar.width')
-cacheService.hasPersist('ui.sidebar.width')
-// No deletePersist — Persist keys are fixed by schema
+cacheService.hasPersist('ui.sidebar.width') // "is overridden", not "is stored" — every key is seeded
+cacheService.deletePersist('ui.sidebar.width') // resets to the schema default; keys are fixed and never removed
 ```
 
-Persist writes are debounced (200ms) and flushed on `beforeunload`. localStorage is limited to ~5MB per origin — keep Persist values small.
+Persist writes are debounced (350ms) and flushed on `beforeunload`. localStorage is limited to ~5MB per origin — keep Persist values small.
 
 ## Main Process Usage
 

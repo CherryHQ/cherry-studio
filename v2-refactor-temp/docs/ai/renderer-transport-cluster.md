@@ -44,13 +44,12 @@ Sits between the transport and the IPC call. Per topic:
 
 - **Single in-flight** — coalesces concurrent `dispatch` calls into
   one IPC.
-- **Observable ack** — exposes `userMessageId`, placeholder ids, and
-  `executionIds` from the IPC reply (instead of being discarded by
-  AI SDK's transport interface).
+- **Observable ack** — exposes `reservedMessages`, `activeExecutions`, and
+  `preserveActiveNode` from the IPC reply (instead of being discarded by AI
+  SDK's transport interface).
 
-Consumers (e.g. agent submit) observe the ack via
-`coordinator.observeAck(topicId)` so they can join the optimistic UI
-bubble to the persisted row.
+Consumers observe the ack so they can seed the optimistic UI from the
+authoritative persisted skeletons.
 
 Commit `a73e580f5 refactor(stream-ack): surface streamOpen ack via a dispatch coordinator`.
 

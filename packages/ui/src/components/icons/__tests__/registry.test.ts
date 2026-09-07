@@ -139,7 +139,9 @@ describe('resolveModelIconRef — dedicated model marks', () => {
     ['internvl-3', 'internlm'],
     ['01-ai/yi-large', 'yi'],
     ['baidu/ernie-4.5', 'wenxin'],
-    ['stepfun/step-3.5-flash', 'stepfun']
+    ['stepfun/step-3.5-flash', 'stepfun'],
+    ['k3', 'kimi'],
+    ['k3-256k', 'kimi']
   ] as const
 
   it.each(familyCases)('routes %s to %s', (modelId, key) => {
@@ -151,6 +153,7 @@ describe('resolveModelIconRef — dedicated model marks', () => {
     expect(resolveModelIconRef('influxdb-query')?.key).not.toBe('flux')
     expect(resolveModelIconRef('sonarqube-code')?.key).not.toBe('perplexity')
     expect(resolveModelIconRef('sparkling-image')?.key).not.toBe('kling')
+    expect(resolveModelIconRef('k3po')?.key).not.toBe('kimi')
   })
 })
 

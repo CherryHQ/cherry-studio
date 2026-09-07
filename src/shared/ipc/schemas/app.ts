@@ -1,6 +1,12 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
+import {
+  CACHE_CLEANUP_GROUPS,
+  CACHE_CLEANUP_RESULT_STATUSES,
+  CACHE_CLEANUP_SIZE_ACCURACIES,
+  CACHE_CLEANUP_SIZE_COMPLETENESS
+} from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
 import { defineRoute } from '../define'
 
@@ -8,6 +14,21 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({ valid: z.literal(true), targetEmpty: z.boolean() }),
   z.object({ valid: z.literal(false), reason: z.enum(USER_DATA_RELOCATION_VALIDATION_REASONS) })
 ])
+
+const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
+const cacheCleanupSizeSchema = z.object({
+  bytes: z.number().int().nonnegative().nullable(),
+  accuracy: z.enum(CACHE_CLEANUP_SIZE_ACCURACIES),
+  completeness: z.enum(CACHE_CLEANUP_SIZE_COMPLETENESS)
+})
+const cacheCleanupGroupsInputSchema = z
+  .object({
+    groups: z.array(cacheCleanupGroupSchema).min(1)
+  })
+  .refine(({ groups }) => new Set(groups).size === groups.length, {
+    message: 'Cache cleanup groups must be unique',
+    path: ['groups']
+  })
 
 export const appRequestSchemas = {
   'app.get_info': defineRoute({
@@ -38,14 +59,43 @@ export const appRequestSchemas = {
     }),
     output: z.void()
   }),
+  'app.cache_cleanup.inspect': defineRoute({
+    input: cacheCleanupGroupsInputSchema,
+    output: z.object({
+      results: z.array(
+        z.object({
+          group: cacheCleanupGroupSchema,
+          size: cacheCleanupSizeSchema
+        })
+      )
+    })
+  }),
+  'app.cache_cleanup.run': defineRoute({
+    input: cacheCleanupGroupsInputSchema,
+    output: z.object({
+      results: z.array(
+        z.object({
+          group: cacheCleanupGroupSchema,
+          status: z.enum(CACHE_CLEANUP_RESULT_STATUSES)
+        })
+      )
+    })
+  }),
   'app.relaunch': defineRoute({ input: z.void(), output: z.void() }),
   'app.adjust_zoom': defineRoute({
     input: z.object({ delta: z.number(), reset: z.boolean().optional() }),
     output: z.number()
   }),
-  'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
+  'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.release_notes.get': defineRoute({
+    input: z.void(),
+    output: z
+      .array(z.object({ releaseNotes: z.string().min(1), version: z.string().min(1) }))
+      .min(1)
+      .nullable()
+  }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }
 

@@ -31,8 +31,8 @@ export interface PpioProvider extends ProviderV3 {
 /**
  * Build the PPIO submit/poll image transport from provider settings. Shared by
  * the provider factory (`createPpioProvider`) and the image-generation job's
- * transport registry (`resolveImageTransport`), so the job handler can rebuild
- * the same transport after a restart from the re-resolved provider settings.
+ * transport registry (`resolveImageTransport`), so both paths use the same
+ * re-resolved provider settings.
  */
 export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport<VendorBag> {
   return createPpioTransport({
@@ -47,8 +47,8 @@ export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerat
  * Unified PPIO provider — chat, embedding, and image off one `ProviderV3`,
  * mirroring `newapi-provider.ts`. Chat/embedding go through the OpenAI-
  * compatible SDK aimed at `settings.baseURL`; the image model keeps its
- * bespoke submit/poll behavior via `createImageGenerationModel + createPpioTransport`
- * aimed at `settings.imageBaseURL` (defaults to `DEFAULT_PPIO_BASE_URL`).
+ * bespoke submit/poll behavior via `createPpioTransport`, aimed at
+ * `settings.imageBaseURL` (defaults to `DEFAULT_PPIO_BASE_URL`).
  */
 export function createPpioProvider(settings: PpioProviderSettings = {}): PpioProvider {
   const { baseURL, fetch: customFetch } = settings

@@ -15,9 +15,12 @@ const checkboxVariants = cva(
     'data-[state=checked]:border-foreground data-[state=checked]:text-foreground',
     'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
-    'focus-visible:ring-3 focus-visible:ring-ring/30',
+    'focus-visible:border-primary',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
+    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
+    // A fixed tick must read as fixed: same glyph in the DISABLED role (DESIGN.md's
+    // "unavailable content"), not the secondary-text one.
+    'disabled:data-[state=checked]:border-foreground-disabled disabled:data-[state=checked]:text-foreground-disabled'
   ),
   {
     variants: {

@@ -1,20 +1,175 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
-import type { UIMessageChunk } from 'ai'
 
-type PendingDelta = StreamChunkPayload & {
-  chunk:
-    | Extract<UIMessageChunk, { type: 'text-delta' }>
-    | Extract<UIMessageChunk, { type: 'reasoning-delta' }>
-    | Extract<UIMessageChunk, { type: 'tool-input-delta' }>
+function utf8CodePointBytes(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1
+  if (codePoint <= 0x7ff) return 2
+  if (codePoint <= 0xffff) return 3
+  return 4
 }
 
-function toPendingDelta(chunk: StreamChunkPayload): PendingDelta {
-  return chunk as PendingDelta
+function utf8ByteLength(value: string): number {
+  let bytes = 0
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index)!
+    bytes += utf8CodePointBytes(codePoint)
+    index += codePoint > 0xffff ? 2 : 1
+  }
+  return bytes
 }
 
-export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): StreamChunkPayload[] {
+/** Byte counts for immutable delta payloads; WeakMap metadata never crosses the renderer transport boundary. */
+const deltaUtf8ByteLengths = new WeakMap<StreamChunkPayload, number>()
+
+function cachedDeltaUtf8ByteLength(payload: StreamChunkPayload, value: string): number {
+  const cached = deltaUtf8ByteLengths.get(payload)
+  if (cached !== undefined) return cached
+  const bytes = utf8ByteLength(value)
+  deltaUtf8ByteLengths.set(payload, bytes)
+  return bytes
+}
+
+interface Utf8Segment {
+  value: string
+  byteLength: number
+}
+
+/** Split without breaking Unicode code points. A configured limit below four bytes cannot split a single emoji further. */
+function splitUtf8(value: string, maxBytes: number): Utf8Segment[] {
+  if (!value) return [{ value, byteLength: 0 }]
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return [{ value, byteLength: utf8ByteLength(value) }]
+
+  const segments: Utf8Segment[] = []
+  let segmentStart = 0
+  let segmentBytes = 0
+
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index)!
+    const codeUnits = codePoint > 0xffff ? 2 : 1
+    const codePointBytes = utf8CodePointBytes(codePoint)
+
+    if (segmentBytes > 0 && segmentBytes + codePointBytes > maxBytes) {
+      segments.push({ value: value.slice(segmentStart, index), byteLength: segmentBytes })
+      segmentStart = index
+      segmentBytes = 0
+    }
+
+    segmentBytes += codePointBytes
+    index += codeUnits
+  }
+
+  segments.push({ value: value.slice(segmentStart), byteLength: segmentBytes })
+  return segments
+}
+
+/** Split a single oversized incoming delta before it enters the replay ring. */
+export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: number): StreamChunkPayload[] {
+  const chunk = payload.chunk
+  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
+    return [payload]
+  }
+  const value = chunk.type === 'tool-input-delta' ? chunk.inputTextDelta : chunk.delta
+
+  const segments = splitUtf8(value, maxDeltaBytes)
+  if (segments.length === 1) {
+    deltaUtf8ByteLengths.set(payload, segments[0].byteLength)
+    return [payload]
+  }
+
+  return segments.map((segment) => {
+    const segmentPayload: StreamChunkPayload =
+      chunk.type === 'tool-input-delta'
+        ? { ...payload, chunk: { ...chunk, inputTextDelta: segment.value } }
+        : { ...payload, chunk: { ...chunk, delta: segment.value } }
+    deltaUtf8ByteLengths.set(segmentPayload, segment.byteLength)
+    return segmentPayload
+  })
+}
+
+/**
+ * Merge `incoming` into `tail` when both are delta chunks continuing the same
+ * part run (same part id / toolCallId, same executionId and anchorMessageId).
+ * Returns the merged payload, or `undefined` when the two don't form a
+ * contiguous run — or when merging would grow the entry past
+ * `maxDeltaBytes`, so ingestion starts a new segment entry and ordinary ring
+ * eviction remains bounded by UTF-8 bytes (not just protocol units).
+ *
+ * The merge is lossy w.r.t. the original chunks: `providerMetadata` keeps the
+ * run's last non-undefined value. That is exactly the part state AI SDK's
+ * `processUIMessageStream` leaves after consuming the raw sequence
+ * (`chunk.providerMetadata ?? part.providerMetadata` per delta), so a replay
+ * reader can't tell the difference — but the buffer no longer holds the
+ * original chunks; the authoritative copy comes from persistence via the
+ * independent accumulator tee.
+ *
+ * Shared by `AiStreamManager.onChunk` (ingestion-time merge, so the ring
+ * buffer's cap counts protocol units instead of raw deltas) and the
+ * attach-time compaction below.
+ */
+export function mergeDeltaPayload(
+  tail: StreamChunkPayload,
+  incoming: StreamChunkPayload,
+  maxDeltaBytes?: number
+): StreamChunkPayload | undefined {
+  if (tail.executionId !== incoming.executionId || tail.anchorMessageId !== incoming.anchorMessageId) {
+    return undefined
+  }
+  const prev = tail.chunk
+  const next = incoming.chunk
+  if (
+    (prev.type === 'text-delta' && next.type === 'text-delta' && prev.id === next.id) ||
+    (prev.type === 'reasoning-delta' && next.type === 'reasoning-delta' && prev.id === next.id)
+  ) {
+    let mergedByteLength: number | undefined
+    if (maxDeltaBytes !== undefined) {
+      mergedByteLength = cachedDeltaUtf8ByteLength(tail, prev.delta) + cachedDeltaUtf8ByteLength(incoming, next.delta)
+      if (mergedByteLength > maxDeltaBytes) return undefined
+    }
+    const merged: StreamChunkPayload = {
+      ...tail,
+      chunk: {
+        ...prev,
+        delta: prev.delta + next.delta,
+        providerMetadata: next.providerMetadata ?? prev.providerMetadata
+      }
+    }
+    if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+    return merged
+  }
+  if (prev.type === 'tool-input-delta' && next.type === 'tool-input-delta' && prev.toolCallId === next.toolCallId) {
+    let mergedByteLength: number | undefined
+    if (maxDeltaBytes !== undefined) {
+      mergedByteLength =
+        cachedDeltaUtf8ByteLength(tail, prev.inputTextDelta) + cachedDeltaUtf8ByteLength(incoming, next.inputTextDelta)
+      if (mergedByteLength > maxDeltaBytes) return undefined
+    }
+    const merged: StreamChunkPayload = {
+      ...tail,
+      chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
+    }
+    if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+    return merged
+  }
+  return undefined
+}
+
+/**
+ * Compact an execution's buffered chunks for replay. Contiguous delta runs
+ * are merged, and a missing `text-start` / `reasoning-start` is synthesized
+ * when ring eviction leaves a surviving delta run. A bare end with no
+ * surviving content is dropped instead of creating an empty part.
+ */
+export function buildCompactReplay(
+  buffer: readonly StreamChunkPayload[],
+  maxDeltaBytes?: number
+): StreamChunkPayload[] {
   const compact: StreamChunkPayload[] = []
-  let pending: PendingDelta | undefined
+  let pending: StreamChunkPayload | undefined
+  const openParts = new Set<string>()
+
+  const scopedKey = (payload: StreamChunkPayload, id: string): string =>
+    JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
+  const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
+    scopedKey(payload, `${kind}:${id}`)
 
   const flushPending = () => {
     if (!pending) return
@@ -22,90 +177,58 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
     pending = undefined
   }
 
-  for (const chunk of buffer) {
-    switch (chunk.chunk.type) {
-      case 'text-delta': {
-        if (
-          pending?.chunk.type === 'text-delta' &&
-          pending.chunk.id === chunk.chunk.id &&
-          pending.executionId === chunk.executionId &&
-          pending.anchorMessageId === chunk.anchorMessageId
-        ) {
-          pending = {
-            ...pending,
-            chunk: {
-              ...pending.chunk,
-              delta: pending.chunk.delta + chunk.chunk.delta,
-              providerMetadata: chunk.chunk.providerMetadata ?? pending.chunk.providerMetadata
-            }
-          }
-        } else {
-          flushPending()
-          pending = toPendingDelta(chunk)
-        }
-        break
+  for (const payload of buffer) {
+    if (pending) {
+      const merged = mergeDeltaPayload(pending, payload, maxDeltaBytes)
+      if (merged) {
+        pending = merged
+        continue
       }
+    }
 
-      case 'reasoning-delta': {
-        if (
-          pending?.chunk.type === 'reasoning-delta' &&
-          pending.chunk.id === chunk.chunk.id &&
-          pending.executionId === chunk.executionId &&
-          pending.anchorMessageId === chunk.anchorMessageId
-        ) {
-          pending = {
-            ...pending,
-            chunk: {
-              ...pending.chunk,
-              delta: pending.chunk.delta + chunk.chunk.delta,
-              providerMetadata: chunk.chunk.providerMetadata ?? pending.chunk.providerMetadata
-            }
-          }
-        } else {
-          flushPending()
-          pending = toPendingDelta(chunk)
-        }
-        break
-      }
-
-      case 'tool-input-start': {
-        // Preserve the part announcement — without it the renderer's chat
-        // reducer cannot apply subsequent live tool-input-delta chunks for
-        // this toolCallId when attach happens before tool-input-available.
+    const chunk = payload.chunk
+    switch (chunk.type) {
+      case 'text-start':
+      case 'reasoning-start': {
         flushPending()
-        compact.push(chunk)
+        openParts.add(openPartKey(payload, chunk.type === 'text-start' ? 'text' : 'reasoning', chunk.id))
+        compact.push(payload)
         break
       }
 
-      case 'tool-input-delta': {
-        if (
-          pending?.chunk.type === 'tool-input-delta' &&
-          pending.chunk.toolCallId === chunk.chunk.toolCallId &&
-          pending.executionId === chunk.executionId &&
-          pending.anchorMessageId === chunk.anchorMessageId
-        ) {
-          pending = {
-            ...pending,
-            chunk: {
-              ...pending.chunk,
-              inputTextDelta: pending.chunk.inputTextDelta + chunk.chunk.inputTextDelta
-            }
-          }
-        } else {
-          flushPending()
-          pending = toPendingDelta(chunk)
+      case 'text-delta':
+      case 'reasoning-delta': {
+        flushPending()
+        const kind = chunk.type === 'text-delta' ? ('text' as const) : ('reasoning' as const)
+        const key = openPartKey(payload, kind, chunk.id)
+        if (!openParts.has(key)) {
+          openParts.add(key)
+          compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
         }
+        pending = payload
         break
       }
+
+      case 'text-end':
+      case 'reasoning-end': {
+        flushPending()
+        if (!openParts.has(openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id))) break
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-input-delta':
+        flushPending()
+        pending = payload
+        break
 
       default:
         flushPending()
-        compact.push(chunk)
+        compact.push(payload)
         break
     }
   }
 
   flushPending()
-
   return compact
 }

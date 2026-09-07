@@ -72,9 +72,10 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
 // no-drag punches the popup's area out of any titlebar drag region it overlaps,
 // so hover/click reach the items instead of the window-drag hit test (Electron).
 const contentStyles =
-  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 [-webkit-app-region:no-drag]'
+  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
 
-const arrowStyles = 'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 [paint-order:stroke_fill]'
+const arrowStyles =
+  'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
 
 function TooltipContent({
   className,
@@ -118,6 +119,8 @@ export interface TooltipProps {
   onOpenChange?: (open: boolean) => void
   onClick?: React.MouseEventHandler<HTMLDivElement>
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
+  /** Let the child own the trigger element and its semantics. */
+  asChild?: boolean
 }
 
 export const Tooltip = ({
@@ -135,7 +138,8 @@ export const Tooltip = ({
   isOpen,
   onOpenChange,
   onClick,
-  portalContainer
+  portalContainer,
+  asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
@@ -146,6 +150,8 @@ export const Tooltip = ({
   )
 
   if (!tooltipContent || isDisabled) {
+    if (asChild) return children
+
     return (
       <div className={triggerWrapperClassName} onClick={onClick}>
         {children}
@@ -167,9 +173,13 @@ export const Tooltip = ({
     <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
         <TooltipTrigger asChild>
-          <div className={triggerWrapperClassName} onClick={onClick}>
-            {children}
-          </div>
+          {asChild ? (
+            children
+          ) : (
+            <div className={triggerWrapperClassName} onClick={onClick}>
+              {children}
+            </div>
+          )}
         </TooltipTrigger>
         <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
           <RadixContent

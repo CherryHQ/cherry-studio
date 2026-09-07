@@ -31,7 +31,7 @@ const fetchEmbeddingDimensions = async (uniqueModelId: string): Promise<number> 
       return LOCAL_EMBEDDING_DIMENSIONS
     }
 
-    const { embeddings } = await ipcApi.request('ai.embed_many', {
+    const { embeddings } = await ipcApi.request('ai.embedding.embed_many', {
       uniqueModelId: parsedModelId,
       values: [EMBEDDING_DIMENSION_PROBE_TEXT]
     })

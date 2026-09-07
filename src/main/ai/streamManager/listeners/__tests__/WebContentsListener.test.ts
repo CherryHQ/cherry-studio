@@ -17,17 +17,13 @@ interface FakeWebContents {
   id: number
   send: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
-  once: ReturnType<typeof vi.fn>
 }
 
 function fakeWc(): FakeWebContents {
   return {
     id: 1,
     send: vi.fn(),
-    isDestroyed: vi.fn(() => false),
-    // Constructor wires `wc.once('destroyed', ...)` for flush-timer cleanup;
-    // tests don't drive that destroyed event, so a no-op is enough.
-    once: vi.fn()
+    isDestroyed: vi.fn(() => false)
   }
 }
 
@@ -58,7 +54,7 @@ describe('WebContentsListener coalescing', () => {
     vi.advanceTimersByTime(16)
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.chunk', {
       topicId: 'topic-1',
       executionId: undefined,
       anchorMessageId: undefined,
@@ -137,24 +133,41 @@ describe('WebContentsListener coalescing', () => {
     })
   })
 
-  it('includes anchorMessageId on terminal events', () => {
+  it('includes execution identity and topic attempt watermark on terminal events', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
 
     l.onDone({
       modelId: 'openai::gpt-4o',
+      attemptId: 3,
+      topicAttemptWatermark: 5,
       anchorMessageId: 'assistant-1',
       status: 'success',
       isTopicDone: true
     } as never)
-
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_done', {
-      topicId: 'topic-1',
-      executionId: 'openai::gpt-4o',
-      anchorMessageId: 'assistant-1',
-      status: 'success',
+    l.onPaused({
+      modelId: 'openai::gpt-4o',
+      attemptId: 4,
+      topicAttemptWatermark: 5,
+      anchorMessageId: 'assistant-2',
+      status: 'paused',
       isTopicDone: true
-    })
+    } as never)
+    l.onError({
+      modelId: 'openai::gpt-4o',
+      attemptId: 5,
+      topicAttemptWatermark: 5,
+      anchorMessageId: 'assistant-3',
+      status: 'error',
+      isTopicDone: true,
+      error: { name: 'Error', message: 'boom' }
+    } as never)
+
+    expect(wc.send.mock.calls.map((call) => call[2])).toEqual([
+      expect.objectContaining({ attemptId: 3, topicAttemptWatermark: 5, anchorMessageId: 'assistant-1' }),
+      expect.objectContaining({ attemptId: 4, topicAttemptWatermark: 5, anchorMessageId: 'assistant-2' }),
+      expect.objectContaining({ attemptId: 5, topicAttemptWatermark: 5, anchorMessageId: 'assistant-3' })
+    ])
   })
 
   it('does not merge a delta that carries providerMetadata', () => {
@@ -178,6 +191,47 @@ describe('WebContentsListener coalescing', () => {
       delta: 'B',
       providerMetadata: { cherry: { references: [] } }
     })
+  })
+
+  it('sends an oversized tool output as a reference without mutating the persistence input', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const output = { content: 'x'.repeat(64 * 1024) }
+    const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output })
+
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.chunk', {
+      topicId: 'agent-session:session-1',
+      executionId: undefined,
+      anchorMessageId: 'assistant-1',
+      chunk: {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: {
+          $deferredToolResult: {
+            topicId: 'agent-session:session-1',
+            messageId: 'assistant-1',
+            toolCallId: 'call-1'
+          }
+        }
+      }
+    })
+    expect(toolChunk).toMatchObject({ output })
+  })
+
+  it('sends a small tool output through untouched', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output: { content: 'small' } })
+
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+
+    expect(wc.send).toHaveBeenCalledWith(
+      IpcChannel.IpcApi_Event,
+      'ai.stream.chunk',
+      expect.objectContaining({ chunk: toolChunk })
+    )
   })
 
   it('coalesces reasoning-delta independently from text-delta', () => {
@@ -205,9 +259,9 @@ describe('WebContentsListener coalescing', () => {
     l.onDone({ modelId: 'openai::gpt-4o', status: 'success', isTopicDone: true } as never)
 
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1]).toBe('ai.stream_chunk')
+    expect(wc.send.mock.calls[0][1]).toBe('ai.stream.chunk')
     expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Final')
-    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_done')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream.done')
   })
 
   it('flushes pending buffer on onError before sending the terminal event', () => {
@@ -223,7 +277,7 @@ describe('WebContentsListener coalescing', () => {
 
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Partial')
-    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_error')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream.error')
   })
 
   it('drops pending buffer and sends nothing when the WebContents is destroyed', () => {

@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 
+import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
@@ -11,7 +13,9 @@ const state = vi.hoisted(() => ({
   stopChat: vi.fn(),
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
   useChatIds: [] as string[],
-  onError: undefined as ((error: Error) => void) | undefined
+  onError: undefined as ((error: Error) => void) | undefined,
+  liveAssistants: [] as CherryUIMessage[],
+  isPending: false
 }))
 
 import ActionGeneral from '../ActionGeneral'
@@ -20,7 +24,14 @@ const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
 
 vi.mock('../ActionResultContent', () => {
   resultContentChunk.evaluated()
-  return { default: () => null }
+  const MockActionResultContent = ({ message }: { message: { createdAt: string } }) => {
+    const elapsedMs = usePlaceholderElapsedMs(true, message.createdAt, 1000)
+    const elapsedSeconds = Math.floor(elapsedMs / 1000)
+    return <div>Processing {elapsedSeconds} seconds</div>
+  }
+  return {
+    default: MockActionResultContent
+  }
 })
 
 vi.mock('@ai-sdk/react', () => ({
@@ -50,11 +61,11 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: false })
+  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: [] })
+  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
@@ -73,16 +84,24 @@ vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
   default: () => <div data-testid="message-content" />
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
-  toMessageListItem: (message: unknown) => message
-}))
-
 vi.mock('@renderer/components/CopyButton', () => ({
   default: () => <button type="button">copy</button>
 }))
 
 vi.mock('../WindowFooter', () => ({
-  default: () => <div data-testid="window-footer" />
+  default: ({
+    loading,
+    onPause,
+    onRegenerate
+  }: {
+    loading: boolean
+    onPause: () => void
+    onRegenerate: () => void
+  }) => (
+    <button type="button" data-testid="window-footer" onClick={loading ? onPause : onRegenerate}>
+      {loading ? 'stop' : 'regenerate'}
+    </button>
+  )
 }))
 
 vi.mock('@renderer/services/aiTransport', () => ({
@@ -114,6 +133,12 @@ describe('ActionGeneral', () => {
     state.temporaryTopicOptions = []
     state.useChatIds = []
     state.onError = undefined
+    state.liveAssistants = []
+    state.isPending = false
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // MUST run first in this file: if a future test ever renders a result, the
@@ -137,6 +162,18 @@ describe('ActionGeneral', () => {
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
   })
 
+  it('interpolates selected text literally into every custom prompt placeholder', async () => {
+    const selectedText = "$$E=mc^2$$ | $& | $` | $' | {{text}}"
+    const prompt = 'Before {{text}} / {{text}} after'
+
+    render(
+      <ActionGeneral action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt, selectedText })} />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: `Before ${selectedText} / ${selectedText} after` })
+  })
+
   it('waits for a configured assistant before leasing and sending', async () => {
     const action = createAction({ assistantId: 'assistant-1' })
     const { rerender } = render(<ActionGeneral action={action} />)
@@ -157,5 +194,71 @@ describe('ActionGeneral', () => {
     act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
 
     expect(screen.getByText('error.diagnosis.model:')).toHaveClass('mt-3')
+  })
+
+  it('advances the visible processing time for a temporary streamed message', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
+
+    const view = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
+      } as CherryUIMessage
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    })
+    expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    expect(screen.getByText('Processing 3 seconds')).toBeInTheDocument()
+  })
+
+  it('restarts the visible processing time when regenerating', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
+
+    const action = createAction({ assistantId: '' })
+    const view = render(<ActionGeneral action={action} />)
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'first-streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
+      } as CherryUIMessage
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={{ ...action }} />)
+    })
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(screen.getByText('Processing 3 seconds')).toBeInTheDocument()
+
+    state.isPending = false
+    view.rerender(<ActionGeneral action={{ ...action }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'regenerate' }))
+
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'second-streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
+      } as CherryUIMessage
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={{ ...action }} />)
+    })
+
+    expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
   })
 })

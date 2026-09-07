@@ -1,17 +1,20 @@
-import fs from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
+import { createInterface } from 'node:readline'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
-import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { Attributes, AttributeValue, SpanEntity } from '@shared/data/types/trace'
+import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { convertSpanToSpanEntity } from '../core/spanConvert'
 import { TraceSpanStore } from './TraceSpanStore'
+import type { TraceStore } from './TraceStore'
 
 const logger = loggerService.withContext('TraceStorageService')
 
@@ -27,6 +30,13 @@ const MAX_PENDING_EVENTS_PER_SPAN = 200
 // Cap the total retained bytes too and evict oldest-first until under budget.
 const MAX_PENDING_EVENT_BYTES = 16 * 1024 * 1024
 
+// A container trace flushes every turn of a session to the SAME file, so without retention the file
+// grows without bound — and every viewer resync parses the whole of it into the main-process heap,
+// the IPC payload AND the renderer's node map. Cap retained history per trace file, dropping the
+// oldest spans first. Soft cap: the spans a flush is currently writing are always kept, so a file
+// can exceed the budget by one flush and is trimmed back on the next.
+const MAX_TRACE_FILE_BYTES = 8 * 1024 * 1024
+
 // Byte proxy for a buffered event. `.length` counts UTF-16 units, not exact bytes, but it tracks
 // event size closely enough to bound the buffer; must be deterministic so add/remove accounting stays
 // balanced. ponytail: JSON.stringify estimate, swap for a byte-exact measure only if the cap proves loose.
@@ -36,6 +46,52 @@ function estimateEventBytes(event: TimedEvent): number {
   } catch {
     return 0
   }
+}
+
+// The MAX_PENDING_* caps above bound only the ORPHAN buffer: once a span is stored, events were
+// appended to it without any limit, and Claude Code streams them for the whole turn. A measured span
+// reached ~1.5k events / ~20 MiB, which is then parsed into the main heap, structure-cloned over IPC
+// and retained by the renderer whole — so cap what a single stored span keeps. Held well under
+// MAX_TRACE_FILE_BYTES so one span cannot consume the entire file budget on its own.
+const MAX_SPAN_EVENTS = 200
+const MAX_SPAN_EVENT_BYTES = 2 * 1024 * 1024
+
+function sumEventBytes(events: TimedEvent[]): number {
+  let total = 0
+  for (const event of events) total += estimateEventBytes(event)
+  return total
+}
+
+/**
+ * Trim `events` to the retention budget, dropping oldest first. `bytes` is the caller's running
+ * total for the whole array; the trimmed total is returned so an appending caller never has to
+ * re-measure what it already retains. An event larger than the byte budget is dropped: trace detail
+ * is best-effort and must not defeat the memory bound by itself.
+ */
+function capSpanEvents(events: TimedEvent[], bytes: number): { events: TimedEvent[]; bytes: number } {
+  let dropped = 0
+  let retained = bytes
+  while (
+    events.length - dropped > 0 &&
+    (events.length - dropped > MAX_SPAN_EVENTS || retained > MAX_SPAN_EVENT_BYTES)
+  ) {
+    retained -= estimateEventBytes(events[dropped])
+    dropped++
+  }
+  return { events: dropped > 0 ? events.slice(dropped) : events, bytes: Math.max(0, retained) }
+}
+
+function capSpanEventArray(events: TimedEvent[] | undefined): { events: TimedEvent[] | undefined; bytes: number } {
+  if (!events || events.length === 0) return { events, bytes: 0 }
+  const retained: TimedEvent[] = []
+  let bytes = 0
+  for (const event of events) {
+    const eventBytes = estimateEventBytes(event)
+    if (eventBytes > MAX_SPAN_EVENT_BYTES) continue
+    retained.push(event)
+    bytes += eventBytes
+  }
+  return capSpanEvents(retained, bytes)
 }
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
@@ -54,6 +110,11 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private readonly pendingEvents = new Map<string, TimedEvent[]>()
   // Running estimate of bytes retained across all pendingEvents, kept in sync on buffer/evict/drain.
   private pendingEventBytes = 0
+  // Retained-event byte total per stored span. Claude Code delivers one OTLP batch as a separate
+  // addSpanEvent call per event, so re-measuring the retained window on each append would be
+  // quadratic in the events a span receives. Weakly keyed: an entry dies with the span it measures,
+  // so store eviction and flush clearing need no bookkeeping here. A miss just re-measures once.
+  private readonly spanEventBytes = new WeakMap<SpanEntity, number>()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -87,7 +148,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string) => this.getSpans(topicId, traceId))
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, cursor?: TraceDataCursor) =>
+      this.getTraceData(topicId, traceId, cursor)
+    )
     this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
   }
 
@@ -95,6 +158,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.isEnd = false
+    this.setRetainedEvents(spanEntity, spanEntity.events)
     this.applyTraceMeta(spanEntity)
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
@@ -116,7 +180,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
-    spanEntity.events = span.events
+    this.setRetainedEvents(spanEntity, span.events)
     spanEntity.links = span.links
     spanEntity.isEnd = true
     this.updateModelName(spanEntity)
@@ -172,9 +236,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       // Preserve events already on the span (incl. orphan log events drained earlier): a later
       // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
       // entity, which is the object ultimately stored (updateModelName re-sets it after updateEntity).
-      entity.events = this.mergeEvents(existing.events, entity.events)
+      this.setRetainedEvents(entity, this.mergeEvents(existing.events, entity.events))
+      // updateEntity copies onto `existing`, so its cached retained-byte total is now stale.
+      this.spanEventBytes.delete(existing)
       this.updateEntity(entity)
     } else {
+      this.setRetainedEvents(entity, entity.events)
       this.addEntity(entity)
     }
     this.updateModelName(entity)
@@ -201,8 +268,22 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
     if (events.length === 0) return
-    span.events = Array.isArray(span.events) ? [...span.events, ...events] : [...events]
-    this.store.setSpan(span)
+    const incoming = capSpanEventArray(events)
+    if (!incoming.events || incoming.events.length === 0) return
+    const existing = Array.isArray(span.events) ? span.events : []
+    const before = this.spanEventBytes.get(span) ?? sumEventBytes(existing)
+    const trimmed = capSpanEvents([...existing, ...incoming.events], before + incoming.bytes)
+    span.events = trimmed.events
+    this.spanEventBytes.set(span, trimmed.bytes)
+    // The span object is already stored and was mutated in place, so report the size delta rather
+    // than re-inserting it — setSpan would re-measure the whole span on every log event.
+    this.store.touchSpan(span.id, trimmed.bytes - before)
+  }
+
+  private setRetainedEvents(span: SpanEntity, events: TimedEvent[] | undefined): void {
+    const retained = capSpanEventArray(events)
+    span.events = retained.events
+    this.spanEventBytes.set(span, retained.bytes)
   }
 
   private bufferPendingEvent(spanId: string, event: TimedEvent): void {
@@ -216,9 +297,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (events.length >= MAX_PENDING_EVENTS_PER_SPAN) return
     events.push(event)
     this.pendingEventBytes += estimateEventBytes(event)
-    // Evict oldest buffered spans until retained plaintext fits the byte budget. Stop at one span so a
-    // single active span (already bounded by MAX_PENDING_EVENTS_PER_SPAN) is never dropped mid-buffer.
-    while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 1) {
+    // Evict oldest buffered spans until retained plaintext fits the byte budget. A single oversized
+    // orphan is dropped too: it may never receive a parent span and cannot be allowed to pin memory.
+    while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 0) {
       this.evictOldestPendingSpan()
     }
   }
@@ -264,6 +345,36 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // Return OTel-faithful spans merged across history + live; display-only re-parenting of warm
     // claude_code spans under their owning ai.turn is done in the renderer trace viewer.
     return mergeSpansById(history, live)
+  }
+
+  /**
+   * Cursor-based viewer read. History is sent only when its file changes; otherwise the renderer
+   * receives live spans changed since its last store revision. This keeps the hot poll path from
+   * rereading, parsing and cloning the complete trace on every request.
+   */
+  async getTraceData(topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> {
+    const historyVersion = await this.getHistoryVersion(topicId, traceId)
+    const query = { topicId, traceId }
+    const liveChanges = this.store.getSpanChanges(query, cursor?.liveRevision)
+    const reset = cursor === undefined || cursor.historyVersion !== historyVersion || liveChanges.reset
+
+    if (!reset) {
+      return {
+        cursor: { historyVersion, liveRevision: liveChanges.revision },
+        reset: false,
+        spans: liveChanges.spans
+      }
+    }
+
+    const history = await this.getHistoryData(topicId, traceId)
+    // Take the live snapshot after the async history read so the returned revision covers every
+    // in-memory mutation included in this reset response.
+    const liveSnapshot = this.store.getSpanChanges(query)
+    return {
+      cursor: { historyVersion, liveRevision: liveSnapshot.revision },
+      reset: true,
+      spans: mergeSpansById(history, liveSnapshot.spans)
+    }
   }
 
   private addEntity(entity: SpanEntity): void {
@@ -328,7 +439,11 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.store.setSpan(savedEntity)
   }
 
-  /** Union span events by name+time, preserving existing (incl. log-derived) events; never shrink. */
+  /**
+   * Union span events by name+time, preserving existing (incl. log-derived) events. The caller sends
+   * the result through the same retention path used by new and ended spans, so no storage entry point
+   * can bypass the per-span cap.
+   */
   private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
     if (!incoming || incoming.length === 0) return saved
     if (!saved || saved.length === 0) return incoming
@@ -382,10 +497,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private async flushTrace(topicId: string, traceId: string) {
     const spans = this.store.getSpans({ topicId, traceId })
     if (spans.length === 0) return
-    // A container trace flushes many turns to the SAME file across the session. Merge with what's
-    // already on disk so each flush ACCUMULATES instead of overwriting earlier turns' spans.
-    const existing = await this.getHistoryData(topicId, traceId)
-    await this.writeTraceFile(mergeSpansById(existing, spans), topicId, traceId)
+    await this.writeTraceFile(spans, topicId, traceId)
     // Clear exactly what we wrote — not the whole traceId. Spans of this trace that have no
     // topicId yet (and were therefore filtered out of the file) survive in memory to be flushed
     // once their topicId is registered, instead of being destroyed unwritten.
@@ -394,23 +506,91 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {
     const dirPath = this.traceTopicDir(topicId)
-    await fs.mkdir(dirPath, { recursive: true })
-    const content = spans
-      .filter((span) => span.topicId)
-      .map((span) => JSON.stringify(span))
-      .join('\n')
+    // Owner-only perms: trace JSONL holds raw prompts/API bodies (dev-gated
+    // plaintext by design) and userData can be world-readable on Linux (0755).
+    await fs.mkdir(dirPath, { recursive: true, mode: 0o700 })
     const filePath = this.traceFilePath(topicId, traceId)
+    const replacements = new Map(
+      spans
+        .filter((span) => span.topicId === topicId && span.traceId === traceId)
+        .map((span) => [span.id, span] as const)
+    )
+    const historySize = await this.historyFileSize(filePath)
+    // Only measure for trimming when the file is already over budget — the common case pays nothing.
+    const dropped =
+      historySize !== null && historySize > MAX_TRACE_FILE_BYTES
+        ? await this.countExpiredHistorySpans(filePath, topicId, traceId)
+        : 0
+    if (dropped > 0) {
+      logger.info('Trimming trace history to the retention budget', { topicId, traceId, dropped })
+    }
     // Write to a temp file then rename (atomic on the same filesystem) so a crash mid-write
-    // can't truncate previously flushed history.
+    // can't truncate previously flushed history. Stream the prior file one line at a time instead
+    // of parsing and serializing the complete trace into several large in-memory copies.
     const tmpPath = `${filePath}.${process.pid}.tmp`
+    let output: FileHandle | undefined
     try {
-      await fs.writeFile(tmpPath, content ? `${content}\n` : '')
+      output = await fs.open(tmpPath, 'w', 0o600)
+      if (historySize !== null) {
+        const handle = output
+        const seenIds = new Set<string>()
+        await this.forEachSpanLine(filePath, async (existing, line) => {
+          if (existing.topicId !== topicId || existing.traceId !== traceId || seenIds.has(existing.id)) return
+          seenIds.add(existing.id)
+          const replacement = replacements.get(existing.id)
+          // A span this flush re-writes is current data, so retention never trims it.
+          if (seenIds.size <= dropped && !replacement) return
+          await this.writeSpanLine(handle, replacement ?? line)
+          replacements.delete(existing.id)
+        })
+      }
+      for (const span of replacements.values()) {
+        await this.writeSpanLine(output, span)
+      }
+      await output.close()
+      output = undefined
       await fs.rename(tmpPath, filePath)
     } catch (error) {
       // Don't leave the partial temp file behind if write/rename fails.
+      await output?.close().catch(() => {})
       await fs.unlink(tmpPath).catch(() => {})
       throw error
     }
+  }
+
+  private async writeSpanLine(output: FileHandle, span: SpanEntity | string): Promise<void> {
+    const content = Buffer.from(`${typeof span === 'string' ? span : JSON.stringify(span)}\n`)
+    let offset = 0
+    while (offset < content.length) {
+      const { bytesWritten } = await output.write(content, offset, content.length - offset, null)
+      if (bytesWritten === 0) throw new Error('TraceStorageService: failed to make progress writing trace file')
+      offset += bytesWritten
+    }
+  }
+
+  /**
+   * How many of the oldest history spans must be dropped for the rewritten file to fit
+   * {@link MAX_TRACE_FILE_BYTES}. Sizes are measured from the file on disk in a streaming pass, so
+   * sizing never needs the trace in memory; spans this flush replaces or appends are accounted for
+   * on the next flush instead.
+   */
+  private async countExpiredHistorySpans(filePath: string, topicId: string, traceId: string): Promise<number> {
+    const sizes: number[] = []
+    const seenIds = new Set<string>()
+    await this.forEachSpanLine(filePath, (span, line) => {
+      if (span.topicId !== topicId || span.traceId !== traceId || seenIds.has(span.id)) return
+      seenIds.add(span.id)
+      sizes.push(Buffer.byteLength(line) + 1)
+    })
+
+    let retained = 0
+    let dropped = sizes.length
+    for (let index = sizes.length - 1; index >= 0; index--) {
+      if (retained + sizes[index] > MAX_TRACE_FILE_BYTES) break
+      retained += sizes[index]
+      dropped = index
+    }
+    return dropped
   }
 
   private async getHistoryData(topicId: string, traceId: string) {
@@ -420,28 +600,61 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       return []
     }
 
+    const spans: SpanEntity[] = []
     try {
-      const text = await fs.readFile(filePath, 'utf8')
-      return this.parseSpanLines(text).filter((span) => span.topicId === topicId && span.traceId === traceId)
+      await this.forEachSpanLine(filePath, (span) => {
+        if (span.topicId === topicId && span.traceId === traceId) spans.push(span)
+      })
     } catch (err) {
-      // Only fs.readFile reaches here (parseSpanLines tolerates per-line JSON errors itself).
+      // Only the stream read reaches here (forEachSpanLine tolerates per-line JSON errors itself).
       logger.error('Failed to read trace history file', err as Error, { filePath })
       throw err
     }
+    return spans
   }
 
-  private parseSpanLines(text: string): SpanEntity[] {
-    const spans: SpanEntity[] = []
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      try {
-        spans.push(JSON.parse(trimmed) as SpanEntity)
-      } catch (e) {
-        logger.error(`JSON parse failed: ${trimmed}`, e as Error)
+  /**
+   * Stream a trace file one span per line. Both the viewer read and the flush rewrite go through
+   * this, so neither ever holds the complete trace as one large text blob alongside its parsed copy.
+   * `line` is the trimmed source text, letting callers reuse it without re-serializing the span.
+   */
+  private async forEachSpanLine(
+    filePath: string,
+    visit: (span: SpanEntity, line: string) => void | Promise<void>
+  ): Promise<void> {
+    const input = createReadStream(filePath, { encoding: 'utf8' })
+    const lines = createInterface({ input, crlfDelay: Infinity })
+    try {
+      for await (const line of lines) {
+        const span = this.parseSpanLine(line)
+        if (span) await visit(span, line.trim())
       }
+    } finally {
+      lines.close()
+      input.destroy()
     }
-    return spans
+  }
+
+  private parseSpanLine(line: string): SpanEntity | undefined {
+    const trimmed = line.trim()
+    if (!trimmed) return undefined
+    try {
+      return JSON.parse(trimmed) as SpanEntity
+    } catch (error) {
+      logger.error('Failed to parse trace history line', error as Error, { lineLength: trimmed.length })
+      return undefined
+    }
+  }
+
+  private async getHistoryVersion(topicId: string, traceId: string): Promise<string | null> {
+    const filePath = this.traceFilePath(topicId, traceId)
+    try {
+      const stats = await fs.stat(filePath, { bigint: true })
+      return `${stats.mtimeNs}:${stats.size}`
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null
+      throw error
+    }
   }
 
   private traceRootDir(): string {
@@ -474,6 +687,16 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private traceFilePath(topicId: string, traceId: string): string {
     this.assertSafeSegment(traceId, 'traceId')
     return path.join(this.traceTopicDir(topicId), traceId)
+  }
+
+  /** Size in bytes of an existing trace file, or null when it has not been written yet. */
+  private async historyFileSize(filePath: string): Promise<number | null> {
+    try {
+      return (await fs.stat(filePath)).size
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return null
+      throw err
+    }
   }
 
   private async fileExists(filePath: string) {

@@ -79,7 +79,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
     const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
     const questions = parsedInput?.questions ?? parsedOptimisticInput?.questions ?? parsedOutput?.questions ?? []
-    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? parsedOptimisticInput?.answers ?? {}
+    const answers = {
+      ...parsedOutput?.answers,
+      ...parsedInput?.answers,
+      ...parsedOptimisticInput?.answers
+    }
 
     if (!questions.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
@@ -96,10 +100,13 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
-
-  if (!currentQuestion) return null
-
   const answeredCount = Object.keys(answers).length
+  // The composer owns unanswered live questions; terminal snapshots remain valid history records.
+  const isTransientWithoutAnswer =
+    answeredCount === 0 &&
+    (toolResponse.status === 'pending' || toolResponse.status === 'invoking' || toolResponse.status === 'streaming')
+
+  if (!currentQuestion || isTransientWithoutAnswer) return null
 
   const content = (
     <div className="flex flex-col gap-3">
@@ -122,15 +129,15 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       <AgentToolDisclosureLabel
         label={
           <div className="flex items-center gap-2">
-            <span className="tool-icon flex h-4 w-4 shrink-0 items-center justify-center text-foreground-muted">
+            <span className="tool-icon flex h-4 w-4 shrink-0 items-center justify-center text-foreground-tertiary">
               <HelpCircle className="h-4 w-4" />
             </span>
-            <span className="text-foreground-secondary">{t('agent.askUserQuestion.title')}</span>
+            <span className="text-muted-foreground">{t('agent.askUserQuestion.title')}</span>
           </div>
         }
         trailing={
           answeredCount > 0 ? (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-foreground-muted text-xs leading-4">
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-foreground-tertiary text-xs leading-4">
               {answeredCount} {t('agent.askUserQuestion.answered')}
             </span>
           ) : undefined
@@ -139,12 +146,16 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     ),
     children: content,
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
 
   return (
-    <AgentToolDisclosure className="w-full max-w-full rounded-none border-0 bg-transparent" item={toolContentItem} />
+    <AgentToolDisclosure
+      className="w-full max-w-full rounded-none border-0 bg-transparent"
+      item={toolContentItem}
+      stateId={toolResponse.toolCallId}
+    />
   )
 }
 

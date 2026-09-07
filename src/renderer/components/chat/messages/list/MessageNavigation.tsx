@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { MessageListItem } from '../types'
+import { getOwningUserMessageIdByAssistantId } from '../utils/messageGroupKey'
 
 const EXCLUDED_SELECTORS = [
   '.MessageFooter',
@@ -22,6 +23,7 @@ const TRIGGER_WIDTH = 60
 interface MessageNavigationProps {
   scrollContainerRef: RefObject<HTMLElement | null>
   getMessageElement: (messageId: string) => HTMLElement | null
+  getNavigationBaseMessageId: () => string | null
   messages: MessageListItem[]
   scrollToMessageId: (messageId: string) => void
   scrollToTop: () => void
@@ -31,6 +33,7 @@ interface MessageNavigationProps {
 const MessageNavigation: FC<MessageNavigationProps> = ({
   scrollContainerRef,
   getMessageElement,
+  getNavigationBaseMessageId,
   messages,
   scrollToMessageId,
   scrollToTop,
@@ -79,9 +82,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     scheduleHide(500)
   }, [scheduleHide])
 
-  const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
+  const getCurrentVisibleIndex = () => {
     const userMessages = messages.filter((message) => message.role === 'user')
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
+    const userIndexById = new Map(userMessages.map((message, index) => [message.id, index]))
+    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
     const scrollContainer = scrollContainerRef.current
 
     if (!scrollContainer) return -1
@@ -104,28 +109,39 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     }
 
     if (visibleIndices.length > 0) {
-      return direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
+      return Math.min(...visibleIndices)
     }
 
     visibleIndices = []
     for (let i = 0; i < assistantMessages.length; i++) {
-      const messageElement = getMessageElement(assistantMessages[i].id)
+      const assistantMessage = assistantMessages[i]
+      const messageElement = getMessageElement(assistantMessage.id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
       const visibleHeight =
         Math.min(messageRect.bottom, containerRect.bottom) - Math.max(messageRect.top, containerRect.top)
       if (visibleHeight > 0 && visibleHeight >= Math.min(messageRect.height, visibleThreshold)) {
-        visibleIndices.push(i)
+        const ownerId = owningUserMessageIdByAssistantId.get(assistantMessage.id)
+        const userIndex = ownerId ? userIndexById.get(ownerId) : undefined
+        if (userIndex !== undefined) visibleIndices.push(userIndex)
       }
     }
 
     if (visibleIndices.length > 0) {
-      const assistantIndex = direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
-      return assistantIndex < userMessages.length ? assistantIndex : userMessages.length - 1
+      return Math.min(...visibleIndices)
     }
 
     return -1
+  }
+
+  const getNavigationBaseIndex = (userMessages: MessageListItem[]) => {
+    const navigationBaseMessageId = getNavigationBaseMessageId()
+    const explicitBaseIndex = navigationBaseMessageId
+      ? userMessages.findIndex((message) => message.id === navigationBaseMessageId)
+      : -1
+
+    return explicitBaseIndex >= 0 ? explicitBaseIndex : getCurrentVisibleIndex()
   }
 
   const handleCloseMessageNavigation = () => {
@@ -153,11 +169,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
 
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToBottom()
 
-    const visibleIndex = getCurrentVisibleIndex('down')
-    if (visibleIndex === -1) return scrollToBottom()
+    const baseIndex = getNavigationBaseIndex(userMessages)
+    if (baseIndex === -1) return scrollToBottom()
 
-    const targetIndex = visibleIndex - 1
-    if (targetIndex < 0) return scrollToBottom()
+    const targetIndex = baseIndex + 1
+    if (targetIndex >= userMessages.length) return scrollToBottom()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
@@ -168,11 +184,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToTop()
 
-    const visibleIndex = getCurrentVisibleIndex('up')
-    if (visibleIndex === -1) return scrollToTop()
+    const baseIndex = getNavigationBaseIndex(userMessages)
+    if (baseIndex === -1) return scrollToTop()
 
-    const targetIndex = visibleIndex + 1
-    if (targetIndex >= userMessages.length) return scrollToTop()
+    const targetIndex = baseIndex - 1
+    if (targetIndex < 0) return scrollToTop()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }

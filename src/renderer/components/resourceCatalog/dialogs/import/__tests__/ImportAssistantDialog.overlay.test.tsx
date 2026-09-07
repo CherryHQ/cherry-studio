@@ -60,14 +60,6 @@ beforeEach(() => {
 })
 
 describe('ImportAssistantDialog', () => {
-  it('uses the shared dialog width instead of a narrower override', () => {
-    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
-
-    const content = document.querySelector('[data-slot="dialog-content"]')
-    expect(content).toHaveClass('overflow-hidden')
-    expect(content).not.toHaveClass('sm:max-w-md')
-  })
-
   it('closes when clicking the overlay while idle', () => {
     const onOpenChange = vi.fn()
 

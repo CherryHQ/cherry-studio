@@ -5,6 +5,23 @@ import { KeyedMutex } from '../KeyedMutex'
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('KeyedMutex', () => {
+  it('supports an idempotent manual release for long-lived critical sections', async () => {
+    const km = new KeyedMutex()
+    const release = await km.acquire('k')
+    let entered = false
+    const queued = km.runExclusive('k', () => {
+      entered = true
+    })
+
+    await tick()
+    expect(entered).toBe(false)
+
+    release()
+    release()
+    await queued
+    expect(entered).toBe(true)
+  })
+
   it('serialises tasks sharing a key — no interleave', async () => {
     const km = new KeyedMutex()
     const order: string[] = []

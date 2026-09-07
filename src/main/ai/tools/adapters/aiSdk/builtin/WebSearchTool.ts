@@ -17,6 +17,7 @@ import {
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
+import { makeEntitiesCodec } from '../../../outputCodec'
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
@@ -29,22 +30,30 @@ const webSearchTool = tool({
   description: WEB_SEARCH_DESCRIPTION,
   inputSchema: webSearchInputSchema,
   outputSchema: webSearchResultSchema,
-  // Provider-level constrained decoding where supported. Repair fallback
-  // (in AiService) handles providers that don't honour `strict`.
-  strict: true,
-  execute: async ({ query }, options) =>
-    markTrustedLocalToolTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
+  execute: async ({ query }, options) => {
+    if (typeof query !== 'string' || !query.trim()) {
+      return []
+    }
+    return markTrustedLocalToolTerminalFailure(
+      await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
+    )
+  },
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
 export function createWebSearchToolEntry(): ToolEntry {
   return {
     name: WEB_SEARCH_TOOL_NAME,
+    // Entity codec instead of the blanket truncatable:false (same rationale as
+    // web_fetch): per-entity `content` trimming keeps every id/url/title anchor
+    // visible. Near a no-op at default thresholds — search snippets are small —
+    // but a provider returning full-page content is no longer uncapped.
+    codec: makeEntitiesCodec({ contentKey: 'content' }),
     namespace: 'web',
     description: 'Search the web for current information',
     defer: 'auto',
     tool: webSearchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
+    applies: (scope) => scope.webToolRoutes?.webSearch === 'client'
   }
 }
 

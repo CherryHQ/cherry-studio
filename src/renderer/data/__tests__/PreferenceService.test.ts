@@ -15,18 +15,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
 vi.unmock('@data/PreferenceService')
 
-const onChanged = vi.fn(() => () => {})
+const onChangedCleanup = vi.fn()
+let emitChanged: ((key: string, value: unknown) => void) | undefined
+const onChanged = vi.fn((callback: (key: string, value: unknown) => void) => {
+  emitChanged = callback
+  return onChangedCleanup
+})
 const getAll = vi.fn(async () => ({}))
 const subscribe = vi.fn(async () => {})
-const get = vi.fn(async () => true)
+const get = vi.fn(async (): Promise<unknown> => true)
 const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
+const set = vi.fn(async () => {})
+const setMultiple = vi.fn(async () => {})
 
 beforeEach(() => {
   onChanged.mockClear()
+  onChangedCleanup.mockClear()
   getAll.mockClear()
   subscribe.mockClear()
   get.mockClear()
   getMultipleRaw.mockClear()
+  set.mockClear()
+  setMultiple.mockClear()
+  emitChanged = undefined
 
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -36,7 +47,9 @@ beforeEach(() => {
         getAll,
         subscribe,
         get,
-        getMultipleRaw
+        getMultipleRaw,
+        set,
+        setMultiple
       }
     }
   })
@@ -122,5 +135,70 @@ describe('renderer PreferenceService keyed subscription batching', () => {
     // Already subscribed — no further subscribe calls.
     await service.get('app.language')
     expect(subscribe).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('renderer PreferenceService write consistency', () => {
+  it('drops a deep-equal cross-window echo but delivers a real external change', async () => {
+    get.mockResolvedValueOnce(['en-US'])
+    const service = await createService()
+    await service.get('app.spell_check.languages')
+    const listener = vi.fn()
+    service.subscribeChange('app.spell_check.languages')(listener)
+
+    emitChanged?.('app.spell_check.languages', ['en-US'])
+    expect(listener).not.toHaveBeenCalled()
+
+    emitChanged?.('app.spell_check.languages', ['fr-FR'])
+    expect(listener).toHaveBeenCalledOnce()
+    expect(service.getCachedValue('app.spell_check.languages')).toEqual(['fr-FR'])
+
+    service.cleanup()
+    expect(onChangedCleanup).toHaveBeenCalledOnce()
+  })
+
+  it('rolls an optimistic write back to the original value when persistence fails', async () => {
+    get.mockResolvedValueOnce(true)
+    const service = await createService()
+    await service.get('app.developer_mode.enabled')
+    const listener = vi.fn()
+    service.subscribeChange('app.developer_mode.enabled')(listener)
+    const error = new Error('write failed')
+    set.mockRejectedValueOnce(error)
+
+    const update = service.set('app.developer_mode.enabled', false)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(false)
+
+    await expect(update).rejects.toBe(error)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes concurrent writes to one key and leaves the latest value cached', async () => {
+    get.mockResolvedValueOnce(true)
+    let resolveFirst: () => void = () => undefined
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const service = await createService()
+    await service.get('app.developer_mode.enabled')
+
+    const first = service.set('app.developer_mode.enabled', false)
+    const second = service.set('app.developer_mode.enabled', true)
+
+    expect(set).toHaveBeenCalledExactlyOnceWith('app.developer_mode.enabled', false)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(false)
+
+    resolveFirst()
+    await Promise.all([first, second])
+
+    expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
 })

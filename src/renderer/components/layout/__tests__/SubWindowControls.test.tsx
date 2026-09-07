@@ -10,8 +10,7 @@ const tab: Tab = {
   type: 'route',
   url: '/app/chat?topicId=topic-1',
   title: 'Daily Standup',
-  icon: 'emoji:🤖',
-  metadata: { instanceAppId: 'assistants', instanceKey: 'topic-current' }
+  icon: 'emoji:🤖'
 }
 
 // Detached sub-window hosts exactly one tab; controls read it directly.
@@ -75,9 +74,6 @@ describe('SubWindowControls', () => {
     render(<SubWindowControls />)
 
     fireEvent.click(screen.getByRole('button', { name: 'subWindow.back_to_main' }))
-    expect(mocks.request).toHaveBeenCalledWith('tab.attach', {
-      ...tab,
-      url: '/app/chat?topicId=topic-current'
-    })
+    expect(mocks.request).toHaveBeenCalledWith('tab.attach', tab)
   })
 })

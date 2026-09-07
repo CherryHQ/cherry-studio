@@ -8,6 +8,7 @@ export type TopicMessageFlowEdgeState = 'active' | 'default' | 'inactive' | 'sib
 export interface TopicMessageFlowNodeData extends Record<string, unknown> {
   messageId: string
   role: MessageRole
+  isContextBoundary?: boolean
   status: MessageStatus
   preview: string
   modelId?: string | null
@@ -15,8 +16,7 @@ export interface TopicMessageFlowNodeData extends Record<string, unknown> {
   isActive: boolean
   isOnActivePath: boolean
   isInactiveBranch: boolean
-  hasAssistantDescendant?: boolean
-  isInputDraft?: boolean
+  isAwaitingInput?: boolean
   siblingsGroupId?: number
 }
 

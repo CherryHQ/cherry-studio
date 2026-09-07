@@ -71,6 +71,7 @@ export interface OAuthRuntimeProviderContext {
   oauthServer?: string
   apiHost?: string
   forceRefresh?: boolean
+  signal?: AbortSignal
 }
 
 export interface OAuthTokenExchangeSideEffectResult {

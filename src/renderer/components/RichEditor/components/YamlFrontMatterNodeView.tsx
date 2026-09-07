@@ -289,7 +289,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       <div className="-mx-1 my-1 h-px bg-border" />
       <button
         type="button"
-        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive/10"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive hover:text-destructive-foreground"
         onClick={() => {
           handleDeleteProperty(property.key)
           setOpenDropdown(null)

@@ -28,6 +28,20 @@ export interface LegacyModelRef {
   provider?: string
 }
 
+function parseValidUniqueModelId(value: string): UniqueModelId | null {
+  const separatorIndex = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+  if (separatorIndex <= 0) return null
+
+  try {
+    return createUniqueModelId(
+      value.slice(0, separatorIndex),
+      value.slice(separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length)
+    )
+  } catch {
+    return null
+  }
+}
+
 /**
  * Convert a legacy model reference to a UniqueModelId.
  *
@@ -55,19 +69,23 @@ export function legacyModelToUniqueId(
     if (providerId && modelId) {
       // If the modelId is already a composite ID, return it directly to avoid double-prefixing.
       if (modelId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
-        return modelId as UniqueModelId
+        return parseValidUniqueModelId(modelId)
       }
       if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
         return null
       }
-      return createUniqueModelId(providerId, modelId)
+      try {
+        return createUniqueModelId(providerId, modelId)
+      } catch {
+        return null
+      }
     }
   }
 
   if (typeof fallback === 'string') {
     const trimmedFallback = fallback.trim()
     if (trimmedFallback && isUniqueModelId(trimmedFallback)) {
-      return trimmedFallback
+      return parseValidUniqueModelId(trimmedFallback)
     }
   }
 

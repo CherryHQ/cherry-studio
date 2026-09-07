@@ -3,10 +3,10 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { useEffect, useMemo, useState } from 'react'
 
-import { isPaintingNewApiProvider } from '../model/types/paintingProviderRuntime'
-import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
+import { isAvailablePaintingModel } from '../model/utils/paintingModelOptions'
 import { getValidPaintingOptions } from '../utils/providerSelection'
 
 type OvmsStatus = 'not-installed' | 'not-running' | 'running'
@@ -46,8 +46,8 @@ async function loadOvmsState(): Promise<OvmsState> {
 }
 
 /**
- * Pure merge: capability-derived provider ids ∪ user-added new-api compat
- * ids, sorted for a stable UI, then filtered by the ovms availability gate.
+ * Derive enabled providers that own at least one available painting model,
+ * sorted for a stable UI, then filtered by the OVMS availability gate.
  * Exported for unit testing.
  *
  * Provider enablement is fully capability-derived now — any provider whose
@@ -58,19 +58,21 @@ async function loadOvmsState(): Promise<OvmsState> {
  */
 export function buildPaintingProviderOptions(input: {
   models: readonly Model[]
-  newApiProviderIds: readonly string[]
+  providers: readonly Pick<Provider, 'id' | 'isEnabled'>[]
   ovmsSupported: boolean
   ovmsStatus: OvmsStatus
 }): string[] {
+  const enabledProviderIds = new Set(
+    input.providers.filter((provider) => provider.isEnabled).map((provider) => provider.id)
+  )
   const capabilityProviderIds = new Set<string>()
   for (const model of input.models) {
-    if (supportsImageGenerationEndpoint(model)) {
+    if (enabledProviderIds.has(model.providerId) && isAvailablePaintingModel(model)) {
       capabilityProviderIds.add(model.providerId)
     }
   }
 
-  const merged = [...new Set([...[...capabilityProviderIds].sort(), ...input.newApiProviderIds])]
-  return getValidPaintingOptions(merged, input.ovmsSupported, input.ovmsStatus)
+  return getValidPaintingOptions([...capabilityProviderIds].sort(), input.ovmsSupported, input.ovmsStatus)
 }
 
 export function usePaintingProviderOptions(): string[] {
@@ -94,15 +96,14 @@ export function usePaintingProviderOptions(): string[] {
     }
   }, [])
 
-  return useMemo(() => {
-    // User-added OpenAI-compatible "new-api"-style providers (presetProviderId
-    // based) — kept so manually configured compat providers still surface.
-    const newApiProviderIds = allProviders.filter(isPaintingNewApiProvider).map((provider) => provider.id)
-    return buildPaintingProviderOptions({
-      models,
-      newApiProviderIds,
-      ovmsSupported: ovmsState.supported,
-      ovmsStatus: ovmsState.status
-    })
-  }, [allProviders, models, ovmsState])
+  return useMemo(
+    () =>
+      buildPaintingProviderOptions({
+        providers: allProviders,
+        models,
+        ovmsSupported: ovmsState.supported,
+        ovmsStatus: ovmsState.status
+      }),
+    [allProviders, models, ovmsState]
+  )
 }

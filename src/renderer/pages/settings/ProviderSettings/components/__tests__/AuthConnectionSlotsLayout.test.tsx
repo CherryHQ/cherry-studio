@@ -2,7 +2,7 @@ import AuthConnectionSlotsLayout from '@renderer/pages/settings/ProviderSettings
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type TestProvider = { id: string; presetProviderId?: string }
+type TestProvider = { id: string; presetProviderId?: string; authMethods?: string[] }
 
 const { providersById } = vi.hoisted(() => ({
   providersById: new Map<string, TestProvider>()
@@ -13,6 +13,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@shared/utils/provider', () => ({
+  isLoginBasedProvider: (provider: TestProvider) =>
+    provider.authMethods !== undefined && provider.authMethods.length > 0 && !provider.authMethods.includes('api-key'),
   matchesPreset: (provider: TestProvider, presetId: string) =>
     provider?.id === presetId || provider?.presetProviderId === presetId
 }))
@@ -62,36 +64,17 @@ describe('AuthConnectionSlotsLayout', () => {
     expect(container.querySelector('h3')).toBeNull()
   })
 
-  it('uses compact spacing only for AWS Bedrock', () => {
-    const { container, rerender } = render(
-      <AuthConnectionSlotsLayout providerId="aws-bedrock">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('.gap-1')).not.toBeNull()
-    expect(container.querySelector('.gap-5')).toBeNull()
-
-    rerender(
-      <AuthConnectionSlotsLayout providerId="openai">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('.gap-5')).not.toBeNull()
-    expect(container.querySelector('.gap-1')).toBeNull()
-  })
-
-  it('uses compact spacing for providers derived from the AWS Bedrock preset', () => {
-    providersById.set('custom-bedrock', { id: 'custom-bedrock', presetProviderId: 'aws-bedrock' })
+  it('omits the empty generic authentication container for login-based providers', () => {
+    providersById.set('openai-codex', { id: 'openai-codex', authMethods: ['oauth'] })
 
     const { container } = render(
-      <AuthConnectionSlotsLayout providerId="custom-bedrock">
+      <AuthConnectionSlotsLayout providerId="openai-codex">
         <div>core</div>
       </AuthConnectionSlotsLayout>
     )
 
-    expect(container.querySelector('.gap-1')).not.toBeNull()
-    expect(container.querySelector('.gap-5')).toBeNull()
+    expect(container.textContent).toContain('beforeAuth')
+    expect(container.textContent).not.toContain('core')
+    expect(container.textContent).not.toContain('afterAuth')
   })
 })

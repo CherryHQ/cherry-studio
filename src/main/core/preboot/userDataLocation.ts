@@ -2,12 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { resolveDevUserDataPath } from '@main/core/paths/constants'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('Preboot')
-const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
 
 /**
  * "userData" in this module means Electron's complete OS-level userData
@@ -48,7 +48,7 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
  */
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
-    const devPath = app.getPath('userData') + resolveDevUserDataSuffix()
+    const devPath = resolveDevUserDataPath()
     app.setPath('userData', devPath)
     logger.info('userData set with dev suffix', { devPath })
     return
@@ -68,10 +68,6 @@ export function resolveUserDataLocation(): void {
     app.setPath('userData', portablePath)
     logger.info('userData set for portable build', { portablePath })
   }
-}
-
-function resolveDevUserDataSuffix(): string {
-  return process.env.CS_DEV_USER_DATA_SUFFIX?.trim() || DEFAULT_DEV_USER_DATA_SUFFIX
 }
 
 /**

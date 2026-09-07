@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { toast } from '@renderer/services/toast'
 import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
@@ -20,12 +21,21 @@ const Translate: FC<Props> = ({ text }) => {
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
-  const { translate: runTranslate, cancel } = useTranslate({
+  const {
+    translate: runTranslate,
+    cancel,
+    isTranslating
+  } = useTranslate({
     loggerContext: 'TranslateWindow',
-    onResponse: setResult
+    onResponse: (text, isComplete) => updateSmoothStream(text, isComplete)
+  })
+  const { reset: resetSmoothStream, update: updateSmoothStream } = useSmoothStream({
+    onUpdate: setResult,
+    streamDone: !isTranslating
   })
 
   const translateCurrentText = useEffectEvent(() => {
+    resetSmoothStream('')
     if (!text.trim() || !translateModel) {
       cancel()
       return
@@ -48,7 +58,7 @@ const Translate: FC<Props> = ({ text }) => {
   return (
     <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
-        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-muted text-sm opacity-70">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
           <span className="truncate">{t('translate.any.language')}</span>
         </div>
         <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
@@ -64,7 +74,7 @@ const Translate: FC<Props> = ({ text }) => {
       </div>
       <div className="flex w-full flex-1 overflow-hidden">
         {isEmpty(result) ? (
-          <div className="text-foreground-muted italic">{t('translate.output.placeholder')}...</div>
+          <div className="text-foreground-tertiary italic">{t('translate.output.placeholder')}...</div>
         ) : (
           <Scrollbar className="flex flex-1 flex-col gap-2.5">
             <div className="w-full whitespace-pre-wrap break-words">{result}</div>

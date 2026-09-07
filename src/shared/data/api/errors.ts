@@ -807,6 +807,15 @@ export function isDataApiError(error: unknown): error is DataApiError {
 }
 
 /**
+ * Check if an error is a DataApiError carrying the NOT_FOUND code.
+ * @param error - Any thrown value
+ * @returns true if the error is a NOT_FOUND DataApiError
+ */
+export function isDataApiNotFoundError(error: unknown): boolean {
+  return isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
+}
+
+/**
  * Check if an object is a serialized DataApiError.
  * @param error - Any object
  * @returns true if the object has DataApiError structure

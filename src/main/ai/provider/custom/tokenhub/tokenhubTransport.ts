@@ -1,4 +1,10 @@
-import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
+import {
+  combineHeaders,
+  createJsonResponseHandler,
+  type FetchFunction,
+  getFromApi,
+  postJsonToApi
+} from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -7,7 +13,6 @@ import {
   ADAPTIVE_IMAGE_POLL_POLICY,
   completedImageTransportSubmission,
   completedImageTransportTask,
-  type ImageGenerationTransport,
   type ImageTransportInputSupport,
   type ImageTransportTaskContext,
   type ImageTransportTaskState,
@@ -15,80 +20,148 @@ import {
   type TaskImageGenerationTransport
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import { fileToDataUrl } from '../transportUtils'
 
 /**
- * TokenHub (Tencent MaaS) Hunyuan image transport.
+ * Tencent TokenHub image transport.
  *
- * The registry declares the per-model routing (`vendorTransport`):
- *   - `hy-image-v3.0` → POST `/v1/api/image/submit` → poll `/v1/api/image/query`
- *   - `hy-image-lite` → POST `/v1/api/image/lite` (synchronous, `isSync`)
+ * Current registry routes use three `/v1/wand/*` families:
+ *   - Hunyuan: synchronous `/v1/wand/hunyuan-image/v3-generation`
+ *   - Seedream: synchronous `/v1/wand/si-image/generation`
+ *   - Vidu: asynchronous `/v1/wand/vidu-image/generation`, queried at
+ *     `GET /v1/wand/vidu-image/tasks/{task_id}`
  *
- * API contract: https://cloud.tencent.com/document/product/1823/130080 —
- * submit returns `{ id, status: 'queued' }`; query takes `{ model, id }` and
- * returns `{ status, data: [{ url }] }`; params are the Hunyuan job fields in
- * snake_case (`LogoAdd` → `logo_add`).
+ * The descriptor owns endpoint selection; this transport owns only each
+ * endpoint's body and response protocol.
  */
 
-export const TOKENHUB_PROVIDER_NAME = 'tokenhub' as const
+export const DEFAULT_TOKENHUB_BASE_URL = 'https://tokenhub.tencentmaas.com'
 
-export const DEFAULT_TOKENHUB_ORIGIN = 'https://tokenhub.tencentmaas.com'
+const VIDU_TASKS_PATH = '/v1/wand/vidu-image/tasks'
 
-const QUERY_ENDPOINT = '/v1/api/image/query'
-
-/** Hunyuan `resolution` ("width:height") per registry aspect-ratio option. */
-const ASPECT_RATIO_RESOLUTIONS: Record<string, string> = {
-  '1:1': '1024:1024',
-  '4:3': '1024:768',
-  '3:4': '768:1024',
-  '16:9': '1280:720',
-  '9:16': '720:1280'
-}
-
-const tokenhubImageDataSchema = z.object({ url: z.string().min(1) }).passthrough()
-const tokenhubSubmitResultSchema = z.object({ id: z.string().min(1) }).passthrough()
-const tokenhubSyncResultSchema = z.object({ data: z.array(tokenhubImageDataSchema) }).passthrough()
-const tokenhubQueryResultSchema = z
+const tokenhubImageSchema = z
   .object({
-    status: z.enum([
-      'queued',
-      'running',
-      'completed',
-      'succeeded',
-      'success',
-      'failed',
-      'error',
-      'cancelled',
-      'canceled'
-    ]),
-    data: z.array(tokenhubImageDataSchema).optional()
+    url: z.string().min(1).optional(),
+    b64_json: z.string().min(1).optional()
+  })
+  .refine((image) => image.url !== undefined || image.b64_json !== undefined, {
+    message: 'TokenHub image result requires url or b64_json'
   })
   .passthrough()
 
-/**
- * The vendor bag as this transport reads it. Derived from {@link ParamValues} so every
- * canonical key is CHECKED against `IMAGE_PARAM_CATALOG` — the IPC boundary strips
- * anything else, so a hand-declared non-catalog name is a field that can never arrive.
- */
-export type TokenhubProviderParams = Pick<VendorBag, 'negativePrompt' | 'addWatermark'>
+const tokenhubSyncImageResponseSchema = z.object({ data: z.array(tokenhubImageSchema).min(1) }).passthrough()
 
-const FAILED_STATUSES = new Set(['failed', 'error', 'cancelled', 'canceled'])
-const COMPLETED_STATUSES = new Set(['completed', 'succeeded', 'success'])
+const tokenhubTaskStateSchema = z.enum(['created', 'queueing', 'processing', 'success', 'failed'])
+
+const tokenhubViduSubmitResponseSchema = z
+  .object({
+    task_id: z.string().min(1),
+    state: tokenhubTaskStateSchema.optional()
+  })
+  .passthrough()
+
+const tokenhubViduTaskResponseSchema = z
+  .object({
+    state: tokenhubTaskStateSchema,
+    creations: z.array(z.object({ url: z.string().min(1) }).passthrough()).optional(),
+    message: z.string().optional(),
+    err_msg: z.string().optional()
+  })
+  .passthrough()
+
+export type TokenhubProviderParams = Pick<
+  VendorBag,
+  | 'promptEnhancement'
+  | 'imageResolution'
+  | 'outputFormat'
+  | 'addWatermark'
+  | 'sequentialImageGeneration'
+  | 'maxImages'
+  | 'resolution'
+>
 
 export interface TokenhubTransportSettings {
   apiKey: string
-  /** Host origin; the registry `vendorTransport.endpoint` paths are host-absolute. */
-  origin?: string
+  baseURL?: string
   headers?: Record<string, string | undefined>
   fetch?: FetchFunction
 }
 
-class TokenhubTransport implements TaskImageGenerationTransport<TokenhubProviderParams> {
+type BodyFamily = 'hunyuan' | 'seedream' | 'vidu'
+
+function bodyFamilyFor(endpoint: string): BodyFamily {
+  if (endpoint.includes('/hunyuan-image/')) return 'hunyuan'
+  if (endpoint.includes('/si-image/')) return 'seedream'
+  if (endpoint.includes('/vidu-image/')) return 'vidu'
+  throw new Error(`Unsupported TokenHub image endpoint: ${endpoint}`)
+}
+
+function imagesOf(input: ImageGenerationSubmitInput<VendorBag>): string[] | undefined {
+  if (!input.files?.length) return undefined
+  return input.files.map((file) => fileToDataUrl(file))
+}
+
+function buildHunyuanBody(
+  input: ImageGenerationSubmitInput<VendorBag>,
+  bag: TokenhubProviderParams
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '' }
+  const images = imagesOf(input)
+  if (images) body.images = images
+  if (input.size) body.size = input.size
+  if (typeof input.seed === 'number') body.seed = input.seed
+  if (bag.promptEnhancement !== undefined) body.revise = bag.promptEnhancement
+  return body
+}
+
+function buildSeedreamBody(
+  input: ImageGenerationSubmitInput<VendorBag>,
+  bag: TokenhubProviderParams
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '', response_format: 'url' }
+  const images = imagesOf(input)
+  if (images) body.images = images
+  const size = input.size ?? bag.imageResolution
+  if (size) body.size = size
+  if (bag.outputFormat) body.output_format = bag.outputFormat
+  if (bag.addWatermark !== undefined) body.watermark = bag.addWatermark
+  if (bag.sequentialImageGeneration) {
+    body.sequential_image_generation = bag.sequentialImageGeneration
+    if (bag.sequentialImageGeneration === 'auto' && typeof bag.maxImages === 'number') {
+      body.sequential_image_generation_options = { max_images: bag.maxImages }
+    }
+  }
+  return body
+}
+
+function buildViduBody(
+  input: ImageGenerationSubmitInput<VendorBag>,
+  bag: TokenhubProviderParams
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { model: input.modelId, prompt: input.prompt ?? '' }
+  const images = imagesOf(input)
+  if (images) body.images = images
+  if (input.aspectRatio) body.aspect_ratio = input.aspectRatio
+  if (bag.resolution) body.resolution = bag.resolution
+  if (typeof input.seed === 'number') body.seed = input.seed
+  return body
+}
+
+function extractSyncUrls(data: z.infer<typeof tokenhubSyncImageResponseSchema>['data']): string[] {
+  return data.map((item) => {
+    if (item.url) return item.url
+    if (item.b64_json) return `data:image/png;base64,${item.b64_json}`
+    throw new Error('TokenHub image result requires url or b64_json')
+  })
+}
+
+class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
   private readonly apiKey: string
-  private readonly origin: string
+  private readonly baseURL: string
   private readonly headers: Record<string, string | undefined> | undefined
   private readonly fetch: FetchFunction | undefined
 
-  readonly task: TaskImageGenerationTransport<TokenhubProviderParams>['task'] = {
+  readonly task: TaskImageGenerationTransport<VendorBag>['task'] = {
     kind: 'supported' as const,
     pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
     query: (taskId: string, context: Parameters<TokenhubTransport['query']>[1]) => this.query(taskId, context),
@@ -97,125 +170,95 @@ class TokenhubTransport implements TaskImageGenerationTransport<TokenhubProvider
 
   constructor(settings: TokenhubTransportSettings) {
     this.apiKey = settings.apiKey
-    this.origin = settings.origin || DEFAULT_TOKENHUB_ORIGIN
+    this.baseURL = settings.baseURL || DEFAULT_TOKENHUB_BASE_URL
     this.headers = settings.headers
     this.fetch = settings.fetch
   }
 
-  /** Hunyuan's text-to-image body has no image or mask slot for any model. */
   supportsInput(): ImageTransportInputSupport {
-    return { files: false, mask: false }
+    return { files: true, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput<TokenhubProviderParams>) {
+  async submit(input: ImageGenerationSubmitInput<VendorBag>) {
     const descriptor = input.modelDescriptor
     if (!descriptor) {
-      throw new Error(`Unknown model: ${input.modelId}`)
+      throw new Error(`Missing modelDescriptor for TokenHub image model: ${input.modelId}`)
     }
 
+    const family = bodyFamilyFor(descriptor.endpoint)
     const bag = input.providerParams
-    const resolution = input.aspectRatio ? ASPECT_RATIO_RESOLUTIONS[input.aspectRatio] : undefined
-    const body: Record<string, unknown> = {
-      model: descriptor.id,
-      prompt: input.prompt,
-      ...(input.seed !== undefined && { seed: input.seed }),
-      ...(bag.negativePrompt && { negative_prompt: bag.negativePrompt }),
-      ...(typeof bag.addWatermark === 'boolean' && { logo_add: bag.addWatermark }),
-      ...(resolution && { resolution })
-    }
+    const url = `${this.baseURL}${descriptor.endpoint}`
+    const headers = combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers)
 
-    if (descriptor.isSync) {
-      // hy-image-lite: OpenAI-style synchronous endpoint, finished images in `data`.
-      const url = `${this.origin}${descriptor.endpoint}`
-      const result = await withImageTransportRequestTimeout(
+    if (family === 'vidu') {
+      const response = await withImageTransportRequestTimeout(
         { url, timeoutMs: 120_000, signal: input.signal },
         (signal) =>
           postJsonToApi({
             url,
-            headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers),
-            body: { ...body, rsp_img_type: 'url' },
+            headers,
+            body: buildViduBody(input, bag),
             abortSignal: signal,
             fetch: this.fetch,
             failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
-            successfulResponseHandler: createJsonResponseHandler(tokenhubSyncResultSchema)
+            successfulResponseHandler: createJsonResponseHandler(tokenhubViduSubmitResponseSchema)
           })
       )
-      return completedImageTransportSubmission(extractImageUrls(result.value.data), 'TokenHub')
+      return submittedImageTransportSubmission(response.value.task_id, 'TokenHub Vidu submit')
     }
 
-    const url = `${this.origin}${descriptor.endpoint}`
-    const result = await withImageTransportRequestTimeout({ url, timeoutMs: 120_000, signal: input.signal }, (signal) =>
-      postJsonToApi({
-        url,
-        headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers),
-        body,
-        abortSignal: signal,
-        fetch: this.fetch,
-        failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
-        successfulResponseHandler: createJsonResponseHandler(tokenhubSubmitResultSchema)
-      })
+    const response = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 120_000, signal: input.signal },
+      (signal) =>
+        postJsonToApi({
+          url,
+          headers,
+          body: family === 'hunyuan' ? buildHunyuanBody(input, bag) : buildSeedreamBody(input, bag),
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
+          successfulResponseHandler: createJsonResponseHandler(tokenhubSyncImageResponseSchema)
+        })
     )
-    return submittedImageTransportSubmission(result.value.id, `TokenHub image submit for '${descriptor.id}'`)
+    return completedImageTransportSubmission(
+      extractSyncUrls(response.value.data),
+      'TokenHub'
+    )
   }
 
   private async query(
     taskId: string,
-    context: ImageTransportTaskContext<TokenhubProviderParams, AbortSignal>
+    context: ImageTransportTaskContext<VendorBag, AbortSignal>
   ): Promise<ImageTransportTaskState> {
-    const modelId = context.modelDescriptor?.id
-    if (!modelId) {
-      throw new Error('TokenHub task query requires a persisted modelDescriptor')
-    }
-    const url = `${this.origin}${QUERY_ENDPOINT}`
+    const url = `${this.baseURL}${VIDU_TASKS_PATH}/${encodeURIComponent(taskId)}`
     const result = await withImageTransportRequestTimeout(
       { url, timeoutMs: 10_000, signal: context.signal },
       (signal) =>
-        postJsonToApi({
+        getFromApi({
           url,
           headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
-          body: { model: modelId, id: taskId },
           abortSignal: signal,
           fetch: this.fetch,
           failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),
-          successfulResponseHandler: createJsonResponseHandler(tokenhubQueryResultSchema)
+          successfulResponseHandler: createJsonResponseHandler(tokenhubViduTaskResponseSchema)
         })
     )
-    if (COMPLETED_STATUSES.has(result.value.status)) {
-      return completedImageTransportTask(extractImageUrls(result.value.data ?? []), 'TokenHub task')
+
+    if (result.value.state === 'success') {
+      return completedImageTransportTask(
+        (result.value.creations ?? []).map((creation) => creation.url),
+        'TokenHub Vidu task'
+      )
     }
-    if (FAILED_STATUSES.has(result.value.status)) {
-      return { kind: 'failed', message: `TokenHub image task ${result.value.status}` }
+    if (result.value.state === 'failed') {
+      return { kind: 'failed', message: result.value.err_msg || result.value.message || 'TokenHub task failed' }
     }
     return { kind: 'pending' }
   }
 }
 
-function extractImageUrls(data: Array<{ url: string }>): string[] {
-  return data.map((item) => item.url)
+export function createTokenhubTransport(settings: TokenhubTransportSettings): TokenhubTransport {
+  return new TokenhubTransport(settings)
 }
 
-/**
- * Build the TokenHub image transport from the generic openai-compatible provider
- * settings (tokenhub has no bespoke SDK provider — chat rides the openai-compatible
- * adapter). The chat `baseURL` (`https://tokenhub.tencentmaas.com/v1`) is reduced
- * to its origin; the registry endpoints are host-absolute paths.
- */
-export function buildTokenhubTransport(settings: {
-  apiKey?: string
-  baseURL?: string
-  headers?: Record<string, string | undefined>
-  fetch?: FetchFunction
-}): ImageGenerationTransport<VendorBag> {
-  let origin: string | undefined
-  try {
-    origin = settings.baseURL ? new URL(settings.baseURL).origin : undefined
-  } catch {
-    origin = undefined
-  }
-  return new TokenhubTransport({
-    apiKey: settings.apiKey ?? '',
-    origin,
-    headers: settings.headers,
-    fetch: settings.fetch
-  })
-}
+export type { TokenhubTransport }

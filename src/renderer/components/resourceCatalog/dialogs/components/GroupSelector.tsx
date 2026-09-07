@@ -1,7 +1,15 @@
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
-import { X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,9 +22,12 @@ interface Props {
   error?: Error
   disabled?: boolean
   portalContainer?: HTMLElement | null
+  onCreateGroup?: () => void
+  triggerClassName?: string
 }
 
 const GROUP_SELECT_VALUE_PREFIX = 'group:'
+const CREATE_GROUP_SELECT_VALUE = 'action:create-group'
 
 function encodeGroupSelectValue(groupId: string) {
   return `${GROUP_SELECT_VALUE_PREFIX}${groupId}`
@@ -27,19 +38,33 @@ function decodeGroupSelectValue(value: string) {
   return value.slice(GROUP_SELECT_VALUE_PREFIX.length)
 }
 
-export const GroupSelector: FC<Props> = ({ value, onChange, groups, isLoading, error, disabled, portalContainer }) => {
+export const GroupSelector: FC<Props> = ({
+  value,
+  onChange,
+  groups,
+  isLoading,
+  error,
+  disabled,
+  portalContainer,
+  onCreateGroup,
+  triggerClassName
+}) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   const hasGroupOptions = groups.length > 0
   const isUnavailable = Boolean(isLoading || error)
-  const canOpen = hasGroupOptions && !isUnavailable
+  const canOpen = !disabled && !isUnavailable && (hasGroupOptions || Boolean(onCreateGroup))
   const selectOpen = canOpen && open
   const placeholder = isLoading
     ? t('common.loading')
     : error
       ? t('library.group_sync_failed')
-      : t(hasGroupOptions ? 'library.config.basic.group_placeholder' : 'library.config.basic.group_empty')
+      : t(
+          hasGroupOptions || onCreateGroup
+            ? 'library.config.basic.group_placeholder'
+            : 'library.config.basic.group_empty'
+        )
 
   useEffect(() => {
     if (!canOpen) setOpen(false)
@@ -48,15 +73,24 @@ export const GroupSelector: FC<Props> = ({ value, onChange, groups, isLoading, e
   return (
     <div className="group/group-select relative flex w-full min-w-0 items-center">
       <Select
-        disabled={disabled || isUnavailable}
+        disabled={!canOpen}
         open={selectOpen}
         value={!isUnavailable && value ? encodeGroupSelectValue(value) : ''}
         onOpenChange={(nextOpen) => setOpen(canOpen && nextOpen)}
-        onValueChange={(selectedValue) => onChange(decodeGroupSelectValue(selectedValue))}>
+        onValueChange={(selectedValue) => {
+          if (selectedValue === CREATE_GROUP_SELECT_VALUE) {
+            setOpen(false)
+            onCreateGroup?.()
+            return
+          }
+          const groupId = decodeGroupSelectValue(selectedValue)
+          if (groupId !== null) onChange(groupId)
+        }}>
         <SelectTrigger
           size="sm"
           className={cn(
             'w-full',
+            triggerClassName,
             value &&
               '[&_svg]:transition-opacity group-focus-within/group-select:[&_svg]:opacity-0 group-hover/group-select:[&_svg]:opacity-0'
           )}
@@ -69,6 +103,13 @@ export const GroupSelector: FC<Props> = ({ value, onChange, groups, isLoading, e
               {group.name}
             </SelectItem>
           ))}
+          {onCreateGroup && hasGroupOptions ? <SelectSeparator /> : null}
+          {onCreateGroup ? (
+            <SelectItem value={CREATE_GROUP_SELECT_VALUE}>
+              <Plus />
+              {t('common.group.create')}
+            </SelectItem>
+          ) : null}
         </SelectContent>
       </Select>
       {value && !disabled && !isUnavailable ? (
@@ -80,7 +121,7 @@ export const GroupSelector: FC<Props> = ({ value, onChange, groups, isLoading, e
             event.stopPropagation()
             onChange(null)
           }}
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 active:bg-muted group-focus-within/group-select:pointer-events-auto group-focus-within/group-select:opacity-100 group-hover/group-select:pointer-events-auto group-hover/group-select:opacity-100">
+          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 active:bg-muted group-focus-within/group-select:pointer-events-auto group-focus-within/group-select:opacity-100 group-hover/group-select:pointer-events-auto group-hover/group-select:opacity-100">
           <X size={12} />
         </Button>
       ) : null}

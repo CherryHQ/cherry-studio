@@ -43,15 +43,20 @@ type ReadArgs = {
 
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: {
-      requestId: 'req-1',
-      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-      abortSignal: new AbortController().signal
-    }
-  } as ToolExecutionOptions)
+  return execute(
+    // Mode-specific fields are omitted, not sentinel-valued — kb_read runs without `strict`, so its
+    // schema is plain optionals and the model omits what the mode does not use.
+    args,
+    {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: {
+        requestId: 'req-1',
+        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        abortSignal: new AbortController().signal
+      }
+    } as ToolExecutionOptions
+  )
 }
 
 function conceptContent(overrides: Record<string, unknown> = {}) {
@@ -78,7 +83,7 @@ describe('kb_read', () => {
   it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_READ_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('always')
+    expect(entry.defer).toBe('never')
     // kb_read only reads — the approval carve-out's auto-approve half: no per-call prompt (cf. kb_manage).
     expect(entry.tool.needsApproval).toBeFalsy()
   })
@@ -104,6 +109,10 @@ describe('kb_read', () => {
 
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
     expect(result).toEqual({
+      // One slice, one source: the call mints a single citation id the model echoes as `[cite:id]`.
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId: 'kb-1',
       conceptId: 'docs/intro.md',
       title: 'intro.md',
       type: 'file',
@@ -113,6 +122,20 @@ describe('kb_read', () => {
       content: 'hello world',
       truncated: false
     })
+  })
+
+  it('reads the whole document in read mode when the optional fields are omitted', async () => {
+    readConcept.mockResolvedValue(conceptContent())
+
+    await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: ['kb-1'] })
+
+    // An omitted `pattern` must route to read, not grep: `readOrGrepConcept` switches on the field
+    // being present at all, so a sentinel empty string here would silently mean "grep for ''".
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
+      charStart: undefined,
+      charEnd: undefined
+    })
+    expect(grepConcept).not.toHaveBeenCalled()
   })
 
   it('reads unscoped when the assistant has no knowledge scope', async () => {
@@ -198,6 +221,9 @@ describe('kb_read', () => {
       // read mode must NOT run when a pattern is present (pattern routes to grepConcept).
       expect(readConcept).not.toHaveBeenCalled()
       expect(result).toEqual({
+        // Every match is in this one document, so the whole grep result is a single source.
+        id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+        baseId: 'kb-1',
         conceptId: 'docs/intro.md',
         title: 'intro.md',
         type: 'note',

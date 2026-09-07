@@ -10,6 +10,12 @@
 export const SVG_ELEMENT_REGEX = /<svg[\s>]/i
 export const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
+const SAFE_COLOR_VALUE = String.raw`(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\([\d.%+,\s-]+\)|[a-z]+)`
+const SAFE_INLINE_COLOR_STYLE = new RegExp(
+  String.raw`^\s*(?:(?:color|background-color)\s*:\s*${SAFE_COLOR_VALUE}\s*;?\s*){1,2}$`,
+  'i'
+)
+
 export const SVG_ELEMENTS = [
   'svg',
   'defs',
@@ -52,6 +58,7 @@ export const SVG_ELEMENTS = [
 
 export const SVG_ATTRIBUTES = [
   'aria-label',
+  'ariaHidden',
   'baseFrequency',
   'className',
   'clipPath',
@@ -191,6 +198,10 @@ function mergeUnique<T>(...groups: readonly (readonly T[] | null | undefined)[])
   return Array.from(new Set(groups.flatMap((group) => group ?? [])))
 }
 
+function sanitizeAttributeName(attribute: SanitizeAttribute): string {
+  return Array.isArray(attribute) ? attribute[0] : attribute
+}
+
 export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): MarkdownSanitizeSchema {
   const svgAttributes = Object.fromEntries(
     SVG_ELEMENTS.map((tagName) => [tagName, mergeUnique(schema.attributes?.[tagName], SVG_ATTRIBUTES)])
@@ -199,17 +210,36 @@ export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): Ma
 
   return {
     ...schema,
-    tagNames: mergeUnique(schema.tagNames, ['span'], SVG_ELEMENTS),
+    tagNames: mergeUnique(schema.tagNames, ['mark', 'progress', 'small', 'span', 'u'], SVG_ELEMENTS),
     strip: mergeUnique(schema.strip, ['style']),
     attributes: {
       ...schema.attributes,
+      div: mergeUnique(schema.attributes?.div, [
+        [
+          'className',
+          'markdown-alert',
+          'markdown-alert-note',
+          'markdown-alert-tip',
+          'markdown-alert-important',
+          'markdown-alert-warning',
+          'markdown-alert-caution'
+        ]
+      ]),
+      p: mergeUnique(schema.attributes?.p, [['className', 'markdown-alert-title']]),
       span: mergeUnique(schema.attributes?.span, [
         'data-composer-token-index',
         'dataComposerTokenIndex',
         'data-composer-token-block',
-        'dataComposerTokenBlock'
+        'dataComposerTokenBlock',
+        ['style', SAFE_INLINE_COLOR_STYLE]
       ]),
-      sup: mergeUnique(schema.attributes?.sup, ['data-citation']),
+      progress: mergeUnique(schema.attributes?.progress, ['max', 'value']),
+      // The attribute is an opaque display id. Full citation JSON is deliberately rejected so
+      // untrusted markdown cannot supply tooltip URLs, titles, or content.
+      sup: mergeUnique(
+        schema.attributes?.sup?.filter((attribute) => sanitizeAttributeName(attribute) !== 'dataCitation'),
+        [['dataCitation', /^[1-9]\d*$/]]
+      ),
       ...svgAttributes
     },
     protocols: {

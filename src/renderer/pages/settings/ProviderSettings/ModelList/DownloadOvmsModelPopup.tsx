@@ -1,4 +1,14 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
@@ -260,7 +270,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       footer={footer}>
       <div className={drawerClasses.fieldList}>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_id.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelId}
@@ -287,7 +297,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_name.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelName}
@@ -299,7 +309,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           />
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_source')}</Label>
           <Select
             value={formValues.modelSource}
             onValueChange={(value) => updateField('modelSource', value)}
@@ -315,7 +325,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_task')}</Label>
           <Select
             value={formValues.task}
             onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}
@@ -336,7 +346,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-foreground-muted text-sm">
+            <div className="text-center text-foreground-tertiary text-sm">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>

@@ -1,3 +1,11 @@
+---
+description: Rules for column nullability and single-source default placement across DB, Drizzle, Zod, and service layers
+sources:
+  - src/main/data/db/schemas
+  - src/shared/data/api/schemas
+  - src/main/data/services
+---
+
 # Default Values & Nullability
 
 Standards for placing default values across the data stack and judging column nullability.
@@ -229,21 +237,21 @@ export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 ```ts
 // ─── Service ──────────────────────────────────────────────────
-async create(dto: CreateAssistantDto): Promise<Assistant> {
-  const [row] = await this.db.insert(assistantTable).values({
+create(dto: CreateAssistantDto): Assistant {
+  const row = this.db.insert(assistantTable).values({
     ...dto,
     emoji: dto.emoji ?? '🌟',                             // product-chosen default: Service is the source of truth
     settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS  // tunable product default: Service is the source of truth
     // prompt / description omitted → DB DEFAULT '' applies
     // modelId omitted (or null) → SQLite stores NULL
-  }).returning()
+  }).returning().get()
   return rowToAssistant(row)
 }
 
-async update(id: string, dto: UpdateAssistantDto): Promise<Assistant> {
-  const [row] = await this.db.update(assistantTable)
+update(id: string, dto: UpdateAssistantDto): Assistant {
+  const row = this.db.update(assistantTable)
     .set(dto)                                            // Drizzle skips undefined — PATCH-correct
-    .where(eq(assistantTable.id, id)).returning()
+    .where(eq(assistantTable.id, id)).returning().get()
   return rowToAssistant(row)
 }
 ```
@@ -274,45 +282,30 @@ function rowToAssistant(row: typeof assistantTable.$inferSelect): Assistant {
 | Service `create()` passes every field, including ones the DB has DEFAULTs for | Restates DB knowledge in app code; drift risk if defaults change in only one place | Omit fields the DB / `$defaultFn` already handles (R4) |
 | Putting a product-chosen value (`'🌟'`, default `temperature`, sentinel category) in DB `DEFAULT` thinking "I can tune it later" | SQLite has no `ALTER COLUMN SET DEFAULT`; changing it requires a hand-written table-rebuild and doesn't update existing rows. The "tune later" assumption is false | Service `??`; promote to DB only after the value has stabilized through a release cycle (see [§ DB defaults are near-permanent](#db-defaults-are-near-permanent)) |
 
-## Case Studies
+## Current Examples
 
-### A. `assistant.prompt / emoji / description / settings` — anti-pattern (current state)
+### `assistant.prompt` and `assistant.description`: type-level empty
 
-Three layers each define defaults:
+Both columns are `NOT NULL DEFAULT ''`. Create DTO omission delegates to the
+database default, and `rowToAssistant` reads the resulting strings without a
+fallback. The empty value is structural and stable, so the database owns it.
 
-| Field | DB column (`assistant.ts`) | Zod Create | rowToAssistant (`AssistantService.ts`) |
-|---|---|---|---|
-| `prompt` | `text().default('')` (nullable) | `.default('')` | `row.prompt ?? ''` |
-| `emoji` | `text()` (nullable, **no** default) | `.default('🌟')` | `row.emoji ?? '🌟'` |
-| `description` | `text().default('')` (nullable) | `.default('')` | `row.description ?? ''` |
-| `settings` | `text({mode:'json'}).$type<AssistantSettings>()` (nullable) | `.default(DEFAULT_ASSISTANT_SETTINGS)` | `normalizeSettings(row.settings)` |
+### `assistant.emoji` and `assistant.settings`: product defaults
 
-**Diagnosis**: violates R1 (columns "should" always have values but are nullable),
-R2 (default in three places per field), R3 (`??` in rowMapper).
+Both columns are `NOT NULL`, but carry no database default. `AssistantService`
+supplies `'🌟'` and `DEFAULT_ASSISTANT_SETTINGS` on create. The row mapper reads
+the stored values directly. These product choices can evolve without rebuilding
+the table merely to change a default clause.
 
-**Fix**: per the Standard Layered Design above. After the fix `prompt` / `description`
-move to DB DEFAULT (type-level empty); `emoji` and `settings` move to service `??`
-(product-chosen / tunable values that may evolve, per [§ DB defaults are near-permanent](#db-defaults-are-near-permanent));
-`rowToAssistant` no longer fabricates anything.
+### `assistant.modelId`: meaningful NULL
 
-### B. `assistant.modelId` — correct (current state)
+The nullable foreign key means “no model selected.” The entity schema retains
+`null`, and the row mapper reads `row.modelId` directly. No layer replaces the
+domain state with a fabricated default.
 
-The DB column `text().references(...)` is nullable; the entity declares
-`UniqueModelIdSchema.nullable()`; the row mapper reads `row.modelId` directly to preserve
-the `T | null` contract; the renderer treats NULL as "no model selected" and renders
-accordingly.
-
-**Diagnosis**: this is what a legitimately-nullable field looks like — NULL has a domain
-meaning, no read-path mask, no fabricated default.
-
-### C. `agent.accessiblePaths` — anti-pattern (current state)
-
-DB column (`agent.ts`): `text({ mode: 'json' }).$type<string[]>()` — nullable, no DB
-DEFAULT. RowMapper (`AgentService.ts` `rowToAgent`): `accessiblePaths: row.accessiblePaths ?? []`.
-
-**Diagnosis**: same shape as Case A. The product wants every agent to have a non-empty
-workspace path list (`AgentService.computeWorkspacePaths` even enforces this on create),
-so the column should be `NOT NULL` and the rowMapper's `?? []` should disappear.
+Together these columns show the three supported cases: a stable type-level DB
+default, a service-owned product default written into a `NOT NULL` column, and a
+genuinely nullable domain field.
 
 ## Related References
 

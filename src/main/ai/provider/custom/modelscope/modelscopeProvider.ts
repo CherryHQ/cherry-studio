@@ -31,8 +31,8 @@ export interface ModelscopeProvider extends ProviderV3 {
 /**
  * Build the ModelScope submit/poll image transport from provider settings.
  * Shared by the provider factory and the image-generation job's transport
- * registry (`resolveImageTransport`) so the job handler can rebuild the same
- * transport after a restart from the re-resolved provider settings.
+ * registry (`resolveImageTransport`) so both paths use the same re-resolved
+ * provider settings.
  */
 export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createModelscopeTransport({

@@ -85,6 +85,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -115,6 +119,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'iterm2',
         gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -153,7 +161,13 @@ describe('useLaunchDialogController', () => {
         isOwnLoginSelected: false,
         currentProviderConfig: { modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat` },
         selectedTerminal: 'terminal',
-        gatewayModelsById: new Map(),
+        gatewayModelsById: new Map<UniqueModelId, Model>([
+          [`${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`, { apiModelId: 'deepseek:deepseek-chat' } as Model]
+        ]),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -171,6 +185,122 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  // A direct launch hands `--model` straight to the provider's own API, which only knows the
+  // model by its apiModelId — an aliased model would be launched under a name it never sees.
+  it('launches a direct model under its apiModelId, not its internal id', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::my-alias', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', gateway: false, model: 'claude-sonnet-4-5' })
+    )
+  })
+
+  // Reviewer: falling back to the raw id on a miss is only safe when the record exists and
+  // simply has no apiModelId. A miss because the query is cold, or because the saved model was
+  // later disabled, would hand the provider an internal id it has never heard of.
+  it.each([
+    ['the model query has not settled yet', true, new Map<UniqueModelId, Model>()],
+    ['the saved model is no longer enabled', false, new Map<UniqueModelId, Model>()]
+  ])('does not launch a direct model when %s', async (_label, isModelsLoading, modelById) => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById,
+        isModelsLoading,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).not.toHaveBeenCalled()
+  })
+
+  // A record that exists but carries no apiModelId is a genuine raw-id case, not a stale selection.
+  it('falls back to the raw id when the record exists without an apiModelId', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({
+      modelId: 'anthropic::my-alias',
+      providerId: 'anthropic',
+      rawModelId: 'my-alias',
+      writePrimaryModel: true
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        toolName: 'Antigravity CLI',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::my-alias' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([['anthropic::my-alias', {} as Model]]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ mode: 'normal', model: 'my-alias' })
+    )
+  })
+
   it('sends gateway: false for a regular (non-gateway) provider', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
@@ -182,6 +312,10 @@ describe('useLaunchDialogController', () => {
         currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
         selectedTerminal: 'terminal',
         gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -199,6 +333,48 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  it('keeps the existing null-context cleanup for a regular provider', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+    const upsertProviderConfig = vi.fn().mockResolvedValue('anthropic')
+    const setCurrentProvider = vi.fn().mockResolvedValue(undefined)
+    const currentProviderConfig = { modelId: null }
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig,
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig,
+        setCurrentProvider,
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.resolveCliConfigApplyContext).toHaveBeenCalledWith(
+      CodeCli.CLAUDE_CODE,
+      'anthropic',
+      currentProviderConfig,
+      undefined
+    )
+    expect(upsertProviderConfig).toHaveBeenCalledWith('anthropic', { modelId: null })
+    expect(setCurrentProvider).toHaveBeenCalledWith(null)
+    expect(mocks.requestMock).not.toHaveBeenCalled()
+  })
+
   it('resolves the same fallback for provider-less launches', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
@@ -208,6 +384,10 @@ describe('useLaunchDialogController', () => {
         isOwnLoginSelected: false,
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
         upsertProviderConfig: vi.fn(),
         setCurrentProvider: vi.fn(),
         setTerminal: vi.fn(),
@@ -238,26 +418,33 @@ describe('useLaunchDialogController', () => {
     const gatewayModelsById = new Map<UniqueModelId, Model>([[managedModel.id, managedModel]])
 
     function renderGatewayLaunch(
-      ensureReady: ReturnType<typeof vi.fn>,
-      availableModels: Map<UniqueModelId, Model> = gatewayModelsById
+      getApiKey: ReturnType<typeof vi.fn>,
+      availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
+      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+      selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
     ) {
-      return renderHook(() =>
+      const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)
+      const setCurrentProvider = vi.fn().mockResolvedValue(undefined)
+      const rendered = renderHook(() =>
         useLaunchDialogController({
-          selectedCliTool: CodeCli.CLAUDE_CODE,
+          selectedCliTool,
           toolName: 'Claude Code',
           directory: '/tmp/project',
           enabledProvider: gatewayProvider,
           isOwnLoginSelected: false,
           currentProviderConfig: { modelId: 'deepseek::deepseek-chat', config: { permissionMode: 'plan' } },
           selectedTerminal: 'terminal',
-          apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureReady },
+          apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureRunning, getApiKey },
           gatewayModelsById: availableModels,
-          upsertProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
+          modelById: new Map<UniqueModelId, Model>(),
+          isModelsLoading: false,
+          upsertProviderConfig,
+          setCurrentProvider,
           setTerminal: vi.fn(),
           selectFolder: vi.fn()
         })
       )
+      return { ...rendered, upsertProviderConfig, setCurrentProvider, ensureRunning }
     }
 
     beforeEach(() => {
@@ -276,23 +463,45 @@ describe('useLaunchDialogController', () => {
       mocks.gatewayModelIdFromAddress.mockReturnValue(undefined)
     })
 
-    it('re-verifies the gateway and rewrites the config with the fresh key before running', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
-      const { result } = renderGatewayLaunch(ensureReady)
+    it('keeps the gateway selection when its detailed model cannot be resolved', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      mocks.resolveCliConfigApplyContext.mockReturnValue(null)
+      const { result, upsertProviderConfig, setCurrentProvider } = renderGatewayLaunch(getApiKey)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
-        // handleLaunch chains ensureReady → write → run; flush the whole chain.
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(ensureReady).toHaveBeenCalledTimes(1)
+      expect(mocks.resolveCliConfigApplyContext).toHaveBeenCalledWith(
+        CodeCli.CLAUDE_CODE,
+        CLI_API_GATEWAY_PROVIDER_ID,
+        { modelId: 'deepseek::deepseek-chat', config: { permissionMode: 'plan' } },
+        gatewayModelsById
+      )
+      expect(upsertProviderConfig).not.toHaveBeenCalled()
+      expect(setCurrentProvider).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
+      expect(mocks.requestMock).not.toHaveBeenCalled()
+    })
+
+    it('re-verifies the gateway and rewrites the config with its key before running', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const { result } = renderGatewayLaunch(getApiKey)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        // handleLaunch chains startup → key read → write → run; flush the whole chain.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(getApiKey).toHaveBeenCalledTimes(1)
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { permissionMode: 'plan' },
         writePrimaryModel: true,
-        gateway: { provider: gatewayProvider, apiKey: 'cs-sk-fresh' }
+        gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
       })
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
       // The rebuild must complete before the CLI is spawned.
@@ -301,9 +510,59 @@ describe('useLaunchDialogController', () => {
       )
     })
 
+    // Antigravity is not file-configured, so the reconciliation block — and the membership check
+    // that used to live inside it — never ran for it: a stale selection started a session that
+    // the gateway only rejects on the CLI's first request, after all the startup side effects.
+    it('does not start a non-file-configured CLI when its gateway model is gone', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const ensureRunning = vi.fn().mockResolvedValue(undefined)
+      const { result } = renderGatewayLaunch(getApiKey, new Map(), ensureRunning, CodeCli.ANTIGRAVITY_CLI)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(ensureRunning).not.toHaveBeenCalled()
+      expect(mocks.requestMock).not.toHaveBeenCalled()
+    })
+
+    // The gateway matches an address against each model's apiModelId, so launching a renamed
+    // model under its internal id makes the request unroutable.
+    it('launches a gateway model under its apiModelId, not its internal id', async () => {
+      const renamedModel = {
+        id: 'deepseek::my-deepseek',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-chat'
+      } as unknown as Model
+      mocks.resolveCliConfigApplyContext.mockReturnValue({
+        modelId: 'deepseek::my-deepseek',
+        providerId: 'deepseek',
+        rawModelId: 'my-deepseek',
+        writePrimaryModel: true
+      })
+      const { result } = renderGatewayLaunch(
+        vi.fn().mockResolvedValue('cs-sk-current'),
+        new Map<UniqueModelId, Model>([[renamedModel.id, renamedModel]]),
+        vi.fn().mockResolvedValue(undefined),
+        CodeCli.ANTIGRAVITY_CLI
+      )
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.requestMock).toHaveBeenCalledWith(
+        'code_cli.run',
+        expect.objectContaining({ mode: 'normal', gateway: true, model: 'deepseek-chat' })
+      )
+    })
+
     it('does not run the CLI when the gateway fails to start', async () => {
-      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
-      const { result } = renderGatewayLaunch(ensureReady)
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const { result } = renderGatewayLaunch(getApiKey, gatewayModelsById, ensureRunning)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
@@ -311,28 +570,51 @@ describe('useLaunchDialogController', () => {
       })
 
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
       expect(result.current.launching).toBe(false)
     })
 
-    it('does not launch when the managed gateway model is no longer available', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
-      const { result } = renderGatewayLaunch(ensureReady, new Map())
+    it('launches Antigravity after ensuring the gateway runs without reading its key or writing config', async () => {
+      const getApiKey = vi.fn().mockRejectedValue(new Error('key should not be read'))
+      const ensureRunning = vi.fn().mockResolvedValue(undefined)
+      const { result } = renderGatewayLaunch(getApiKey, gatewayModelsById, ensureRunning, CodeCli.ANTIGRAVITY_CLI)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(ensureReady).toHaveBeenCalledTimes(1)
+      expect(ensureRunning).toHaveBeenCalledTimes(1)
+      expect(getApiKey).not.toHaveBeenCalled()
+      expect(mocks.readCliConfigFiles).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(mocks.requestMock).toHaveBeenCalledWith(
+        'code_cli.run',
+        expect.objectContaining({ cliTool: CodeCli.ANTIGRAVITY_CLI, gateway: true })
+      )
+    })
+
+    it('does not launch when the managed gateway model is no longer available', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      const { result } = renderGatewayLaunch(getApiKey, new Map())
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      // Nothing may run before the membership check — reading the key persists a freshly
+      // generated one, a side effect a launch that cannot route must not leave behind.
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
     })
 
-    // A foreign/raw gateway draft may intentionally select a different gateway model. Refresh the
+    // A foreign/raw gateway draft may intentionally select a different gateway model. Reconcile the
     // managed endpoint/key before launch while preserving that model and the raw tool parameters.
-    it('refreshes a foreign gateway config with the fresh connection while preserving its model', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+    it('reconciles a foreign gateway config while preserving its model', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
       const files = [{ target: 'claude-settings', content: '{}' }]
       mocks.readCliConfigFiles.mockResolvedValue(files)
       mocks.extractConnectionFromCliConfigDraft.mockReturnValue({ model: 'deepseek:deepseek-reasoner' })
@@ -345,39 +627,39 @@ describe('useLaunchDialogController', () => {
         apiModelId: 'deepseek-reasoner'
       } as unknown as Model
       const availableModels = new Map(gatewayModelsById).set(foreignModel.id, foreignModel)
-      const { result } = renderGatewayLaunch(ensureReady, availableModels)
+      const { result } = renderGatewayLaunch(getApiKey, availableModels)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(ensureReady).toHaveBeenCalledTimes(1)
+      expect(getApiKey).toHaveBeenCalledTimes(1)
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'deepseek::deepseek-reasoner',
         configBlob: { permissionMode: 'acceptEdits' },
         files,
         writePrimaryModel: true,
-        gateway: { provider: gatewayProvider, apiKey: 'cs-sk-fresh' }
+        gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
       })
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
     })
 
     it('does not launch an unresolvable foreign gateway model with stale credentials', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
       mocks.readCliConfigFiles.mockResolvedValue([{ target: 'claude-settings', content: '{}' }])
       mocks.extractConnectionFromCliConfigDraft.mockReturnValue({ model: 'removed:model' })
       mocks.gatewayExpectedModel.mockReturnValue('deepseek:deepseek-chat')
       mocks.gatewayModelIdFromAddress.mockReturnValue(undefined)
-      const { result } = renderGatewayLaunch(ensureReady)
+      const { result } = renderGatewayLaunch(getApiKey)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(ensureReady).toHaveBeenCalledTimes(1)
+      expect(getApiKey).toHaveBeenCalledTimes(1)
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
     })
@@ -385,9 +667,9 @@ describe('useLaunchDialogController', () => {
     // Reading preserves raw gateway choices during reconciliation. If it fails, rebuild from the
     // managed preference rather than launching with stale connection details.
     it('rewrites and launches when the reconciliation read fails', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
       mocks.readCliConfigFiles.mockRejectedValue(new Error('EACCES: permission denied'))
-      const { result } = renderGatewayLaunch(ensureReady)
+      const { result } = renderGatewayLaunch(getApiKey)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
@@ -399,7 +681,7 @@ describe('useLaunchDialogController', () => {
     })
 
     it('does not touch the gateway for a real-provider launch', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('cs-sk-fresh')
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
       const { result } = renderHook(() =>
         useLaunchDialogController({
           selectedCliTool: CodeCli.CLAUDE_CODE,
@@ -409,8 +691,18 @@ describe('useLaunchDialogController', () => {
           isOwnLoginSelected: false,
           currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
           selectedTerminal: 'terminal',
-          apiGatewayProvider: { provider: gatewayProvider, apiKey: 'cs-sk-old', ensureReady },
+          apiGatewayProvider: {
+            provider: gatewayProvider,
+            apiKey: 'cs-sk-old',
+            ensureRunning: vi.fn(),
+            getApiKey
+          },
           gatewayModelsById: new Map(),
+          // This block's beforeEach resolves the context to deepseek::deepseek-chat.
+          modelById: new Map<UniqueModelId, Model>([
+            ['deepseek::deepseek-chat', { apiModelId: 'deepseek-chat' } as Model]
+          ]),
+          isModelsLoading: false,
           upsertProviderConfig: vi.fn(),
           setCurrentProvider: vi.fn(),
           setTerminal: vi.fn(),
@@ -423,7 +715,7 @@ describe('useLaunchDialogController', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
-      expect(ensureReady).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
     })

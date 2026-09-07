@@ -1,4 +1,5 @@
 import { FILE_TYPE } from '@shared/types/file'
+import { GB, MB } from '@shared/utils/constants'
 import { describe, expect, it } from 'vitest'
 
 import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
@@ -9,6 +10,7 @@ import {
   ListAvailableFileProcessorsResultSchema
 } from '../../types/fileProcessing'
 import {
+  DocumentToMarkdownCapabilitySchema,
   FileProcessorFeatureCapabilitySchema,
   FileProcessorIdSchema,
   FileProcessorOverrideSchema,
@@ -39,6 +41,28 @@ describe('FileProcessorFeatureCapabilitySchema', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it.each([0, -1, 1.5])('rejects maxInputPages=%s for document_to_markdown capabilities', (maxInputPages) => {
+    const result = DocumentToMarkdownCapabilitySchema.safeParse({
+      feature: 'document_to_markdown',
+      inputs: [FILE_TYPE.DOCUMENT],
+      output: 'markdown',
+      maxInputPages
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it.each([0, -1, 1.5])('rejects maxInputBytes=%s for document_to_markdown capabilities', (maxInputBytes) => {
+    const result = DocumentToMarkdownCapabilitySchema.safeParse({
+      feature: 'document_to_markdown',
+      inputs: [FILE_TYPE.DOCUMENT],
+      output: 'markdown',
+      maxInputBytes
+    })
+
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('FileProcessorTemplatesSchema', () => {
@@ -53,15 +77,55 @@ describe('FileProcessorTemplatesSchema', () => {
     })
   })
 
-  it('ships PaddleOCR image_to_text with an OCR model default', () => {
+  it('ships the current PaddleOCR hosted model defaults', () => {
     const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
 
     expect(paddleocr?.capabilities.find((capability) => capability.feature === 'image_to_text')?.modelId).toBe(
       'PP-OCRv6'
     )
     expect(paddleocr?.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.modelId).toBe(
-      'PaddleOCR-VL-1.5'
+      'PaddleOCR-VL-1.6'
     )
+  })
+
+  it('declares the product PDF page limits for document processors', () => {
+    const limits = Object.fromEntries(
+      PRESETS_FILE_PROCESSORS.filter((preset) =>
+        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
+      ).map((preset) => [
+        preset.id,
+        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputPages
+      ])
+    )
+
+    expect(limits).toEqual({
+      paddleocr: 100,
+      mineru: 600,
+      doc2x: 1000,
+      mistral: 1000,
+      'local-document': undefined,
+      'open-mineru': undefined
+    })
+  })
+
+  it('declares the document upload byte limits for processors that enforce one', () => {
+    const limits = Object.fromEntries(
+      PRESETS_FILE_PROCESSORS.filter((preset) =>
+        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
+      ).map((preset) => [
+        preset.id,
+        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputBytes
+      ])
+    )
+
+    expect(limits).toEqual({
+      paddleocr: 50 * MB,
+      mineru: 200 * MB,
+      doc2x: GB,
+      mistral: undefined,
+      'local-document': undefined,
+      'open-mineru': 200 * MB
+    })
   })
 
   it('rejects processor-level metadata', () => {
@@ -131,6 +195,18 @@ describe('FileProcessorOverrideSchema', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+
+  it.each(['maxInputBytes', 'maxInputPages'])('does not allow %s to be overridden', (field) => {
+    const result = FileProcessorOverrideSchema.safeParse({
+      capabilities: {
+        document_to_markdown: {
+          [field]: 10
+        }
+      }
+    })
+
+    expect(result.success).toBe(false)
   })
 
   it('rejects unknown feature overrides', () => {

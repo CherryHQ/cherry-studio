@@ -1,8 +1,10 @@
+import { minimaxOverrides } from './minimax'
 import { openaiCompatible } from './types'
 
 export default openaiCompatible({
   id: 'minimax-global',
   name: 'minimax-global',
+  availableInEditions: ['global'],
   baseUrl: 'https://api.minimax.io/v1/',
   anthropic: 'https://api.minimax.io/anthropic',
   website: {
@@ -11,5 +13,6 @@ export default openaiCompatible({
     models: 'https://platform.minimax.io/document/Models',
     official: 'https://platform.minimax.io/'
   },
-  presetProviderId: 'minimax'
+  presetProviderId: 'minimax',
+  overrides: minimaxOverrides
 })

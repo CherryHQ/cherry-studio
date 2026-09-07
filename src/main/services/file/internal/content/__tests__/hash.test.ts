@@ -50,7 +50,8 @@ describe('internal/content/hash', () => {
         set: vi.fn(),
         invalidate: vi.fn(),
         clear: vi.fn()
-      }
+      },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 
@@ -78,7 +79,7 @@ describe('internal/content/hash', () => {
     const h1 = await hash(deps, id)
     const h2 = await hash(deps, id)
     expect(h1).toBe(h2)
-    expect(h1).toMatch(/^[0-9a-f]+$/)
+    expect(h1).toBe('xxh3-64:9555e8555c62dcfd')
   })
 
   it('returns different hashes for different content', async () => {
@@ -141,6 +142,6 @@ describe('internal/content/hash', () => {
     const file = path.join(tmp, 'direct.txt') as AbsoluteFilePath
     await writeFile(file, 'direct')
     const result = await hashByPath(deps, file)
-    expect(result).toMatch(/^[0-9a-f]+$/)
+    expect(result).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 })

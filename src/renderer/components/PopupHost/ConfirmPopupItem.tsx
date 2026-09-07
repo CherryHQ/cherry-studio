@@ -102,6 +102,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         data-confirm-popup="true"
+        motion="fade-scale"
         showCloseButton={props.closable === true}
         closeOnOverlayClick={props.maskClosable !== false}
         overlayClassName="z-[90]"

@@ -66,7 +66,7 @@ export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'d
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-muted uppercase', className)} {...props} />
+  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-tertiary uppercase', className)} {...props} />
 )
 
 export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (

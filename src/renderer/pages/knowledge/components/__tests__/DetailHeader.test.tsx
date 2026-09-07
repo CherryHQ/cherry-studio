@@ -21,6 +21,12 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type={type} {...props}>
       {children}
     </button>
+  ),
+  PageHeader: ({ title, action, className }: { title: ReactNode; action?: ReactNode; className?: string }) => (
+    <div className={className}>
+      <h2>{title}</h2>
+      {action}
+    </div>
   )
 }))
 
@@ -92,7 +98,6 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)

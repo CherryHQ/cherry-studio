@@ -53,6 +53,12 @@ interface SlowOutput {
   echoed: string
 }
 
+/**
+ * Set by a test that needs to know a slow handler is genuinely parked in its
+ * abortable await, instead of sleeping a fixed interval and hoping (#17703).
+ */
+let onSlowHandlerEntered: (() => void) | null = null
+
 function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandler<SlowInput> {
   return {
     recovery,
@@ -71,6 +77,7 @@ function makeSlowHandler(recovery: 'abandon' | 'retry' | 'singleton'): JobHandle
           },
           { once: true }
         )
+        onSlowHandlerEntered?.()
       })
       return { echoed: `echo: ${ctx.input.message}` } satisfies SlowOutput
     }
@@ -216,6 +223,77 @@ describe('JobManager integration', () => {
       expect(all).toHaveLength(2)
       expect(all.every((r) => r.status === 'cancelled')).toBe(true)
       expect(all.every((r) => r.error?.code === 'JOB_CANCELLED')).toBe(true)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      // Disabled so recovery's overdue catch-up cannot dispatch a fresh run
+      // mid-test; only the two inserted rows drive the projection.
+      const schedule = jobScheduleService.create({
+        type: 'task.retry',
+        name: 'mixed-run',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' },
+        enabled: false
+      })
+
+      const now = Date.now()
+      const cancelRequestedAt = now - 5_000
+      const newerFinishedAt = now - 2_000
+      const inserted = await dbh
+        .insert(jobTable)
+        .values([
+          {
+            type: 'task.retry',
+            status: 'running',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 9_000,
+            startedAt: now - 8_000,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'leftover' },
+            cancelRequested: true,
+            cancelRequestedAt,
+            metadata: {}
+          },
+          {
+            type: 'task.retry',
+            status: 'completed',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 3_500,
+            startedAt: now - 3_000,
+            finishedAt: newerFinishedAt,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'newer' },
+            cancelRequested: false,
+            metadata: {}
+          }
+        ])
+        .returning()
+      const leftoverId = inserted.find((r) => r.status === 'running')!.id
+
+      const before = jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])
+      expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: newerFinishedAt })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.retry', makeSlowHandler('retry') as JobHandler]]
+      })
+
+      const settled = jobService.getById(leftoverId)
+      expect(settled?.status).toBe('cancelled')
+      expect(settled?.error?.code).toBe('JOB_CANCELLED')
+      // finishedAt is the real settle time; the projection stays put because it
+      // orders cancelled runs by the immutable cancelRequestedAt instead.
+      expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+      expect(settled && Date.parse(settled.cancelRequestedAt!)).toBe(cancelRequestedAt)
+      expect(jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])).toEqual(before)
 
       await teardownManager(scheduler, jobManager)
     })
@@ -587,6 +665,38 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('re-arms a future once schedule without rewriting a matching nextRun', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const at = now + 600_000
+      const updatedAt = now - 60_000
+      const [row] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'task.once',
+          trigger: { kind: 'once', at },
+          jobInputTemplate: { message: 'matching-next-run' },
+          enabled: true,
+          lastRun: null,
+          nextRun: at,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {},
+          updatedAt
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.once', onceNoopHandler]]
+      })
+
+      const rearmed = jobScheduleService.getById(row.id)
+      expect(armedScheduleIds(jobManager).has(row.id)).toBe(true)
+      expect(rearmed?.nextRun).toBe(new Date(at).toISOString())
+      expect(rearmed?.updatedAt).toBe(new Date(updatedAt).toISOString())
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('persists a natural fire clamped to trigger.at so an early fire does not replay on restart', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
       // The once timer elapses on fake timers while Date.now() stays on the
@@ -638,18 +748,19 @@ describe('JobManager integration', () => {
       await teardownManager(boot2.scheduler, boot2.jobManager)
     })
 
-    it('treats a manual fire of an overdue never-fired once as its fire — no make-up run after recovery', async () => {
+    it('marks a manual fire of an overdue once spent before recovery', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
       const now = Date.now()
+      const at = now - 60_000
       const [row] = await dbh
         .insert(jobScheduleTable)
         .values({
           type: 'task.once',
-          trigger: { kind: 'once', at: now - 60_000 },
+          trigger: { kind: 'once', at },
           jobInputTemplate: { message: 'manual-during-quiet-window' },
           enabled: true,
           lastRun: null,
-          nextRun: null,
+          nextRun: at,
           catchUpPolicy: { kind: 'skip-missed' },
           metadata: {}
         })
@@ -659,6 +770,9 @@ describe('JobManager integration', () => {
         handlers: [['task.once', onceNoopHandler]],
         beforeRecovery: async (bootingManager) => {
           expect(await bootingManager.triggerJobScheduleNowById(row.id)).toBe(true)
+          const manuallyFired = jobScheduleService.getById(row.id)
+          expect(manuallyFired?.nextRun).toBeNull()
+          expect(Date.parse(manuallyFired?.lastRun ?? '')).toBeGreaterThanOrEqual(at)
         }
       })
       await drainAllQueues(jobManager)
@@ -676,6 +790,10 @@ describe('JobManager integration', () => {
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
 
+      const entered = new Promise<void>((resolve) => {
+        onSlowHandlerEntered = resolve
+      })
+
       const handle = jobManager.enqueue(
         'shutdown.slow' as never,
         {
@@ -684,9 +802,11 @@ describe('JobManager integration', () => {
         } as never
       )
 
-      // Wait for dispatch + handler.execute to be inside its await.
+      // Wait for dispatch + handler.execute to be inside its await — the handler
+      // signals that itself, so _doStop() cannot race a fixed sleep.
       await drainAllQueues(jobManager)
-      await new Promise<void>((r) => setTimeout(r, 50))
+      await entered
+      onSlowHandlerEntered = null
 
       const stopPromise = jobManager._doStop()
       const settled = await handle.finished

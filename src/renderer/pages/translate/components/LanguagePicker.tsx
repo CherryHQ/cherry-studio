@@ -52,7 +52,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           aria-haspopup="listbox"
           aria-expanded={open}
           className={cn(
-            'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-muted bg-transparent px-2.5 text-sm transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60',
+            'flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-subtle bg-transparent px-2.5 text-sm transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60',
             open && 'border-primary/40 ring-1 ring-primary/15',
             className
           )}>
@@ -62,7 +62,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           </span>
           <ChevronDown
             size={11}
-            className={cn('shrink-0 text-foreground-muted transition-transform', open && 'rotate-180')}
+            className={cn('shrink-0 text-foreground-tertiary transition-transform', open && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
@@ -93,7 +93,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
                 className={cn(
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                   isSelected
-                    ? 'bg-accent text-foreground'
+                    ? 'bg-accent text-accent-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}>
                 <span className="inline-flex w-5 shrink-0 justify-center text-sm leading-none">{lang.emoji}</span>

@@ -22,8 +22,7 @@ Content-Type: application/json
     "/tmp/workspace"
   ],
   "configuration": {
-    "permission_mode": "acceptEdits",
-    "max_turns": 5
+    "permission_mode": "acceptEdits"
   }
 }
 
@@ -52,7 +51,6 @@ Content-Type: application/json
     "/tmp/workspace"
   ],
   "configuration": {
-    "permission_mode": "acceptEdits",
-    "max_turns": 5
+    "permission_mode": "acceptEdits"
   }
 }

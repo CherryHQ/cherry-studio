@@ -1,5 +1,14 @@
 import type { NotesTreeNode } from '@renderer/types/note'
 
+export function flattenTreeToFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
+  return nodes.flatMap((node) => {
+    if (node.type === 'file') {
+      return [node]
+    }
+    return node.children ? flattenTreeToFiles(node.children) : []
+  })
+}
+
 export function normalizePathValue(path: string): string {
   return path.replace(/\\/g, '/')
 }

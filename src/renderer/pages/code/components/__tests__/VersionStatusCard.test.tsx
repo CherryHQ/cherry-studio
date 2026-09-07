@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { VersionStatusCard } from '../VersionStatusCard'
@@ -69,18 +70,31 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 
-  it('renders a disabled launch action when launch requirements are missing', () => {
+  it('keeps an unavailable launch action focusable and exposes the reason', async () => {
+    const user = userEvent.setup()
+    const onLaunch = vi.fn()
     render(
       <VersionStatusCard
         toolId="qwen-code"
         toolName="Qwen Code"
         status={{ source: 'none', installed: true, canUpgrade: false }}
-        onLaunch={vi.fn()}
+        onLaunch={onLaunch}
         canLaunch={false}
+        launchDisabledHint="Choose a provider"
       />
     )
 
-    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+    const launchButton = screen.getByRole('button', { name: 'code.launch.label' })
+    await user.tab()
+
+    expect(launchButton).toHaveFocus()
+    expect(launchButton).toBeEnabled()
+    expect(launchButton).toHaveAttribute('aria-disabled', 'true')
+    expect(launchButton).toHaveAccessibleDescription('Choose a provider')
+    expect(launchButton.parentElement).toHaveAttribute('data-title', 'Choose a provider')
+
+    await user.keyboard('{Enter}')
+    expect(onLaunch).not.toHaveBeenCalled()
   })
 
   it('renders the launching state', () => {
@@ -111,7 +125,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.getByText('v1.1.0')).toHaveClass('text-warning')
+    expect(screen.getByText('v1.1.0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'code.upgrade' }))
     expect(onUpgrade).toHaveBeenCalledTimes(1)
   })
@@ -130,6 +144,24 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.installing' })).toBeDisabled()
   })
 
+  it('prevents upgrading a tool whose managed runtime is active', () => {
+    const onUpgrade = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="deepseek-harness"
+        toolName="DeepSeek Harness"
+        status={{ source: 'mise', installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        onUpgrade={onUpgrade}
+        upgradeDisabled
+      />
+    )
+
+    const upgradeButton = screen.getByRole('button', { name: 'code.upgrade' })
+    expect(upgradeButton).toBeDisabled()
+    fireEvent.click(upgradeButton)
+    expect(onUpgrade).not.toHaveBeenCalled()
+  })
+
   it('renders an open-dashboard action when running and triggers it on click', () => {
     const onOpenDashboard = vi.fn()
     render(
@@ -143,7 +175,8 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    const button = screen.getByRole('button', { name: 'openclaw.gateway.open_dashboard' })
+    const button = screen.getByRole('button', { name: 'code.open_web_ui' })
+    expect(screen.getByRole('button', { name: 'code.stop' })).toBeInTheDocument()
     fireEvent.click(button)
     expect(onOpenDashboard).toHaveBeenCalledTimes(1)
   })
@@ -160,7 +193,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.open_web_ui' })).not.toBeInTheDocument()
   })
 
   it('renders a persistent failure row with retry label and opens details on click', () => {

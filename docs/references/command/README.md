@@ -1,132 +1,157 @@
+---
+description: Current command-backed action model across shared definitions, renderer and main handlers, keybindings, and menus
+sources:
+  - src/shared/types/command.ts
+  - src/shared/types/shortcut.ts
+  - src/shared/utils/command
+  - src/shared/utils/shortcut.ts
+  - src/main/services/CommandService.ts
+  - src/main/services/ShortcutService.ts
+  - src/main/services/AppMenuService.ts
+  - src/main/services/nativePopupMenu.ts
+  - src/renderer/components/command
+  - src/renderer/hooks/command
+  - src/renderer/utils/command.ts
+---
+
 # Command System
 
-The command system is the single source of truth for **what the app can do** and
-the wiring that lets a keyboard shortcut, an application/context menu item, or a
-button all trigger the same behavior.
+The command system coordinates application actions that need a stable identity
+across shortcuts, menus, or command-aware controls. Those actions are registered
+as `CommandId`s and dispatched to handlers owned by either the main process or a
+renderer window.
 
-It replaces three previously independent systems (keyboard shortcuts, the native
-application menu, and ad‑hoc context menus), each of which used to maintain its
-own definitions, key‑formatting, and dispatch wiring.
+This is not a registry of every interaction in the app. Component-local keyboard
+behavior such as text editing, list navigation, and closing a transient surface
+can remain local. An action belongs in the command system when multiple trigger
+surfaces or configurable shortcuts need to invoke the same behavior.
 
-- [command-usage.md](./command-usage.md) — how to register handlers, contribute
-  menus, render command‑backed UI, and add a new command.
+See [Command System — Usage](./command-usage.md) for consumer APIs and the steps
+for adding a command.
 
-## Commands, shortcuts, and menus — the relationship
+## Core model
 
-**A command is *what* the app does; a shortcut is one *way* to ask for it.** They
-are deliberately separate concepts:
-
-- A **command** is the unit of behavior, identified by a `CommandId` (e.g.
-  `topic.create`, `app.zoom.in`, `chat.message.search`). It owns the behavior and
-  knows nothing about how it was triggered.
-- A **shortcut** is a key binding *for* a command. A **menu item** is a menu entry
-  *for* a command. A **button** invokes a command. All of them are just triggers
-  that resolve to a `CommandId` and run its handler.
-
-```
- keyboard shortcut ─┐
- menu item ─────────┼──▶  CommandId  ──▶  handler (renderer or main)
- button / palette ──┘
+```text
+command definition ──┬── optional keybinding ──▶ main or renderer dispatcher
+                     ├── optional menu entry ──▶ main or renderer menu adapter
+                     └── command-aware UI ─────▶ main or renderer handler
 ```
 
-Two consequences fall out of this split:
+- `COMMAND_DEFINITIONS` declares each command's identity, translation keys,
+  process scope, optional enablement expression, and optional keybinding.
+- `KEYBINDING_RULES` and the registered command/keybinding lookups are derived
+  from those definitions.
+- A renderer surface registers behavior with `useCommandHandler`. Main-process
+  handlers live in `CommandService` and delegate to the service that owns the
+  behavior.
+- `MENU_CONTRIBUTIONS` is a separate static declaration keyed by `CommandId`.
+  Renderer menus can also carry surface-local custom items that do not become
+  commands.
 
-- **There are no free‑floating shortcuts.** Every shortcut, menu item, and button
-  resolves to a command. You never bind a key to an inline callback — you bind it
-  to a `CommandId`, and a surface registers the handler separately. Adding a new
-  way to trigger something never touches the behavior, and changing the behavior
-  never touches its triggers.
-- **A command can have zero, one, or several triggers.** A command may be
-  menu‑only (no default key), keyboard‑only, or both; the keybinding even allows
-  `additionalBindings` (e.g. numpad zoom). The command is the same either way.
+The registry is the source of truth for command metadata, but shortcut persistence
+also has a generated Preference entry. Every command with a keybinding therefore
+has two intentionally different declarations:
 
-### How a command relates to its shortcut
-
-| Concept | Where it lives | Example for `topic.create` |
-| --- | --- | --- |
-| Command definition | `COMMAND_DEFINITIONS` (`src/shared/command/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
-| Default key binding | the command's `keybinding.defaultBinding` | `Cmd/Ctrl + N` |
-| **User override** | the preference `shortcut.<commandId>` | `shortcut.topic.create` → `{ binding, enabled }` |
-| Handler | a surface via `useCommandHandler` (renderer) or a built‑in (main) | `useCommandHandler('topic.create', addNewTopic)` |
-| Menu entry (optional) | a `MENU_CONTRIBUTIONS` entry | `{ location: 'chat.input.tools.context', command: 'topic.create' }` |
-
-So there is exactly **one shortcut preference key per command** (`shortcut.<id>`):
-the command's *default* binding comes from its definition, and the user's edit in
-**Settings → Shortcuts** overrides it through that preference key. At runtime the
-effective binding is "user preference if set, else the definition default".
-
-A command's `scope: 'main' | 'renderer' | 'both'` decides where its handler runs
-and who listens for its key: the main‑process global‑shortcut registrar
-(`ShortcutService`) for main/global, or the per‑window keydown dispatcher
-(`CommandProvider`) for renderer.
-
-`COMMAND_DEFINITIONS` is the single source of truth — the `CommandId` union, the
-keybinding rules, the per‑command `shortcut.<id>` key, and the `when`/`enablement`
-context expressions are all derived from it. Menu contributions are a parallel
-declaration (`MENU_CONTRIBUTIONS`) keyed by the same `CommandId`s.
-
-## Architecture — three layers
-
-### 1. Shared declarations — `src/shared/command/`
-
-Pure data and pure functions, no Electron or React.
-
-| File | Responsibility |
+| Concern | Owner |
 | --- | --- |
-| `definitions.ts` | `COMMAND_DEFINITIONS` (SoT), the derived `CommandId`, `KEYBINDING_RULES`, `REGISTERED_KEYBINDINGS`, lookups |
-| `keybindings.ts` | resolve a binding → command, default/effective shortcut preference, conflict detection, label formatting |
-| `menus.ts` | `MENU_CONTRIBUTIONS`, the `MenuRegistry`, and `resolveMenuPresentationMode` |
-| `contextExpr.ts` | parser/evaluator for `when`/`enablement` expressions + `ContextKeyService` |
-| `types.ts` | all command/keybinding/menu/context types |
+| Identity, scope, context rules, platform overrides, additional bindings | `src/shared/utils/command/definitions.ts` |
+| Persisted default binding and enabled state | `shortcut.<commandId>` in `src/shared/data/preference/preferenceSchemas.ts` |
 
-Token formatting (typed shortcut vocabulary, normalization, display/accelerator
-formatting) lives in `src/shared/shortcuts/tokens.ts`; `src/shared/shortcuts/types.ts`
-keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
+The generated Preference schema must stay aligned with the command definition;
+see [Adding a command](./command-usage.md#adding-a-command).
 
-### 2. Main runtime — `src/main/services/`
+## Code layout
 
-| Service | Responsibility |
+The implementation follows the repository's type-by-domain layout instead of a
+single `command/` feature directory.
+
+### Shared contracts and logic
+
+| Path | Responsibility |
 | --- | --- |
-| `CommandService` | holds the main‑side handler registry; `execute(command, window?, ctx?)` with context evaluation; wires built‑in handlers (window/zoom/settings/quick‑assistant/selection); registers the native popup menu IPC (`NativeCommandPopupMenu_Show`) |
-| `nativePopupMenu.ts` | stateless module — materializes a renderer‑supplied menu model into an Electron native popup and reports the chosen command back; `CommandService` injects the execute/gate callback |
-| `ShortcutService` | registers `globalShortcut` accelerators from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute` |
-| `AppMenuService` | builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute` |
+| `src/shared/types/command.ts` | Command, keybinding, context-expression, and menu contracts |
+| `src/shared/types/shortcut.ts` | Shared shortcut preference/result types |
+| `src/shared/utils/command/definitions.ts` | Command definitions and derived registries |
+| `src/shared/utils/command/keybindings.ts` | Effective binding resolution, matching, accelerators, and conflict detection |
+| `src/shared/utils/command/menus.ts` | Static menu contributions and pure menu resolution |
+| `src/shared/utils/command/contextExpr.ts` | Context-expression parsing/evaluation and `ContextKeyService` |
+| `src/shared/utils/shortcut.ts` | Shortcut token normalization, event conversion, and display formatting |
 
-### 3. Renderer runtime — `src/renderer/features/command/`
+These modules are pure shared code: they import neither Electron nor React.
 
-| Piece | Responsibility |
+### Main-process runtime
+
+| Path | Responsibility |
 | --- | --- |
-| `CommandProvider` | one window‑level `keydown` dispatcher + the handler stack (`useCommandHandler`, `useCommandRuntime`) |
-| `ContextKeyProvider` | window‑local context keys (`useCommandContextKey`) |
-| `presentation.tsx` | `CommandShortcut`, `CommandTooltip`, `CommandButton`, `useResolvedCommand` |
-| `menus.tsx` | `CommandContextMenu` — renders Cherry UI or a native popup based on `menu.presentation_mode` |
+| `CommandService.ts` | Main handler registry, enablement checks, execution, and native-popup IPC registration |
+| `ShortcutService.ts` | Window-local main shortcuts and OS-global shortcuts, both delegated to `CommandService` |
+| `AppMenuService.ts` | macOS application menu; command-backed entries coexist with Electron roles and custom actions |
+| `nativePopupMenu.ts` | Validates and renders renderer-supplied native popup models |
+| `menu/adapters/nativeMenuAdapter.ts` | Converts resolved command/custom items into Electron menu templates |
 
-Mount `<ContextKeyProvider><CommandProvider>` once per renderer window — every
-window root mounts it: `windows/main/MainApp.tsx` and `windows/subWindow/SubWindowApp.tsx`.
+### Renderer runtime
 
-### Preferences
+| Path | Responsibility |
+| --- | --- |
+| `src/renderer/components/command/` | Providers, command-aware controls, context menus, and popup menus |
+| `src/renderer/hooks/command/` | Handler registration, context keys, resolved command/menu state, and shortcut settings data |
+| `src/renderer/utils/command.ts` | Pure renderer display-state and shortcut-label helpers |
 
-- `shortcut.<commandId>` — `PreferenceShortcutType` (`{ binding, enabled }`), the
-  editable binding per command. Generated through the data‑classify pipeline (see
-  [command-usage.md](./command-usage.md#adding-a-command)).
-- `menu.presentation_mode` — `'cherry' | 'native'`. Read by `CommandProvider`
-  to choose the menu renderer. There is no settings UI for it yet (planned); it
-  currently defaults via the preference schema.
+`CommandContextKeyProvider` and `CommandProvider` are mounted by the main and
+subwindow roots. Other renderer windows do not currently host the renderer command
+runtime.
+
+## Keybindings and context
+
+`CommandScope` supports `main`, `renderer`, and `both`:
+
+- Renderer bindings are handled by the window-level `CommandProvider`. A command
+  resolves only when an enabled handler is mounted.
+- Non-global main bindings are handled through `before-input-event` on the main
+  window and attached webviews.
+- Main bindings marked `global: true` are registered with Electron's
+  `globalShortcut` and can fire while the app is unfocused.
+
+`enablement` gates the command itself; a keybinding's `when` expression gates that
+trigger. Context expressions are evaluated against process-appropriate context:
+Preference-backed feature flags in main, and a window-local context-key stack in
+the renderer.
+
+Each keybinding resolves its `shortcut.<commandId>` Preference and can fall back
+to its declared default. Platform-specific defaults and `additionalBindings` come
+from the command definition. Settings lists resolved bindings and treats rules
+with `editable: false` as fixed.
 
 ## Dispatch flows
 
-- **Keyboard (renderer):** `keydown` → `CommandProvider` →
-  `getShortcutBindingFromKeyboardEvent` →
-  `resolveCommandByKeybinding({ scope: 'renderer', canExecuteCommand: hasHandler })`
-  → active handler. While an editable target (`<input>`, `<textarea>`, or a
-  `contenteditable` element) is focused the dispatcher skips no-modifier
-  shortcuts so typing isn't hijacked; modifier shortcuts (Ctrl/Meta/Alt) still
-  fire. It only `preventDefault`s when a command with a registered handler
-  resolves.
-- **Keyboard (global):** OS `globalShortcut` → `ShortcutService` →
-  `CommandService.execute(command, window)`.
-- **Native menu:** renderer builds a `NativePopupMenuModel` →
-  `window.api.command.showNativePopupMenu` → `CommandService`'s
-  `NativeCommandPopupMenu_Show` handler → `showNativePopupMenu` (in
-  `nativePopupMenu.ts`). Main‑handled commands run there; renderer‑handled ones
-  are returned to the renderer runtime to execute.
+### Renderer keyboard
+
+`keydown` → `CommandProvider` → shortcut normalization →
+`resolveCommandByKeybinding({ scope: 'renderer', canExecuteCommand: hasHandler })`
+→ active handler.
+
+No-modifier shortcuts are ignored while an input, textarea, or contenteditable
+target has focus. Modified shortcuts can still resolve. The event is prevented
+only after an executable command matches.
+
+### Main keyboard
+
+- Window-local: main window or attached webview `before-input-event` →
+  `ShortcutService` → `CommandService.execute`.
+- Global: Electron `globalShortcut` → `ShortcutService` → the registered main
+  handler.
+
+### Menus
+
+- The macOS app menu resolves its command-backed entries from `app.menu`, then
+  combines them with Electron roles and custom entries.
+- `CommandContextMenu` and `CommandPopupMenu` combine resolved command
+  contributions with caller-provided custom items.
+- `menu.presentation_mode` selects Cherry or native rendering for eligible
+  renderer menus. `app.menu` and `tray.menu` always resolve to native mode.
+- For a native popup, main-process commands execute in `CommandService`;
+  renderer commands and custom item IDs are returned to the renderer caller.
+
+The `MenuLocation` type includes reserved locations. A location existing in the
+type or in `MENU_CONTRIBUTIONS` does not by itself prove that a product surface
+currently consumes it; check call sites before extending it.

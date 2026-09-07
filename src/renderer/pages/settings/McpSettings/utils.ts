@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { CreateMcpServerDto, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('McpSettings/utils')
 
@@ -73,7 +74,7 @@ function isServerInWhitelist(server: McpServer): boolean {
  * @param server - The MCP server to extract command from
  * @returns Formatted command string with arguments
  */
-export const getCommandPreview = (server: McpServer): string => {
+export const getCommandPreview = (server: Pick<McpServer, 'command' | 'args'>): string => {
   return [server.command, ...(server.args ?? [])]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
@@ -138,3 +139,22 @@ export async function ensureServerTrusted(
 
   return { ...currentServer, ...trustFields }
 }
+
+/**
+ * Pretty-print an MCP log entry's `data` payload: raw strings pass through,
+ * structured data becomes pretty-printed JSON.
+ */
+export const formatMcpLogData = (data: unknown): string =>
+  typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+
+/**
+ * Format a single MCP log entry as `[HH:MM:SS] [LEVEL] message`, with any
+ * `data` payload on the following lines.
+ */
+const formatMcpLog = (log: McpServerLogEntry): string => {
+  const data = log.data ? `\n${formatMcpLogData(log.data)}` : ''
+  return `[${new Date(log.timestamp).toLocaleTimeString()}] [${log.level.toUpperCase()}] ${log.message}${data}`
+}
+
+/** Join MCP log entries into the newline-separated copy payload. */
+export const formatMcpLogs = (logs: McpServerLogEntry[]): string => logs.map(formatMcpLog).join('\n')

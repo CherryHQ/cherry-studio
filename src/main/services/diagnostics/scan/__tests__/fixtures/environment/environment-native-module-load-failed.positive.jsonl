@@ -1,0 +1,1 @@
+{"level":"error","message":"Embedding download failed","stack":"Error: ERR_DLOPEN_FAILED loading onnxruntime_binding.node","timestamp":"2026-08-20 14:00:00"}

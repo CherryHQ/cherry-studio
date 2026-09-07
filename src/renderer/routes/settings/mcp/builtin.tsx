@@ -3,7 +3,7 @@ import BuiltinMcpServerList from '@renderer/pages/settings/McpSettings/BuiltinMc
 import { createFileRoute } from '@tanstack/react-router'
 
 const BuiltinWrapper = () => (
-  <SettingsContentColumn>
+  <SettingsContentColumn className="pt-2">
     <BuiltinMcpServerList />
   </SettingsContentColumn>
 )

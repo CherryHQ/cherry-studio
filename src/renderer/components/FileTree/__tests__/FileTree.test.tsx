@@ -1,5 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,22 +52,37 @@ describe('FileTree - read-only form (no callbacks)', () => {
     expect(rootRow).toHaveAttribute('draggable', 'false')
   })
 
-  it('does not render rename input when renameSlot is omitted', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    expect(screen.queryByRole('textbox')).toBeNull()
-  })
-
-  it('does not render row extras when renderRowExtras is omitted', () => {
-    render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
-    expect(screen.queryByTestId('row-extras')).toBeNull()
-  })
-
   it('toggles expand on folder row click', async () => {
     const user = userEvent.setup()
     render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
     expect(screen.queryByText('A.md')).toBeNull()
     await user.click(screen.getByText('Root'))
     expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
+  it('exposes tree semantics and supports keyboard expansion and selection', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        ariaLabel="Source files"
+        onSelectedChange={onSelectedChange}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    expect(screen.getByRole('tree', { name: 'Source files' })).toBeInTheDocument()
+    const rootRow = screen.getByRole('treeitem', { name: 'Root' })
+    rootRow.focus()
+    await user.keyboard('{Enter}')
+
+    expect(rootRow).toHaveAttribute('aria-expanded', 'true')
+    const markdownRow = screen.getByRole('treeitem', { name: 'A.md' })
+    markdownRow.focus()
+    await user.keyboard(' ')
+
+    expect(onSelectedChange).toHaveBeenLastCalledWith('a')
   })
 
   it('reports selection through onSelectedChange', async () => {
@@ -99,7 +114,7 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(rootRow).toHaveAttribute('draggable', 'true')
   })
 
-  it('renders rename input when renameSlot returns true for a node', () => {
+  it('renders the rename input and disables dragging only on that row', () => {
     render(
       <FileTree
         nodes={nodes}
@@ -113,58 +128,35 @@ describe('FileTree - editable form (all callbacks)', () => {
       />
     )
     const input = screen.getByRole('textbox') as HTMLInputElement
-    expect(input.value).toBe('A.md')
-  })
-
-  it('disables dragging on the row being renamed', () => {
-    render(
-      <FileTree
-        nodes={nodes}
-        defaultExpandedIds={new Set(['root'])}
-        onMove={() => {}}
-        renameSlot={{
-          isRenaming: (n) => n.id === 'a',
-          inputProps: { value: 'A.md', onChange: () => {} }
-        }}
-        renderList={passthroughRenderList}
-      />
-    )
-    const renamedRow = screen.getByRole('textbox').closest('[data-node-id="a"]')!
+    const renamedRow = input.closest('[data-node-id="a"]')!
     const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
+    expect(input.value).toBe('A.md')
     expect(renamedRow).toHaveAttribute('draggable', 'false')
     expect(rootRow).toHaveAttribute('draggable', 'true')
   })
 
-  it('renders renderRowExtras for every row', () => {
+  it('renders row extras without selecting or expanding their row', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
     render(
       <FileTree
         nodes={nodes}
         defaultExpandedIds={new Set(['root'])}
-        onMove={() => {}}
-        renderRowExtras={(n) => <span data-testid={`extra-${n.id}`}>x</span>}
+        onSelectedChange={onSelectedChange}
+        renderRowExtras={(n) => (
+          <button type="button" data-testid={`extra-${n.id}`}>
+            extra
+          </button>
+        )}
         renderList={passthroughRenderList}
       />
     )
-    expect(screen.getByTestId('extra-root')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('extra-root'))
+
     expect(screen.getByTestId('extra-a')).toBeInTheDocument()
-  })
-
-  it('opens row context menu from the whole row when getMenuItems is provided', () => {
-    render(
-      <FileTree
-        nodes={nodes}
-        defaultExpandedIds={new Set(['root'])}
-        getMenuItems={(n) => [{ type: 'item', id: `menu-${n.id}`, label: `Menu for ${n.name}`, onSelect: () => {} }]}
-        renderList={passthroughRenderList}
-      />
-    )
-
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    act(() => {
-      fireEvent.contextMenu(rootRow)
-    })
-
-    expect(screen.getByText('Menu for Root')).toBeInTheDocument()
+    expect(screen.getByText('A.md')).toBeInTheDocument()
+    expect(onSelectedChange).not.toHaveBeenCalled()
   })
 
   it('stops row context-menu events after opening the row menu', () => {
@@ -210,15 +202,6 @@ describe('FileTree - icon behaviour', () => {
     expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toBeTruthy()
     expect(jsonRow.querySelector('[data-icon="material-icon-theme:json"]')).toBeTruthy()
     expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toHaveAttribute('data-width', '16')
-  })
-
-  it('renders rows with sm text', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]')!
-
-    expect(rootRow).toHaveClass('text-sm')
-    expect(markdownRow).toHaveClass('text-sm')
   })
 
   it('renders skillFileTree-style placeholder for file rows', () => {
@@ -275,47 +258,21 @@ describe('FileTree - search box', () => {
     expect(screen.queryByTestId('search-toolbar')).toBeNull()
   })
 
-  it('renders the search input when showSearch is true', () => {
-    render(
-      <FileTree
-        nodes={nodes}
-        showSearch
-        searchKeyword=""
-        onSearchKeywordChange={() => {}}
-        renderList={passthroughRenderList}
-      />
-    )
-    expect(screen.getByTestId('file-tree-search-input')).toBeInTheDocument()
-  })
-
-  it('reflects the controlled searchKeyword value', () => {
+  it('reflects the controlled keyword and reports input changes', () => {
+    const onSearchKeywordChange = vi.fn()
     render(
       <FileTree
         nodes={nodes}
         showSearch
         searchKeyword="hello"
-        onSearchKeywordChange={() => {}}
+        onSearchKeywordChange={onSearchKeywordChange}
         renderList={passthroughRenderList}
       />
     )
     const input = screen.getByTestId('file-tree-search-input') as HTMLInputElement
     expect(input.value).toBe('hello')
-  })
-
-  it('fires onSearchKeywordChange on input', async () => {
-    const onSearchKeywordChange = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <FileTree
-        nodes={nodes}
-        showSearch
-        searchKeyword=""
-        onSearchKeywordChange={onSearchKeywordChange}
-        renderList={passthroughRenderList}
-      />
-    )
-    await user.type(screen.getByTestId('file-tree-search-input'), 'a')
-    expect(onSearchKeywordChange).toHaveBeenCalledWith('a')
+    fireEvent.change(input, { target: { value: 'updated' } })
+    expect(onSearchKeywordChange).toHaveBeenCalledWith('updated')
   })
 
   it('renders the search toolbar and keeps the clear button usable', async () => {

@@ -17,7 +17,7 @@ interface ProviderSettingsDrawerProps {
   showHeaderCloseButton?: boolean
 }
 
-// All callers follow PageSidePanel defaults from DESIGN.md §4 "Drawers & Page Side Panels":
+// All callers follow the PageSidePanel defaults:
 // w-100, rounded-3xl, shadow-xl, bg-card,
 // backdrop bg-black/50, header px-6 pt-6 pb-3, body space-y-4 px-6 py-4, footer px-6 pt-3 pb-6.
 export default function ProviderSettingsDrawer({
@@ -41,7 +41,7 @@ export default function ProviderSettingsDrawer({
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-semibold text-base text-foreground">{title}</span>
-          {description ? <span className="text-foreground-muted text-xs leading-tight">{description}</span> : null}
+          {description ? <span className="text-muted-foreground text-xs leading-tight">{description}</span> : null}
         </div>
         {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
       </div>

@@ -45,7 +45,7 @@ export default function ProviderListHeaderFilterMenu({
             size={triggerIconSize}
             className={cn(
               'shrink-0',
-              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+              hasActiveFilter ? 'text-primary!' : 'text-muted-foreground group-hover:text-foreground'
             )}
           />
         </button>

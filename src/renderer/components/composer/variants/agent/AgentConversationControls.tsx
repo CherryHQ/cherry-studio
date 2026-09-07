@@ -1,9 +1,11 @@
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -48,7 +50,8 @@ export interface AgentConversationControlsProps {
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
 }
 
@@ -152,15 +155,25 @@ function ModelControl({
   side,
   iconOnly = false,
   onModelSelect,
-  modelFilter
+  modelFilter,
+  isModelDisabled
 }: Pick<
   AgentConversationControlsProps,
-  'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
+  | 'model'
+  | 'selectModelLabel'
+  | 'canChangeModel'
+  | 'side'
+  | 'iconOnly'
+  | 'onModelSelect'
+  | 'modelFilter'
+  | 'isModelDisabled'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelLabel = model ? model.name : selectModelLabel
+  const loadedProviderName = useProviderDisplayName(model?.providerId)
+  const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
+  const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
@@ -169,9 +182,10 @@ function ModelControl({
         <Sparkles size={20} aria-hidden className="text-muted-foreground" />
       )}
       <span
+        title={modelLabel}
         className={cn(
           'max-w-40 text-xs',
-          canChangeModel ? (model ? 'text-foreground/85' : 'text-muted-foreground') : undefined,
+          canChangeModel ? (model ? 'text-foreground' : 'text-muted-foreground') : undefined,
           labelClassName
         )}>
         {modelLabel}
@@ -179,13 +193,14 @@ function ModelControl({
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
-
   return (
     <ModelSelector
       multiple={false}
+      includeAgentOnlyModels
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}
+      isModelDisabled={isModelDisabled}
       shortcut={canChangeModel ? 'chat.model.select' : undefined}
       side={side}
       align="start"
@@ -249,7 +264,14 @@ function WorkspaceControl({
         <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
       </Button>
     )
-    return <OpenExternalAppButton workdir={workspace.path} menuTrigger={openMenuTrigger} tooltip={workspaceWarning} />
+    return (
+      <OpenTargetButton
+        targetPath={workspace.path}
+        pathKind="directory"
+        menuTrigger={openMenuTrigger}
+        tooltip={workspaceWarning}
+      />
+    )
   }
 
   const trigger = (
@@ -297,7 +319,7 @@ function WorkspaceControl({
                 data-testid="clear-workspace-button"
                 aria-hidden
                 className={cn(
-                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
                   !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
                   workspaceChanging && 'cursor-not-allowed opacity-50'
                 )}
@@ -320,6 +342,7 @@ function WorkspaceControl({
     <WorkspaceSelector
       value={selectorValue}
       onChange={onWorkspaceChange}
+      shouldClearSelectionOnDelete={false}
       side={side}
       align="start"
       mountStrategy="lazy-keep"

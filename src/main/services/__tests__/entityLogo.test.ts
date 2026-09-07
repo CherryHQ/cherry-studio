@@ -45,7 +45,13 @@ describe('setProviderLogo', () => {
     await setProviderLogo('p1', { kind: 'image', data })
 
     expect(transcodeMock).toHaveBeenCalledWith(data)
-    expect(createInternalEntryMock).toHaveBeenCalledWith({ source: 'bytes', data: WEBP, name: 'image', ext: 'webp' })
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'bytes',
+      data: WEBP,
+      name: 'image',
+      ext: 'webp',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'file', fileId: FILE_ID } })
     expect(permanentDeleteMock).not.toHaveBeenCalled()
   })

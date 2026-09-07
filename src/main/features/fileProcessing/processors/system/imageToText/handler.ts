@@ -1,5 +1,8 @@
+import fs from 'node:fs/promises'
+
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
+import { transcodeToPng } from '@main/utils/image'
 import type * as SystemOcrModule from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
@@ -42,8 +45,14 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 
         const { OcrAccuracy, recognize } = await loadSystemOcr()
 
+        // On Windows the binding only ever reaches a PNG decoder — path input hardcodes it and
+        // buffer input sniffs nothing else (#18326) — so it has to be fed PNG bytes.
+        const image = isWin
+          ? await transcodeToPng(await fs.readFile(context.file.path, { signal: executionContext.signal }))
+          : context.file.path
+
         const result = await recognize(
-          context.file.path,
+          image,
           OcrAccuracy.Accurate,
           isWin ? context.langs : undefined,
           executionContext.signal

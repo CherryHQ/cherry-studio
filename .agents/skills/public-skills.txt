@@ -3,8 +3,8 @@
 gh-create-pr
 prepare-release
 create-skill
-demand-first-review
 gh-create-issue
 gh-pr-review
 vercel-react-best-practices
 cherry-pr-test
+cherry-electron-dev

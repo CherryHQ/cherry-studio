@@ -9,6 +9,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 
 import type { MessageListItem } from '../types'
@@ -22,12 +23,6 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
   if (!metadata) return undefined
   const stats: MessageStats = { ...metadata.stats }
   if (metadata.totalTokens !== undefined) stats.totalTokens = metadata.totalTokens
-  if (metadata.promptTokens !== undefined) stats.promptTokens = metadata.promptTokens
-  if (metadata.completionTokens !== undefined) stats.completionTokens = metadata.completionTokens
-  if (metadata.thoughtsTokens !== undefined) stats.thoughtsTokens = metadata.thoughtsTokens
-  if (metadata.noCacheTokens !== undefined) stats.noCacheTokens = metadata.noCacheTokens
-  if (metadata.cacheReadTokens !== undefined) stats.cacheReadTokens = metadata.cacheReadTokens
-  if (metadata.cacheWriteTokens !== undefined) stats.cacheWriteTokens = metadata.cacheWriteTokens
   return Object.keys(stats).length > 0 ? stats : undefined
 }
 
@@ -53,6 +48,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
+    isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
@@ -60,7 +56,8 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
-    stats: statsFromMetadata(message.metadata)
+    stats: statsFromMetadata(message.metadata),
+    delivery: metadata.delivery
   }
 }
 
@@ -169,7 +166,11 @@ export function isMessageListItemAwaitingApproval(message: MessageListItem, part
   return parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
 }
 
-export function createMessageExportView(message: MessageListItem, parts: CherryMessagePart[]): MessageExportView {
+export function createMessageExportView(
+  message: MessageListItem,
+  parts: CherryMessagePart[],
+  priorCitationParts?: readonly CherryMessagePart[]
+): MessageExportView {
   const model = getMessageListItemModel(message)
   return {
     id: message.id,
@@ -185,6 +186,7 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,
-    parts
+    parts,
+    ...(priorCitationParts?.length ? { priorCitationParts } : {})
   }
 }

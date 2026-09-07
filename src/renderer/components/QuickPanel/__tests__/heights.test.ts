@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
+import { getQuickPanelBodyVerticalSpace, getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
 
 const ITEM = QUICK_PANEL_ITEM_HEIGHT
 const DEFAULT_CHROME = 98
@@ -17,6 +17,21 @@ const base = {
 }
 
 describe('getQuickPanelHeights', () => {
+  it('accounts for the 34px rendered row plus its one-pixel inter-row gap', () => {
+    expect(QUICK_PANEL_ITEM_HEIGHT).toBe(35)
+  })
+
+  it('sums the rendered body padding and border widths', () => {
+    const style = {
+      paddingTop: '5px',
+      paddingBottom: '5px',
+      borderTopWidth: '0.5px',
+      borderBottomWidth: '0.5px'
+    } as CSSStyleDeclaration
+
+    expect(getQuickPanelBodyVerticalSpace(style)).toBe(11)
+  })
+
   describe('default (docked / non-fill): fixed height, ignores availableHeight', () => {
     it('uses the fixed ideal height when availableHeight is null', () => {
       const { panelMaxHeight, listHeight } = getQuickPanelHeights(base)
@@ -40,11 +55,32 @@ describe('getQuickPanelHeights', () => {
       )
     })
 
-    it('reserves a page slot for a bottom-fixed row', () => {
-      const { panelMaxHeight, listHeight } = getQuickPanelHeights({ ...base, fixedItemCount: 1 })
+    it('keeps a measured read-only footer visible when search results collapse', () => {
+      const measuredChrome = 82
 
-      expect(panelMaxHeight).toBe(base.pageSize * ITEM + DEFAULT_CHROME)
-      expect(listHeight).toBe((base.pageSize - 1) * ITEM)
+      expect(
+        getQuickPanelHeights({
+          ...base,
+          readOnly: true,
+          collapsed: true,
+          chromeHeight: measuredChrome
+        })
+      ).toEqual({ panelMaxHeight: measuredChrome, listHeight: 0 })
+    })
+
+    it('includes the rendered empty state when search results collapse', () => {
+      const measuredChrome = 82
+      const emptyStateHeight = 48
+
+      expect(
+        getQuickPanelHeights({
+          ...base,
+          readOnly: true,
+          collapsed: true,
+          chromeHeight: measuredChrome,
+          emptyStateHeight
+        })
+      ).toEqual({ panelMaxHeight: measuredChrome + emptyStateHeight, listHeight: 0 })
     })
   })
 
@@ -101,20 +137,6 @@ describe('getQuickPanelHeights', () => {
       expect(listHeight).toBe(3 * ITEM)
     })
 
-    it('keeps a bottom-fixed row outside the shrunken virtual list', () => {
-      const available = DEFAULT_CHROME + 3 * ITEM
-      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
-        ...base,
-        fill: true,
-        fixedItemCount: 1,
-        itemCount: 50,
-        availableHeight: available
-      })
-
-      expect(panelMaxHeight).toBe(available)
-      expect(listHeight).toBe(2 * ITEM)
-    })
-
     it('never shrinks the panel below one row of chrome when the available space is tiny', () => {
       expect(getQuickPanelHeights({ ...base, fill: true, itemCount: 1, availableHeight: 10 }).panelMaxHeight).toBe(
         DEFAULT_CHROME + ITEM
@@ -129,19 +151,6 @@ describe('getQuickPanelHeights', () => {
         availableHeight: 400
       })
       expect(panelMaxHeight).toBe(DEFAULT_CHROME)
-      expect(listHeight).toBe(0)
-    })
-
-    it('keeps the bottom-fixed row visible when collapsed', () => {
-      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
-        ...base,
-        fill: true,
-        collapsed: true,
-        fixedItemCount: 1,
-        availableHeight: 400
-      })
-
-      expect(panelMaxHeight).toBe(DEFAULT_CHROME + ITEM)
       expect(listHeight).toBe(0)
     })
   })

@@ -10,6 +10,7 @@ import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/p
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
+import { readConfigFiles } from './file'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -37,7 +38,7 @@ const logger = loggerService.withContext('writeCliConfigDraft')
  * an anthropic-messages endpoint (see CLI_TOOL_PROVIDER_MAP), so Codex/Gemini
  * CLI/Qwen Code/Kimi CLI never offer it as a provider option.
  */
-const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE]
+const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE, CodeCli.PI]
 
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
@@ -109,9 +110,9 @@ export async function readCliConfigFiles(
   cliTool: string,
   options: { includeEmpty?: boolean } = {}
 ): Promise<CliConfigFileDraft[]> {
-  const files = await Promise.all(
-    getCliConfigTargets(cliTool).map(async (target) => makeDraftFile(target, await readDraftFileText(target)))
-  )
+  const targets = getCliConfigTargets(cliTool)
+  const read = await readConfigFiles(targets)
+  const files = targets.map((target) => makeDraftFile(target, readDraftFileText(target, undefined, read), read))
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 

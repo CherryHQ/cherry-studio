@@ -10,6 +10,7 @@
  */
 
 import { application } from '@application'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
@@ -22,6 +23,7 @@ declare module '@main/core/job/jobRegistry' {
       agentId: string
       prompt: string
       workspace: AgentTaskInput['workspace']
+      reuseRevision: number
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
@@ -34,22 +36,13 @@ const logger = loggerService.withContext('agentTaskJobHandler')
 const RECENT_TERMINAL_WINDOW = 3
 
 export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
-  /**
-   * 'retry': non-terminal jobs from a previous run are re-pended on startup
-   * so the recovered job dispatches against the latest agent configuration.
-   * This matches the legacy poll-loop semantics where a task missed by a
-   * crash was simply picked up on the next 60s tick.
-   */
+  /** Preserve the existing at-least-once recovery contract; reuse mode inherits its crash-replay limitation. */
   recovery: 'retry',
 
-  /**
-   * Per-agent serialization queue: a single agent never runs two scheduled
-   * tasks concurrently (Claude Code subprocess + workspace state would
-   * collide). Cross-agent parallelism is unaffected.
-   */
+  /** Bound same-agent parallelism to limit subprocess and workspace contention. */
   defaultQueue: (input) => `agent:${input.agentId}`,
 
-  defaultConcurrency: 1,
+  defaultConcurrency: 3,
 
   /**
    * Schedule-driven tasks do not retry inside the Job runtime — failure
@@ -60,10 +53,15 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
   async execute(ctx) {
+    // The row is already `running` here; publish so open task lists leave the
+    // previous run's state. JobContext carries no scheduleId — resolve the row.
+    const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
+    if (scheduleId) agentTaskService.notifyReadModelChange([scheduleId])
     return await runAgentTask(ctx)
   },
 
   async onSettled(event) {
+    if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
     if (event.status !== 'failed' || !event.scheduleId) return
 
     const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)

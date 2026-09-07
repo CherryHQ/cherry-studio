@@ -15,6 +15,7 @@ import type {
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
 import type { AppProviderSettingsMap } from '../../../types'
+import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -105,9 +106,13 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
+  /** App provider/model identifiers attached to normalized stream errors. */
+  errorContext?: { providerId: string; modelId: string }
   /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]
+  /** Wraps the resolved model (e.g. ai-retry retry/fallback) before the agent uses it. */
+  wrapModel?: WrapLanguageModel
   tools?: ToolSet
   system?: string
   options?: AgentOptions
@@ -115,4 +120,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /** Modalities the model accepts; unsupported media is stripped before conversion. */
   mediaCapabilities?: MediaCapabilities
+  /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
+  toolResultMediaCapabilities?: MediaCapabilities
 }

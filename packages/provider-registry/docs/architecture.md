@@ -52,7 +52,9 @@ A creator declares a creator and its models. Fields:
 
 A provider declares how to connect + what it serves. Fields:
 
-- Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`, `apiFeatures`, `metadata` — emitted to `providers.json` (minus `description`, which is templated).
+- Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`,
+  `apiFeatures`, optional `reportedCostCurrency`, and `metadata` — emitted to
+  `providers.json` (minus `description`, which is templated).
 - `modelsDevProvider` — models.dev key whose listing is this provider's served catalog (with per-model pricing). **Generation-only**, not emitted to `providers.json`.
 - `fetchModels()` — or pull the served list from the provider's own API.
 - `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, pricing, image transport, endpoint-keyed reasoning contracts, `disabled`, and standalone models.

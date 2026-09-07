@@ -10,13 +10,13 @@ import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
-import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreateAssistantDto,
+  DuplicateAssistantDto,
   ImportAssistantDto,
   ListAssistantsQuery,
   UpdateAssistantDto
@@ -29,6 +29,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'dri
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
+import { promptService } from './PromptService'
 import { topicService } from './TopicService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -94,11 +95,15 @@ export class AssistantDataService {
     return application.get('DbService').getDb()
   }
 
+  private getModelNameById(db: Pick<DbType, 'select'>, modelId: string | null): string | null {
+    if (!modelId) return null
+    return modelService.getNamesByUniqueIdsTx(db, [modelId]).get(modelId) ?? null
+  }
+
   private getActiveRowWithModelNameById(id: string, db: Pick<DbType, 'select'> = this.db): AssistantRowWithModelName {
     const [row] = db
-      .select({ assistant: assistantTable, modelName: userModelTable.name })
+      .select()
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
       .limit(1)
       .all()
@@ -108,8 +113,8 @@ export class AssistantDataService {
     }
 
     return {
-      assistant: row.assistant,
-      modelName: row.modelName || null
+      assistant: row,
+      modelName: this.getModelNameById(db, row.modelId)
     }
   }
 
@@ -121,10 +126,10 @@ export class AssistantDataService {
    */
   private resolveCreateModelId(tx: Pick<DbType, 'select'>, dtoModelId: string | null | undefined): string | null {
     if (dtoModelId !== undefined) {
-      if (dtoModelId && !modelService.findByIdTx(tx, dtoModelId)) {
+      if (dtoModelId && !modelService.existsByIdTx(tx, dtoModelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dtoModelId}' is not registered in user_model`] },
-          `Assistant modelId '${dtoModelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dtoModelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dtoModelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       return dtoModelId
@@ -132,7 +137,7 @@ export class AssistantDataService {
     const preferred = application.get('PreferenceService').get('chat.default_model_id') ?? null
     if (!preferred) return null
 
-    if (!modelService.findByIdTx(tx, preferred)) {
+    if (!modelService.existsByIdTx(tx, preferred)) {
       logger.warn('chat.default_model_id is stale; creating assistant without a bound model', {
         preferred
       })
@@ -159,7 +164,10 @@ export class AssistantDataService {
     }
   }
 
-  private getRelationIdsByAssistantIds(assistantIds: string[]): Map<string, AssistantRelationIds> {
+  private getRelationIdsByAssistantIds(
+    assistantIds: string[],
+    db: Pick<DbType, 'select'> = this.db
+  ): Map<string, AssistantRelationIds> {
     const relationMap = new Map<string, AssistantRelationIds>()
 
     if (assistantIds.length === 0) {
@@ -170,13 +178,13 @@ export class AssistantDataService {
       relationMap.set(assistantId, createEmptyRelations())
     }
 
-    const mcpServerRows = this.db
+    const mcpServerRows = db
       .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
       .from(assistantMcpServerTable)
       .where(inArray(assistantMcpServerTable.assistantId, assistantIds))
       .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.createdAt))
       .all()
-    const knowledgeBaseRows = this.db
+    const knowledgeBaseRows = db
       .select({
         assistantId: assistantKnowledgeBaseTable.assistantId,
         knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
@@ -206,9 +214,8 @@ export class AssistantDataService {
       conditions.push(isNull(assistantTable.deletedAt))
     }
     const [row] = this.db
-      .select({ assistant: assistantTable, modelName: userModelTable.name })
+      .select()
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .where(and(...conditions))
       .limit(1)
       .all()
@@ -216,7 +223,7 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
     const relations = this.getRelationIdsByAssistantIds([id])
-    return rowToAssistant(row.assistant, relations.get(id), row.modelName || null)
+    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): AssistantEntitySearchItem[] {
@@ -313,9 +320,8 @@ export class AssistantDataService {
     // (`sortBy=updatedAt`) deliberately bypass pins so incremental consumers get
     // strict timestamp ordering.
     const rows = this.db
-      .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
+      .select({ assistant: assistantTable, pinOrderKey: pinTable.orderKey })
       .from(assistantTable)
-      .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
       .where(whereClause)
       .orderBy(...orderByClauses)
@@ -326,8 +332,16 @@ export class AssistantDataService {
 
     const assistantIds = rows.map((row) => row.assistant.id)
     const relations = this.getRelationIdsByAssistantIds(assistantIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      this.db,
+      rows.map((row) => row.assistant.modelId)
+    )
     const items = rows.map((row) =>
-      rowToAssistant(row.assistant, relations.get(row.assistant.id), row.modelName || null)
+      rowToAssistant(
+        row.assistant,
+        relations.get(row.assistant.id),
+        row.assistant.modelId ? (modelNames.get(row.assistant.modelId) ?? null) : null
+      )
     )
 
     return {
@@ -393,6 +407,40 @@ export class AssistantDataService {
     )
   }
 
+  duplicate(id: string, dto: DuplicateAssistantDto): Assistant {
+    this.validateName(dto.name)
+
+    const {
+      assistant: row,
+      modelName,
+      relations,
+      clonedPromptIds
+    } = application.get('DbService').withWriteTx((tx) => {
+      const { assistant: source } = this.getActiveRowWithModelNameById(id, tx)
+      const relations = this.getRelationIdsByAssistantIds([id], tx).get(id) ?? createEmptyRelations()
+      const created = this.createTx(tx, {
+        name: dto.name,
+        prompt: source.prompt,
+        emoji: source.emoji,
+        description: source.description,
+        settings: source.settings,
+        modelId: source.modelId as UniqueModelId | null,
+        groupId: source.groupId,
+        ...relations
+      })
+      const clonedPromptIds = promptService.cloneBindingsForTargetTx(
+        tx,
+        { type: 'assistant', id },
+        { type: 'assistant', id: created.assistant.id }
+      )
+      return { ...created, relations, clonedPromptIds }
+    })
+
+    logger.info('Duplicated assistant', { id: row.id, sourceId: id })
+    if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
+    return rowToAssistant(row, relations, modelName)
+  }
+
   /**
    * Import one legacy assistant. Exact-name group resolution/creation and the
    * assistant insert share one immediate write transaction, preventing stale
@@ -400,17 +448,28 @@ export class AssistantDataService {
    */
   createFromImport(dto: ImportAssistantDto): Assistant {
     this.validateName(dto.name)
-    const { groupName, ...assistantDto } = dto
+    const { groupName, regularPhrases = [], ...assistantDto } = dto
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => {
+    const {
+      assistant: row,
+      modelName,
+      importedPromptIds
+    } = application.get('DbService').withWriteTx((tx) => {
       const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
-      return this.createTx(tx, {
+      const created = this.createTx(tx, {
         ...assistantDto,
         ...(group ? { groupId: group.id } : {})
       })
+      const importedPromptIds = promptService.createRestrictedForTargetTx(
+        tx,
+        { type: 'assistant', id: created.assistant.id },
+        regularPhrases
+      )
+      return { ...created, importedPromptIds }
     })
 
     logger.info('Imported assistant', { id: row.id, name: row.name })
+    if (importedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
 
     return rowToAssistant(row, createEmptyRelations(), modelName)
   }
@@ -461,10 +520,10 @@ export class AssistantDataService {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
-      if (dto.modelId && !modelService.findByIdTx(tx, dto.modelId)) {
+      if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
-          `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dto.modelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dto.modelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       if (dto.groupId !== undefined) {
@@ -494,7 +553,7 @@ export class AssistantDataService {
 
       const nextModelName =
         dto.modelId !== undefined && dto.modelId !== current.modelId
-          ? this.getActiveRowWithModelNameById(id, tx).modelName
+          ? this.getModelNameById(tx, next.modelId)
           : current.modelName
 
       return { row: next, modelName: nextModelName }
@@ -558,8 +617,11 @@ export class AssistantDataService {
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
+    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
+    pinService.notifyPurged()
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 
@@ -574,6 +636,7 @@ export class AssistantDataService {
     if (!row) return false
 
     pinService.purgeForEntityTx(tx, 'assistant', id)
+    promptService.purgeForTargetTx(tx, 'assistant', id)
 
     return true
   }

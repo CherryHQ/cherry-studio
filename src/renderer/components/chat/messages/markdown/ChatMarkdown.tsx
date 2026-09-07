@@ -1,77 +1,58 @@
-import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
-import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
-import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { processLatexBrackets } from '@renderer/utils/markdown'
-import { isEmpty } from 'es-toolkit/compat'
-import { type FC, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { MarkdownSource } from '@cherrystudio/ui'
+import type { Citation } from '@renderer/types/message'
+import { type FC, lazy, Suspense, useMemo } from 'react'
 import type { Components } from 'streamdown'
 
-import { useChatMarkdownComponents } from './useChatMarkdownComponents'
+import { scanStandaloneHtmlArtifact } from './standaloneHtmlArtifact'
 
-interface Props {
+export interface ChatMarkdownProps {
   block: MarkdownSource
-  /** Pre-process the markdown content (e.g. citation tag injection). */
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   postProcess?: (text: string) => string
   className?: string
   components?: Partial<Components>
+  trustedCitations?: readonly Citation[]
 }
 
-const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
+export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
-const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
-  const { t } = useTranslation()
-  const { mathEnableSingleDollar } = useMessageRenderConfig()
-  const isStreaming = block.status === 'streaming'
-  const hasStreamedRef = useRef(isStreaming)
-  if (isStreaming) hasStreamedRef.current = true
+const ChatMarkdownRuntime = lazy(() => import('./ChatMarkdownRuntime'))
+const ChatMarkdownMermaidRuntime = lazy(() => import('./ChatMarkdownMermaidRuntime'))
+const StandaloneHtmlArtifactRenderer = lazy(() => import('./StandaloneHtmlArtifactRenderer'))
+// Deliberately permissive about block-quote/list prefixes and info strings: a false positive only
+// loads the Mermaid runtime needlessly, a false negative renders a diagram as a plain code block.
+const MERMAID_FENCE_REGEX = /(?:^|\n)[ \t>]*(?:[*+-][ \t]+|\d{1,9}[.)][ \t]+)?(?:`{3,}|~{3,})[ \t]*mermaid\b/i
 
-  const plugins = useMemo(() => withChatPlugins({ singleDollarMath: mathEnableSingleDollar }), [mathEnableSingleDollar])
-
-  const content = useMemo(() => {
-    if (block.status === 'paused' && isEmpty(block.content)) {
-      return t('message.chat.completion.paused')
-    }
-    let text = removeSvgEmptyLines(processLatexBrackets(block.content))
-    if (postProcess) text = postProcess(text)
-    return text
-  }, [block.status, block.content, postProcess, t])
-
-  const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming })
-  const mergedComponents = useMemo(
-    () => (components ? { ...chatComponents, ...components } : chatComponents),
-    [chatComponents, components]
+const ChatMarkdown: FC<ChatMarkdownProps> = (props) => {
+  const { block, inlineHtmlPreviewMode } = props
+  const standaloneHtmlArtifact = useMemo(
+    () => (inlineHtmlPreviewMode ? scanStandaloneHtmlArtifact(block.content, block.status === 'streaming') : undefined),
+    [block.content, block.status, inlineHtmlPreviewMode]
   )
 
-  const footnoteLabel = t('common.footnotes')
-
-  // Keep the renderer type stable when an active text tail is sealed by a
-  // later process part. Historical markdown still mounts the static renderer.
-  if (hasStreamedRef.current) {
+  if (standaloneHtmlArtifact && inlineHtmlPreviewMode) {
     return (
-      <StreamingMarkdown
-        id={block.id}
-        plugins={plugins}
-        components={mergedComponents}
-        footnoteLabel={footnoteLabel}
-        animated={isStreaming ? undefined : false}
-        parseIncompleteMarkdown={isStreaming}>
-        {content}
-      </StreamingMarkdown>
+      <Suspense fallback={null}>
+        <StandaloneHtmlArtifactRenderer
+          artifact={standaloneHtmlArtifact}
+          block={block}
+          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+        />
+      </Suspense>
     )
   }
+
+  const Runtime = MERMAID_FENCE_REGEX.test(block.content) ? ChatMarkdownMermaidRuntime : ChatMarkdownRuntime
+
   return (
-    <Markdown
-      id={block.id}
-      plugins={plugins}
-      components={mergedComponents}
-      className={className}
-      footnoteLabel={footnoteLabel}>
-      {content}
-    </Markdown>
+    <Suspense
+      fallback={
+        <div className={props.className} style={{ whiteSpace: 'pre-wrap' }}>
+          {block.content}
+        </div>
+      }>
+      <Runtime {...props} />
+    </Suspense>
   )
 }
 

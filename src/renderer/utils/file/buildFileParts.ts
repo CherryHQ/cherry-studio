@@ -12,10 +12,11 @@
  * accessor + Zod.
  */
 
+import { ipcApi } from '@renderer/ipc'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { createFilePathHandle } from '@shared/utils/file'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
   part: FileUIPart,
@@ -60,14 +61,21 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
     attachments.map(async (attachment, index) => {
       const entry = await window.api.file.createInternalEntry({
         source: 'path',
-        path: paths[index]
+        path: paths[index],
+        cleanupPolicy: 'delete_when_unreferenced'
       })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-      const metadata = await window.api.file.getMetadata(createFilePathHandle(physicalPath))
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
+      if (metadata === null) {
+        // The physical file was just created by createInternalEntry above, so an
+        // unreadable (null) metadata means a broken internal invariant — surface
+        // it here rather than silently shipping an octet-stream part.
+        throw new Error(`Failed to read metadata for freshly created file entry ${entry.id}`)
+      }
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
-        url: `file://${physicalPath}`,
+        url: toFileUrl(physicalPath),
         filename: attachment.origin_name || attachment.name
       }
       return withComposerFilePartMeta(basePart, attachment, entry.id)

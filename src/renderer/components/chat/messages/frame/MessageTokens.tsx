@@ -1,11 +1,13 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { MessageStats } from '@shared/data/types/message'
-import type { FC } from 'react'
-import { useId, useMemo, useState } from 'react'
+import type { FC, MouseEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageListActions } from '../MessageListProvider'
+import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
+import { getMessageModelTokensPerSecond } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
@@ -13,27 +15,14 @@ interface MessageTokensProps {
 }
 
 function getTotalTokens(stats: MessageStats): number {
-  return stats.totalTokens ?? (stats.promptTokens ?? 0) + (stats.completionTokens ?? 0)
-}
-
-function getTokensPerSecond(stats: MessageStats): number | undefined {
-  if (!stats.completionTokens || stats.timeCompletionMs === undefined) {
-    return undefined
-  }
-
-  const textGenerationDurationMs = stats.timeCompletionMs - (stats.timeFirstTokenMs ?? 0)
-  if (textGenerationDurationMs <= 0) {
-    return undefined
-  }
-
-  return stats.completionTokens / (textGenerationDurationMs / 1000)
+  return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {
   return (
     <button
       type="button"
-      className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
       onClick={onLocate}>
       {label}
     </button>
@@ -49,19 +38,84 @@ function AssistantMessageTokens({
   message: MessageListItem
   onLocate: () => void
 }) {
-  const [showAllDetails, setShowAllDetails] = useState(false)
+  const [showMoreDetails, setShowMoreDetails] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isDetailsDismissed, setIsDetailsDismissed] = useState(false)
   const contentId = useId()
+  const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
+  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
+    enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
+    query: {
+      messageKind,
+      messageId: message.id,
+      sortBy: 'createdAt',
+      sortOrder: 'asc'
+    },
+    limit: 200
+  })
+  const records = useInfiniteFlatItems(pages)
+  const isDetailsVisible = isDetailsOpen && !isDetailsDismissed
+  const requestedPageCountRef = useRef(1)
+  const pointerDownPositionRef = useRef<{ x: number; y: number } | undefined>(undefined)
+  const handleDetailsOpenChange = (open: boolean) => {
+    if (open && isDetailsDismissed) return
+    setIsDetailsOpen(open)
+  }
+  const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return
+
+    pointerDownPositionRef.current = { x: event.clientX, y: event.clientY }
+    setIsDetailsDismissed(true)
+    setIsDetailsOpen(false)
+  }
+  const handleMouseBoundary = (event: MouseEvent<HTMLButtonElement>) => {
+    const pointerDownPosition = pointerDownPositionRef.current
+    if (!pointerDownPosition) {
+      setIsDetailsDismissed(false)
+      return
+    }
+
+    const movedDistance = Math.hypot(event.clientX - pointerDownPosition.x, event.clientY - pointerDownPosition.y)
+    if (movedDistance < 2) return
+
+    pointerDownPositionRef.current = undefined
+    setIsDetailsDismissed(false)
+  }
+  const handleLocate = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.detail === 0) {
+      setIsDetailsDismissed(true)
+      setIsDetailsOpen(false)
+    }
+    onLocate()
+  }
+  const handleBlur = () => {
+    pointerDownPositionRef.current = undefined
+    setIsDetailsDismissed(false)
+  }
+
+  useEffect(() => {
+    if (!showMoreDetails || !isDetailsVisible) {
+      requestedPageCountRef.current = pages.length
+      return
+    }
+    if (isRefreshing || !hasNext || requestedPageCountRef.current > pages.length) return
+
+    requestedPageCountRef.current = pages.length + 1
+    loadNext()
+  }, [hasNext, isDetailsVisible, isRefreshing, loadNext, pages.length, showMoreDetails])
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
+    <HoverCard open={isDetailsVisible} onOpenChange={handleDetailsOpenChange} openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
           type="button"
-          aria-describedby={showAllDetails ? contentId : undefined}
-          className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          onFocus={() => setShowAllDetails(true)}
-          onBlur={() => setShowAllDetails(false)}
-          onClick={onLocate}>
+          aria-describedby={isDetailsVisible ? contentId : undefined}
+          className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+          onBlur={handleBlur}
+          onMouseDown={handleMouseDown}
+          onMouseEnter={handleMouseBoundary}
+          onMouseLeave={handleMouseBoundary}
+          onClick={handleLocate}>
           {label}
         </button>
       </HoverCardTrigger>
@@ -71,8 +125,14 @@ function AssistantMessageTokens({
         align="end"
         sideOffset={8}
         collisionPadding={12}
-        className="w-80 max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard message={message} showAllDetails={showAllDetails} />
+        className="w-[28rem] max-w-(--radix-hover-card-content-available-width) p-0">
+        <MessageTokenDetailsCard
+          message={message}
+          records={records}
+          showMoreDetails={showMoreDetails}
+          isLoadingDetails={isLoading || isRefreshing}
+          onShowMoreDetailsChange={setShowMoreDetails}
+        />
       </HoverCardContent>
     </HoverCard>
   )
@@ -108,7 +168,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (message.role === 'assistant') {
-    const tokensPerSecond = getTokensPerSecond(stats)
+    const tokensPerSecond = getMessageModelTokensPerSecond(stats)
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined

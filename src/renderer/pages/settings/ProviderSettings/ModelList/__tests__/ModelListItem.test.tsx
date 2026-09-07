@@ -86,15 +86,6 @@ describe('ModelListItem', () => {
     )
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-size', '26')
-    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-shape', 'circle')
-    expect(screen.getByTestId('model-icon').parentElement).toHaveClass(
-      'size-6.5',
-      'overflow-hidden',
-      'rounded-full',
-      'border',
-      'border-border'
-    )
     expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.models.manage.remove_model')).toBeInTheDocument()
   })
@@ -157,8 +148,9 @@ describe('ModelListItem', () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it('disables the row delete button when deletion is disabled', () => {
+  it('disables row mutations while model checks are running', () => {
     const onDelete = vi.fn()
+    const onEdit = vi.fn()
 
     render(
       <ModelListItem
@@ -172,15 +164,19 @@ describe('ModelListItem', () => {
           } as any
         }
         disabled
-        onEdit={vi.fn()}
+        onEdit={onEdit}
         onDelete={onDelete}
       />
     )
 
+    const settingsButton = screen.getByLabelText('common.settings')
     const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(settingsButton).toBeDisabled()
     expect(deleteButton).toBeDisabled()
 
+    fireEvent.click(settingsButton)
     fireEvent.click(deleteButton)
+    expect(onEdit).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
   })
 

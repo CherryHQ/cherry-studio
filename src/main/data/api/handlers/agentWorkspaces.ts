@@ -1,4 +1,3 @@
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -33,9 +32,12 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
       const parsed = UpdateAgentWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentWorkspaceService.update(params.workspaceId, parsed.data)
-    },
-    DELETE: async ({ params }) => {
-      return agentSessionService.deleteWorkspaceCascade(params.workspaceId)
+    }
+  },
+
+  '/agent-workspaces/:workspaceId/references': {
+    GET: async ({ params }) => {
+      return agentWorkspaceService.getReferences(params.workspaceId)
     }
   },
 

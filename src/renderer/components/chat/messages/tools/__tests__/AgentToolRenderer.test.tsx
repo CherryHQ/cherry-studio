@@ -1,6 +1,7 @@
 import type * as CherryUi from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { fireEvent, render, screen } from '@testing-library/react'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,7 @@ import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
+import MessageTools from '../MessageTools'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
@@ -28,6 +30,7 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
@@ -40,7 +43,13 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+  useOptionalMessageListUi: () => ({}),
+  useOptionalMessageListTopicId: () => undefined
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockGetToolResult(...args), on: () => () => {} },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -158,9 +167,16 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'message.tools.status.error': 'Error',
+    'agent.toolPermission.decisionDenied': 'Denied',
+    'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
+    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
+    'common.create_success': 'Created successfully',
+    'library.assistant_catalog.go_to_chat': 'Go to chat',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
@@ -332,6 +348,38 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan },
+        response: { plan, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
+    it('does not duplicate an ExitPlanMode plan that differs only by surrounding whitespace', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: `${plan}   ` },
+        response: { plan: `  ${plan}\n`, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
     it('should render newly supported structured agent tools', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },
@@ -390,6 +438,44 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('collapse-content-TaskList')).not.toHaveTextContent(/^1$/)
     })
 
+    it('renders a dsh todo snapshot with its task states', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TodoWrite', name: 'TodoWrite', description: 'Update todos', type: 'provider' },
+        status: 'done',
+        arguments: {
+          todos: [
+            { content: 'Inspect the bridge', status: 'completed' },
+            { content: 'Wire the renderer', status: 'in_progress' }
+          ]
+        },
+        response: [{ type: 'text', text: 'Updated todo list' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      const trigger = screen.getByRole('button')
+      expect(trigger).toHaveTextContent('Wire the renderer')
+      fireEvent.click(trigger)
+
+      const content = screen.getByTestId('collapse-content-TodoWrite')
+      expect(content).toHaveTextContent('Inspect the bridge')
+      expect(content).toHaveTextContent('Wire the renderer')
+    })
+
+    it('renders dsh skill names and text-block results through the Skill card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Skill', name: 'Skill', description: 'Load a skill', type: 'provider' },
+        status: 'done',
+        arguments: { name: 'design-review' },
+        response: [{ type: 'text', text: 'Loaded design review instructions' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('design-review')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-Skill')).toHaveTextContent('Loaded design review instructions')
+    })
+
     it('should route Agent through the agent renderer', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
@@ -440,24 +526,72 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('View')).toBeInTheDocument()
     })
 
-    it('should render error state correctly', () => {
+    it('resolves a deferred output before handing it to the card', async () => {
+      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-1' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await waitFor(() =>
+        expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
+          topicId: 'topic-1',
+          messageId: 'message-1',
+          toolCallId: 'call-defer-1'
+        })
+      )
+      fireEvent.click(await screen.findByRole('button'))
+      expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
+    })
+
+    it('surfaces an error when a deferred output can no longer be resolved', async () => {
+      mockGetToolResult.mockResolvedValue({ found: false })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-2' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      expect(await screen.findByText('Error')).toBeInTheDocument()
+    })
+
+    it('does not treat a small or empty output as deferred', async () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/empty.ts' },
+        response: ''
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+    })
+
+    it('shows Read error details when the tool is expanded', async () => {
+      const user = userEvent.setup()
+      const errorText = "ENOENT: no such file or directory, open '/nonexistent.ts'"
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'error',
         arguments: { file_path: '/nonexistent.ts' },
-        response: 'File not found'
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle(
-        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-      )
-      expect(
-        screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
-      ).toBe(false)
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
+      await user.click(screen.getByRole('button'))
+      expect(await screen.findByText(errorText)).toBeVisible()
     })
 
     it('renders the Write target path as a clickable link once the write completes', () => {
@@ -602,6 +736,77 @@ describe('AgentToolRenderer', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
+    it('hides AskUserQuestion message card while its input is still streaming', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'streaming',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    })
+
+    it('shows the denied outcome instead of an unanswered AskUserQuestion card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'cancelled',
+        toolCallId: 'call-ask-denied',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        },
+        approval: { approved: false, reason: 'Need more context first' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Denied')).toBeInTheDocument()
+      expect(screen.getByText('Need more context first')).toBeInTheDocument()
+      expect(screen.queryByText('Questions from Agent')).not.toBeInTheDocument()
+      expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -652,8 +857,8 @@ describe('AgentToolRenderer', () => {
             type: 'tool-AskUserQuestion',
             toolName: 'AskUserQuestion',
             toolCallId: toolResponse.toolCallId,
-            state: 'approval-responded',
-            approval: { id: 'approval-ask', approved: true },
+            state: 'approval-requested',
+            approval: { id: 'approval-ask' },
             input: toolResponse.arguments
           }
         ]
@@ -703,6 +908,104 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
       fireEvent.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Winston')).toBeVisible()
+    })
+  })
+
+  it('keeps a denied tool decision and its reason visible in history', () => {
+    const toolResponse = createToolResponse({
+      status: 'cancelled',
+      arguments: { command: 'rm -rf build' },
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+
+    render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(screen.getByText('use a copy instead')).toBeInTheDocument()
+  })
+
+  describe('assistant create_agent tool rendering', () => {
+    it('opens the newly created Agent conversation from the success action', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const result = {
+        ok: true,
+        agentId: 'agent-created',
+        name: 'Reviewer',
+        model: 'anthropic::claude-sonnet'
+      }
+      const toolResponse: McpToolResponse = {
+        id: 'call-create-agent',
+        tool: {
+          id: 'assistant__mcp__assistant__create_agent',
+          name: 'create_agent',
+          description: 'Create Agent',
+          type: 'mcp',
+          serverId: 'assistant',
+          serverName: 'assistant',
+          inputSchema: { type: 'object', properties: {}, required: [] }
+        },
+        arguments: undefined,
+        status: 'done',
+        response: {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result
+        },
+        toolCallId: 'call-create-agent'
+      }
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await user.click(screen.getByRole('button', { name: 'Go to chat: Reviewer' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { agentId: 'agent-created' }
+      })
+    })
+  })
+
+  describe('assistant prepare_diagnostic_report tool rendering', () => {
+    const preparedResponse: McpToolResponse = {
+      id: 'call-prepare-report',
+      tool: {
+        id: 'assistant__mcp__assistant__prepare_diagnostic_report',
+        name: 'prepare_diagnostic_report',
+        description: 'Prepare diagnostic report',
+        type: 'mcp',
+        serverId: 'assistant',
+        serverName: 'assistant',
+        inputSchema: { type: 'object', properties: {}, required: [] }
+      },
+      arguments: undefined,
+      status: 'done',
+      response: {
+        content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+        structuredContent: { ok: true, description: 'Draft from this tool call' }
+      },
+      toolCallId: 'call-prepare-report'
+    }
+
+    it('opens the report launcher with this tool call draft', async () => {
+      const user = userEvent.setup()
+      const openReport = vi.fn()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute, openDiagnosticReport: openReport })
+
+      render(<MessageTools toolResponse={preparedResponse} />)
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Review diagnostic report' }))
+      expect(openReport).toHaveBeenCalledWith('Draft from this tool call')
+      expect(navigateToRoute).not.toHaveBeenCalled()
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+    })
+
+    it('shows the prepared state without a dead action when no launcher is available', () => {
+      render(<MessageTools toolResponse={preparedResponse} />)
+
+      expect(screen.getByText('Cherry Support prepared an editable description.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
     })
   })
 
@@ -756,7 +1059,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('meta tool rendering', () => {
-    it('renders tool_search with the light tool-row styling', async () => {
+    it('renders and expands tool_search results', async () => {
       const toolResponse = createToolResponse({
         id: 'meta-tool-search',
         tool: {
@@ -777,17 +1080,10 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      const { container } = render(<MessageTool toolResponse={toolResponse} />)
+      render(<MessageTool toolResponse={toolResponse} />)
 
-      const disclosure = container.querySelector('.message-tools-container')
-      expect(disclosure).toHaveClass('border-none')
-      expect(disclosure).toHaveClass('bg-transparent')
-      expect(disclosure).not.toHaveClass('rounded-[7px]')
       expect(screen.queryByTestId('wrench-icon')).toBeNull()
-
-      const title = screen.getByText('tool_search · ns=mcp:tavily')
-      expect(title).toHaveClass('font-normal')
-      expect(title).toHaveClass('text-foreground-secondary')
+      expect(screen.getByText('tool_search · ns=mcp:tavily')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
@@ -880,23 +1176,54 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       const toolHeader = screen.getByText('View').closest('[role="button"]')!
-      expect(toolHeader).toHaveClass('w-fit')
-      expect(toolHeader).not.toHaveClass('w-full')
 
       fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
-      expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
-      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
-        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
-      )
-      expect(terminal?.className).toContain('bg-[#f5f5f5]')
-      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
+    })
+  })
+
+  describe('Bash result presentation', () => {
+    it('labels successful Bash results as output', async () => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'pwd' },
+        response: '/workspace'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Output')
+      expect(content).toHaveTextContent('/workspace')
+    })
+
+    it('labels failed Bash execution details as an error instead of command output', async () => {
+      const user = userEvent.setup()
+      const errorText =
+        'sandbox escalation to "danger-full-access" is not strictly wider than this call\'s current "danger-full-access" mode'
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'error',
+        arguments: { command: 'pwd' },
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Error')
+      expect(content).toHaveTextContent(errorText)
+      expect(content).not.toHaveTextContent('Output')
     })
   })
 
@@ -910,11 +1237,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should render the DEDICATED BashTool component
-      const bashLabel = screen.getByText('Installing')
-      expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
-      expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
-      expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')
+      expect(screen.getByText('Installing')).toBeInTheDocument()
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')

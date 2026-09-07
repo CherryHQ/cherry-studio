@@ -1,12 +1,12 @@
 import {
   createDirectoryItem,
   createFileItem,
-  createNoteItem,
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -167,7 +167,7 @@ describe('usePreviewKnowledgeSource', () => {
     const item = createUrlItem({
       id: 'url-1',
       source: 'https://example.com/product-docs',
-      relativePath: 'Product Docs.md'
+      relativePath: 'Product Docs.md' as PosixRelativeFilePath
     })
 
     await act(async () => {
@@ -231,41 +231,6 @@ describe('usePreviewKnowledgeSource', () => {
     expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
-  it('opens note sources only when the source is an http url', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
-
-    await act(async () => {
-      await result.current.previewSource(createNoteItem({ id: 'note-1', source: 'https://example.com/note' }))
-    })
-
-    expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/note')
-    expect(toast.warning).not.toHaveBeenCalled()
-  })
-
-  it('shows an unavailable toast for non-http note sources', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
-
-    await act(async () => {
-      await result.current.previewSource(createNoteItem({ id: 'note-1', source: 'obsidian://open?vault=notes' }))
-    })
-
-    expect(mockOpenPath).not.toHaveBeenCalled()
-    expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
-  })
-
-  it('shows an unavailable toast for notes without a previewable source', async () => {
-    const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
-
-    await act(async () => {
-      await result.current.previewSource(createNoteItem({ id: 'note-1' }))
-    })
-
-    expect(mockOpenPath).not.toHaveBeenCalled()
-    expect(mockOpenExternal).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
-  })
-
   it('logs and shows a failure toast when previewing rejects', async () => {
     const previewError = new Error('open failed')
     mockIpcRequest.mockRejectedValueOnce(previewError)
@@ -297,7 +262,7 @@ describe('usePreviewKnowledgeSource', () => {
         createUrlItem({
           id: 'url-1',
           source: 'https://example.com/product-docs',
-          relativePath: 'Product Docs.md'
+          relativePath: 'Product Docs.md' as PosixRelativeFilePath
         })
       )
     })

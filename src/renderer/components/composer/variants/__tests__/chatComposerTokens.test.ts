@@ -33,6 +33,24 @@ describe('chat composer token mapping', () => {
     })
   })
 
+  it('steers attached knowledge base questions through semantic search, and gives a file no promptText', () => {
+    // The pick reaches the model only as this sentence — the `data-knowledge-scope` part is dropped
+    // before the model sees the message. The id has to be in it: every kb_* tool addresses a base by
+    // id, so without it the model must spend a kb_list call to discover one.
+    const promptText = knowledgeBaseToComposerToken({ id: 'kb-1', name: 'Docs' } as KnowledgeBase).promptText
+
+    expect(promptText).toContain('Docs')
+    expect(promptText).toContain('kb-1')
+    expect(promptText).toContain('kb_search')
+    expect(promptText).toContain('baseIds')
+    expect(promptText).toMatch(/kb_list.*not.*evidence/i)
+
+    // Files stay zero-width: they travel as real file parts, so a sentence would only duplicate them.
+    expect(
+      fileToComposerToken({ fileTokenSourceId: 's1', name: 'a.ts' } as ComposerAttachment).promptText
+    ).toBeUndefined()
+  })
+
   it('uses the unguessable file token source id instead of the file path', () => {
     const file = { fileTokenSourceId: 'source-fallback', path: '/tmp/fallback.txt' } as ComposerAttachment
 

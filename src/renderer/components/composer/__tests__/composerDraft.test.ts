@@ -5,6 +5,7 @@ import {
   createComposerDocumentContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
+  excludeComposerDraftTokens,
   serializeComposerDocument,
   trimComposerDraftBoundaryBlankLines
 } from '../composerDraft'
@@ -16,6 +17,87 @@ function tokenNode(attrs: Record<string, unknown>): JSONContent {
     attrs
   }
 }
+
+describe('excludeComposerDraftTokens', () => {
+  it('removes an excluded token together with its prompt text and rebases later offsets', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'before ATTACHED between QUOTED after',
+        tokens: [
+          { id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 7 },
+          { id: 'q', kind: 'quote', label: 'Quote', promptText: 'QUOTED', index: 1, textOffset: 24 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    // 'ATTACHED' plus the separator space the editor inserts after a chip.
+    expect(draft.text).toBe('before between QUOTED after')
+    expect(draft.tokens).toEqual([
+      { id: 'q', kind: 'quote', label: 'Quote', promptText: 'QUOTED', index: 0, textOffset: 15 }
+    ])
+    expect(draft.text.slice(15, 21)).toBe('QUOTED')
+  })
+
+  it('leaves the text alone when the prompt text no longer sits at the recorded offset', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'user edited the sentence away',
+        tokens: [{ id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 5 }]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft).toEqual({ text: 'user edited the sentence away', tokens: [] })
+  })
+
+  it('rebases a surviving token across several removed spans', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'AAA keep BBB tail',
+        tokens: [
+          { id: 'kb-1', kind: 'knowledge', label: 'One', promptText: 'AAA', index: 0, textOffset: 0 },
+          { id: 'q', kind: 'quote', label: 'Quote', promptText: 'keep', index: 1, textOffset: 4 },
+          { id: 'kb-2', kind: 'knowledge', label: 'Two', promptText: 'BBB', index: 2, textOffset: 9 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft.text).toBe('keep tail')
+    expect(draft.tokens).toEqual([
+      { id: 'q', kind: 'quote', label: 'Quote', promptText: 'keep', index: 0, textOffset: 0 }
+    ])
+    expect(draft.text.slice(0, 4)).toBe('keep')
+  })
+
+  it('collapses a surviving token that sat inside a removed span to where that span started', () => {
+    // Reachable when the user deletes the separator space between two chips, leaving the second one
+    // parked at the first one's end. Its offset must still land inside the spliced text.
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'ATTACHED tail',
+        tokens: [
+          { id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 0 },
+          { id: 'f', kind: 'file', label: 'a.md', index: 1, textOffset: 8 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft.text).toBe('tail')
+    expect(draft.tokens).toEqual([{ id: 'f', kind: 'file', label: 'a.md', index: 0, textOffset: 0 }])
+  })
+
+  it('returns the same draft when nothing matches', () => {
+    const draft = {
+      text: 'hello',
+      tokens: [{ id: 'f', kind: 'file' as const, label: 'a.md', index: 0, textOffset: 0 }]
+    }
+
+    expect(excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')).toBe(draft)
+  })
+})
 
 describe('composer draft serialization', () => {
   it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
@@ -320,6 +402,44 @@ describe('composer draft serialization', () => {
               promptText: folderPath
             }),
             { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+  })
+
+  it('serializes and restores link tokens with the original URL', () => {
+    const url = 'https://www.example.com/docs'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(url)
+    expect(createComposerDocumentContent(url, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
           ]
         }
       ]

@@ -1,3 +1,13 @@
+---
+description: Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions
+sources:
+  - src/main/ai/AiService.ts
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ipc/handlers/ai.ts
+  - src/renderer/hooks/useToolApprovalBridge.ts
+  - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
+---
+
 # Tool Approval
 
 ## Model
@@ -12,8 +22,8 @@ persists, and resumes the stream.
 1. **Tool needs approval** — at `execute` time, the wrapper checks
    `tool.needsApproval` and the assistant's auto-approve policy. If
    approval is required, the wrapper writes an `approval-requested` part
-   and resolves the tool's promise into a held state (Claude-Agent: holds
-   `canUseTool`; MCP: stream pauses on the approval part).
+   and resolves the tool's promise into a held state (agent-session runtime:
+   holds its registered approval; MCP: stream pauses on the approval part).
 
 2. **Stream pauses** — `AiStreamManager` transitions the topic to
    `awaiting-approval`. The `topic.stream.statuses.<topicId>` shared-cache
@@ -22,15 +32,16 @@ persists, and resumes the stream.
 
 3. **User decides** — the approval card renders from the part. On click,
    `useToolApprovalBridge` (`src/renderer/hooks/useToolApprovalBridge.ts`)
-   calls `window.api.ai.toolApproval.respond(...)` with `approvalId`,
+   calls `ipcApi.request('ai.tool.respond_approval', ...)` with `approvalId`,
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
-4. **Main applies** — `AiService`'s `Ai_ToolApproval_Respond` handler
-   branches on transport **before** touching the DB:
-   - **Claude-Agent fast-path** (`AiService.ts:191-197`): hands the
-     decision to `AgentSessionRuntimeService.respondToolApproval`, which
-     resolves the live `canUseTool` promise so the existing stream
-     proceeds. When a live registry entry handles it, the handler
+4. **Main applies** — the IpcApi handler in `src/main/ipc/handlers/ai.ts`
+   delegates to `AiService.respondToolApproval`, which branches on transport
+   **before** touching the topic-message DB:
+   - **Agent-session registry path**: hands the decision to
+     `AgentSessionRuntimeService.respondToolApproval`, which settles any
+     persisted interaction card and dispatches the live approval registry
+     entry so the existing runtime proceeds. When a live entry handles it, the handler
      **early-returns — no DB read happens** (and `topicId` / `anchorId`
      are not required).
    - **MCP path** (reached only when no live entry matched; requires
@@ -48,12 +59,13 @@ persists, and resumes the stream.
 
 ## Persistent decisions
 
-`useToolApproval` (`src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`)
+`useToolApproval`
+(`src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`)
 exposes an `autoApprove` action **only for MCP tools** — when an `mcpTool`
 descriptor is passed. It persists the opt-out by PATCHing the server's
 `disabledAutoApproveTools`, so the MCP settings page reflects it and
 subsequent calls of that tool skip the approval card. There is no generic
-per-tool default for non-MCP (e.g. Claude-Agent) tools.
+per-tool default for non-MCP agent-runtime tools.
 
 ## Why this design
 
@@ -69,7 +81,8 @@ per-tool default for non-MCP (e.g. Claude-Agent) tools.
 
 ## Where to read more
 
-- Main IPC handler: `src/main/ai/AiService.ts` (`Ai_ToolApproval_Respond`)
+- IpcApi route: `src/main/ipc/handlers/ai.ts` (`ai.tool.respond_approval`)
+- Main decision owner: `src/main/ai/AiService.ts` (`respondToolApproval`)
 - Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
-- Persistent decisions: `src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`
+- Persistent decisions: `src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

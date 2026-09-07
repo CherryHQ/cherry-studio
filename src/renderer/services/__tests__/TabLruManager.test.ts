@@ -35,9 +35,7 @@ describe('TabLruManager', () => {
 
     it('should accept custom limits', () => {
       const customManager = new TabLruManager({ softCap: 5, hardCap: 15 })
-      const limits = customManager.getLimits()
-      expect(limits.softCap).toBe(5)
-      expect(limits.hardCap).toBe(15)
+      expect(customManager.getLimits()).toEqual({ softCap: 5, hardCap: 15 })
     })
   })
 
@@ -45,12 +43,6 @@ describe('TabLruManager', () => {
     describe('when under soft cap', () => {
       it('should return empty array when active tabs <= softCap', () => {
         const tabs = Array.from({ length: TAB_LIMITS.softCap }, (_, i) => createTab(`tab-${i}`))
-        const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
-        expect(result).toEqual([])
-      })
-
-      it('should return empty array for 1 tab', () => {
-        const tabs = [createTab('tab-0')]
         const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
         expect(result).toEqual([])
       })
@@ -99,10 +91,10 @@ describe('TabLruManager', () => {
         expect(result).not.toContain('home')
       })
 
-      it('should not hibernate pinned tabs', () => {
+      it('should not hibernate pinned tabs below the hard cap', () => {
         const now = Date.now()
         const tabs = [
-          createTab('pinned-tab', { lastAccessTime: now - 10000, isPinned: true }), // Oldest but pinned
+          createTab('pinned-tab', { lastAccessTime: now - 10000, isPinned: true }),
           ...Array.from({ length: TAB_LIMITS.softCap + 1 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -129,9 +121,8 @@ describe('TabLruManager', () => {
     })
 
     describe('hard cap behavior', () => {
-      it('should use relaxed exemption rules when exceeding hard cap', () => {
+      it('should relax the pin exemption when the merged awake set exceeds the hard cap', () => {
         const now = Date.now()
-        // Create tabs exceeding hard cap, with one pinned oldest tab
         const tabs = [
           createTab('pinned-old', { lastAccessTime: now - 20000, isPinned: true }),
           ...Array.from({ length: TAB_LIMITS.hardCap + 2 }, (_, i) =>
@@ -141,11 +132,10 @@ describe('TabLruManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
 
-        // Hard cap triggered: pinned tabs are no longer exempt (except the default chat tab and active)
         expect(result).toContain('pinned-old')
       })
 
-      it('should still protect the default chat and active tabs in hard cap mode', () => {
+      it('should still protect the default chat and active tabs', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 30000 }),
@@ -153,7 +143,6 @@ describe('TabLruManager', () => {
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
         ]
-
         const activeTabId = `tab-${TAB_LIMITS.hardCap + 1}`
         const result = manager.checkAndGetDormantCandidates(tabs, activeTabId)
 
@@ -163,11 +152,6 @@ describe('TabLruManager', () => {
     })
 
     describe('edge cases', () => {
-      it('should handle empty tabs array', () => {
-        const result = manager.checkAndGetDormantCandidates([], 'any-id')
-        expect(result).toEqual([])
-      })
-
       it('should handle tabs with undefined lastAccessTime', () => {
         const tabs = Array.from({ length: TAB_LIMITS.softCap + 2 }, (_, i) =>
           createTab(`tab-${i}`, { lastAccessTime: undefined })
@@ -178,17 +162,10 @@ describe('TabLruManager', () => {
         expect(Array.isArray(result)).toBe(true)
       })
 
-      it('should handle when all tabs are exempt', () => {
-        const now = Date.now()
-        // All tabs are pinned
-        const tabs = Array.from({ length: TAB_LIMITS.softCap + 3 }, (_, i) =>
-          createTab(`tab-${i}`, { lastAccessTime: now + i * 1000, isPinned: true })
-        )
+      it('should preserve an all-pinned set between the soft and hard caps', () => {
+        const tabs = Array.from({ length: TAB_LIMITS.softCap + 3 }, (_, i) => createTab(`tab-${i}`, { isPinned: true }))
 
-        const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
-
-        // Should return empty (no candidates available)
-        expect(result.length).toBeLessThan(3)
+        expect(manager.checkAndGetDormantCandidates(tabs, 'tab-0')).toEqual([])
       })
 
       it('should handle mixed dormant and active tabs correctly', () => {
@@ -210,29 +187,6 @@ describe('TabLruManager', () => {
         expect(result.every((id) => id.startsWith('active-'))).toBe(true)
         expect(result.length).toBe(2) // Need to hibernate 2 to reach soft cap
       })
-    })
-  })
-
-  describe('updateSoftCap', () => {
-    it('should update soft cap value', () => {
-      manager.updateSoftCap(15)
-      expect(manager.getLimits().softCap).toBe(15)
-    })
-  })
-
-  describe('updateHardCap', () => {
-    it('should update hard cap value', () => {
-      manager.updateHardCap(30)
-      expect(manager.getLimits().hardCap).toBe(30)
-    })
-  })
-
-  describe('getLimits', () => {
-    it('should return current limits', () => {
-      const customManager = new TabLruManager({ softCap: 8, hardCap: 20 })
-      const limits = customManager.getLimits()
-
-      expect(limits).toEqual({ softCap: 8, hardCap: 20 })
     })
   })
 

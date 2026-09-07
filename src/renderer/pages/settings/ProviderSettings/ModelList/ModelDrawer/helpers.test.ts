@@ -5,8 +5,10 @@ import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  getInitialAddModelFormState,
   getInitialModelClassification,
-  MODEL_ENDPOINT_OPTIONS
+  MODEL_ENDPOINT_OPTIONS,
+  splitModelIds
 } from './helpers'
 
 function makeModel(overrides: Partial<Model> = {}): Model {
@@ -18,6 +20,10 @@ function makeModel(overrides: Partial<Model> = {}): Model {
 }
 
 describe('model drawer classification helpers', () => {
+  it('normalizes comma-separated model IDs without creating duplicates', () => {
+    expect(splitModelIds(' alpha, beta, alpha, ,beta ')).toEqual(['alpha', 'beta'])
+  })
+
   it('offers an endpoint for every editable non-text model consumer', () => {
     expect(MODEL_ENDPOINT_OPTIONS.map((option) => option.id)).toEqual(
       expect.arrayContaining([
@@ -62,14 +68,14 @@ describe('model drawer classification helpers', () => {
 
   it('switches between editable model types without disabling independent capabilities', () => {
     const classification = getInitialModelClassification(
-      makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.WEB_SEARCH] })
+      makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.FUNCTION_CALL] })
     )
     classification.primaryType = 'rerank'
     classification.capabilities.add(MODEL_CAPABILITY.REASONING)
 
     expect(buildModelCapabilities([MODEL_CAPABILITY.EMBEDDING], classification)).toEqual([
       MODEL_CAPABILITY.RERANK,
-      MODEL_CAPABILITY.WEB_SEARCH,
+      MODEL_CAPABILITY.FUNCTION_CALL,
       MODEL_CAPABILITY.REASONING
     ])
   })
@@ -105,5 +111,26 @@ describe('model drawer classification helpers', () => {
 
     expect(capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
     expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('image')
+  })
+})
+
+describe('getInitialAddModelFormState', () => {
+  it('keeps persisted token limits numeric and uses null for missing limits', () => {
+    const form = getInitialAddModelFormState({
+      model: makeModel({
+        id: 'openai::gpt-test',
+        name: 'GPT Test',
+        contextWindow: 128_000,
+        maxInputTokens: 64_000
+      })
+    })
+
+    expect(form).toEqual(
+      expect.objectContaining({
+        contextWindow: 128_000,
+        maxInputTokens: 64_000,
+        maxOutputTokens: null
+      })
+    )
   })
 })

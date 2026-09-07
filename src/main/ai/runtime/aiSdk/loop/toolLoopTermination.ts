@@ -22,7 +22,7 @@ type TrackedStopState = {
 const trackedStopConditions = new WeakMap<StopCondition<ToolSet>, TrackedStopState>()
 
 const TOOL_CALL_LIMIT_MESSAGE =
-  'The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.'
+  'The assistant reached the tool-call limit before producing a final answer. Raise "Max tool call rounds" in the assistant settings, or reduce the task scope.'
 
 function trackStopCondition(reason: TrackedStopReason, condition: StopCondition<ToolSet>): StopCondition<ToolSet> {
   const state: TrackedStopState = { reason, step: undefined }

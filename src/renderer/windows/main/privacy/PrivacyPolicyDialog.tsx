@@ -101,7 +101,7 @@ export function PrivacyPolicyDialog({
               className="block h-full w-full border-0 bg-transparent"
             />
           ) : (
-            <div className="flex items-center gap-2 text-foreground-secondary text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
               {!loadFailed && <LoaderCircle className="size-4 animate-spin" />}
               <span>{loadFailed ? t('privacy_policy.load_failed') : t('common.loading')}</span>
             </div>

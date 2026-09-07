@@ -7,7 +7,7 @@ import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../../imageGenerationModel'
 import { createModelscopeTransport } from '../../modelscope/modelscopeTransport'
 import { createPpioTransport } from '../../ppio/ppioTransport'
-import { buildTokenhubTransport } from '../../tokenhub/tokenhubTransport'
+import { buildTokenhubTransport } from '../../tokenhub/tokenhubProvider'
 import { captureImageRequest } from './captureRequest'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -106,7 +106,7 @@ const cases: Case[] = [
     transport: buildTokenhubTransport(settings),
     vendor: 'tokenhub',
     modelId: 'hy-image-v3.0',
-    descriptor: descriptorFor('hy-image-v3.0')
+    descriptor: { id: 'hy-image-v3.0', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
   }
 ]
 

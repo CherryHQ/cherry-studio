@@ -6,14 +6,13 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { parseConfiguredModelId } from '../cliConfig'
+import { resolveLaunchModelId } from '../cliConfig'
+import { useManagedToolStatus } from './useManagedToolStatus'
 
 const logger = loggerService.withContext('useOpenClawGatewayController')
-
-type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 interface UseOpenClawGatewayControllerOptions {
   selectedCliTool: CodeCli
@@ -46,78 +45,63 @@ export function useOpenClawGatewayController({
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const [gatewayPort] = usePreference('feature.openclaw.gateway_port')
-  const [status, setStatus] = useState<OpenClawGatewayStatus>('stopped')
+  const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
+  // Status comes from main-pushed events (single source of truth); only the local
+  // launching/stopping intents live here, covering the gap until events arrive.
+  const { status } = useManagedToolStatus('openclaw', isOpenClawTool)
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
 
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
+    const url = new URL(dashboardUrl)
+    // A per-open revision makes equal dashboard URLs observable through the
+    // cross-window transient descriptor registry after a gateway restart.
+    url.searchParams.set('cherry_navigation_revision', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',
       name: 'OpenClaw',
-      url: dashboardUrl,
+      url: url.toString(),
       logo: 'openclaw'
     })
   }, [openSmartMiniApp])
 
   const handleLaunch = useCallback(async () => {
-    if (!enabledProvider || !currentProviderConfig?.modelId) {
-      toast.error(t('openclaw.error.select_provider_model'))
-      return
-    }
+    const parsedModelId = await resolveLaunchModelId({
+      enabledProvider,
+      currentProviderConfig,
+      upsertProviderConfig,
+      setCurrentProvider,
+      errorToastKey: 'openclaw.error.select_provider_model',
+      logLabel: 'Invalid OpenClaw model id configured'
+    })
+    if (!parsedModelId) return
 
-    const parsedModelId = parseConfiguredModelId(currentProviderConfig.modelId)
-    if (!parsedModelId) {
-      logger.error('Invalid OpenClaw model id configured', {
-        modelId: currentProviderConfig.modelId,
-        toolId: selectedCliTool,
-        providerId: enabledProvider.id
-      })
-      await upsertProviderConfig(enabledProvider.id, { modelId: null })
-      await setCurrentProvider(null)
-      toast.error(t('openclaw.error.select_provider_model'))
-      return
-    }
     try {
       setLaunching(true)
-      setStatus('starting')
       const syncResult = await ipcApi.request('openclaw.sync_config', {
         uniqueModelId: parsedModelId.uniqueModelId,
         port: gatewayPort
       })
       if (!syncResult.success) {
-        setStatus('error')
         toast.error(syncResult.message)
         return
       }
 
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
-        setStatus('error')
         toast.error(startResult.message)
         return
       }
 
       await openDashboard()
-      setStatus('running')
     } catch (err) {
-      setStatus('error')
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
     }
-  }, [
-    currentProviderConfig,
-    enabledProvider,
-    gatewayPort,
-    openDashboard,
-    selectedCliTool,
-    setCurrentProvider,
-    upsertProviderConfig,
-    t
-  ])
+  }, [currentProviderConfig, enabledProvider, gatewayPort, openDashboard, setCurrentProvider, upsertProviderConfig, t])
 
   const handleStop = useCallback(async () => {
     try {
@@ -127,7 +111,6 @@ export function useOpenClawGatewayController({
         toast.error(result.message)
         return
       }
-      setStatus('stopped')
     } catch (err) {
       logger.error('Failed to stop OpenClaw gateway:', err as Error)
       toast.error(t('code.launch.error'))
@@ -144,29 +127,6 @@ export function useOpenClawGatewayController({
       toast.error(t('code.launch.error'))
     }
   }, [openDashboard, t])
-
-  useEffect(() => {
-    if (!isOpenClawTool) return
-
-    let cancelled = false
-    const refreshStatus = async () => {
-      try {
-        const nextStatus = await ipcApi.request('openclaw.get_status')
-        if (!cancelled) {
-          setStatus(nextStatus.status)
-        }
-      } catch (error) {
-        logger.error('Failed to read OpenClaw gateway status:', error as Error)
-      }
-    }
-
-    void refreshStatus()
-    const interval = window.setInterval(refreshStatus, 5000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [isOpenClawTool])
 
   return {
     launching,

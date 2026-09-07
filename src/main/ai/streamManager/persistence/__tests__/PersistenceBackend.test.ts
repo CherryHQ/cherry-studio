@@ -10,7 +10,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { dropEmptyContentParts, finalizeInterruptedParts } from '../PersistenceBackend'
+import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -253,6 +253,28 @@ describe('finalizeInterruptedParts', () => {
     })
     const cherryMeta = (result[0] as any).providerMetadata?.cherry
     expect(cherryMeta?.thinkingMs).toBeUndefined()
+  })
+})
+
+describe('stripTransientStatusParts', () => {
+  const retryPart = (): CherryMessagePart =>
+    ({
+      type: 'data-retry',
+      id: 'retry',
+      data: { state: 'retrying', modelId: 'gpt-4', attempt: 2, reason: 'http 429' }
+    }) as unknown as CherryMessagePart
+
+  it('removes data-retry parts, preserving order of the rest', () => {
+    const text = textPart('answer')
+    const result = stripTransientStatusParts([retryPart(), text])
+
+    expect(result).toEqual([text])
+  })
+
+  it('returns the same array reference when there is nothing to strip', () => {
+    const parts: CherryMessagePart[] = [textPart('hi')]
+
+    expect(stripTransientStatusParts(parts)).toBe(parts)
   })
 })
 

@@ -30,7 +30,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 const baseProps = {
-  isBusy: false,
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
@@ -128,11 +127,5 @@ describe('ModelListHeader', () => {
 
     expect(screen.getByRole('tab', { name: 'models.all' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
-  })
-
-  it('marks the filter button active when a non-default type filter is selected', () => {
-    render(<ModelListHeader {...baseProps} selectedTypeFilter="embedding" />)
-
-    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toHaveClass('text-foreground')
   })
 })

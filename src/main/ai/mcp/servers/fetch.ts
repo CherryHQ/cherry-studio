@@ -3,8 +3,6 @@
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { JSDOM } from 'jsdom'
-import TurndownService from 'turndown'
 import * as z from 'zod'
 
 export const RequestPayloadSchema = z.object({
@@ -32,7 +30,7 @@ export class Fetcher {
     try {
       // The URL is model-supplied and this tool is auto-callable, so direct
       // main-process fetches must bind the connection to validated DNS results.
-      return await fetchRemoteText(url, { headers: buildHeaders(headers) })
+      return await fetchRemoteText(url, { headers: buildHeaders(headers), maxRedirects: 5 })
     } catch (e: unknown) {
       if (e instanceof Error) {
         throw new Error(`Failed to fetch ${url}: ${e.message}`)
@@ -74,6 +72,8 @@ export class Fetcher {
     try {
       const html = await this._fetchText(requestPayload)
 
+      // Delayed loading: jsdom costs tens of MB of RSS, so it must load on first tool call, not at boot.
+      const { JSDOM } = await import('jsdom')
       const dom = new JSDOM(html)
       const document = dom.window.document
 
@@ -101,6 +101,7 @@ export class Fetcher {
   static async markdown(requestPayload: RequestPayload) {
     try {
       const html = await this._fetchText(requestPayload)
+      const { default: TurndownService } = await import('turndown')
       const turndownService = new TurndownService()
       const markdown = turndownService.turndown(html)
       return { content: [{ type: 'text', text: markdown }], isError: false }

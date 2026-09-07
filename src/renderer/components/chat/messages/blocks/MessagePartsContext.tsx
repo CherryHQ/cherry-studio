@@ -5,7 +5,6 @@
  * Components read parts directly via useMessageParts / usePartsMap.
  */
 
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
@@ -41,6 +40,7 @@ interface MessagePartsScopeValue {
 }
 
 const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
+const MessageIdContext = createContext<string | undefined>(undefined)
 
 /**
  * Provide the complete parts map. A nested message scope takes precedence for
@@ -66,7 +66,11 @@ export function MessagePartsScopeProvider({
   children: ReactNode
 }) {
   const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
-  return <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+  return (
+    <MessageIdContext value={messageId}>
+      <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+    </MessageIdContext>
+  )
 }
 
 /** Read the parts map from context (null when no provider is present). */
@@ -77,6 +81,11 @@ export function usePartsMap() {
 /** Check if parts data is provided. */
 export function useHasMessageParts(): boolean {
   return use(PartsContext) !== null
+}
+
+/** Read the current message ID without subscribing to the complete parts map. */
+export function useMessagePartsScopeId(): string | undefined {
+  return use(MessageIdContext)
 }
 
 // ============================================================================
@@ -91,61 +100,6 @@ export function parseBlockId(blockId: string): { messageId: string; index: numbe
   const index = parseInt(blockId.slice(lastBlockDash + 7), 10)
   if (isNaN(index)) return null
   return { messageId, index }
-}
-
-export interface TranslationOverlayEntry {
-  content: string
-  targetLanguage: TranslateLangCode
-  sourceLanguage?: TranslateLangCode
-}
-
-export const TranslationOverlayContext = createContext<Record<string, TranslationOverlayEntry> | null>(null)
-export const TranslationOverlayProvider = TranslationOverlayContext.Provider
-
-/**
- * Setter is exposed via a separate context so writers (the translation hook)
- * don't re-render when the map mutates — only readers (rendering pipeline) do.
- */
-export type TranslationOverlaySetter = (messageId: string, entry: TranslationOverlayEntry | null) => void
-export const TranslationOverlaySetterContext = createContext<TranslationOverlaySetter | null>(null)
-export const TranslationOverlaySetterProvider = TranslationOverlaySetterContext.Provider
-
-/** Read the full overlay map (null when no provider is mounted, e.g. v1 chat). */
-export function useTranslationOverlay(): Record<string, TranslationOverlayEntry> | null {
-  return use(TranslationOverlayContext)
-}
-
-/**
- * Read a single message's overlay entry. Returns undefined when no overlay is
- * active for the message (the typical case).
- */
-export function useTranslationOverlayEntry(messageId: string): TranslationOverlayEntry | undefined {
-  const map = use(TranslationOverlayContext)
-  return map?.[messageId]
-}
-
-/**
- * Imperative setter for translation hooks. Pass `null` to clear an entry.
- * Throws when called outside a `TranslationOverlaySetterProvider` — the
- * translation hook is only mounted inside `V2ChatContent`.
- */
-export function useTranslationOverlaySetter(): TranslationOverlaySetter {
-  const setter = use(TranslationOverlaySetterContext)
-  if (!setter) {
-    throw new Error('useTranslationOverlaySetter must be used inside TranslationOverlaySetterProvider')
-  }
-  return setter
-}
-
-/**
- * Non-throwing variant: returns `null` when no provider is mounted (scopes
- * that intentionally don't offer message translation, e.g. agent sessions /
- * quick-assistant). `useTranslateMessage` uses this so its menubar can render
- * in those scopes without the strict guard crashing — the strict
- * `useTranslationOverlaySetter` above is left intact for the chat path.
- */
-export function useOptionalTranslationOverlaySetter(): TranslationOverlaySetter | null {
-  return use(TranslationOverlaySetterContext)
 }
 
 /**

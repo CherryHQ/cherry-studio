@@ -1,0 +1,274 @@
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+
+import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import {
+  BaseService,
+  DependsOn,
+  Injectable,
+  LifecycleManager,
+  Phase,
+  ServiceContainer,
+  ServicePhase
+} from '@main/core/lifecycle'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  ClaudeCodeProcessManager,
+  createClaudeCodeProcessDiagnostics,
+  type SpawnProcess
+} from '../ClaudeCodeProcessManager'
+
+/** The production class takes no constructor args (container contract); tests swap the seam here. */
+class TestProcessManager extends ClaudeCodeProcessManager {
+  constructor(spawnProcess: SpawnProcess) {
+    super()
+    this.spawnProcess = spawnProcess
+  }
+}
+
+function createFakeChild(options: { pid?: number } = {}) {
+  const emitter = new EventEmitter()
+  const stderr = new PassThrough()
+  const pid = 'pid' in options ? options.pid : 123
+  let killed = false
+  let exitCode: number | null = null
+  let signalCode: NodeJS.Signals | null = null
+  const kill = vi.fn(() => {
+    killed = true
+    return true
+  })
+  const process = {
+    pid,
+    stdin: {},
+    stdout: {},
+    stderr,
+    get killed() {
+      return killed
+    },
+    get exitCode() {
+      return exitCode
+    },
+    get signalCode() {
+      return signalCode
+    },
+    kill,
+    on: emitter.on.bind(emitter),
+    once: emitter.once.bind(emitter),
+    off: emitter.off.bind(emitter)
+  } as unknown as ReturnType<SpawnProcess>
+
+  return {
+    process,
+    stderr,
+    kill,
+    setExited(code: number | null, signal: NodeJS.Signals | null) {
+      exitCode = code
+      signalCode = signal
+    },
+    emitExit(code: number | null = 0, signal: NodeJS.Signals | null = null, updateStatus = true) {
+      if (updateStatus) {
+        exitCode = code
+        signalCode = signal
+      }
+      emitter.emit('exit', code, signal)
+    },
+    emitError(error: Error = new Error('spawn failed')) {
+      emitter.emit('error', error)
+    }
+  }
+}
+
+const spawnOptions: SpawnOptions = {
+  command: '/opt/claude',
+  args: [],
+  env: {},
+  signal: new AbortController().signal
+}
+
+describe('ClaudeCodeProcessManager', () => {
+  beforeEach(() => {
+    LifecycleManager.reset()
+    ServiceContainer.reset()
+    BaseService.resetInstances()
+    mockMainLoggerService.warn.mockClear()
+  })
+
+  it('sweeps only after every service that spawns through it has stopped', async () => {
+    const stopped: string[] = []
+
+    @Injectable('SpawningConsumerService')
+    @ServicePhase(Phase.WhenReady)
+    @DependsOn(['ClaudeCodeProcessManager'])
+    class SpawningConsumerService extends BaseService {
+      protected override onStop(): void {
+        stopped.push('consumer')
+      }
+    }
+
+    const container = ServiceContainer.getInstance()
+    // Registered after the consumer on purpose: the sweep must follow @DependsOn, not registry order.
+    container.register(SpawningConsumerService)
+    container.register(ClaudeCodeProcessManager)
+
+    await LifecycleManager.getInstance().startPhase(Phase.WhenReady)
+    const killAll = vi
+      .spyOn(container.get(ClaudeCodeProcessManager), 'killAll')
+      .mockImplementation(() => void stopped.push('sweep'))
+
+    await LifecycleManager.getInstance().stopAll()
+
+    expect(killAll).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+    expect(stopped).toEqual(['consumer', 'sweep'])
+  })
+
+  it('maps SDK spawn options to Node spawn and stops tracking the child after exit', () => {
+    const child = createFakeChild()
+    const spawnProcess = vi.fn(() => child.process)
+    const manager = new TestProcessManager(spawnProcess)
+    const controller = new AbortController()
+    const options: SpawnOptions = {
+      command: '/opt/claude',
+      args: ['--output-format', 'stream-json'],
+      cwd: '/workspace',
+      env: { ANTHROPIC_API_KEY: 'test-key' },
+      signal: controller.signal
+    }
+
+    const managed = manager.spawn(options)
+    expect(managed).not.toBe(child.process)
+    expect(managed.stdin).toBe(child.process.stdin)
+    expect(managed.stdout).toBe(child.process.stdout)
+    expect(spawnProcess).toHaveBeenCalledWith('/opt/claude', ['--output-format', 'stream-json'], {
+      cwd: '/workspace',
+      env: { ANTHROPIC_API_KEY: 'test-key' },
+      signal: controller.signal,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
+    })
+
+    // The exit event is authoritative even for a custom SpawnedProcess whose status fields lag.
+    child.emitExit(0, null, false)
+    manager.killAll('SIGTERM')
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('drains a bounded stderr tail before delivering exit diagnostics', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.write(`discarded-${'x'.repeat(2200)}\nAuthentication failed: api_key=sk-ant-private`)
+    child.emitExit(1)
+    expect(onExit).not.toHaveBeenCalled()
+
+    child.stderr.end()
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledExactlyOnceWith(1, null))
+
+    expect(diagnostics.terminalReason).toContain('Claude Code process exited with code 1')
+    expect(diagnostics.terminalReason).toContain('sk-ant-private')
+    expect(diagnostics.terminalReason).not.toContain('discarded-')
+    expect(diagnostics.category).toBe('auth')
+    expect(diagnostics.exitCode).toBe(1)
+  })
+
+  it('bounds the stderr tail by UTF-8 bytes', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.end(`discarded-${'界'.repeat(700)}\nHTTP 429 rate limit exceeded`)
+    child.emitExit(1)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledExactlyOnceWith(1, null))
+
+    expect(diagnostics.terminalReason).toContain('HTTP 429 rate limit exceeded')
+    expect(diagnostics.terminalReason).not.toContain('discarded-')
+  })
+
+  it('logs only structured diagnostics without stderr content', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const managed = manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('diagnostic-ref'))
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.stderr.end('HTTP 403 unsupported_country; sk-ant-standalone-secret at /Users/alice/private')
+    child.emitExit(1)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+
+    const logged = mockMainLoggerService.warn.mock.calls.findLast(
+      ([message]) => message === 'Claude Code process failed'
+    )?.[1]
+    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region', exitCode: 1 })
+    expect(logged).not.toHaveProperty('reason')
+    expect(JSON.stringify(logged)).not.toContain('sk-ant-standalone-secret')
+    expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
+  })
+
+  it('leaves a clean exit unlogged', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const onExit = vi.fn()
+    manager.spawn(spawnOptions).once('exit', onExit)
+
+    child.stderr.end()
+    child.emitExit(0)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
+  })
+
+  it('stops tracking a child whose spawn fails before receiving a pid', () => {
+    const child = createFakeChild({ pid: undefined })
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn({ ...spawnOptions, command: '/missing/claude' })
+
+    expect(() => child.emitError()).not.toThrow()
+    manager.killAll('SIGTERM')
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('signals only tracked children that are still live', () => {
+    const live = createFakeChild()
+    const alreadyExited = createFakeChild()
+    const spawnProcess = vi.fn().mockReturnValueOnce(live.process).mockReturnValueOnce(alreadyExited.process)
+    const manager = new TestProcessManager(spawnProcess)
+    manager.spawn(spawnOptions)
+    manager.spawn(spawnOptions)
+
+    // Status fields report the exit, but no 'exit' event arrived to untrack the handle.
+    alreadyExited.setExited(null, 'SIGTERM')
+
+    manager.killAll('SIGTERM')
+    expect(live.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+    expect(alreadyExited.kill).not.toHaveBeenCalled()
+  })
+
+  it('sweeps live children on service stop', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn(spawnOptions)
+
+    await expect(manager._doStop()).resolves.toBeUndefined()
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+
+  it('absorbs child kill failures', () => {
+    const child = createFakeChild()
+    child.kill.mockImplementation(() => {
+      throw new Error('kill failed')
+    })
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    manager.spawn(spawnOptions)
+
+    expect(() => manager.killAll('SIGTERM')).not.toThrow()
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+})

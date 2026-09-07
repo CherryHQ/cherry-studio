@@ -55,6 +55,21 @@ describe('Grok OIDC discovery host-pinning', () => {
     await expect(oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()).rejects.toThrow(/unexpected endpoint/)
   })
 
+  it('forwards the sign-in cancellation signal to the discovery request', async () => {
+    const controller = new AbortController()
+    vi.mocked(net.fetch).mockResolvedValue(
+      discoveryResponse('https://auth.x.ai/oauth2/auth', 'https://evil.example/token')
+    )
+
+    await expect(
+      oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient({ signal: controller.signal })
+    ).rejects.toThrow(/unexpected endpoint/)
+    expect(net.fetch).toHaveBeenCalledWith('https://auth.x.ai/.well-known/openid-configuration', {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal
+    })
+  })
+
   it('caches discovery after the first successful fetch', async () => {
     vi.mocked(net.fetch).mockResolvedValue(
       discoveryResponse('https://auth.x.ai/oauth2/auth', 'https://auth.x.ai/oauth2/token')

@@ -64,7 +64,7 @@ import type { RequestFeature } from '../feature'
 export const qwenThinkingFeature: RequestFeature = {
   name: 'qwen-thinking',
   applies: (scope) =>
-    Boolean(scope.assistant) &&
+    (Boolean(scope.assistant) || scope.request.reasoningEffort !== undefined) &&
     !isOllamaProvider(scope.provider) &&
     isSupportedThinkingTokenQwenModel(scope.model) &&
     !isQwen35to39Model(scope.model) &&

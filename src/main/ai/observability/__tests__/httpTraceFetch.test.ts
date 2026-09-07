@@ -2,6 +2,7 @@ import type { Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
+import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
 import { createHttpTraceFetch } from '../httpTraceFetch'
 
 /** A fake tracer that records the single span's attributes, status, and end. */
@@ -57,10 +58,10 @@ describe('createHttpTraceFetch', () => {
 
     // Headers live on their own attributes (their own tabs), redacted.
     const requestHeaders = JSON.parse(attributes['http.request.headers'] as string)
-    expect(requestHeaders.authorization).toBe('***')
+    expect(requestHeaders.authorization).toBe('<redacted>')
     expect(requestHeaders['content-type']).toBe('application/json')
     const responseHeaders = JSON.parse(attributes['http.response.headers'] as string)
-    expect(responseHeaders['set-cookie']).toBe('***')
+    expect(responseHeaders['set-cookie']).toBe('<redacted>')
 
     // inputs/outputs carry the body only — no url/method/headers wrapper.
     expect(JSON.parse(attributes.inputs as string)).toEqual({
@@ -68,6 +69,50 @@ describe('createHttpTraceFetch', () => {
       messages: [{ role: 'user', content: 'hello' }]
     })
     expect(attributes.outputs).toBe('{"choices":[{"text":"hi"}]}')
+  })
+
+  it('overwrites inputs with the final body when the inner fetch rewrites it via the trace slot', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    // Simulates a provider transform wrapper (e.g. DashScope web_extractor) that
+    // rewrites the serialized body before delegating to customFetch, which records
+    // the final body into the trace slot for the span to correct itself.
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+        HTTP_TRACE_FINAL_BODY_SLOT
+      ]
+      if (slot) slot.body = JSON.stringify({ tools: [{ type: 'web_search' }, { type: 'web_extractor' }] })
+      return new Response('{"ok":true}', { status: 200 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+    })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    // The span's recorded request body is the post-transform body, not the
+    // pre-transform one the trace wrapper received.
+    expect(JSON.parse(attributes.inputs as string)).toEqual({
+      tools: [{ type: 'web_search' }, { type: 'web_extractor' }]
+    })
+  })
+
+  it('clears inputs when the inner fetch drops the request body', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+        HTTP_TRACE_FINAL_BODY_SLOT
+      ]
+      if (slot) slot.body = null
+      return new Response(null, { status: 204 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com/v1/responses', { method: 'POST', body: '{"before":true}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    expect(attributes.inputs).toBe('')
   })
 
   it('truncates a request body larger than maxBodyBytes', async () => {
@@ -137,7 +182,7 @@ describe('createHttpTraceFetch', () => {
 
     const requestHeaders = JSON.parse(attributes['http.request.headers'] as string)
     const authKey = Object.keys(requestHeaders).find((k) => k.toLowerCase() === 'authorization')!
-    expect(requestHeaders[authKey]).toBe('***')
+    expect(requestHeaders[authKey]).toBe('<redacted>')
   })
 
   it('redacts sensitive query-string secrets from http.url', async () => {
@@ -154,7 +199,7 @@ describe('createHttpTraceFetch', () => {
     const url = attributes['http.url'] as string
     expect(url).not.toContain('AIzaSECRET')
     const parsed = new URL(url)
-    expect(parsed.searchParams.get('key')).toBe('***')
+    expect(parsed.searchParams.get('key')).toBe('<redacted>')
     expect(parsed.searchParams.get('alt')).toBe('sse')
   })
 
@@ -170,9 +215,9 @@ describe('createHttpTraceFetch', () => {
     expect(url).not.toContain('s3cret')
     expect(url).not.toContain('AIzaSECRET')
     const parsed = new URL(url)
-    expect(parsed.username).toBe('')
-    expect(parsed.password).toBe('')
-    expect(parsed.searchParams.get('key')).toBe('***')
+    expect(decodeURIComponent(parsed.username)).toBe('<redacted>')
+    expect(decodeURIComponent(parsed.password)).toBe('<redacted>')
+    expect(parsed.searchParams.get('key')).toBe('<redacted>')
   })
 
   // ── Guard paths: capturing the body MUST NEVER break the real fetch ──

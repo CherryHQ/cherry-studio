@@ -125,7 +125,7 @@ export const Bordered: Story = {
           </button>
         }
       />
-      <div className="px-5 py-4 text-foreground-muted text-sm">Detail body content sits below the divider.</div>
+      <div className="px-5 py-4 text-foreground-tertiary text-sm">Detail body content sits below the divider.</div>
     </div>
   )
 }
@@ -142,14 +142,14 @@ export const SectionTitleStyle: Story = {
     docs: {
       description: {
         story:
-          "When the page label itself is a group name that should match in-list group labels, pass `titleClassName` to render the heading in section-title typography (`text-xs text-foreground-muted font-normal leading-4`). The PageHeader's `mt-3 + h-8 + mb-2` outer geometry is preserved so the baseline stays aligned with a normal PageHeader in an adjacent column."
+          "When the page label itself is a group name that should match in-list group labels, pass `titleClassName` to render the heading in section-title typography (`text-xs text-foreground-tertiary font-normal leading-4`). The PageHeader's `mt-3 + h-8 + mb-2` outer geometry is preserved so the baseline stays aligned with a normal PageHeader in an adjacent column."
       }
     }
   },
   render: () => (
     <div className="flex gap-0 rounded-xl border border-border bg-background">
       <div className="w-[220px] border-border border-r">
-        <PageHeader title="模型" titleClassName="font-normal text-foreground-muted text-xs leading-4" />
+        <PageHeader title="模型" titleClassName="font-normal text-foreground-tertiary text-xs leading-4" />
       </div>
       <div className="w-[260px]">
         <PageHeader title="模型服务" />

@@ -1,6 +1,7 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -13,7 +14,7 @@ import {
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel,
-  isWebSearchModel
+  supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
@@ -29,18 +30,29 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 })
 
 describe('shared model capability helpers', () => {
+  describe('deriveModelGroupName', () => {
+    it.each([
+      ['openai/gpt-4o', 'openai'],
+      ['deepseek-v4-pro', 'deepseek'],
+      ['gpt-5.6-sol', 'gpt'],
+      ['codex-auto-review', 'codex'],
+      ['hy3', undefined],
+      ['  ', undefined]
+    ])('derives %s as %s', (modelId, expected) => {
+      expect(deriveModelGroupName(modelId)).toBe(expected)
+    })
+  })
+
   it('reads capability state from v2 Model.capabilities', () => {
     const model = createModel([
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,
-      MODEL_CAPABILITY.IMAGE_RECOGNITION,
-      MODEL_CAPABILITY.WEB_SEARCH
+      MODEL_CAPABILITY.IMAGE_RECOGNITION
     ])
 
     expect(isReasoningModel(model)).toBe(true)
     expect(isFunctionCallingModel(model)).toBe(true)
     expect(isVisionModel(model)).toBe(true)
-    expect(isWebSearchModel(model)).toBe(true)
   })
 
   it('does not infer capabilities from model id or name at runtime', () => {
@@ -54,7 +66,6 @@ describe('shared model capability helpers', () => {
     expect(isReasoningModel(model)).toBe(false)
     expect(isFunctionCallingModel(model)).toBe(false)
     expect(isVisionModel(model)).toBe(false)
-    expect(isWebSearchModel(model)).toBe(false)
   })
 
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {
@@ -88,9 +99,29 @@ describe('shared model capability helpers', () => {
       expect(isNonChatModel(multimodalChatModel)).toBe(false)
     })
 
-    it('classifies dedicated speech-to-text / text-to-speech only by explicit capability', () => {
+    it('classifies dedicated speech-to-text / text-to-speech by explicit capability', () => {
       expect(isSpeechToTextModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(true)
       expect(isTextToSpeechModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(true)
+    })
+
+    it('classifies an audio-only input model as dedicated speech-to-text', () => {
+      const speechToTextModel: Model = {
+        ...createModel([MODEL_CAPABILITY.AUDIO_RECOGNITION]),
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      }
+
+      expect(isSpeechToTextModel(speechToTextModel)).toBe(true)
+      expect(isNonChatModel(speechToTextModel)).toBe(true)
+    })
+
+    it('classifies a capability-exclusive primary endpoint as non-chat', () => {
+      const embeddingModel: Model = {
+        ...createModel(),
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      }
+
+      expect(isNonChatModel(embeddingModel)).toBe(true)
     })
   })
 
@@ -126,6 +157,32 @@ describe('shared model capability helpers', () => {
         providerId: 'corp:west'
       }
       expect(isGatewayRoutableModel(colonProvider)).toBe(false)
+    })
+  })
+
+  describe('supportsDynamicallyLoadedTools', () => {
+    it.each([
+      ['claude-sonnet-4-5', true],
+      ['gpt-5.1', true],
+      ['deepseek-v4-flash', true],
+      ['qwen3.7-plus', true],
+      // Kimi K3 is the only model in the family that accepts dynamically-loaded tool declarations.
+      ['k3', true],
+      ['kimi-k3', true],
+      ['kimi-k3-0905-preview', true],
+      // Everything else in the Kimi family rejects them with `tokenization failed`.
+      ['kimi-for-coding', false],
+      ['kimi-k2.5', false],
+      ['kimi-k2-0711-preview', false],
+      ['kimi-latest', false],
+      ['moonshot-v1-128k', false],
+      // Namespace prefixes and Claude Code's [1m] suffix must not break matching.
+      ['provider:kimi-for-coding', false],
+      ['provider:k3', true],
+      ['kimi-for-coding[1m]', false],
+      ['k3[1m]', true]
+    ])('classifies %s as %s', (modelId, expected) => {
+      expect(supportsDynamicallyLoadedTools(modelId)).toBe(expected)
     })
   })
 })

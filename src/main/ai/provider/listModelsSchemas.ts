@@ -56,6 +56,7 @@ export const OllamaTagsResponseSchema = z.object({
       modified_at: z.string().optional(),
       size: z.number().optional(),
       digest: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
       details: z
         .looseObject({
           parent_model: z.string().optional(),
@@ -72,6 +73,15 @@ export const OllamaTagsResponseSchema = z.object({
         .optional()
     })
   )
+})
+
+/**
+ * `POST /api/show`. `model_info` keys are architecture-prefixed
+ * (`llama.context_length`, `qwen3.context_length`, …), so the architecture has to be
+ * read first — `/api/tags` carries no context length at all.
+ */
+export const OllamaShowResponseSchema = z.looseObject({
+  model_info: z.record(z.string(), z.unknown()).optional()
 })
 
 // === Gemini ===
@@ -110,19 +120,6 @@ export const VertexPublisherModelsResponseSchema = z.object({
     .default([]),
   nextPageToken: z.string().optional()
 })
-
-// === GitHub Models ===
-
-export const GitHubModelsResponseSchema = z.array(
-  z.looseObject({
-    id: z.string(),
-    summary: z.string().optional(),
-    publisher: z.string().optional(),
-    name: z.string().optional(),
-    description: z.string().optional(),
-    version: z.string().optional()
-  })
-)
 
 // === Together ===
 

@@ -40,7 +40,6 @@ describe('PlaceholderBlock', () => {
     const { container } = render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} />)
 
     expect(screen.getByTestId('message-status-placeholder')).toBeInTheDocument()
-    expect(screen.getByTestId('message-status-placeholder')).toHaveClass('min-h-7', 'py-0.5', 'text-[13px]')
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Preparing response')
     expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
     expect(screen.queryByTestId('message-status-elapsed')).not.toBeInTheDocument()

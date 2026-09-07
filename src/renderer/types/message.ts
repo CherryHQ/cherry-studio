@@ -11,11 +11,9 @@ import type { WebSearchProviderResponse } from './webSearchProvider'
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
-  no_cache_tokens?: number
+  // Cache token breakdown (AI SDK v6 `inputTokenDetails`)
   cache_read_tokens?: number
   cache_write_tokens?: number
-  // OpenRouter specific fields
-  cost?: number
 }
 
 export type Metrics = {
@@ -23,6 +21,13 @@ export type Metrics = {
   time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
+}
+
+export interface MessageUiState {
+  foldSelected?: boolean
+  multiModelMessageStyle?: string
+  useful?: boolean
+  disclosures?: Record<string, boolean>
 }
 
 export type LegacyMessage = {

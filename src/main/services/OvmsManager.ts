@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process'
+import { exec, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
@@ -18,6 +18,7 @@ import * as path from 'path'
 const logger = loggerService.withContext('OvmsManager')
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 interface OvmsProcess {
   pid: number
@@ -343,7 +344,17 @@ export class OvmsManager extends BaseService {
     logger.info(`Adding model: ${modelName} with ID: ${modelId}, Source: ${modelSource}, Task: ${task}`)
 
     const ovdndDir = application.getPath('feature.ovms.ovms')
-    const pathModel = path.join(ovdndDir, 'models', modelId)
+    const modelsDir = path.join(ovdndDir, 'models')
+    const pathModel = path.join(modelsDir, modelId)
+
+    // Defense in depth: the schema already constrains modelId, but never let a
+    // crafted id (e.g. `..`) escape the models directory into an arbitrary path
+    // that the failure-cleanup fs.remove below would then delete.
+    const modelsRoot = path.resolve(modelsDir)
+    if (!path.resolve(pathModel).startsWith(modelsRoot + path.sep)) {
+      logger.error(`Rejected model id outside models directory: ${modelId}`)
+      return { success: false, message: 'Invalid model ID' }
+    }
 
     try {
       // check the ovdnDir+'models'+modelId exist or not
@@ -358,16 +369,24 @@ export class OvmsManager extends BaseService {
         await fs.remove(pathModel)
       }
 
-      // Use ovdnd.exe for downloading instead of ovms.exe
+      // Use ovdnd.exe for downloading instead of ovms.exe. Pass every argument as
+      // a distinct argv element (execFile runs with shell: false), so user-supplied
+      // values can never be interpreted as shell syntax.
       const ovdndPath = path.join(ovdndDir, 'ovdnd.exe')
-      const command =
-        `"${ovdndPath}" --pull ` +
-        `--model_repository_path "${ovdndDir}/models" ` +
-        `--source_model "${modelId}" ` +
-        `--model_name "${modelName}" ` +
-        `--target_device GPU ` +
-        `--task ${task} ` +
-        `--overwrite_models`
+      const args = [
+        '--pull',
+        '--model_repository_path',
+        modelsDir,
+        '--source_model',
+        modelId,
+        '--model_name',
+        modelName,
+        '--target_device',
+        'GPU',
+        '--task',
+        task,
+        '--overwrite_models'
+      ]
 
       const env: Record<string, string | undefined> = {
         ...process.env,
@@ -380,8 +399,8 @@ export class OvmsManager extends BaseService {
         env.HF_ENDPOINT = modelSource
       }
 
-      logger.info(`Running command: ${command} from ${modelSource}`)
-      const { stdout } = await execAsync(command, { env: env, cwd: ovdndDir })
+      logger.info(`Running ovdnd --pull for ${modelId} from ${modelSource}`)
+      const { stdout } = await execFileAsync(ovdndPath, args, { env: env, cwd: ovdndDir })
 
       logger.info('Model download completed')
       logger.debug(`Command output: ${stdout}`)

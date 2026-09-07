@@ -30,12 +30,21 @@ describe('apiGatewayHandlers', () => {
     })
   })
 
-  it('stop and restart delegate to the service', async () => {
-    apiGatewayService.stop.mockResolvedValue(undefined)
+  it('stop returns the service outcome and restart delegates to the service', async () => {
+    apiGatewayService.stop.mockResolvedValue('deferred')
     apiGatewayService.restart.mockResolvedValue(undefined)
-    expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({ success: true })
+    expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({ success: true, outcome: 'deferred' })
     expect(await apiGatewayHandlers['api_gateway.restart'](undefined, ctx)).toEqual({ success: true })
     expect(apiGatewayService.stop).toHaveBeenCalledOnce()
     expect(apiGatewayService.restart).toHaveBeenCalledOnce()
+  })
+
+  it('stop turns a service throw into { success: false, error }', async () => {
+    apiGatewayService.stop.mockRejectedValue(new Error('preference write failed'))
+
+    expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({
+      success: false,
+      error: 'preference write failed'
+    })
   })
 })

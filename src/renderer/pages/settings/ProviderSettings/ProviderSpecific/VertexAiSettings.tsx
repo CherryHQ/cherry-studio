@@ -248,7 +248,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
   }
 
   return (
-    <>
+    <div className="flex flex-col">
       <ProviderSettingsSubtitle className="mt-1.5">
         {t('settings.provider.vertex_ai.service_account.title')}
       </ProviderSettingsSubtitle>
@@ -436,7 +436,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           <ProviderHelpText>{t('settings.provider.vertex_ai.location_help')}</ProviderHelpText>
         </ProviderHelpTextRow>
       </>
-    </>
+    </div>
   )
 }
 

@@ -8,11 +8,14 @@ export const PluginMetadataSchema = z.object({
   // - For agents/commands: includes .md extension (e.g., "my-agent.md")
   // - For skills: folder name only, no extension (e.g., "my-skill")
   name: z.string(), // Display name from frontmatter or filename
+  slug: z.string().optional(), // Stable marketplace identifier from skill frontmatter
 
   // Content
   description: z.string().optional(),
-  allowed_tools: z.array(z.string()).optional(), // from frontmatter (for commands)
+  allowed_tools: z.array(z.string()).optional(), // from frontmatter (for commands and skills)
   tools: z.array(z.string()).optional(), // from frontmatter (for agents and skills)
+  context: z.string().optional(), // skill execution context (for example, "fork")
+  agent: z.string().optional(), // subagent selected by a forked skill
 
   // Organization
   category: z.string(), // derived from parent folder name

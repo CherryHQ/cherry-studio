@@ -35,6 +35,8 @@ export const TopicSchema = z.strictObject({
   traceId: TraceIdSchema.optional(),
   /** Global fractional-indexing order key. */
   orderKey: z.string(),
+  /** Last real conversation activity timestamp (ISO string). */
+  lastActivityAt: z.iso.datetime(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

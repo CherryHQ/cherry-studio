@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url'
 
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
+import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from '../url'
 
 describe('normalizeExt', () => {
   it('normalizes dotted, cased, and boundary-padded extensions', () => {
@@ -153,6 +153,26 @@ describe('fileUrlToPath', () => {
   it('throws on malformed percent-encoding', () => {
     expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileUrlString)).toThrow(URIError)
   })
+
+  // Cross-module contract, not a restatement of the decode cases above: the
+  // decoded path is fed straight into `AbsoluteFilePathSchema` by `file://` drop
+  // handling (`useFileDragDrop`), so the two must agree on what "absolute" means.
+  // They did not: this function emits Windows drive paths with forward slashes
+  // (`C:/…`, required to stay the inverse of `toFileUrl`), while the schema once
+  // accepted only `C:\…`. Every drop of a `file:///C:/…` value was rejected at the
+  // IPC boundary and silently degraded into pasted text. Pin the agreement here —
+  // the decode assertions above all still pass under a backslash-only schema.
+  it('emits paths that satisfy AbsoluteFilePathSchema on every platform form', () => {
+    const urls = [
+      'file:///foo/bar%20baz.pdf', // POSIX
+      'file:///C:/foo/bar%20baz.pdf', // Windows drive — the regressed case
+      'file://server/share/report%20final.pdf' // Windows UNC
+    ] as const
+
+    for (const url of urls) {
+      expect(AbsoluteFilePathSchema.safeParse(fileUrlToPath(url)).success).toBe(true)
+    }
+  })
 })
 
 describe('toSafeFileUrl', () => {
@@ -201,5 +221,20 @@ describe('toSafeFileUrl', () => {
     // `<img src>` can hand to OS file associations.
     expect(toSafeFileUrl('/payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///')
     expect(toSafeFileUrl('C:\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/')
+  })
+})
+
+describe('tryFileUrlToPath', () => {
+  it('decodes percent-encoded segments the naive scheme strip would leave behind', () => {
+    expect(tryFileUrlToPath('file:///Users/a/Application%20Support/note.md')).toBe(
+      '/Users/a/Application Support/note.md'
+    )
+  })
+
+  it('returns undefined instead of throwing on inputs fileUrlToPath rejects', () => {
+    // `new URL()` accepts the dangling `%`; decodeURIComponent throws URIError on it.
+    expect(tryFileUrlToPath('file:///tmp/100%.png')).toBeUndefined()
+    expect(tryFileUrlToPath('https://example.com/a.png')).toBeUndefined()
+    expect(tryFileUrlToPath('not a url')).toBeUndefined()
   })
 })

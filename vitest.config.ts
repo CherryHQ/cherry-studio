@@ -75,6 +75,9 @@ export default defineConfig({
       // 脚本单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: rendererConfig.resolve.alias
+        },
         test: {
           name: 'scripts',
           environment: 'node',
@@ -116,6 +119,24 @@ export default defineConfig({
           benchmark: {
             include: ['src/shared/**/*.bench.{ts,tsx}', 'src/shared/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          // vitest shards per (groupOrder, pool) bucket and rejects buckets smaller
+          // than the shard count; preload's single test file must share main's forks
+          // pool (CI always runs it alongside main) instead of crashing --shard=i/3.
+          pool: 'forks',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
         }
       },
       // provider-registry 包单元测试配置

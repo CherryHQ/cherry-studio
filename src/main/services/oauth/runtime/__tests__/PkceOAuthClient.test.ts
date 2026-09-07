@@ -131,4 +131,17 @@ describe('PkceOAuthClient.refresh', () => {
       status: 401
     })
   })
+
+  it('bounds the token request with an abort timeout signal', async () => {
+    vi.mocked(net.fetch).mockResolvedValue(okJson({ access_token: 'fresh' }))
+
+    const client = new PkceOAuthClient(CONFIG)
+    await client.refresh('old-refresh')
+
+    const [, init] = vi.mocked(net.fetch).mock.calls[0]
+    // A hung token endpoint must not block indefinitely — net.fetch has no
+    // default timeout, so postToken passes an AbortSignal.timeout.
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
+    expect(init?.signal?.aborted).toBe(false)
+  })
 })

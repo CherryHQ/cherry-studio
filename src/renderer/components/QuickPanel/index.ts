@@ -1,6 +1,7 @@
 export { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 export {
   firstQuickPanelSelectableIndex,
+  initialQuickPanelFocusIndex,
   moveQuickPanelSelectableIndex,
   QuickPanelFooter,
   QuickPanelReadOnlyHeader,
@@ -14,8 +15,11 @@ export type {
   QuickPanelCloseAction,
   QuickPanelContextType,
   QuickPanelFilterFn,
+  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
+  QuickPanelInsertTextOptions,
+  QuickPanelInsertTokenOptions,
   QuickPanelKeyDownEvent,
   QuickPanelKeyDownHandler,
   QuickPanelListItem,

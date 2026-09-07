@@ -84,7 +84,7 @@ per-session config fields, `enableAutoTools`, model ids as strings.
 
 `configuration` is intentionally `.loose()` (Zod passthrough) at the
 schema layer — see `AgentConfigurationSchema` for the typed keys (avatar,
-permission_mode, max_turns, scheduler_*, heartbeat_*, env_vars). Historical
+permission_mode, scheduler_*, heartbeat_*, env_vars). Historical
 `soul_enabled` values may still be stored, but are ignored by the loose schema.
 Unknown extras are preserved across read/write so older / newer app versions
 don't silently drop fields.

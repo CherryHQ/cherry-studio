@@ -86,7 +86,9 @@
     "react-day-picker": "^9.14.0",
     "react-dropzone": "^14.3.8",
     "react-resizable-panels": "^4.11.0",
+    "remark-definition-list": "^2.0.0",
     "remark-github-blockquote-alert": "^2.0.0",
+    "remark-mark-highlight": "^0.1.1",
     "streamdown": "^2.5.0",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
@@ -130,7 +132,8 @@
     "vitest": "^3.2.7"
   },
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./src/components/composites/markdown/styles.ts"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -174,6 +177,13 @@
       "import": "./dist/icons/index.mjs",
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
+    },
+    "./icons/providers": {
+      "types": "./dist/icons/providers/index.d.ts",
+      "react-native": "./dist/icons/providers/index.js",
+      "import": "./dist/icons/providers/index.mjs",
+      "require": "./dist/icons/providers/index.js",
+      "default": "./dist/icons/providers/index.js"
     },
     "./styles/tokens.css": "./dist/styles/tokens.css",
     "./styles/theme.css": "./dist/styles/theme.css"

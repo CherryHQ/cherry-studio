@@ -3,7 +3,10 @@ import { PinService, pinService } from '@data/services/PinService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 const PIN_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 const ENTITY_ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
@@ -15,6 +18,10 @@ const AGENT_ID = 'agent_1700000000000_abc123xyz'
 
 describe('PinService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    notifyDataApiDataChangeMock.mockClear()
+  })
 
   it('should export a module-level singleton of PinService', () => {
     expect(pinService).toBeInstanceOf(PinService)
@@ -30,10 +37,16 @@ describe('PinService', () => {
 
       const [row] = await dbh.db.select().from(pinTable).where(eq(pinTable.id, result.id))
       expect(row).toMatchObject({ entityType: 'topic', entityId: ENTITY_ID_1, orderKey: result.orderKey })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/pins/:id', entityIds: [result.id] },
+        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+      ])
     })
 
     it('should return the same row on a repeat call (serial idempotency)', async () => {
       const first = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+      notifyDataApiDataChangeMock.mockClear()
       const second = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
 
       expect(second.id).toBe(first.id)
@@ -41,6 +54,7 @@ describe('PinService', () => {
 
       const rows = await dbh.db.select().from(pinTable)
       expect(rows).toHaveLength(1)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
     it('should return the pre-existing row when (entityType, entityId) already present', async () => {
@@ -100,16 +114,32 @@ describe('PinService', () => {
 
       expect(result).toMatchObject({ entityType: 'agent', entityId: AGENT_ID })
     })
+
+    it('should publish agent session read-model effects for session pins', () => {
+      const result = pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/pins/:id', entityIds: [result.id] },
+        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+      ])
+    })
   })
 
   describe('unpin', () => {
     it('should hard delete the pin row and return void', async () => {
       const pin = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(pinService.unpin(pin.id)).toBeUndefined()
 
       const rows = await dbh.db.select().from(pinTable).where(eq(pinTable.id, pin.id))
       expect(rows).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'membership', entityIds: [pin.id] },
+        { endpoint: '/pins/:id', entityIds: [pin.id] },
+        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+      ])
     })
 
     it('should throw NOT_FOUND when the pin id is unknown', async () => {
@@ -163,11 +193,17 @@ describe('PinService', () => {
       const a = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const b = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       const c = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
+      notifyDataApiDataChangeMock.mockClear()
 
       pinService.reorder(c.id, { position: 'first' })
 
       const ids = pinService.listByEntityType('topic').map((p) => p.id)
       expect(ids).toEqual([c.id, a.id, b.id])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: [c.id] },
+        { endpoint: '/pins/:id', entityIds: [c.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'pinned', entityIds: [ENTITY_ID_3] }
+      ])
     })
 
     it('should move a pin to before an anchor', async () => {
@@ -275,6 +311,12 @@ describe('PinService', () => {
       const rows = await dbh.db.select().from(pinTable)
       expect(rows.map((r) => r.id)).toEqual([existing.id])
     })
+  })
+
+  it('publishes a conservative pin membership effect for caller-owned purge transactions', () => {
+    pinService.notifyPurged()
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   describe('purgeForEntitiesTx', () => {

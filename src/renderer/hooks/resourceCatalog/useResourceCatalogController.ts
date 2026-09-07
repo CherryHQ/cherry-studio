@@ -1,16 +1,18 @@
+import { dataApiService } from '@data/DataApiService'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type {
-  AgentDetail,
   GroupItem,
   ResourceCreateValues,
+  ResourceEditDialogTarget,
   ResourceItem,
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
-import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import type { Assistant } from '@shared/data/types/assistant'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,12 +21,10 @@ import { useAgentMutations } from './agentAdapter'
 import { useAssistantMutations } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
-type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
-
 type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
-const DIALOG_EXIT_ANIMATION_MS = 200
+const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
 
 /**
  * Build the top-bar chip list.
@@ -54,8 +54,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [creatingResource, setCreatingResource] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
@@ -97,24 +96,15 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   useEffect(() => {
     if (createDialogOpen || !createDialogKind) return
 
-    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), DIALOG_EXIT_ANIMATION_MS)
+    const timeoutId = window.setTimeout(() => setCreateDialogKind(null), CREATE_DIALOG_EXIT_ANIMATION_MS)
     return () => window.clearTimeout(timeoutId)
   }, [createDialogKind, createDialogOpen])
 
-  useEffect(() => {
-    if (editDialogOpen || !editDialog) return
-
-    const timeoutId = window.setTimeout(() => setEditDialog(null), DIALOG_EXIT_ANIMATION_MS)
-    return () => window.clearTimeout(timeoutId)
-  }, [editDialog, editDialogOpen])
-
   const handleOpenResource = useCallback((resource: ResourceItem) => {
     if (resource.type === 'assistant') {
-      setEditDialog({ kind: 'assistant', resource: resource.raw })
-      setEditDialogOpen(true)
+      setEditDialogTarget({ kind: 'assistant', id: resource.id })
     } else if (resource.type === 'agent') {
-      setEditDialog({ kind: 'agent', resource: resource.raw })
-      setEditDialogOpen(true)
+      setEditDialogTarget({ kind: 'agent', id: resource.id })
     } else if (resource.type === 'skill') {
       setSelectedSkill(resource.raw)
     }
@@ -141,7 +131,12 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       const assistant = resource.raw
       try {
         const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
-        const content = serializeAssistantForExport(assistant, groupName)
+        const bindingPath = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
+          targetType: 'assistant',
+          targetId: assistant.id
+        }) as ConcreteApiPaths
+        const contextualPrompts = await dataApiService.get(bindingPath)
+        const content = serializeAssistantForExport(assistant, contextualPrompts, groupName)
 
         await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
@@ -183,7 +178,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent(buildCreateAgentDto(values))
+          await createAgent(buildCreateAgentCommand(values))
         }
 
         setCreateDialogOpen(false)
@@ -194,14 +189,6 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     },
     [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
   )
-
-  const handleEditDialogOpenChange = useCallback((open: boolean) => {
-    setEditDialogOpen(open)
-  }, [])
-
-  const handleEditSaved = useCallback(() => {
-    refetch()
-  }, [refetch])
 
   return {
     resourceError,
@@ -238,8 +225,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       createDialogOpen,
       creatingResource,
       deleteConfirm,
-      editDialog,
-      editDialogOpen,
+      editDialogTarget,
       selectedSkill,
       skillImportOpen,
       skillMarketplaceOpen,
@@ -247,13 +233,12 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       setAssistantImportOpen,
       setAssistantLibraryOpen,
       setDeleteConfirm,
+      setEditDialogTarget,
       setSelectedSkill,
       setSkillImportOpen,
       setSkillMarketplaceOpen,
       setSystemSkillOpen,
       handleCreateDialogOpenChange,
-      handleEditDialogOpenChange,
-      handleEditSaved,
       handleSubmitCreateResource
     }
   }

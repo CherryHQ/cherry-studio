@@ -53,6 +53,7 @@ function createTableMock(inputRows: LegacyRecord[]) {
 
   return {
     bulkGet: vi.fn(async (keys: string[]) => keys.map((key) => rowsById.get(key))),
+    get: vi.fn(async (key: string) => rowsById.get(key)),
     orderBy: vi.fn(() => createCollection()),
     pageQuery,
     toArray: vi.fn(async () => rows),
@@ -78,7 +79,7 @@ describe('DexieExporter', () => {
     }
   })
 
-  it('exports a large table through primary-key pages as one valid JSON array', async () => {
+  it('streams a large table without materializing a full record page', async () => {
     const rows = Array.from({ length: 205 }, (_, index) => ({
       id: `block-${String(index).padStart(3, '0')}`,
       payload: `payload-${index}`
@@ -90,6 +91,7 @@ describe('DexieExporter', () => {
 
     expect(JSON.parse(exportedText())).toEqual(rows)
     expect(table.toArray).not.toHaveBeenCalled()
+    expect(table.bulkGet).not.toHaveBeenCalled()
     expect(table.pageQuery).toHaveBeenCalledTimes(4)
     const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
     expect(writeCalls[0]?.[4]).toBe('overwrite')
@@ -113,6 +115,21 @@ describe('DexieExporter', () => {
     expect(JSON.parse(exportedText())).toEqual(rows)
   })
 
+  it('preserves JSON.stringify semantics for supported record values', async () => {
+    const row = {
+      id: 'block-1',
+      date: new Date('2026-08-05T00:00:00.000Z'),
+      nested: { keep: true, omit: undefined },
+      numbers: [Number.NaN, Number.POSITIVE_INFINITY, -0],
+      optional: undefined
+    }
+    dexieMock.table.mockReturnValue(createTableMock([row]))
+
+    await new DexieExporter('/export').exportAll()
+
+    expect(exportedText()).toBe(JSON.stringify([row]))
+  })
+
   it('safely splits a single record larger than the export chunk limit', async () => {
     const serializedPrefix = JSON.stringify({ id: 'block-1', payload: '' }).slice(0, -2)
     const row = {
@@ -120,6 +137,7 @@ describe('DexieExporter', () => {
       payload: `${'a'.repeat(EXPORT_CHUNK_CHAR_LIMIT - serializedPrefix.length - 1)}😀tail`
     }
     dexieMock.table.mockReturnValue(createTableMock([row]))
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
 
     await new DexieExporter('/export').exportAll()
 
@@ -130,6 +148,8 @@ describe('DexieExporter', () => {
     expect(writeCalls[0]?.[4]).toBe('overwrite')
     expect(writeCalls.slice(1).every((call) => call[4] === 'append')).toBe(true)
     expect(JSON.parse(chunks.join(''))).toEqual([row])
+    expect(stringifySpy.mock.calls.some(([value]) => value === row)).toBe(false)
+    stringifySpy.mockRestore()
   })
 
   it('exports an empty table as an empty JSON array', async () => {
@@ -139,12 +159,14 @@ describe('DexieExporter', () => {
 
     expect(exportedText()).toBe('[]')
     const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
+    expect(writeCalls).toHaveLength(1)
     expect(writeCalls[0]?.[4]).toBe('overwrite')
-    expect(writeCalls[1]?.[4]).toBe('append')
   })
 
   it('closes the database when appending a chunk fails', async () => {
-    dexieMock.table.mockReturnValue(createTableMock([{ id: 'block-1' }]))
+    dexieMock.table.mockReturnValue(
+      createTableMock([{ id: 'block-1', payload: 'a'.repeat(EXPORT_CHUNK_CHAR_LIMIT + 1) }])
+    )
     invoke.mockImplementation((_channel, _exportPath, _tableName, _chunk, writeMode) =>
       writeMode === 'append' ? Promise.reject(new Error('disk full')) : Promise.resolve(true)
     )
@@ -171,13 +193,53 @@ describe('DexieExporter', () => {
     expect((thrown as Error).message).not.toContain('do-not-leak')
   })
 
-  it('fails instead of silently dropping a record missing from bulkGet', async () => {
+  it('fails instead of silently dropping a record missing from IndexedDB', async () => {
     const table = createTableMock([{ id: 'block-1' }])
-    table.bulkGet.mockResolvedValueOnce([undefined])
+    table.get.mockResolvedValueOnce(undefined)
     dexieMock.table.mockReturnValue(table)
 
     await expect(new DexieExporter('/export').exportAll()).rejects.toThrow(
       'Failed to export Dexie table "message_blocks" at primary key "block-1"'
     )
+  })
+
+  it('skips an irrecoverable IndexedDB record and exports the remaining records', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    table.get.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+    dexieMock.table.mockReturnValue(table)
+
+    await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual(rows.slice(1))
+  })
+
+  it('skips a record whose large IndexedDB value is unreadable', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    // Dexie re-wraps Chromium's UnknownError into a DexieError, so it is not a DOMException.
+    const wrapped = new Error(
+      'Failed to read large IndexedDB value\n UnknownError: Failed to read large IndexedDB value'
+    )
+    wrapped.name = 'UnknownError'
+    table.get.mockRejectedValueOnce(wrapped)
+    dexieMock.table.mockReturnValue(table)
+
+    await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual(rows.slice(1))
+  })
+
+  it('does not skip other IndexedDB read failures', async () => {
+    const table = createTableMock([{ id: 'block-1' }])
+    table.get.mockRejectedValueOnce(new DOMException('Temporary read failure', 'UnknownError'))
+    dexieMock.table.mockReturnValue(table)
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow('Temporary read failure')
   })
 })

@@ -37,7 +37,7 @@ function provider(id: string, presetProviderId: string, isEnabled = true): Provi
     presetProviderId,
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: {},
+    reportsActualCost: false,
     settings: {},
     isEnabled
   } as unknown as Provider

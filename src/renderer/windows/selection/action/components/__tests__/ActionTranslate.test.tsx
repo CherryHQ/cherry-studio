@@ -3,18 +3,23 @@ import '@testing-library/jest-dom/vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => {
   const english = { langCode: 'en-us', value: 'English', emoji: '🇺🇸' }
-  const chinese = { langCode: 'zh-cn', value: 'Chinese', emoji: '🇨🇳' }
-  const languages = [chinese, english]
+  const chinese = { langCode: 'zh-cn', value: 'Chinese (Simplified)', emoji: '🇨🇳' }
+  const traditionalChinese = { langCode: 'zh-tw', value: 'Chinese (Traditional)', emoji: '🇭🇰' }
+  const japanese = { langCode: 'ja-jp', value: 'Japanese', emoji: '🇯🇵' }
+  const languages = [chinese, traditionalChinese, english, japanese]
 
   return {
     english,
     chinese,
+    traditionalChinese,
+    japanese,
     languages,
     getLanguage: vi.fn((langCode: TranslateLangCode) => languages.find((lang) => lang.langCode === langCode) ?? null),
     getLabel: vi.fn((language: TranslateLanguage) => language.value),
@@ -32,6 +37,7 @@ const i18nMock = vi.hoisted(() => ({
 import ActionTranslate from '../ActionTranslate'
 
 const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
+const defaultUsePreferenceImplementation = mockUsePreference.getMockImplementation()
 
 vi.mock('../ActionResultContent', () => {
   resultContentChunk.evaluated()
@@ -41,15 +47,6 @@ vi.mock('../ActionResultContent', () => {
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>()),
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    if (key === 'app.language') return ['zh-cn', vi.fn()]
-    if (key === 'feature.translate.action.preferred_lang') return ['zh-cn', vi.fn()]
-    if (key === 'feature.translate.action.alter_lang') return ['en-us', vi.fn()]
-    return [undefined, vi.fn()]
-  }
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -129,6 +126,15 @@ beforeAll(() => {
 
 describe('ActionTranslate', () => {
   beforeEach(() => {
+    if (defaultUsePreferenceImplementation) {
+      mockUsePreference.mockImplementation(defaultUsePreferenceImplementation)
+    }
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.language': 'zh-CN',
+      'feature.translate.action.preferred_lang': 'zh-cn',
+      'feature.translate.action.alter_lang': 'en-us'
+    })
     state.detectLanguage.mockReset()
     state.getLanguage.mockClear()
     state.getLabel.mockClear()
@@ -152,6 +158,29 @@ describe('ActionTranslate', () => {
 
     await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
     expect(state.translate).not.toHaveBeenCalled()
+  })
+
+  it('uses Traditional Chinese when the app language is zh-TW and the target is still the default', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.language', 'zh-TW')
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.traditionalChinese)
+    )
+  })
+
+  it('keeps a non-default target language when the app language is zh-TW', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.language': 'zh-TW',
+      'feature.translate.action.preferred_lang': 'ja-jp'
+    })
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.japanese))
   })
 
   it('continues translating to the target language when source detection throws', async () => {

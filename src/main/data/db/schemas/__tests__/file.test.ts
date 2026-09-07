@@ -33,6 +33,7 @@ function baseInternal(overrides: Record<string, unknown> = {}) {
     name: 'doc',
     ext: 'md',
     size: 100,
+    contentHash: null,
     externalPath: null,
     deletedAt: null,
     createdAt: TS,
@@ -48,6 +49,7 @@ function baseExternal(path: string, overrides: Record<string, unknown> = {}) {
     name: 'report',
     ext: 'pdf',
     size: null,
+    contentHash: null,
     externalPath: path,
     deletedAt: null,
     createdAt: TS,
@@ -147,6 +149,24 @@ describe('fileEntryTable — fe_size_internal_only check', () => {
     ).rejects.toThrow()
     await expect(
       dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/big.pdf', { size: 12345 }))
+    ).rejects.toThrow()
+  })
+})
+
+describe('fileEntryTable — content hash invariants', () => {
+  const dbh = setupTestDatabase()
+
+  it('accepts the same content hash on multiple internal entries', async () => {
+    const contentHash = 'xxh3-64:9555e8555c62dcfd'
+    await dbh.db.insert(fileEntryTable).values(baseInternal({ contentHash }))
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ contentHash }))).resolves.not.toThrow()
+  })
+
+  it('rejects an external entry with a content hash', async () => {
+    await expect(
+      dbh.db
+        .insert(fileEntryTable)
+        .values(baseExternal('/Users/me/external.pdf', { contentHash: 'xxh3-64:9555e8555c62dcfd' }))
     ).rejects.toThrow()
   })
 })
@@ -283,6 +303,84 @@ describe('chatMessageFileRefTable — CASCADE FK', () => {
         updatedAt: TS
       })
     ).rejects.toThrow()
+  })
+
+  it('accepts the tool_output role and enforces (entry, source, role) uniqueness', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: messageId,
+      role: 'tool_output',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    // Same triple again: plain insert violates the unique index …
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+
+    // … while onConflictDoNothing makes the provisional-ref write idempotent.
+    await dbh.db
+      .insert(chatMessageFileRefTable)
+      .values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      })
+      .onConflictDoNothing()
+
+    const rows = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].role).toBe('tool_output')
+  })
+
+  it('the same entry can carry attachment and tool_output refs on one message', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(chatMessageFileRefTable).values([
+      {
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      },
+      {
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'tool_output',
+        createdAt: TS,
+        updatedAt: TS
+      }
+    ])
+
+    const rows = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(rows.map((r) => r.role).sort()).toEqual(['attachment', 'tool_output'])
   })
 })
 

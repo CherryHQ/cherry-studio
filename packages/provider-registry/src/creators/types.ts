@@ -13,7 +13,9 @@ import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
  * re-declared. Use it to ADD models the API/sources miss (new releases, AIGC, `imageGeneration`
  * widget specs models.dev never has) or to override any field.
  */
-export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & { id: string }
+export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & {
+  id: string
+}
 
 export interface Creator {
   /** Canonical creator id — becomes every model's `ownedBy`. Never a host/gateway. */
@@ -32,12 +34,18 @@ export interface Creator {
   /** Fallback: claim every canonical id matching these prefixes. */
   idPrefixes?: string[]
   /**
-   * Curated web-search capability as DATA (no `inferXxx`): canonical id-prefixes of THIS creator's models
-   * that support web search — a capability upstream (models.dev/OpenRouter) never reports. The generator
-   * unions `web-search` onto every owned model matching one of these prefixes (same `prefixHit` semantics
-   * as `idPrefixes`). e.g. anthropic `['claude-opus-4', 'claude-sonnet-4']`.
+   * Canonical id-prefixes of THIS creator's models whose provider-native tools
+   * coexist with function declarations in one request (e.g. Gemini 3+). Absent
+   * models default to conflict-prone — the safe direction for unknown SKUs.
+   * Compiled into `server-tool-constraints.gen.ts`.
    */
-  webSearch?: string[]
+  serverToolFunctionMixing?: string[]
+  /**
+   * Reasoning efforts the provider-native web-search tool rejects, declared as
+   * id patterns over THIS creator's models (generation-only regex, expanded to
+   * exact ids — mirrors the effort-vocabulary declarations above).
+   */
+  webSearchUnsupportedEfforts?: Array<{ pattern: string; efforts: string[] }>
   /**
    * Curated reasoning knowledge as DATA (no runtime regex module): the single
    * rule table for THIS creator's id patterns. PROFILE rules (default) assert

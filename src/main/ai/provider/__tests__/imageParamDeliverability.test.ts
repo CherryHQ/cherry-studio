@@ -150,12 +150,7 @@ describe('registry image params are deliverable on the runtime wire', () => {
     // provider's wire profile, or carried by its passthrough.
     const registration = resolveWireRegistration(sdkConfig.providerId)
     const hasTransport = Boolean(
-      resolveImageTransport(
-        sdkConfig.providerId,
-        override.modelId,
-        sdkConfig.providerSettings,
-        sdkConfig.concreteProviderId
-      )
+      await resolveImageTransport(sdkConfig.providerId, override.modelId, sdkConfig.providerSettings)
     )
     const profiles = [registration.profile, ...(registration.also ?? []).map((a) => a.profile)]
 
@@ -168,7 +163,7 @@ describe('registry image params are deliverable on the runtime wire', () => {
         !profiles.some((profile) => profileCovers(profile, key))
     )
 
-    expect(undeliverable, `no wire route under providerOptions.${sdkConfig.optionsKey}`).toEqual([])
+    expect(undeliverable, `no wire route for SDK provider ${sdkConfig.providerId}`).toEqual([])
   })
 })
 

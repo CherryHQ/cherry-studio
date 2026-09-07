@@ -42,7 +42,7 @@ export const ModelSelectorTrigger = ({
         ) : value && isUniqueModelId(value) ? (
           <span className="truncate text-foreground">{parseUniqueModelId(value).modelId}</span>
         ) : (
-          <span className="truncate text-muted-foreground/50">{placeholder || t('code.model_placeholder')}</span>
+          <span className="truncate text-muted-foreground">{placeholder || t('code.model_placeholder')}</span>
         )}
       </div>
       <ChevronDown

@@ -13,6 +13,9 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
+import { resolveDmxapiFamily } from './dmxapiImageRouting'
+
+export { resolveDmxapiFamily } from './dmxapiImageRouting'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 
@@ -50,27 +53,6 @@ export interface DmxapiTransportSettings {
   baseURL?: string
   headers?: Record<string, string | undefined>
   fetch?: FetchFunction
-}
-
-export type DmxapiFamily =
-  | 'openai-flat' // gpt-image / dall-e / seededit — handled by OpenAICompatibleImageModel
-  | 'responses-string' // doubao-seedream family — `/v1/responses` with `input: "<prompt>"`
-  | 'responses-messages' // alibaba wan family — `/v1/responses` with DashScope-style messages
-  | 'openai-flat-async' // qwen-image family — `/v1/images/generations` body, wrapped `extra.output.results[].url` response
-
-interface DmxapiFamilyMatcher {
-  family: Exclude<DmxapiFamily, 'openai-flat'>
-  match: (modelId: string) => boolean
-}
-
-const DMXAPI_FAMILY_TABLE: DmxapiFamilyMatcher[] = [
-  { family: 'responses-string', match: (id) => id.startsWith('doubao-seedream') },
-  { family: 'responses-messages', match: (id) => /^wan\d/i.test(id) },
-  { family: 'openai-flat-async', match: (id) => id.startsWith('qwen-image') }
-]
-
-export function resolveDmxapiFamily(modelId: string): DmxapiFamily {
-  return DMXAPI_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-flat'
 }
 
 /**

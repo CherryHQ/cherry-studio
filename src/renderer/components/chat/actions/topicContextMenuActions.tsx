@@ -29,7 +29,6 @@ export type TopicExportMenuOptions = Record<
   | 'joplin'
   | 'markdown'
   | 'markdown_reason'
-  | 'notes'
   | 'notion'
   | 'obsidian'
   | 'plain_text'
@@ -175,10 +174,6 @@ topicActionRegistry.registerCommand({
 
 topicActionRegistry.registerCommand({
   id: 'topic.save-notes',
-  availability: ({ exportMenuOptions }) => ({
-    visible: exportMenuOptions.notes,
-    enabled: exportMenuOptions.notes
-  }),
   run: ({ onSaveToNotes, topic }) => onSaveToNotes(topic)
 })
 
@@ -358,7 +353,12 @@ topicActionRegistry.registerAction({
   label: ({ t }) => t('chat.topics.clear.title'),
   icon: () => <BrushCleaning size={14} />,
   order: 40,
-  surface: 'menu'
+  surface: 'menu',
+  confirm: ({ t }) => ({
+    title: t('chat.input.clear.title'),
+    confirmText: t('common.confirm'),
+    cancelText: t('common.cancel')
+  })
 })
 
 topicActionRegistry.registerAction({

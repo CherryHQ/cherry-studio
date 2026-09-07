@@ -1,0 +1,84 @@
+diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+--- a/dist/api/openai-completions.js
++++ b/dist/api/openai-completions.js
+@@ -102,7 +102,7 @@ export const stream = (model, context, options) => {
+             const compat = getCompat(model);
+             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
+             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
+-            const client = createClient(model, context, apiKey, options?.headers, cacheSessionId, compat);
++            const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId, compat);
+             let params = buildParams(model, context, options, compat, cacheRetention);
+             const nextParams = await options?.onPayload?.(params, model);
+             if (nextParams !== undefined) {
+@@ -394,7 +394,7 @@ export const streamSimple = (model, context, options) => {
+         toolChoice,
+     });
+ };
+-function createClient(model, context, apiKey, optionsHeaders, sessionId, compat = getCompat(model)) {
++function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId, compat = getCompat(model)) {
+     const headers = { ...model.headers };
+     if (model.provider === "github-copilot") {
+         const hasImages = hasCopilotVisionInput(context.messages);
+@@ -418,6 +418,7 @@ function createClient(model, context, apiKey, optionsHeaders, sessionId, compat
+         baseURL: model.baseUrl,
+         dangerouslyAllowBrowser: true,
+         defaultHeaders: headers,
++        fetch,
+     });
+ }
+ function buildParams(model, context, options, compat = getCompat(model), cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env)) {
+diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
+index ee60ef392d61fde5d942e10c720113f7b2390cdc..52dae3876d6225d7e2bae8d8108a411291cd1c58 100644
+--- a/dist/api/openai-responses.js
++++ b/dist/api/openai-responses.js
+@@ -81,7 +81,7 @@ export const stream = (model, context, options) => {
+             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
+             const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
+             const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
+-            const client = createClient(model, context, apiKey, options?.headers, cacheSessionId);
++            const client = createClient(model, context, apiKey, options?.headers, options?.fetch, cacheSessionId);
+             let params = buildParams(model, context, options);
+             const nextParams = await options?.onPayload?.(params, model);
+             if (nextParams !== undefined) {
+@@ -132,7 +132,7 @@ export const streamSimple = (model, context, options) => {
+         reasoningEffort,
+     });
+ };
+-function createClient(model, context, apiKey, optionsHeaders, sessionId) {
++function createClient(model, context, apiKey, optionsHeaders, fetch, sessionId) {
+     const compat = getCompat(model);
+     const headers = { ...model.headers };
+     if (model.provider === "github-copilot") {
+@@ -158,6 +158,7 @@ function createClient(model, context, apiKey, optionsHeaders, sessionId) {
+         baseURL: model.baseUrl,
+         dangerouslyAllowBrowser: true,
+         defaultHeaders: headers,
++        fetch,
+     });
+ }
+ function buildParams(model, context, options) {
+diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
+index cc1c66f5086e5e9cf6393a599a03f0bb67ba2264..699166a88f3457c6d9e918944b92ae017cbe6124 100644
+--- a/dist/api/simple-options.js
++++ b/dist/api/simple-options.js
+@@ -13,6 +13,7 @@ export function buildBaseOptions(model, context, options, apiKey) {
+         maxTokens: clampMaxTokensToContext(model, context, options?.maxTokens ?? model.maxTokens),
+         signal: options?.signal,
+         apiKey: apiKey || options?.apiKey,
++        fetch: options?.fetch,
+         transport: options?.transport,
+         cacheRetention: options?.cacheRetention,
+         sessionId: options?.sessionId,
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index bdbadd71780fd76fb3ad6ded95239643ed4e89f3..6c44d6fd6d6e9eaf5519fac3830b2d041b10f0ef 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -46,6 +46,8 @@ export interface StreamOptions {
+     maxTokens?: number;
+     signal?: AbortSignal;
+     apiKey?: string;
++    /** Optional fetch implementation for provider HTTP requests. */
++    fetch?: typeof globalThis.fetch;
+     /**
+      * Preferred transport for providers that support multiple transports.
+      * Providers that do not support this option ignore it.

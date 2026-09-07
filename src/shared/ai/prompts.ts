@@ -1,5 +1,3 @@
-import dayjs from 'dayjs'
-
 export const AGENT_PROMPT = `
 You are a Prompt Generator. You will integrate user input information into a structured Prompt using Markdown syntax. Please do not use code blocks for output, display directly!
 
@@ -62,57 +60,4 @@ If the detected language is not found in the {{list_lang}} list, output "unknown
 <text>
 {{input}}
 </text>
-`
-
-export const REFERENCE_PROMPT = `Please answer the question based on the reference materials
-
-## Citation Rules:
-- Please cite the context at the end of sentences when appropriate.
-- Please use the format of citation number [number] to reference the context in corresponding parts of your answer.
-- If a sentence comes from multiple contexts, please list all relevant citation numbers, e.g., [1][2]. Remember not to group citations at the end but list them in the corresponding parts of your answer.
-- If all reference content is not relevant to the user's question, please answer based on your knowledge.
-
-## My question is:
-
-{question}
-
-## Reference Materials:
-
-{references}
-
-Please respond in the same language as the user's question.
-`
-
-export const FOOTNOTE_PROMPT = `Please answer the question based on the reference materials and use footnote format to cite your sources. Please ignore irrelevant reference materials. If the reference material is not relevant to the question, please answer the question based on your knowledge. The answer should be clearly structured and complete.
-
-## Footnote Format:
-
-1. **Footnote Markers**: Use the form of [^number] in the main text to mark footnotes, e.g., [^1].
-2. **Footnote Content**: Define the specific content of footnotes at the end of the document using the form [^number]: footnote content
-3. **Footnote Content**: Should be as concise as possible
-
-## My question is:
-
-{question}
-
-## Reference Materials:
-
-{references}
-`
-
-export const WEB_SEARCH_PROMPT_FOR_ZHIPU = `
-# 以下是来自互联网的信息：
-{search_result}
-
-# 当前日期: ${dayjs().format('YYYY-MM-DD')}
-# 要求：
-根据最新发布的信息回答用户问题，当回答引用了参考信息时，必须在句末使用对应的[ref_序号](url)的markdown链接形式来标明参考信息来源。
-`
-export const WEB_SEARCH_PROMPT_FOR_OPENROUTER = `
-A web search was conducted on \`${dayjs().format('YYYY-MM-DD')}\`. Incorporate the following web search results into your response.
-
-IMPORTANT: Cite them using markdown links named using the domain of the source.
-Example: [nytimes.com](https://nytimes.com/some-page).
-If have multiple citations, please directly list them like this:
-[www.nytimes.com](https://nytimes.com/some-page)[www.bbc.com](https://bbc.com/some-page)
 `

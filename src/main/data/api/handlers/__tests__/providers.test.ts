@@ -61,6 +61,7 @@ import { providerHandlers } from '../providers'
 describe('providerHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
   })
 
   describe('/providers', () => {
@@ -71,7 +72,7 @@ describe('providerHandlers', () => {
         defaultChatEndpoint: 'openai-chat-completions',
         apiKeys: [],
         authType: 'api-key',
-        apiFeatures: {},
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       })
@@ -271,6 +272,18 @@ describe('providerHandlers', () => {
         endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' } },
         models: []
       })
+    })
+
+    it('preserves explicit custom provenance when the runtime provider has no preset id', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'future-registry-collision', presetProviderId: undefined })
+      getProviderPresetMock.mockReturnValueOnce({ endpointConfigs: null })
+
+      await providerHandlers['/providers/:providerId/preset'].GET({
+        params: { providerId: 'future-registry-collision' },
+        query: { fields: 'endpointConfigs' }
+      } as never)
+
+      expect(getProviderPresetMock).toHaveBeenCalledWith('future-registry-collision', ['endpointConfigs'], null)
     })
 
     it('rejects unknown or missing fields before resolving the provider', async () => {

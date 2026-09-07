@@ -1,3 +1,11 @@
+---
+description: Per-window platform configuration — static platformOverrides, declarative behavior layer, and macOS quirks patches
+sources:
+  - src/main/core/window/quirks.ts
+  - src/main/core/window/behavior.ts
+  - src/main/core/window/windowRegistry.ts
+---
+
 # Window Platform Configuration
 
 WindowManager splits per-window configuration into three orthogonal layers:
@@ -18,9 +26,9 @@ Some OS-specific behaviors are tedious to hand-roll at every call site (e.g. the
 |---|---|---|
 | `macRestoreFocusOnHide: boolean` | `hide()`, `close()` | Before invoking the native method, iterate every visible focusable `BrowserWindow` and `setFocusable(false)`; restore them 50ms later. Prevents other windows from being brought to the front when this one disappears. |
 | `macClearHoverOnHide: boolean` | `hide()` | After invoking the native `hide()`, send `webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })` to clear any residual hover state. |
-| `macReapplyAlwaysOnTop: boolean` | `show()`, `showInactive()` | After invoking the native method, call `setAlwaysOnTop(true, level, relativeLevel)` with values read from `behavior.alwaysOnTop` (single source of truth). When `behavior.alwaysOnTop.level` is unset, falls back to `'floating'`. Compensates for macOS level resets between hide/show. |
+| `reapplyAlwaysOnTop: boolean` | `show()`, `showInactive()` | After invoking the native method, call `setAlwaysOnTop(true, level, relativeLevel)` with values read from `behavior.alwaysOnTop` (single source of truth). When `behavior.alwaysOnTop.level` is unset, falls back to `'floating'`. Compensates for macOS level resets between hide/show, and for Windows' last-writer-wins topmost z-order (the `level` argument is ignored there). |
 
-All quirks are macOS-only: on other platforms the methods are left untouched, and `window.hide === originalHide` (identity preserved).
+The `mac`-prefixed quirks are macOS-only: on other platforms those methods are left untouched, and `window.hide === originalHide` (identity preserved). `reapplyAlwaysOnTop` patches `show()` / `showInactive()` on every platform.
 
 ### Example
 
@@ -39,7 +47,7 @@ All quirks are macOS-only: on other platforms the methods are left untouched, an
   quirks: {
     macRestoreFocusOnHide: true,
     macClearHoverOnHide: true,
-    macReapplyAlwaysOnTop: true              // boolean switch; reads level from behavior above
+    reapplyAlwaysOnTop: true                 // boolean switch; reads level from behavior above
   }
 }
 ```
@@ -67,7 +75,7 @@ The domain service carries none of this code.
 | Field | Type | What it does |
 |---|---|---|
 | `hideOnBlur` | `boolean` | Installs a blur listener that calls `window.hide()` (with optional runtime override via `wm.behavior.setHideOnBlur(id, enabled)`). |
-| `alwaysOnTop` | `{ level?: AlwaysOnTopLevel, relativeLevel?: number }` | Supplies the `level` / `relativeLevel` to `setAlwaysOnTop` calls — the single source of truth, read by: (1) the initial application after create (when `windowOptions.alwaysOnTop` is `true`), (2) `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls, (3) the `macReapplyAlwaysOnTop` quirk. |
+| `alwaysOnTop` | `{ level?: AlwaysOnTopLevel, relativeLevel?: number }` | Supplies the `level` / `relativeLevel` to `setAlwaysOnTop` calls — the single source of truth, read by: (1) the initial application after create (when `windowOptions.alwaysOnTop` is `true`), (2) `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls, (3) the `reapplyAlwaysOnTop` quirk. |
 | `visibleOnAllWorkspaces` | `{ enabled: boolean } & VisibleOnAllWorkspacesOptions` | Runs `window.setVisibleOnAllWorkspaces(enabled, options)` once on create. Windows whose true/false options differ per call should *not* declare this (e.g. SelectionAction) — drive directly on `BrowserWindow` instead. |
 | `macShowInDock` | `boolean` | macOS-only default for whether a window of this type CONTRIBUTES to Dock visibility (Dock shown iff any alive window contributes). Existence-based, not visibility-based: hiding a contributing window does NOT hide the Dock (Cmd+W semantics). When omitted, defaults to `true`. `false` is for helper windows (floating panels, menu-bar style overlays) that should never affect the Dock. Runtime override via `wm.behavior.setMacShowInDockByType(type, value)` — set it to `false` before `window.hide()` to enter tray mode, `true` before `window.show()` to leave. No-op on Windows/Linux. |
 

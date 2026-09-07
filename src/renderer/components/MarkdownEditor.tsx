@@ -1,7 +1,7 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import 'katex/dist/katex.min.css'
+import '@renderer/assets/styles/vendor/katex.css'
 
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import type { FC } from 'react'
 import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,16 +38,16 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-border" style={{ height }}>
       <textarea
-        className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-foreground-muted focus:outline-none"
+        className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-muted-foreground focus:outline-none"
         value={inputValue}
         onChange={handleChange}
         placeholder={placeholder}
         autoFocus={autoFocus}
       />
       <div className="markdown flex-1 overflow-auto bg-background p-3">
-        <Markdown id={markdownId} plugins={{ cjk: defaultMarkdownPlugins.cjk, math: withMath() }}>
+        <StaticMarkdown id={markdownId}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
-        </Markdown>
+        </StaticMarkdown>
       </div>
     </div>
   )

@@ -1,13 +1,19 @@
-export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig, KnownAppProviderId } from './merged'
+export type { ApprovalRequestedEvent } from './approval'
+export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'
 export type {
   CompletionsResult,
-  ConcreteProviderId,
-  PresetProviderId,
   ProviderCapabilities,
   ProviderConfig,
-  ProviderOptionsKey,
-  ResolvedProviderConfig
+  ProviderOptionsKey
 } from './providerConfig'
-export { asConcreteProviderId, asPresetProviderId } from './providerConfig'
-export type { AiBaseRequest, AiStreamRequest, AiTransportOptions, CallOverrides, ListModelsRequest } from './requests'
+export type {
+  AiBaseRequest,
+  AiStreamRequest,
+  AiTransportOptions,
+  CallOverrides,
+  ContextOwner,
+  InProcessUsageContext,
+  ListModelsRequest
+} from './requests'
+export type { SamplingSettings } from './sampling'

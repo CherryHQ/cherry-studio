@@ -8,6 +8,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { toast } from '@renderer/services/toast'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useCallback, useState } from 'react'
@@ -19,21 +20,37 @@ const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 
 export function PrivacyPolicyUpdateGate() {
   const { t } = useTranslation()
-  const [policyVersion, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
+  const [, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
+  const [, setDataCollectionEnabled] = usePreference(
+    'app.privacy.data_collection.enabled',
+    PESSIMISTIC_PREFERENCE_OPTIONS
+  )
   const [showPolicy, setShowPolicy] = useState(false)
-  const [isAcknowledging, setIsAcknowledging] = useState(false)
-  const open = policyVersion !== LATEST_PRIVACY_POLICY_VERSION
+  const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
+  const open = useIsPrivacyUpdateRequired()
 
   const acknowledge = useCallback(async () => {
-    setIsAcknowledging(true)
+    setIsUpdatingPrivacy(true)
     try {
       await setPolicyVersion(LATEST_PRIVACY_POLICY_VERSION)
     } catch {
       toast.error(t('privacy_policy_update.acknowledge_failed'))
     } finally {
-      setIsAcknowledging(false)
+      setIsUpdatingPrivacy(false)
     }
   }, [setPolicyVersion, t])
+
+  const continueWithoutConsent = useCallback(async () => {
+    setIsUpdatingPrivacy(true)
+    try {
+      await setDataCollectionEnabled(false)
+      setShowPolicy(false)
+    } catch {
+      toast.error(t('privacy_policy_update.acknowledge_failed'))
+    } finally {
+      setIsUpdatingPrivacy(false)
+    }
+  }, [setDataCollectionEnabled, t])
 
   return (
     <>
@@ -51,15 +68,22 @@ export function PrivacyPolicyUpdateGate() {
               <Button
                 type="button"
                 variant="link"
-                className="h-auto px-1 py-0 align-baseline"
+                className="h-auto px-1 py-0 align-baseline underline focus-visible:ring-0"
                 onClick={() => setShowPolicy(true)}>
                 {t('privacy_policy_update.policy')}
               </Button>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" loading={isAcknowledging} onClick={() => void acknowledge()}>
-              {t('common.i_know')}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isUpdatingPrivacy}
+              onClick={() => void continueWithoutConsent()}>
+              {t('common.decline')}
+            </Button>
+            <Button type="button" loading={isUpdatingPrivacy} onClick={() => void acknowledge()}>
+              {t('onboarding.privacy.accept_and_continue')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -68,8 +92,9 @@ export function PrivacyPolicyUpdateGate() {
       <PrivacyPolicyDialog
         open={open && showPolicy}
         onAccept={acknowledge}
-        isPending={isAcknowledging}
-        acceptButtonText={t('common.i_know')}
+        onDecline={continueWithoutConsent}
+        isPending={isUpdatingPrivacy}
+        acceptButtonText={t('onboarding.privacy.accept_and_continue')}
       />
     </>
   )

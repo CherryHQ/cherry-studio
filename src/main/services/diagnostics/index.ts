@@ -1,0 +1,1 @@
+export { diagnosticBundleService } from './DiagnosticBundleService'

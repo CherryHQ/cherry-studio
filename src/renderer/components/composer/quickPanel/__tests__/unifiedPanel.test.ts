@@ -1,4 +1,5 @@
 import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
+import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
@@ -9,6 +10,7 @@ const quickPanel = {
   close: vi.fn(),
   updateItemSelection: vi.fn(),
   updateList: vi.fn(),
+  updateFooterActions: vi.fn(),
   isVisible: false,
   symbol: '',
   list: [],
@@ -43,6 +45,7 @@ beforeEach(() => {
   quickPanel.close.mockReset()
   quickPanel.updateItemSelection.mockReset()
   quickPanel.updateList.mockReset()
+  quickPanel.updateFooterActions.mockReset()
   quickPanel.setFillToAvailableHeight.mockReset()
   quickPanel.dispatchKeyDown.mockReset()
   quickPanel.dispatchKeyDown.mockReturnValue(false)
@@ -162,16 +165,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           label: 'Skills',
           icon: 'skill',
           sources: ['root-panel'],
-          rootSearchItems: [
-            { id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill },
-            {
-              id: 'agent-skills:manage',
-              label: 'Manage skills',
-              icon: 'settings',
-              fixedToBottom: true,
-              action: vi.fn()
-            }
-          ],
+          rootSearchItems: [{ id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill }],
           action: vi.fn()
         },
         {
@@ -218,7 +212,62 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(insertSkill).toHaveBeenCalledOnce()
   })
 
-  it('excludes persistent launchers while keeping the bare-root customize footer', () => {
+  it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-plan',
+              kind: 'command',
+              label: createElement('span', null, 'Plan Only'),
+              description: createElement('span', null, 'Plans without editing files.'),
+              icon: 'plan',
+              sources: ['popover'],
+              searchAliases: ['Plan Only', 'Plans without editing files.'],
+              action: vi.fn()
+            },
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: createElement('span', null, 'Approve for Me'),
+              icon: 'auto',
+              sources: ['popover'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    // Without aliases, a React-node label leaves only whitespace filterText and never matches.
+    expect(getVisibleItems(options, 'approve for me')).toEqual([])
+
+    const matches = getVisibleItems(options, 'plan only')
+    expect(matches).toHaveLength(1)
+
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+    matches[0].action?.({
+      action: 'enter',
+      context: actionContext,
+      item: matches[0],
+      parentPanel: options,
+      searchText: 'plan only'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'permission-mode-plan' }),
+      expect.anything()
+    )
+  })
+
+  it('excludes persistent launchers from the button root', () => {
     const launchers = [
       {
         id: 'thinking',
@@ -235,24 +284,14 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         sources: ['popover'] as const
       }
     ]
-    const additionalItems = [
-      {
-        id: 'composer:customize-toolbar',
-        label: 'Customize toolbar',
-        icon: 'settings',
-        fixedToBottom: true
-      }
-    ]
-
     const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
       quickPanel,
-      additionalItems,
       excludedLauncherIds: new Set(['thinking'])
     })
-    expect(pinned.list.map((item) => item.id)).toEqual(['attachment', 'composer:customize-toolbar'])
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment'])
 
-    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, additionalItems })
-    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment'])
   })
 
   it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
@@ -267,26 +306,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
 
     const unpinned = createUnifiedQuickPanelOpenOptions([], { quickPanel, leadingItems })
     expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
-  })
-
-  it('drops bottom-pinned chrome from category views seeded with a search text', () => {
-    const additionalItems = [
-      { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },
-      { id: 'composer:customize-toolbar', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true }
-    ]
-
-    // Bare root panel keeps the fixedToBottom customize action.
-    const bareRoot = createUnifiedQuickPanelOpenOptions([], { quickPanel, additionalItems })
-    expect(labels(bareRoot.list)).toContain('Customize toolbar')
-
-    // A category view (opened via a toolbar shortcut that seeds a search text) drops it so it does
-    // not bypass the category filter.
-    const categoryView = createUnifiedQuickPanelOpenOptions([], {
-      quickPanel,
-      additionalItems,
-      initialSearchText: 'Skills'
-    })
-    expect(labels(categoryView.list)).toEqual(['Agent skill'])
   })
 
   it('does not reorder items when there is no search text', () => {
@@ -488,7 +507,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         symbol: 'thinking',
         parentPanel: options,
         queryAnchor: 0,
-        triggerInfo: { type: 'input', position: 0, originalText: '/think' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -512,6 +532,99 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         queryAnchor: 0,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('opens a single-select submenu with the keyboard on the active child', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'panel',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            { id: 'mode-default', kind: 'command', label: 'Ask Every Time', icon: 'a', sources: ['popover'] },
+            {
+              id: 'mode-smart',
+              kind: 'command',
+              label: 'Smart Approval',
+              icon: 's',
+              active: true,
+              sources: ['popover']
+            },
+            { id: 'mode-full', kind: 'command', label: 'Full Access', icon: 'f', sources: ['popover'] }
+          ]
+        }
+      ],
+      { quickPanel, triggerInfo: { type: 'button' } }
+    )
+    const submenuLauncher = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    submenuLauncher.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: submenuLauncher,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: ''
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'permission-mode',
+        defaultIndex: 1,
+        list: [
+          expect.objectContaining({ label: 'Ask Every Time' }),
+          expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
+          expect.objectContaining({ label: 'Full Access' })
+        ]
+      })
+    )
+  })
+
+  it('preserves tooltip metadata for submenu rows', () => {
+    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-mode-auto',
+              kind: 'command',
+              label: 'Approve for Me',
+              icon: 'shield-alert',
+              tooltip: 'Needs a model that supports it.',
+              tooltipAnchor,
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+    const permissionMode = options.list[0]
+
+    permissionMode.action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: permissionMode,
+      parentPanel: options
+    })
+
+    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(submenu.list[0]).toEqual(
+      expect.objectContaining({
+        tooltip: 'Needs a model that supports it.',
+        tooltipAnchor
       })
     )
   })

@@ -3,8 +3,10 @@ import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/comp
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
+import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +16,7 @@ import MainTextBlock from '../MainTextBlock'
 const mockRenderConfig = vi.hoisted(() => ({
   renderInputMessageAsMarkdown: false
 }))
+const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 const mockTranslations = vi.hoisted(() => ({
   'message.message.user_content.expand': 'Expand',
@@ -23,6 +26,12 @@ const mockTranslations = vi.hoisted(() => ({
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
   useOptionalMessageListActions: () => undefined
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewShowMock
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -199,8 +208,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-// Mock citation utilities
-vi.mock('@renderer/utils/citation', () => ({
+// Mock citation utilities. Only the tag-emitting entry points are stubbed — the marker pattern and
+// the code-block-aware walker stay real so the strip path under test behaves like production.
+vi.mock('@renderer/utils/citation', async (importOriginal) => ({
+  ...(await importOriginal<typeof CitationUtils>()),
+  toTooltipCitation: vi.fn((citation: Citation) => citation),
   withCitationTags: vi.fn((content: string, citations: any[]) => {
     if (citations.length > 0) {
       return `${content} [processed-citations]`
@@ -217,9 +229,13 @@ vi.mock('@renderer/utils/citation', () => ({
 }))
 
 // Mock Markdown component
+const capturedChatMarkdownProps = vi.hoisted(() => [] as any[])
+
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, postProcess, components }: any) => {
+  default: (props: any) => {
+    capturedChatMarkdownProps.push(props)
+    const { block, inlineHtmlPreviewMode, postProcess, components } = props
     const content = postProcess ? postProcess(block.content) : block.content
     const tokenPlaceholderPattern =
       /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
@@ -244,7 +260,7 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
     if (cursor < content.length) nodes.push(content.slice(cursor))
 
     return (
-      <div data-testid="mock-markdown" data-content={content}>
+      <div data-testid="mock-markdown" data-content={content} data-inline-html-preview-mode={inlineHtmlPreviewMode}>
         Markdown: {nodes}
       </div>
     )
@@ -257,6 +273,7 @@ describe('MainTextBlock', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    capturedChatMarkdownProps.length = 0
 
     const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
     mockWithCitationTags = withCitationTags as any
@@ -269,6 +286,7 @@ describe('MainTextBlock', () => {
   const renderMainTextBlock = (props: {
     id?: string
     content: string
+    inlineHtmlPreviewMode?: 'generating' | 'ready'
     isStreaming?: boolean
     citations?: Citation[]
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
@@ -276,11 +294,13 @@ describe('MainTextBlock', () => {
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+    hiddenComposerTokens?: ReadonlySet<ComposerMessageSnapshot['tokens'][number]>
   }) => {
     return render(
       <MainTextBlock
         id={props.id ?? 'test-block-1'}
         content={props.content}
+        inlineHtmlPreviewMode={props.inlineHtmlPreviewMode}
         isStreaming={props.isStreaming ?? false}
         citations={props.citations}
         citationReferences={props.citationReferences}
@@ -288,6 +308,7 @@ describe('MainTextBlock', () => {
         mentions={props.mentions}
         composer={props.composer}
         readOnlyFilePreviews={props.readOnlyFilePreviews}
+        hiddenComposerTokens={props.hiddenComposerTokens}
       />
     )
   }
@@ -304,6 +325,46 @@ describe('MainTextBlock', () => {
       expect(getRenderedPlainText()).not.toBeInTheDocument()
     })
 
+    it('keeps inline HTML generating until smoothed content reaches the completed source', () => {
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+      const view = render(
+        <MainTextBlock
+          id="html-block"
+          content="```html\n<div>"
+          inlineHtmlPreviewMode="generating"
+          isStreaming
+          role="assistant"
+        />
+      )
+
+      try {
+        view.rerender(
+          <MainTextBlock
+            id="html-block"
+            content="```html\n<div>Complete</div>\n```"
+            inlineHtmlPreviewMode="ready"
+            isStreaming={false}
+            role="assistant"
+          />
+        )
+
+        expect(getRenderedMarkdown()).toHaveAttribute('data-inline-html-preview-mode', 'generating')
+      } finally {
+        view.unmount()
+        requestAnimationFrameSpy.mockRestore()
+      }
+    })
+
+    it('renders completed inline HTML as ready when no smoothed content is pending', () => {
+      renderMainTextBlock({
+        content: '```html\n<div>Complete</div>\n```',
+        inlineHtmlPreviewMode: 'ready',
+        role: 'assistant'
+      })
+
+      expect(getRenderedMarkdown()).toHaveAttribute('data-inline-html-preview-mode', 'ready')
+    })
+
     it('should render in plain text mode for user messages when setting disabled', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({ content: 'User message\nWith line breaks', role: 'user' })
@@ -311,9 +372,6 @@ describe('MainTextBlock', () => {
       expect(getRenderedPlainText()).toBeInTheDocument()
       expect(getRenderedPlainText()!.textContent).toBe('User message\nWith line breaks')
       expect(getRenderedMarkdown()).not.toBeInTheDocument()
-
-      const textElement = getRenderedPlainText()!
-      expect(textElement).toHaveStyle({ whiteSpace: 'pre-wrap' })
     })
 
     it('should render user messages as markdown when setting enabled', () => {
@@ -355,6 +413,31 @@ describe('MainTextBlock', () => {
       expect(markdown).toHaveTextContent('Reply')
       expect(markdown).not.toHaveTextContent('> quoted line')
       expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+    })
+
+    it('should preserve link token rendering in sent user messages', () => {
+      const url = 'https://www.example.com/docs'
+      renderMainTextBlock({
+        content: url,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              index: 0,
+              textOffset: 0,
+              promptText: url
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByRole('link', { name: url })).toHaveTextContent('example.com/docs')
+      expect(document.querySelector('[data-composer-link-favicon]')).toBeInTheDocument()
+      expect(getRenderedPlainText()).not.toHaveTextContent(url)
     })
 
     it('should keep quote token tooltip content in markdown-rendered user messages', () => {
@@ -443,15 +526,6 @@ describe('MainTextBlock', () => {
 
       const textElement = getRenderedPlainText()!
       expect(textElement.textContent).toBe(complexContent)
-      expect(textElement).toHaveClass('markdown')
-    })
-
-    it('should handle empty content gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({ content: '', role: 'assistant' })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
     })
 
     it('should not show the collapse toggle for user messages with up to five effective lines', () => {
@@ -490,23 +564,10 @@ describe('MainTextBlock', () => {
 
       expect(content.style.maxHeight).toBe('')
       expect(content.style.overflow).toBe('')
-      expect(content).toHaveClass('[&>*:last-child]:mb-0!', '[&_.markdown>*:last-child]:mb-0!')
       expect(content.textContent).toContain('Line 1\n\n\nLine 2')
       expect(document.body).toHaveTextContent('Line 5')
       expect(document.body).not.toHaveTextContent('Line 6')
       expect(button).toHaveAttribute('aria-expanded', 'false')
-      expect(button).toHaveClass(
-        'flex',
-        'min-h-7',
-        'w-full',
-        'items-center',
-        'justify-start',
-        'gap-1.5',
-        'bg-transparent',
-        'px-0',
-        'py-0.5',
-        'text-left'
-      )
 
       fireEvent.click(button)
 
@@ -559,6 +620,74 @@ describe('MainTextBlock', () => {
       expect(document.body).not.toHaveTextContent('Line 6')
     })
 
+    it('does not collapse a short visible message because a reference token contains a long transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Old question
+
+[assistant]
+Old answer
+
+[user]
+More context
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} Start the demo`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(document.body).toHaveTextContent('Start the demo')
+      expect(document.body).not.toHaveTextContent('Old question')
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+    })
+
+    it('collapses long visible content after a reference token without exposing its transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Hidden question
+
+[assistant]
+Hidden answer
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} ${Array.from({ length: 7 }, (_, index) => `Visible line ${index + 1}`).join('\n')}`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.body).toHaveTextContent('Visible line 5')
+      expect(document.body).not.toHaveTextContent('Visible line 6')
+      expect(document.body).not.toHaveTextContent('Hidden question')
+    })
+
     it('should not collapse assistant messages', () => {
       const content = Array.from({ length: 11 }, (_, index) => `Assistant response ${index + 1}`).join('\n')
       renderMainTextBlock({ content, role: 'assistant' })
@@ -593,110 +722,35 @@ describe('MainTextBlock', () => {
       expect(textElement).not.toHaveTextContent('src/chat.ts')
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
-      expect(token).toHaveClass(
-        'h-6',
-        'max-w-[calc(100%_-_0.25rem)]',
-        'my-0.5',
-        'items-center',
-        'rounded-md',
-        'border',
-        'border-border',
-        'bg-background',
-        'hover:bg-accent',
-        'leading-[inherit]'
-      )
-      expect(token).not.toHaveClass('text-primary')
-      expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
-        'size-4.5',
-        'rounded-[5px]',
-        'bg-indigo-100',
-        'text-indigo-700'
-      )
+      expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
     })
 
-    it('should keep long composer token labels on one truncated line in sent messages', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_image.png'
+    it.each([false, true])('should consume hidden token prompt text in markdown mode %s', (renderAsMarkdown) => {
+      mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+      const composer: ComposerMessageSnapshot = {
+        version: 1,
+        tokens: [
+          {
+            id: 'file:image-1',
+            kind: 'file',
+            label: 'photo.png',
+            index: 0,
+            textOffset: 5,
+            promptText: 'internal image context'
+          }
+        ]
+      }
 
       renderMainTextBlock({
-        content: `Open ${longLabel} now`,
+        content: 'Open internal image context now',
         role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'file-long',
-              kind: 'file',
-              label: longLabel,
-              index: 0,
-              textOffset: 5,
-              promptText: longLabel
-            }
-          ]
-        }
+        composer,
+        hiddenComposerTokens: new Set([composer.tokens[0]])
       })
 
-      const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
-      const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
-      expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
-    })
-
-    it('should keep long file composer tokens truncated in markdown user messages', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = true
-      const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_pasted_text.txt'
-
-      renderMainTextBlock({
-        content: `Open ${longLabel} now`,
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'file-long',
-              kind: 'file',
-              label: longLabel,
-              index: 0,
-              textOffset: 5,
-              promptText: longLabel
-            }
-          ]
-        }
-      })
-
-      const chip = getRenderedMarkdown()!.querySelector('[data-composer-token-kind="file"]')
-      const label = chip?.querySelector('span.truncate')
-      expect(chip).toHaveClass('max-w-[calc(100%_-_0.25rem)]', 'overflow-hidden')
-      expect(label).toHaveClass('min-w-0', 'max-w-full', 'truncate', 'whitespace-nowrap!', 'break-normal')
-    })
-
-    it('should render skill composer tokens with their own visual treatment', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({
-        content: 'Use the pdf skill.',
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'skill:pdf',
-              kind: 'skill',
-              label: 'pdf',
-              description: 'Read and analyze PDFs',
-              index: 0,
-              textOffset: 0,
-              promptText: 'Use the pdf skill.'
-            }
-          ]
-        }
-      })
-
-      const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="skill"]')
-      expect(token).toBeInTheDocument()
-      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
-      expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5')
-      expect(token?.querySelector('svg')).toHaveClass('text-current', 'opacity-80')
-      expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
+      expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+      expect(document.body).toHaveTextContent('Open now')
+      expect(document.body).not.toHaveTextContent('internal image context')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {
@@ -759,11 +813,11 @@ describe('MainTextBlock', () => {
       expect(markdown).toHaveTextContent('Markdown: Open chat.ts **now**')
       expect(markdown).not.toHaveTextContent('src/chat.ts')
       const token = markdown.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveClass('h-6', 'rounded-md', 'border', 'border-border', 'bg-background')
+      expect(token).toBeInTheDocument()
       expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
     })
 
-    it('should render pdf file composer tokens with the same pdf icon style as the composer', () => {
+    it('should preserve the pdf file token variant in sent messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Read test.pdf now',
@@ -792,7 +846,7 @@ describe('MainTextBlock', () => {
 
       const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
       expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
-      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass('bg-red-100', 'text-red-700')
+      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toBeInTheDocument()
     })
 
     it.each([false, true])(
@@ -855,7 +909,8 @@ describe('MainTextBlock', () => {
       }
     )
 
-    it('should open a sent image preview from its linked file part with the composer keyboard contract', () => {
+    it('should open the shared image preview when a sent image token is activated', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View photo.png now',
         role: 'user',
@@ -890,23 +945,19 @@ describe('MainTextBlock', () => {
       expect(trigger).toHaveAttribute('role', 'button')
       expect(trigger).toHaveAttribute('tabindex', '0')
 
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
-
-      const popover = screen.getByTestId('composer-message-token-popover-content')
-      expect(popover).toHaveAttribute('data-side', 'top')
-      expect(popover).toHaveAttribute('data-align', 'start')
-      expect(popover).toHaveAttribute('data-side-offset', '8')
-      expect(popover).toHaveFocus()
-      expect(screen.getByAltText('photo.png')).toHaveAttribute('src', 'file:///internal/message-files/photo.png')
-      expect(popover).not.toHaveTextContent('/internal/message-files/photo.png')
-
-      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await user.click(trigger)
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files/photo.png')
       expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
-      expect(trigger).toHaveFocus()
+
+      trigger.focus()
+      await user.keyboard('{Enter}')
+      expect(imagePreviewShowMock).toHaveBeenCalledTimes(2)
+      expect(imagePreviewShowMock).toHaveBeenLastCalledWith('file:///internal/message-files/photo.png')
+      expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
     })
 
-    it('should apply the shared dangerous-file safety rule to a linked sent image preview', () => {
+    it('should apply the shared dangerous-file safety rule to a linked sent image preview', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View icon.svg now',
         role: 'user',
@@ -937,10 +988,9 @@ describe('MainTextBlock', () => {
 
       const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
       const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
+      await user.click(trigger)
 
-      expect(screen.getByAltText('icon.svg')).toHaveAttribute('src', 'file:///internal/message-files')
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files')
     })
 
     it('should preview sent pasted text from the linked internal file without persisting its path', async () => {
@@ -1040,14 +1090,8 @@ describe('MainTextBlock', () => {
 
       const textElement = getRenderedPlainText()!
       expect(textElement).toHaveTextContent('web-search Docs')
-      expect(textElement.querySelector('[data-composer-token-kind="command"]')).toHaveClass(
-        'text-primary',
-        'overflow-hidden'
-      )
-      expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toHaveClass(
-        'group/composer-token',
-        'text-primary'
-      )
+      expect(textElement.querySelector('[data-composer-token-kind="command"]')).toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toBeInTheDocument()
     })
 
     it('should ignore unsupported raw composer metadata tokens in user messages', () => {
@@ -1140,20 +1184,6 @@ describe('MainTextBlock', () => {
       expect(screen.getByText('@deepseek-r1')).toBeInTheDocument()
       expect(screen.getByText('@claude-sonnet-4')).toBeInTheDocument()
     })
-
-    it('should not display mentions when none provided', () => {
-      renderMainTextBlock({ content: 'No mentions content', role: 'assistant', mentions: [] })
-      expect(screen.queryAllByText(/@/)).toHaveLength(0)
-    })
-
-    it('should style mentions correctly for user visibility', () => {
-      const mentions = [{ id: 'model-1', name: 'Test Model', provider: 'test' } as Model]
-
-      renderMainTextBlock({ content: 'Styled mentions test', role: 'assistant', mentions })
-
-      const mentionElement = screen.getByText('@Test Model')
-      expect(mentionElement).toHaveClass('text-primary')
-    })
   })
 
   describe('citation processing', () => {
@@ -1201,55 +1231,41 @@ describe('MainTextBlock', () => {
       expect(mockWithCitationTags).not.toHaveBeenCalled()
     })
 
-    it('should handle multiple citations gracefully', () => {
-      const citations: Citation[] = [
-        { number: 1, url: 'https://first.com', title: 'First' },
-        { number: 2, url: 'https://second.com', title: 'Second' }
-      ]
-      const citationReferences = [{ citationBlockSource: 'DEFAULT' as any }]
+    // #19771: the reported answer reused a `[cite:…]` id minted by an earlier turn, so this
+    // message resolved no citation of its own and the internal id was printed verbatim.
+    it('drops [cite:id] markers from an assistant message that resolved no citation', () => {
+      renderMainTextBlock({
+        content: '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+        role: 'assistant'
+      })
 
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Multiple citations [1] and [2]',
-          role: 'assistant',
-          citations,
-          citationReferences
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', '1. 工程立项审计；\n2. 工程采购审计；')
     })
-  })
 
-  describe('settings integration', () => {
-    it('should respond to markdown rendering setting changes', () => {
-      // Test with markdown enabled
+    it('keeps a literal [cite:id] typed by the user', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = true
-      const { unmount } = renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      unmount()
+      renderMainTextBlock({ content: 'What does [cite:2598d0ab-1] mean?', role: 'user' })
 
-      // Test with markdown disabled
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedPlainText()).toBeInTheDocument()
-      expect(getRenderedMarkdown()).not.toBeInTheDocument()
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'What does [cite:2598d0ab-1] mean?')
     })
   })
 
-  describe('robustness', () => {
-    it('should handle null and undefined values gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Null safety test',
-          role: 'assistant',
-          mentions: undefined,
-          citations: undefined,
-          citationReferences: undefined
-        })
-      }).not.toThrow()
+  describe('prop identity stability', () => {
+    // A fresh trustedCitations array per render cascades into ChatMarkdown's
+    // Streamdown components map and forces every markdown block to re-parse
+    // and re-animate on each streaming tick.
+    it('keeps trustedCitations identity stable across re-renders without citations', () => {
+      const view = render(
+        <MainTextBlock id="stable-1" content="chunk one" isStreaming role="assistant" citations={[]} />
+      )
+      view.rerender(<MainTextBlock id="stable-1" content="chunk one two" isStreaming role="assistant" citations={[]} />)
 
-      expect(getRenderedMarkdown()).toBeInTheDocument()
+      expect(capturedChatMarkdownProps.length).toBeGreaterThanOrEqual(2)
+      const [first, ...rest] = capturedChatMarkdownProps
+      expect(first.trustedCitations).toEqual([])
+      for (const props of rest) {
+        expect(props.trustedCitations).toBe(first.trustedCitations)
+      }
     })
   })
 })

@@ -16,13 +16,13 @@
  * - Implementation lives under `./internal/*` (entry / content / system ops),
  *   `./tree/*`, `./utils/*`, and `./watcher.ts` as private modules. Narrow
  *   documented helpers are re-exported below for legitimate outside callers.
- * - Pure FS / path / metadata primitives live under `@main/utils/file` (sole FS
- *   owner, open to the entire Main process). Modules that need raw
+ * - Pure FS / path / metadata primitives live under `@main/utils/file` (open
+ *   to the entire Main process). Modules that need raw
  *   `atomicWriteFile` / `stat` etc. import that barrel directly.
  * - `./watcher.ts` exposes `createDirectoryWatcher()` as a consumable primitive
  *   for business modules (e.g. future NoteService). Not a lifecycle service.
- * - `./danglingCache.ts` is a file-module singleton; only queried via the
- *   DataApi handler or via FileManager side effects.
+ * - `./danglingCache.ts` is a file-module singleton; renderer reads route
+ *   through File IpcApi, while FileManager and watcher operations update it.
  *
  * If you find yourself reaching into an internal path, the answer is almost
  * certainly "add a FileManager method or expose a narrow helper here" instead.
@@ -39,8 +39,8 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
-export { StaleVersionError } from './FileManager'
-export { DirectoryTreeManager } from './tree/DirectoryTreeManager'
+export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
+export { DirectoryTreeManager, DirectoryTreeStoppedError } from './tree/DirectoryTreeManager'
 
 // DanglingCache: interface and singleton are both exported for in-process
 // callers (orphanSweep, business services querying live state). External
@@ -82,10 +82,11 @@ export { safeOpen, showInFolder } from './system'
 export { dispatchHandle } from './internal/dispatch'
 
 // Path-level content helpers for FileHandle routes and the path-only conditional write.
-export { readByPath, writeIfUnchangedByPath } from './utils/content'
+export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/content'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
+export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
 
 // Directory listing primitives. Consumed by legacy IPC directory routes

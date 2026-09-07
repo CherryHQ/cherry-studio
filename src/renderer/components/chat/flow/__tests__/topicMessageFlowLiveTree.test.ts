@@ -11,6 +11,7 @@ function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>
     // Roots hang off the unrendered virtual root; use a non-node sentinel id.
     parentId: 'vroot',
     role: 'user',
+    hasContent: true,
     preview: id,
     modelId: null,
     status: 'success',
@@ -49,6 +50,28 @@ function uiMessage({
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
 
 describe('topicMessageFlowLiveTree', () => {
+  it('derives a context boundary from the hidden data UI part', () => {
+    const liveState = buildTopicMessageFlowLiveState({
+      topicId: 'topic-1',
+      messages: [
+        uiMessage({
+          id: 'clear-1',
+          role: 'user',
+          parentId: 'user-1',
+          parts: [{ type: 'data-clear', data: {} }]
+        })
+      ],
+      partsByMessageId: {},
+      activeNodeId: 'clear-1'
+    })
+
+    expect(liveState?.nodes[0]).toMatchObject({
+      id: 'clear-1',
+      isContextBoundary: true,
+      preview: ''
+    })
+  })
+
   it('adds reserved turn nodes and overlays live assistant preview/status', () => {
     const tree: TreeResponse = {
       activeNodeId: 'root',

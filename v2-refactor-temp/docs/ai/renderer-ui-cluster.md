@@ -45,19 +45,11 @@ Commit `6ba5cd20c refactor(v2-chat): extract useIsActiveTurnTarget`.
 
 ### `V2Contexts.ts`
 
-Two contexts:
+One context:
 
 - **`PartsContext`** — `Record<messageId, CherryMessagePart[]> | null`.
   `null` means "v1 mode" (no provider mounted) — handlers in Blocks/
   branch on this.
-- **`TranslationOverlayContext` + `TranslationOverlaySetterContext`** —
-  separate reader/writer contexts so writers don't re-render on every
-  setter call. The setter context has a strict variant
-  (`useTranslationOverlaySetter` — throws when no provider) and a
-  non-strict variant (`useOptionalTranslationOverlaySetter` — returns
-  `null` for scopes that intentionally don't mount the provider, e.g.
-  agent sessions / quick assistant).
-
 ### Branch navigation
 
 `SiblingNavigator` shows `< i/N >` arrows. For deep forks (subtree size
@@ -79,16 +71,13 @@ card (`Blocks/ToolBlock.tsx` switching on state). The card:
   decision for future calls (commit `a87a8cc65 refactor(tool-approval):
   enhance useToolApproval to support MCP tool persistence`).
 
-### Translation overlay
+### Message translation
 
-`MessageTranslate.tsx` + `TranslationBlock.tsx`: when the user
-translates a message, the translation appears as an overlay layer above
-the original parts. Persists into the `translate_history` table via the
-[translate-on-main](./translate-on-main.md) flow.
-
-`MessageMenubar.tsx` was hardened against missing translation overlay
-in agent sessions (commit `6f2cb19c3 fix(message-menubar): don't crash
-agent sessions on missing translation overlay`).
+`MessageMenuBar.tsx` delegates translation to the page adapter. Home streams
+through `translateText`, writes the current `data-translation` part through
+its chat write adapter, and tracks the in-flight menu state locally. Shared
+message components only render the resulting part; scopes without the action
+do not expose the translate button.
 
 ### Streaming smoothness
 

@@ -8,7 +8,7 @@ import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
 
 /**
  * Shared painting generate skeleton. Image generation runs in the MAIN process
- * via the `ai.generate_image` IpcApi route (`ipcApi.request`): the renderer
+ * via the `ai.image.generate` IpcApi route (`ipcApi.request`): the renderer
  * sends one canonical `paramValues` bag (+ encoded input images); main derives
  * the AI SDK request + per-vendor `providerOptions` from it (`splitParamValues`
  * + the WireProfile engine), runs any async submit/poll loop, and returns
@@ -40,16 +40,18 @@ export interface GeneratePaintingOptions {
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
   return runPainting(async () => {
     const requestId = crypto.randomUUID()
-    const onAbort = () => void ipcApi.request('ai.abort_image', { requestId })
+    const onAbort = () => void ipcApi.request('ai.image.abort', { requestId })
     opts.signal.addEventListener('abort', onAbort, { once: true })
     const result = await ipcApi
-      .request('ai.generate_image', {
+      .request('ai.image.generate', {
         requestId,
         payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
           ...(opts.mode && { mode: opts.mode }),
           paramValues: opts.paramValues,
+          // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
+          cleanupPolicy: 'delete_when_unreferenced',
           ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
         }
       })

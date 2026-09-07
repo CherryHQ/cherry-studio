@@ -204,7 +204,7 @@ export function ToolStatusIndicator({
 
 export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
 
-const TOOL_STATUS_ERROR_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const TOOL_STATUS_ERROR_COLOR = 'var(--muted-foreground)'
 
 function getStatusColor(color: StatusColor): string {
   switch (color) {

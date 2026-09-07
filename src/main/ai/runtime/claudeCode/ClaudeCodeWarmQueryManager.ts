@@ -1,10 +1,21 @@
-import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
-import { startup } from '@anthropic-ai/claude-agent-sdk'
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { createHash } from 'node:crypto'
 
-import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
+import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
+import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { loggerService } from '@logger'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { deriveRootSpanId } from '@shared/data/types/trace'
+
+import { buildAgentSessionTopicId } from '../../agentSession/topic'
+import type { AgentNotificationContext } from '../agentMcpServers'
+import type { AgentSessionUsageCapture } from '../types'
+import {
+  createClaudeCodeProcessDiagnostics,
+  createSpawnClaudeCodeProcess,
+  spawnClaudeCodeProcess
+} from './ClaudeCodeProcessManager'
+import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -12,6 +23,9 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
+  closePromise?: Promise<void>
+  usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -19,15 +33,33 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Spawn-frozen connection identity used to reject stale warm processes. */
+  connectionRebuildSignature?: string
   /**
-   * Rotation-insensitive identity of the credentials the options were built with (e.g. a hash of the
-   * provider's enabled key SET). The raw rotated key is stripped from the signature — `getRotatedApiKey`
-   * advances per build, so prewarm/consume would otherwise never match on multi-key providers — while
-   * this fingerprint keeps the signature sensitive to the key set actually changing.
+   * Rotation-insensitive identity of the auth/header material the options were built with (e.g. a
+   * hash of the provider's enabled key SET and custom headers). The raw rotated key is stripped from
+   * the signature — `getRotatedApiKey` advances per build, so prewarm/consume would otherwise never
+   * match on multi-key providers — while this fingerprint keeps the signature sensitive to the
+   * underlying connection material actually changing.
    */
   credentialsFingerprint?: string
-  /** Agent knowledge bindings baked into cherry-tools at startup. */
+  /** Capture policy for the credentials and route that actually started this warm process. */
+  usageCapture?: AgentSessionUsageCapture
+  /**
+   * Effective knowledge scope (binding, else composer selection) baked into cherry-tools at startup.
+   * It is signature material precisely because it is frozen here: a warm query built for one scope
+   * must not be consumed by a turn that needs another. Prewarm runs with no composer selection, so a
+   * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
+   */
   knowledgeBaseIds?: readonly string[]
+  /** Notification authority is baked into Cherry's in-process MCP server at startup. */
+  notificationContext?: AgentNotificationContext
+}
+
+export interface ConsumedWarmQuery {
+  warmQuery: WarmQuery
+  usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -81,79 +113,117 @@ function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unkn
   return sanitized
 }
 
-const CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
+const ROTATING_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
+const HASHED_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_CUSTOM_HEADERS'] as const
 
 /**
- * Drop the injected credential env vars from the signature source WITHOUT mutating the caller's
- * options — `stripWarmQueryOptions` shallow-copies, so `env` is shared with the live spawn options.
+ * Remove rotating API keys and hash custom headers in the signature source WITHOUT mutating the
+ * caller's options. Header changes must invalidate a parked query, but their potentially-secret raw
+ * values must not be retained in the in-memory signature.
  */
-function stripCredentialEnvForSignature(options: Options): Options {
+function sanitizeSensitiveEnvForSignature(options: Options): Options {
   const env = options.env
-  if (!env || !CREDENTIAL_ENV_KEYS.some((key) => key in env)) return options
+  const hasSensitiveEnv =
+    env &&
+    (ROTATING_CREDENTIAL_ENV_KEYS.some((key) => key in env) || HASHED_CREDENTIAL_ENV_KEYS.some((key) => key in env))
+  if (!env || !hasSensitiveEnv) return options
+
   const cleanedEnv = { ...env }
-  for (const key of CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+  for (const key of ROTATING_CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+  for (const key of HASHED_CREDENTIAL_ENV_KEYS) {
+    const value = cleanedEnv[key]
+    if (value !== undefined) {
+      cleanedEnv[key] = createHash('sha256').update(value).digest('hex')
+    }
+  }
   return { ...options, env: cleanedEnv }
 }
 
 export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
-  knowledgeBaseIds: readonly string[] = []
+  knowledgeBaseIds: readonly string[] = [],
+  notificationContext?: AgentNotificationContext,
+  connectionRebuildSignature?: string
 ): string {
-  const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
+  const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
     ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
     : stripped
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
-    knowledgeBaseIds: [...knowledgeBaseIds].sort()
+    knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    notificationContext: notificationContext ?? null,
+    connectionRebuildSignature: connectionRebuildSignature ?? null
   })
 }
 
 @Injectable('ClaudeCodeWarmQueryManager')
 @ServicePhase(Phase.WhenReady)
+// Warm queries spawn CLI children through ClaudeCodeProcessManager. Declaring it keeps that owner
+// stopping LAST, so its sweep runs after these entries are disposed — do not drop it as unused.
+@DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
 
-  // `ai.prewarm_agent_session` / `ai.close_agent_session_warm` (IpcApi, validated by the router)
+  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
-      this.closeAll()
-      return
-    }
-
     try {
+      const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      this.prewarm(warmRequest)
+      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
     }
   }
 
+  /**
+   * Spawn the parked subprocess into the session's container trace. Telemetry env is fixed at spawn
+   * and is part of the warm signature, so a park built without it can never serve a traced turn —
+   * prewarm and the turn must derive the same env or trace mode never gets a warm start.
+   *
+   * Everything the turn's trace context contributes to env is derivable from the session id alone:
+   * the trace id is persisted on the session row and the root span id is derived from it. `modelName`
+   * is left out because it never reaches env — the turn registers the real one at connect.
+   */
+  private async withTraceEnv(sessionId: string, request: WarmQueryRequest): Promise<WarmQueryRequest> {
+    const traceBridge = application.get('ClaudeCodeTraceBridgeService')
+    if (!traceBridge.isTraceModeEnabled()) return request
+
+    const traceId = agentSessionService.ensureTraceId(sessionId)
+    const traceEnv = await traceBridge.prepareTrace({
+      topicId: buildAgentSessionTopicId(sessionId),
+      traceId,
+      rootSpanId: deriveRootSpanId(traceId),
+      sessionId,
+      turnId: ''
+    })
+    if (!traceEnv) return request
+
+    return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
+  }
+
   closeAgentSessionWarm(sessionId: string): void {
-    try {
-      this.close(sessionId)
-    } catch (error) {
+    void this.close(sessionId).catch((error) => {
       logger.debug('Failed to close agent session warm query', { sessionId, error })
-    }
+    })
   }
 
-  /** Session ids with a live prewarmed query — warm entries are keyed by session id
-   *  (`warmQueryKey` is always `session.id`). The file sweep evicts dead ones first. */
-  getWarmAgentSessionIds(): string[] {
-    return [...this.entries.keys()]
-  }
-
-  prewarm(request: WarmQueryRequest): void {
-    const warmOptions = stripWarmQueryOptions(request.options)
+  async prewarm(request: WarmQueryRequest): Promise<void> {
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
+    // single await sits before any `entries` access, so the body below still runs without gaps.
+    const { startup } = await import('@anthropic-ai/claude-agent-sdk')
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const existing = this.entries.get(request.key)
 
@@ -163,30 +233,34 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      this.closeEntry(existing)
+      void this.closeEntry(existing)
     }
 
-    const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
-      (error) => {
-        if (this.entries.get(request.key)?.promise === promise) {
-          this.entries.delete(request.key)
-        }
-        logger.warn('Claude warm query startup failed', { key: request.key, error })
-        return undefined
+    const processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const promise = startup({
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      initializeTimeoutMs: request.initializeTimeoutMs
+    }).catch((error) => {
+      if (this.entries.get(request.key)?.promise === promise) {
+        this.entries.delete(request.key)
       }
-    )
+      logger.warn('Claude warm query startup failed', { key: request.key, error })
+      return undefined
+    })
 
-    const entry: WarmQueryEntry = { signature, promise }
+    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture, processDiagnostics }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
 
-  async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
-    const warmOptions = stripWarmQueryOptions(request.options)
+  async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined
@@ -195,34 +269,34 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
       return undefined
     }
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return warmQuery
+    return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 
-  close(key: string): void {
+  close(key: string): Promise<void> {
     const entry = this.entries.get(key)
-    if (!entry) return
+    if (!entry) return Promise.resolve()
     this.entries.delete(key)
-    this.closeEntry(entry)
+    return this.closeEntry(entry)
   }
 
-  closeAll(): void {
+  closeAll(): Promise<void> {
     const entries = [...this.entries.values()]
     this.entries.clear()
-    for (const entry of entries) this.closeEntry(entry)
+    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
   }
 
-  protected onStop(): void {
-    this.closeAll()
+  protected onStop(): Promise<void> {
+    return this.closeAll()
   }
 
-  protected onDestroy(): void {
-    this.closeAll()
+  protected onDestroy(): Promise<void> {
+    return this.closeAll()
   }
 
   private refreshIdleTimer(key: string, entry: WarmQueryEntry): void {
@@ -230,19 +304,21 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
   }
 
-  private closeEntry(entry: WarmQueryEntry): void {
+  private closeEntry(entry: WarmQueryEntry): Promise<void> {
+    if (entry.closePromise) return entry.closePromise
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
-    void entry.promise
-      .then((warmQuery) => {
-        warmQuery?.close()
+    entry.closePromise = entry.promise
+      .then(async (warmQuery) => {
+        await warmQuery?.[Symbol.asyncDispose]()
       })
       .catch((error) => {
         logger.debug('Ignoring warm query close after failed startup', { error })
       })
+    return entry.closePromise
   }
 }

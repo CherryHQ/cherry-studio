@@ -65,7 +65,6 @@ the internal set.
 | `skipGeminiThoughtSignature` | Drop Gemini's `thoughtSignature` from history when the model doesn't accept it back |
 | `providerWebSearch` | Activate the provider's built-in web search tool via `toolFactories` |
 | `providerUrlContext` | Activate the provider's URL-context tool |
-| `promptToolUse` | XML-prompt fallback for tool use when the model doesn't support function calling |
 
 Each file averages ~50 LOC; the gate and the contribution are short.
 
@@ -125,8 +124,5 @@ Assembles `AgentOptions` (per-request AI SDK settings). Notable bits:
 
 ## Follow-ups (out of scope)
 
-- Some features still consult `assistant?.settings?.toolUseMode === 'prompt'`
-  outside of `RequestScope.capabilities` — folding into `capabilities` is a
-  cleanup pass.
 - See also [Present-tense consumers only](../../../) memory: don't add
   feature-level config fields without a real call site.

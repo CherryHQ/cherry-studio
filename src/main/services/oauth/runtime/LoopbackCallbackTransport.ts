@@ -74,14 +74,13 @@ export class LoopbackCallbackTransport {
           )
         }
 
+        if (!state || state !== expectedState) {
+          respond('Sign-in failed')
+          return
+        }
         if (error) {
           respond('Sign-in failed')
           settleReject(new OAuthServiceError(`OAuth provider returned error: ${error}`))
-          return
-        }
-        if (!state || state !== expectedState) {
-          respond('Sign-in failed')
-          settleReject(new OAuthServiceError('OAuth callback state mismatch'))
           return
         }
         if (!code) {

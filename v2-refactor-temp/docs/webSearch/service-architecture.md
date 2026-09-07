@@ -78,7 +78,8 @@ Capability 决定输入类型、provider driver 方法、endpoint 选择和测�
 示例 provider：
 
 1. Fetch
-2. Jina
+2. Querit
+3. Jina
 
 旧名称 `searchUrls` 不再作为目标架构概念使用，因为它把 URL 内容抓取误称为搜索。
 

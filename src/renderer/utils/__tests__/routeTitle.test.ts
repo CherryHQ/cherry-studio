@@ -16,6 +16,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
+        'settings.about.releases.title': '更新日志',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -48,6 +49,7 @@ describe('routeTitle', () => {
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
+        ['/app/release-notes', '更新日志'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -116,6 +118,7 @@ describe('routeTitle', () => {
       it.each([
         ['/app/chat', 'agent.session.group.conversation'],
         ['/app/agents', 'title.work'],
+        ['/app/release-notes', 'settings.about.releases.title'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
@@ -143,7 +146,8 @@ describe('routeTitle', () => {
     it('returns true only for bare top-level route tabs', () => {
       expect(isTopLevelRoute('/app/chat')).toBe(true)
       expect(isTopLevelRoute('/app/agents')).toBe(true)
-      expect(isTopLevelRoute('/app/chat?topicId=123&view=message')).toBe(false)
+      expect(isTopLevelRoute('/app/release-notes')).toBe(true)
+      expect(isTopLevelRoute('/app/chat?topicId=123')).toBe(false)
       expect(isTopLevelRoute('/app/agents#session')).toBe(false)
       expect(isTopLevelRoute('/app/chat/topic-123')).toBe(false)
     })
@@ -170,6 +174,7 @@ describe('routeTitle', () => {
       ['/app/chat', true],
       ['/settings', true],
       ['/app/paintings', true],
+      ['/app/release-notes', true],
       // Paintings sub-routes inherit the section title (splat route, no per-entity title).
       ['/app/paintings/zhipu', true],
       // Any /settings sub-route re-localizes.

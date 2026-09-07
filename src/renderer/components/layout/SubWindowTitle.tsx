@@ -15,7 +15,7 @@ export const SubWindowTitle = ({ className }: { className?: string }) => {
   return (
     <div data-navbar-left-occupant className={cn('flex min-w-0 items-center gap-2', className)}>
       <TabIcon tab={tab} size={16} className="shrink-0" />
-      <span className="min-w-0 truncate font-medium text-[13px] text-foreground/80">{tab.title}</span>
+      <span className="min-w-0 truncate font-medium text-[13px] text-foreground">{tab.title}</span>
     </div>
   )
 }

@@ -13,6 +13,7 @@ import {
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import type { S3Config } from '@shared/types/backup'
 import dayjs from 'dayjs'
@@ -62,14 +63,13 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         bucket,
         accessKeyId,
         secretAccessKey,
-        skipBackupFile: false,
         autoSync: false,
         syncInterval: 0,
         maxBackups: 0
       })
       setBackupFiles(files)
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
     } finally {
       setLoading(false)
     }
@@ -142,7 +142,6 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
           bucket,
           accessKeyId,
           secretAccessKey,
-          skipBackupFile: false,
           autoSync: false,
           syncInterval: 0,
           maxBackups: 0
@@ -151,8 +150,8 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: t('error.unknown') }))
     } finally {
       setDeleting(false)
     }
@@ -183,15 +182,14 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         bucket,
         accessKeyId,
         secretAccessKey,
-        skipBackupFile: false,
         autoSync: false,
         syncInterval: 0,
         maxBackups: 0
       })
       toast.success(t('settings.data.s3.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+    } catch {
+      toast.error(t('settings.data.s3.manager.delete.error', { message: t('error.unknown') }))
     } finally {
       setDeleting(false)
     }
@@ -218,8 +216,8 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       await (restoreMethod || restoreFromS3)(fileName)
       toast.success(t('settings.data.s3.restore.success'))
       onClose() // 关闭模态框
-    } catch (error: any) {
-      toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
     } finally {
       setRestoring(false)
     }

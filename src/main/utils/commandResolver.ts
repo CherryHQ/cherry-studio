@@ -3,14 +3,15 @@ import { isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import which from 'which'
 
 import { getBundledGitPath } from './bundledGit'
-import { getShellEnv } from './shellEnv'
+import { getPathFromEnvironment, getShellEnv } from './shellEnv'
 
 /**
  * Resolution for arbitrary executables in the user's environment — locating
  * commands (npx, uvx, git, …) in the captured shell env, with Windows-specific
- * fallbacks (`where.exe`, mise) and Git Bash discovery. Distinct from
+ * fallbacks (PATH/PATHEXT lookup, mise) and Git Bash discovery. Distinct from
  * `binaryResolver.ts`, which resolves Cherry's own managed binaries.
  */
 
@@ -25,6 +26,125 @@ const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,127}$/
 // Maximum output size to prevent buffer overflow (10KB)
 const MAX_OUTPUT_SIZE = 10240
 
+const WINDOWS_PATH_DELIMITER = ';'
+const DEFAULT_WINDOWS_COMMAND_EXTENSIONS = ['.exe', '.cmd']
+
+function toWindowsPathExt(extensions: string[]): string {
+  return extensions
+    .map((extension) => (extension.startsWith('.') ? extension : `.${extension}`))
+    .join(WINDOWS_PATH_DELIMITER)
+}
+
+function filterWindowsCommandCandidates(candidates: readonly string[], extensions: string[]): string[] {
+  const allowedExtensions = new Set(
+    extensions.map((extension) => (extension.startsWith('.') ? extension : `.${extension}`).toLowerCase())
+  )
+  const currentDirectory = path.win32.resolve(process.cwd()).toLowerCase()
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const candidate of candidates) {
+    const resolvedPath = path.win32.resolve(candidate.trim())
+    const lowerPath = resolvedPath.toLowerCase()
+    if (!allowedExtensions.has(path.win32.extname(lowerPath)) || seen.has(lowerPath)) {
+      continue
+    }
+
+    const relativeToCurrentDirectory = path.win32.relative(currentDirectory, lowerPath)
+    const isInCurrentDirectory =
+      relativeToCurrentDirectory === '' ||
+      (!relativeToCurrentDirectory.startsWith(`..${path.win32.sep}`) &&
+        relativeToCurrentDirectory !== '..' &&
+        !path.win32.isAbsolute(relativeToCurrentDirectory))
+    if (isInCurrentDirectory) {
+      logger.warn('Skipping potentially malicious executable in current directory', { path: resolvedPath })
+      continue
+    }
+
+    seen.add(lowerPath)
+    result.push(resolvedPath)
+  }
+
+  return result
+}
+
+async function findWindowsCommandCandidates(
+  command: string,
+  env: Record<string, string | undefined>,
+  extensions: string[]
+): Promise<string[]> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    const timeout = new Promise<undefined>((resolve) => {
+      timeoutId = setTimeout(() => resolve(undefined), COMMAND_LOOKUP_TIMEOUT_MS)
+    })
+    const candidates = await Promise.race([
+      which(command, {
+        all: true,
+        delimiter: WINDOWS_PATH_DELIMITER,
+        nothrow: true,
+        path: getPathFromEnvironment(env) ?? '',
+        pathExt: toWindowsPathExt(extensions)
+      }),
+      timeout
+    ])
+    if (candidates === undefined) {
+      logger.debug(`Timeout checking command '${command}' on Windows`)
+      return []
+    }
+    return filterWindowsCommandCandidates(candidates ?? [], extensions)
+  } catch (error) {
+    logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
+    return []
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+function findWindowsCommandCandidatesSync(
+  command: string,
+  env: Record<string, string | undefined>,
+  extensions: string[]
+): string[] {
+  try {
+    const candidates = which.sync(command, {
+      all: true,
+      delimiter: WINDOWS_PATH_DELIMITER,
+      nothrow: true,
+      path: getPathFromEnvironment(env) ?? '',
+      pathExt: toWindowsPathExt(extensions)
+    })
+    return filterWindowsCommandCandidates(candidates ?? [], extensions)
+  } catch (error) {
+    logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
+    return []
+  }
+}
+
+/** Absolute MCP stdio commands skip the bare-name regex and `command -v`. */
+function resolveExistingAbsoluteCommand(command: string): string | null {
+  const trimmed = command.trim()
+  if (!trimmed || !path.isAbsolute(trimmed)) {
+    return null
+  }
+
+  const resolved = path.resolve(trimmed)
+  if (!path.isAbsolute(resolved)) {
+    return null
+  }
+
+  try {
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+      return null
+    }
+  } catch (error) {
+    logger.debug(`Absolute command path is not readable '${resolved}'`, { error })
+    return null
+  }
+
+  return resolved
+}
+
 /**
  * Check if a command is available in the user's login shell environment
  * @param command - Command name to check (e.g., 'npx', 'uvx')
@@ -35,10 +155,26 @@ export async function findCommandInShellEnv(
   command: string,
   loginShellEnv: Record<string, string>
 ): Promise<string | null> {
+  const absoluteCommand = resolveExistingAbsoluteCommand(command)
+  if (absoluteCommand) {
+    return absoluteCommand
+  }
+
   // Validate command name to prevent command injection
   if (!VALID_COMMAND_NAME_REGEX.test(command)) {
     logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)
     return null
+  }
+
+  if (isWin) {
+    const candidates = await findWindowsCommandCandidates(command, loginShellEnv, DEFAULT_WINDOWS_COMMAND_EXTENSIONS)
+    const exePath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.exe'))
+    const cmdPath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.cmd'))
+    const commandPath = exePath ?? cmdPath ?? null
+    if (!commandPath) {
+      logger.debug(`Command '${command}' not found in shell environment`)
+    }
+    return commandPath
   }
 
   return new Promise((resolve) => {
@@ -50,113 +186,63 @@ export async function findCommandInShellEnv(
       resolve(value)
     }
 
-    if (isWin) {
-      // On Windows, use 'where' command
-      const child = spawn('where', [command], {
-        env: loginShellEnv,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
+    // Unix/Linux/macOS: use 'command -v' which is POSIX standard
+    // Use /bin/sh for reliability - it's POSIX compliant and always available
+    // This avoids issues with user's custom shell (csh, fish, etc.)
+    // SECURITY: Use positional parameter $1 to prevent command injection
+    const child = spawn('/bin/sh', ['-c', 'command -v "$1"', '--', command], {
+      env: loginShellEnv,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
 
-      let output = ''
-      const timeoutId = setTimeout(() => {
-        if (resolved) return
-        child.kill('SIGKILL')
-        logger.debug(`Timeout checking command '${command}' on Windows`)
-        safeResolve(null)
-      }, COMMAND_LOOKUP_TIMEOUT_MS)
+    let output = ''
+    const timeoutId = setTimeout(() => {
+      if (resolved) return
+      child.kill('SIGKILL')
+      logger.debug(`Timeout checking command '${command}'`)
+      safeResolve(null)
+    }, COMMAND_LOOKUP_TIMEOUT_MS)
 
-      child.stdout.on('data', (data) => {
-        if (output.length < MAX_OUTPUT_SIZE) {
-          output += data.toString()
-        }
-      })
+    child.stdout.on('data', (data) => {
+      if (output.length < MAX_OUTPUT_SIZE) {
+        output += data.toString()
+      }
+    })
 
-      child.on('close', (code) => {
-        clearTimeout(timeoutId)
-        if (resolved) return
+    child.on('close', (code) => {
+      clearTimeout(timeoutId)
+      if (resolved) return
 
-        if (code === 0 && output.trim()) {
-          const paths = output.trim().split(/\r?\n/)
-          // Only accept .exe files on Windows - .cmd/.bat files cannot be executed
-          // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
-          const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
-          if (exePath) {
-            safeResolve(exePath)
-          } else {
-            logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
-            safeResolve(null)
-          }
+      if (code === 0 && output.trim()) {
+        const commandPath = output.trim().split('\n')[0]
+
+        // Validate the output is an absolute path (not an alias, function, or builtin)
+        // command -v can return just the command name for aliases/builtins
+        if (path.isAbsolute(commandPath)) {
+          safeResolve(commandPath)
         } else {
-          logger.debug(`Command '${command}' not found in shell environment`)
+          logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
           safeResolve(null)
         }
-      })
-
-      child.on('error', (error) => {
-        clearTimeout(timeoutId)
-        if (resolved) return
-        logger.warn(`Error checking command '${command}':`, { error, platform: 'windows' })
+      } else {
+        logger.debug(`Command '${command}' not found in shell environment`)
         safeResolve(null)
-      })
-    } else {
-      // Unix/Linux/macOS: use 'command -v' which is POSIX standard
-      // Use /bin/sh for reliability - it's POSIX compliant and always available
-      // This avoids issues with user's custom shell (csh, fish, etc.)
-      // SECURITY: Use positional parameter $1 to prevent command injection
-      const child = spawn('/bin/sh', ['-c', 'command -v "$1"', '--', command], {
-        env: loginShellEnv,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
+      }
+    })
 
-      let output = ''
-      const timeoutId = setTimeout(() => {
-        if (resolved) return
-        child.kill('SIGKILL')
-        logger.debug(`Timeout checking command '${command}'`)
-        safeResolve(null)
-      }, COMMAND_LOOKUP_TIMEOUT_MS)
-
-      child.stdout.on('data', (data) => {
-        if (output.length < MAX_OUTPUT_SIZE) {
-          output += data.toString()
-        }
-      })
-
-      child.on('close', (code) => {
-        clearTimeout(timeoutId)
-        if (resolved) return
-
-        if (code === 0 && output.trim()) {
-          const commandPath = output.trim().split('\n')[0]
-
-          // Validate the output is an absolute path (not an alias, function, or builtin)
-          // command -v can return just the command name for aliases/builtins
-          if (path.isAbsolute(commandPath)) {
-            safeResolve(commandPath)
-          } else {
-            logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
-            safeResolve(null)
-          }
-        } else {
-          logger.debug(`Command '${command}' not found in shell environment`)
-          safeResolve(null)
-        }
-      })
-
-      child.on('error', (error) => {
-        clearTimeout(timeoutId)
-        if (resolved) return
-        logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
-        safeResolve(null)
-      })
-    }
+    child.on('error', (error) => {
+      clearTimeout(timeoutId)
+      if (resolved) return
+      logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
+      safeResolve(null)
+    })
   })
 }
 
 export interface FindExecutableOptions {
   /** File extensions to search for (default: ['.exe', '.cmd']) */
   extensions?: string[]
-  /** Environment variables to use for where.exe lookup (default: process.env) */
+  /** Environment variables to use for Windows PATH lookup (default: process.env) */
   env?: Record<string, string>
 }
 
@@ -168,7 +254,7 @@ export interface FindExecutableOptions {
  * @returns Full path to the executable or null if not found
  */
 export function findExecutable(name: string, options?: FindExecutableOptions): string | null {
-  // This implementation uses where.exe which is Windows-only
+  // This implementation is Windows-only
   if (!isWin) {
     return null
   }
@@ -187,57 +273,12 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     }
   }
 
-  // Use where.exe to find executable in PATH
-  // Use execFileSync to prevent command injection
-  try {
-    // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
-    // We then filter by allowed extensions below for security and precision
-    const resultBuf = execFileSync('where.exe', [name], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: options?.env
-    })
-    // where.exe output is file paths (ASCII-safe), decode as utf8
-    const result = resultBuf.toString('utf8')
-
-    // Handle both Windows (\r\n) and Unix (\n) line endings
-    const paths = result.trim().split(/\r?\n/).filter(Boolean)
-    const currentDir = process.cwd().toLowerCase()
-
-    // Filter by allowed extensions
-    for (const exePath of paths) {
-      // Trim whitespace from where.exe output
-      const cleanPath = exePath.trim()
-      const lowerPath = cleanPath.toLowerCase()
-
-      // Check if the file has an allowed extension
-      const hasAllowedExtension = extensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
-      if (!hasAllowedExtension) {
-        continue
-      }
-
-      const resolvedPath = path.resolve(cleanPath).toLowerCase()
-      const execDir = path.dirname(resolvedPath).toLowerCase()
-
-      // Skip if in current directory or subdirectory (potential malware)
-      if (execDir === currentDir || execDir.startsWith(currentDir + path.sep)) {
-        logger.warn('Skipping potentially malicious executable in current directory', {
-          path: cleanPath
-        })
-        continue
-      }
-
-      logger.debug(`Found ${name} via where.exe`, { path: cleanPath })
-      return cleanPath
-    }
-
-    return null
-  } catch (error: unknown) {
-    // On Chinese Windows, where.exe stderr is GBK-encoded and gets garbled as UTF-8.
-    // Log only the exit code to avoid mojibake in logs.
-    const code = error instanceof Error && 'status' in error ? (error as { status: unknown }).status : undefined
-    logger.debug(`where.exe ${name} not found (exit code ${code})`)
-    return null
+  const candidates = findWindowsCommandCandidatesSync(name, options?.env ?? process.env, extensions)
+  const commandPath = candidates[0] ?? null
+  if (commandPath) {
+    logger.debug(`Found ${name} in PATH`, { path: commandPath })
   }
+  return commandPath
 }
 
 /** Timeout for mise operations (in milliseconds) */
@@ -246,18 +287,18 @@ const MISE_TIMEOUT_MS = 5000
 /**
  * Find an executable via `mise which <name>` on Windows.
  *
- * When Node.js is installed through mise, the shims are `.cmd` files that
- * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
- * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
+ * When Node.js is installed through mise, resolving the real binary avoids
+ * depending on a shim that may not be visible in the registry-based PATH used
+ * by `getWindowsEnvironment`.
  *
- * This function locates `mise.exe` via `where.exe` and asks it directly for
- * the real binary path, bypassing shim/PATH issues entirely.
+ * This function locates `mise.exe` in PATH and asks it directly for the real
+ * binary path, bypassing shim/PATH issues entirely.
  *
  * @param name - Tool name to resolve (e.g. 'node', 'npm')
  * @param env  - Environment variables for subprocess
  * @returns Absolute path to the real executable, or null
  */
-export function findViaMise(name: string, env: Record<string, string>): string | null {
+export async function findViaMise(name: string, env: Record<string, string>): Promise<string | null> {
   if (!isWin) {
     return null
   }
@@ -267,7 +308,7 @@ export function findViaMise(name: string, env: Record<string, string>): string |
     return null
   }
 
-  const misePath = findMiseExecutable(env)
+  const misePath = await findMiseExecutable(env)
   if (!misePath) {
     logger.debug('mise not found, skipping mise fallback')
     return null
@@ -282,7 +323,7 @@ export function findViaMise(name: string, env: Record<string, string>): string |
     })
 
     const resolvedPath = result.trim().split(/\r?\n/)[0]?.trim()
-    if (!resolvedPath || !path.isAbsolute(resolvedPath)) {
+    if (!resolvedPath || !path.win32.isAbsolute(resolvedPath)) {
       logger.debug(`mise which ${name} returned non-absolute path: ${resolvedPath}`)
       return null
     }
@@ -302,24 +343,12 @@ export function findViaMise(name: string, env: Record<string, string>): string |
 }
 
 /**
- * Locate `mise.exe` on the local machine via `where.exe`.
+ * Locate `mise.exe` on the local machine through the bounded, Unicode-safe PATH resolver.
  */
-function findMiseExecutable(env: Record<string, string>): string | null {
-  try {
-    const resultBuf = execFileSync('where.exe', ['mise'], {
-      timeout: MISE_TIMEOUT_MS,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env
-    })
-    const firstLine = resultBuf.toString('utf8').trim().split(/\r?\n/)[0]?.trim()
-    if (firstLine && firstLine.toLowerCase().endsWith('.exe')) {
-      return firstLine
-    }
-  } catch {
-    // mise not on PATH
-  }
-
-  return null
+export async function findMiseExecutable(
+  env: Record<string, string | undefined> = process.env
+): Promise<string | null> {
+  return (await findWindowsCommandCandidates('mise', env, ['.exe']))[0] ?? null
 }
 
 /**
@@ -334,10 +363,10 @@ function findMiseExecutable(env: Record<string, string>): string | null {
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
 
-  // The bundled MinGit dir sits on the PATH tail (see shellEnv), so the PATH
-  // lookups below can surface it — e.g. `where git` skips mise's `.cmd` shim
-  // and hits the bundled `.exe`. Treat such hits as provisional: keep searching
-  // and only return the bundle after every system/mise lookup misses.
+  // The bundled MinGit dir sits on the PATH tail (see shellEnv), so ordinary
+  // PATH lookup can surface it before the system/mise fallbacks run. Treat such
+  // hits as provisional and return the bundle only after every external source
+  // misses, preserving its last-resort priority.
   const bundledGit = name === 'git' ? getBundledGitPath() : null
   const isBundledGit = (p: string) => bundledGit !== null && p.toLowerCase() === bundledGit.toLowerCase()
 
@@ -355,7 +384,7 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
     }
 
     // Ask mise for the real binary path
-    const viaMise = findViaMise(name, env)
+    const viaMise = await findViaMise(name, env)
     if (viaMise) {
       return viaMise
     }
@@ -462,8 +491,8 @@ export function validateGitBashPath(customPath?: string | null): string | null {
     return null
   }
 
-  const isExe = resolved.toLowerCase().endsWith('bash.exe')
-  if (!isExe) {
+  const executableName = path.basename(resolved).toLowerCase()
+  if (executableName !== 'bash.exe') {
     logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
     return null
   }

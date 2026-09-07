@@ -15,6 +15,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
@@ -41,7 +42,7 @@ You may call this multiple times with different queries to broaden coverage:
   into the most likely source language.
 - If the first results miss an angle, refine with synonyms or sub-aspects.
 
-Cite sources by [id] in your final answer.`
+Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const WEB_FETCH_DESCRIPTION = `Fetch the readable content from one or more known web page URLs.
 
@@ -52,7 +53,7 @@ Use this when:
 
 Don't use this when you only have a topic or question; call web_search first.
 
-Cite sources by [id] in your final answer.`
+Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 /**
  * A failed lookup must be distinguishable from "ran fine, found nothing": both
@@ -192,8 +193,9 @@ export function webLookupModelOutput(
 }
 
 function mapResponse(response: WebSearchResponse): WebSearchOutput {
+  const prefix = newCitePrefix()
   return response.results.map((result, index) => ({
-    id: index + 1,
+    id: citeId(prefix, index),
     title: result.title,
     url: result.url,
     content: result.content

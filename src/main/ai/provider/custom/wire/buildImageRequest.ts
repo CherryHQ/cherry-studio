@@ -128,7 +128,7 @@ function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProf
  * `{ ...jsonBagFields(bag), ...diffusionBody }` spread did.
  */
 export function buildVendorProviderOptions(
-  /** `sdkConfig.optionsKey` — branded so `sdkConfig.providerId` no longer compiles here. */
+  /** `sdkConfig.providerOptionsKey` — branded so `sdkConfig.providerId` no longer compiles here. */
   deliveryKey: ProviderOptionsKey,
   paramValues: ParamValues,
   registration: WireRegistration,
@@ -158,7 +158,7 @@ export function buildVendorProviderOptions(
     }
   }
   const result: Record<string, Record<string, JSONValue>> = {}
-  // `deliveryKey` is `sdkConfig.optionsKey` — the namespace the SDK image model reads
+  // `deliveryKey` is `sdkConfig.providerOptionsKey` — the namespace the SDK image model reads
   // (`resolveProviderOptionsKey`), which already re-keys the ids whose SDK package
   // hardcodes its own name (google-vertex → vertex, doubao → bytedance, …).
   if (Object.keys(body).length > 0) result[deliveryKey] = body

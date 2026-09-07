@@ -1,7 +1,12 @@
-import { createContext, use } from 'react'
+import { dataApiService } from '@data/DataApiService'
+import { ipcApi } from '@renderer/ipc'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import { createContext, use, useCallback } from 'react'
 
 import { useSessions } from './agent/useSession'
-import { useTopics } from './useTopic'
+import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
 
 /**
  * Window-level data sources shared by every kept-alive chat / agent route.
@@ -16,11 +21,48 @@ import { useTopics } from './useTopic'
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const listSource = useTopics({ loadAll: true, enabled })
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+    return result.topic
+  }, [])
+  const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
+    return dataApiService.post('/topics/reusable-placeholder', {
+      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
+    })
+  }, [])
+
+  return { ...listSource, loadLatestTopic, reuseOrCreateTopic }
 }
 
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const listSource = useSessions(undefined, {
+    loadAll: true,
+    pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
+    enabled
+  })
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+    return result.session
+  }, [])
+  const reuseOrCreateSession = useCallback(
+    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
+      return ipcApi.request('ai.agent.session.reuse_or_create', {
+        agentId,
+        workspace,
+        ...(excludeSessionId ? { excludeSessionId } : {})
+      })
+    },
+    []
+  )
+
+  return { ...listSource, loadLatestSession, reuseOrCreateSession }
 }
 
 type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
@@ -35,11 +77,39 @@ type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
  */
 type RefreshError = { refreshError: RawAssistantTopicsSource['error'] }
 
+/**
+ * View of the full topic list derived once per window (in
+ * ResourceViewSourceProvider), so every kept-alive tab shares one mapped copy
+ * instead of each remapping — and re-joining an order signature over — the
+ * entire list.
+ */
+export type AssistantTopicsView = {
+  /** `topics` mapped to the renderer {@link RendererTopic} shape. */
+  rendererTopics: readonly RendererTopic[]
+  /** Signature over order-relevant fields (id / assistantId / orderKey). */
+  orderSignature: string
+}
+
+export function deriveAssistantTopicsView(topics: readonly ApiTopic[]): AssistantTopicsView {
+  return {
+    rendererTopics: topics.map(mapApiTopicToRendererTopic),
+    orderSignature: topics.map((t) => `${t.id}:${t.assistantId ?? ''}:${t.orderKey ?? ''}`).join('|')
+  }
+}
+
 export type AssistantTopicsSource = Pick<
   RawAssistantTopicsSource,
-  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error' | 'refetch'
+  | 'topics'
+  | 'isLoadingAll'
+  | 'isFullyLoaded'
+  | 'isRefreshing'
+  | 'error'
+  | 'refetch'
+  | 'loadLatestTopic'
+  | 'reuseOrCreateTopic'
 > &
-  RefreshError
+  RefreshError &
+  AssistantTopicsView
 
 export type AgentSessionsSource = Pick<
   RawAgentSessionsSource,
@@ -58,6 +128,8 @@ export type AgentSessionsSource = Pick<
   | 'isFullyLoaded'
   | 'isLoadingAll'
   | 'isPinsLoading'
+  | 'loadLatestSession'
+  | 'reuseOrCreateSession'
 > &
   RefreshError
 

@@ -15,7 +15,10 @@ import {
   CreateTopicSchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
+  LatestTopicQuerySchema,
   ListTopicsQuerySchema,
+  MoveTopicSchema,
+  ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
@@ -41,8 +44,16 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   },
 
   '/topics/latest': {
-    GET: async () => {
-      return { topic: topicService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestTopicQuerySchema.parse(query ?? {})
+      return { topic: topicService.getLatestActive(parsed) }
+    }
+  },
+
+  '/topics/reusable-placeholder': {
+    POST: async ({ body }) => {
+      const parsed = ReuseOrCreateTopicSchema.parse(body)
+      return topicService.reuseOrCreatePlaceholder(parsed)
     }
   },
 
@@ -59,6 +70,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     DELETE: async ({ params }) => {
       topicService.delete(params.id)
       return undefined
+    }
+  },
+
+  '/topics/:id/move': {
+    POST: async ({ params, body }) => {
+      const parsed = MoveTopicSchema.parse(body)
+      return topicService.move(params.id, parsed)
     }
   },
 

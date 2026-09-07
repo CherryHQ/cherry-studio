@@ -22,12 +22,14 @@ describe('endpoint classification', () => {
       | '/agent-channels'
       | '/agent-sessions'
       | '/agent-sessions/:sessionId/messages'
+      | '/agent-tasks'
       | '/agent-workspaces'
       | '/agents'
       | '/agents/:agentId/tasks'
       | '/agents/:agentId/tasks/:taskId/logs'
       | '/assistants'
       | '/files/entries'
+      | '/files/entries/by-content-hash'
       | '/files/entries/:id/refs'
       | '/files/entries/ref-counts'
       | '/files/refs'
@@ -41,7 +43,10 @@ describe('endpoint classification', () => {
       | '/notes'
       | '/paintings'
       | '/pins'
+      | '/prompt-bindings'
+      | '/prompt-bindings/:targetType/:targetId'
       | '/prompts'
+      | '/prompts/:id/bindings'
       | '/providers'
       | '/providers/:providerId/models:resolve'
       | '/skills'
@@ -53,6 +58,7 @@ describe('endpoint classification', () => {
       | '/topics/:topicId/path'
       | '/translate/histories'
       | '/translate/languages'
+      | '/ai-usage-records'
     >()
   })
 
@@ -63,6 +69,7 @@ describe('endpoint classification', () => {
     expectTypeOf<'/topics/:id'>().toExtend<ScalarGetPaths>()
     expectTypeOf<'/search/entities'>().toExtend<ScalarGetPaths>()
     expectTypeOf<'/topics/:topicId/tree'>().toExtend<ScalarGetPaths>()
+    expectTypeOf<'/agent-tasks/:taskId'>().toExtend<ScalarGetPaths>()
   })
 
   it('rejects paths without a GET read model as notification targets', () => {
@@ -76,7 +83,7 @@ describe('DataApiDataChangeEffect invariants', () => {
   it('accepts every legal shape', () => {
     const legal: DataApiDataChangeEffect[] = [
       { endpoint: '/topics/latest' },
-      { endpoint: '/topics/:id', entityIds: ['t1'] },
+      { endpoint: '/topics/:id', routeParams: { id: 't1' }, entityIds: ['t1'] },
       { endpoint: '/topics', kind: 'projection', entityIds: ['t1'] },
       { endpoint: '/topics', kind: 'membership' },
       { endpoint: '/topics', kind: 'membership', dimension: 'search', entityIds: ['t1'] },
@@ -93,6 +100,14 @@ describe('DataApiDataChangeEffect invariants', () => {
 
     // @ts-expect-error entityIds is a readonly array — no in-place mutation
     effect.entityIds?.push('t2')
+
+    const scopedEffect: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      routeParams: { id: 't1' },
+      entityIds: ['t1']
+    }
+    // @ts-expect-error concrete route scope is read-only for shared listeners
+    scopedEffect.routeParams!.id = 't2'
 
     expectTypeOf(effect).toExtend<DataApiDataChangeEffect>()
   })

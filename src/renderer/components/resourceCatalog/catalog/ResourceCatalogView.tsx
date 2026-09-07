@@ -1,7 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
-import type { ResourceType } from '@renderer/types/resourceCatalog'
+import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,13 +19,26 @@ export type ResourceCatalogViewProps = {
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
+  /** `settings` swaps the full-bleed toolbar for a settings page header (title + add button + search row). */
+  variant?: 'library' | 'settings'
+  title?: ReactNode
+  description?: ReactNode
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
+  filterResource?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
   resourceType,
-  toolbarLeading
+  toolbarLeading,
+  variant = 'library',
+  title,
+  description,
+  toolbarFooter,
+  allowColumnToggle,
+  filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -38,8 +51,7 @@ export function ResourceCatalogView({
       (resourceType === 'skill' && dialogs.systemSkillOpen) ||
       dialogs.createDialogOpen ||
       dialogs.createDialogKind ||
-      dialogs.editDialogOpen ||
-      dialogs.editDialog
+      dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 
@@ -48,12 +60,17 @@ export function ResourceCatalogView({
   }, [hasActiveDialog])
 
   return (
-    <div className={cn('flex min-h-0 flex-1 bg-background', className)}>
+    <div
+      className={cn(
+        'flex min-h-0 flex-1',
+        resourceType === 'skill' ? 'bg-transparent' : variant === 'library' && 'bg-background',
+        className
+      )}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {resourceError ? (
           <>
             {toolbarLeading ? (
-              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-muted border-b px-2">
+              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
                 <div className="flex shrink-0 items-center">{toolbarLeading}</div>
               </div>
             ) : null}
@@ -75,8 +92,14 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
+            resources={filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources}
+            toolbarFooter={toolbarFooter}
+            allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
+            variant={variant}
+            title={title}
+            description={description}
           />
         )}
       </div>

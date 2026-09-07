@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -105,6 +106,7 @@ const CodeViewer = ({
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
+  const hasRequestedHighlightRef = useRef(false)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -406,6 +408,7 @@ const CodeViewer = ({
     if (wasHighlightEnabledRef.current) {
       resetHighlight()
       wasHighlightEnabledRef.current = false
+      hasRequestedHighlightRef.current = false
     }
   }, [debouncedHighlightLines, highlight, resetHighlight])
 
@@ -415,55 +418,69 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 渐进式高亮
+  // 首帧仅让视口内代码块绕过防抖，避免可见文本闪烁和离屏 Worker 请求突发。
   useEffect(() => {
     if (!highlight) return
-    if (virtualItems.length > 0 && shikiThemeRef.current) {
-      const lastIndex = virtualItems[virtualItems.length - 1].index
-      void debouncedHighlightLines(lastIndex + 1)
+    const shikiTheme = shikiThemeRef.current
+    if (virtualItems.length === 0 || !shikiTheme) return
+
+    const lastIndex = virtualItems[virtualItems.length - 1].index
+    if (!hasRequestedHighlightRef.current) {
+      hasRequestedHighlightRef.current = true
+      const rect = shikiTheme.getBoundingClientRect()
+      const intersectsViewport =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.top < window.innerHeight &&
+        rect.left < window.innerWidth
+
+      if (!intersectsViewport) {
+        void debouncedHighlightLines(lastIndex + 1)
+        return
+      }
+      void highlightLines(lastIndex + 1)
+      return
     }
-  }, [virtualItems, debouncedHighlightLines, highlight])
+
+    void debouncedHighlightLines(lastIndex + 1)
+  }, [virtualItems, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
-  const handleSelectionChange = useMemo(
-    () =>
-      debounce(() => {
-        const selection = window.getSelection()
+  const handleSelectionChange = useCallback(
+    (selection: Selection | null) => {
+      if (!selection || !selectionBelongsToViewer(selection)) {
+        savedSelectionRef.current = null
+        return
+      }
 
-        // No valid selection: clear and return
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-          savedSelectionRef.current = null
-          return
+      // In collapsed state, detect multi-line selection and request expand
+      if (!expanded && onRequestExpand) {
+        const saved = saveSelection()
+        if (saved && saved.endLine > saved.startLine) {
+          logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
+            startLine: saved.startLine,
+            endLine: saved.endLine
+          })
+          onRequestExpand()
         }
-
-        // Only handle selections within this CodeViewer
-        if (!selectionBelongsToViewer(selection)) {
-          savedSelectionRef.current = null
-          return
-        }
-
-        // In collapsed state, detect multi-line selection and request expand
-        if (!expanded && onRequestExpand) {
-          const saved = saveSelection()
-          if (saved && saved.endLine > saved.startLine) {
-            logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
-              startLine: saved.startLine,
-              endLine: saved.endLine
-            })
-            onRequestExpand()
-          }
-        }
-      }, 100),
+      }
+    },
     [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
   )
+  const selectionChangeHandlerRef = useRef(handleSelectionChange)
+
+  useLayoutEffect(() => {
+    selectionChangeHandlerRef.current = handleSelectionChange
+  }, [handleSelectionChange])
 
   useEffect(() => {
-    document.addEventListener('selectionchange', handleSelectionChange)
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange)
-      handleSelectionChange.cancel()
-    }
-  }, [handleSelectionChange])
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    return codeViewerSelectionManager.register(scroller, (selection) => selectionChangeHandlerRef.current(selection))
+  }, [])
 
   // Listen for copy events
   useEffect(() => {
@@ -492,7 +509,7 @@ const CodeViewer = ({
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <div
         ref={scrollerRef}
-        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
+        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em] [scrollbar-color:auto]"
         onScroll={handleScroll}
         style={
           {
@@ -635,8 +652,13 @@ const VirtualizedRow = memo(
         )}
         <span
           className={cn(
-            'line-content flex-1 whitespace-pre pr-[1em]',
-            wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
+            // min-w-0 lets the flex item shrink below its min-content width so long
+            // unbreakable lines (base64, URLs, minified JSON) wrap instead of overflowing.
+            // The !important on the wrapped whitespace beats global markdown CSS
+            // (`.markdown pre span { white-space: pre }`) that would otherwise pin
+            // token spans to `pre` and defeat wrapping inside chat code blocks.
+            'line-content min-w-0 flex-1 whitespace-pre pr-[1em]',
+            wrapped ? '[&_*]:whitespace-pre-wrap! [&_*]:break-words!' : '[&_*]:whitespace-pre [&_*]:break-normal'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
             <span key={tokenIndex} style={getReactStyleFromToken(token, { isDarkTheme })}>

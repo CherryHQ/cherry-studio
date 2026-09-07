@@ -59,8 +59,8 @@ const RelocationApp = () => {
 
 const Spinner = ({ label }: { label: string }) => (
   <div className="flex flex-col items-center gap-3 text-center">
-    <Loader2 className="animate-spin text-foreground-muted" size={28} />
-    <p className="text-foreground-secondary text-sm">{label}</p>
+    <Loader2 className="animate-spin text-foreground-tertiary" size={28} />
+    <p className="text-muted-foreground text-sm">{label}</p>
   </div>
 )
 
@@ -70,7 +70,7 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
 
   return (
     <div className="flex w-full max-w-[360px] flex-col items-center gap-3">
-      <p className="text-foreground-secondary text-sm">{label}</p>
+      <p className="text-muted-foreground text-sm">{label}</p>
       <div className="h-2 w-full overflow-hidden rounded-full bg-border">
         {hasTotal ? (
           <div
@@ -81,7 +81,7 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
           <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
         )}
       </div>
-      <span className="min-h-4 text-foreground-muted text-xs">{hasTotal ? `${percent}%` : ''}</span>
+      <span className="min-h-4 text-foreground-tertiary text-xs">{hasTotal ? `${percent}%` : ''}</span>
     </div>
   )
 }
@@ -102,9 +102,9 @@ const Failure = ({
   <div className="flex w-full flex-col items-center gap-3 text-center">
     <XCircle className="text-destructive" size={40} />
     <h2 className="font-semibold text-base text-foreground">{title}</h2>
-    <p className="text-foreground-secondary text-sm">{description}</p>
+    <p className="text-muted-foreground text-sm">{description}</p>
     {error && (
-      <pre className="max-h-24 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background-subtle px-3 py-2 text-left text-foreground-muted text-xs">
+      <pre className="max-h-24 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background-subtle px-3 py-2 text-left text-foreground-tertiary text-xs">
         {error}
       </pre>
     )}
@@ -128,7 +128,7 @@ const Completion = ({
   <div className="flex w-full flex-col items-center gap-3 text-center">
     <CircleCheck className="text-success" size={40} />
     <h2 className="font-semibold text-base text-foreground">{title}</h2>
-    <p className="text-foreground-secondary text-sm">{description}</p>
+    <p className="text-muted-foreground text-sm">{description}</p>
     <Button onClick={onRestart} className="mt-2 w-full">
       {buttonLabel}
     </Button>
@@ -144,8 +144,8 @@ const Paths = ({ fromLabel, toLabel, from, to }: { fromLabel: string; toLabel: s
 
 const PathRow = ({ label, value }: { label: string; value: string }) => (
   <div className="flex flex-col gap-0.5">
-    <span className="font-medium text-foreground-secondary">{label}</span>
-    <span className="break-all text-foreground-muted">{value}</span>
+    <span className="font-medium text-muted-foreground">{label}</span>
+    <span className="break-all text-foreground-tertiary">{value}</span>
   </div>
 )
 

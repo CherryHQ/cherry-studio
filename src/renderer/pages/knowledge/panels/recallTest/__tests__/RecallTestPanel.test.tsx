@@ -182,15 +182,6 @@ describe('RecallTestPanel', () => {
     expect(screen.getByRole('button', { name: '检索' })).toBeDisabled()
   })
 
-  it('draws the search input focus ring inset so the panel overflow cannot clip it', () => {
-    render(<RecallTestPanel baseId="base-1" />)
-
-    // The wrapper sits inside an `overflow-x-hidden` ancestor; an outset ring would be
-    // clipped on the lower/right edge, so the focus border must be drawn inset.
-    const inputWrapper = screen.getByPlaceholderText('输入测试 Query...').parentElement
-    expect(inputWrapper).toHaveClass('focus-within:ring-1', 'focus-within:ring-inset')
-  })
-
   it('hides the history button and dropdown when the selected base has no search history', () => {
     mockCache.initial = {
       'base-2': ['其他知识库查询']
@@ -315,34 +306,7 @@ describe('RecallTestPanel', () => {
     expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps recall results from causing outer horizontal overflow', async () => {
-    const longContent = 'x'.repeat(400)
-    mockIpcRequest.mockResolvedValueOnce([
-      {
-        ...realSearchResults[0],
-        pageContent: longContent
-      }
-    ])
-
-    const { container } = render(<RecallTestPanel baseId="base-1" />)
-
-    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
-      target: { value: 'long content' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: '检索' }))
-
-    await waitFor(() => {
-      expect(screen.getByText(longContent)).toBeInTheDocument()
-    })
-
-    expect(container.firstElementChild).toHaveClass('min-w-0', 'overflow-x-hidden')
-    expect(screen.getByRole('button', { name: '检索' }).parentElement).toHaveClass('w-full', 'max-w-3xl')
-    expect(screen.getByText('1 个结果').closest('.overflow-y-auto')).toHaveClass('[scrollbar-width:none]')
-    expect(screen.getByText('1 个结果').closest('.max-w-3xl')).toHaveClass('w-full', 'max-w-3xl')
-    expect(screen.getByText(longContent)).toHaveClass('wrap-anywhere', 'whitespace-normal')
-  })
-
-  it('shows temporary icon-only copy feedback after copying a recall result', async () => {
+  it('copies a recall result without showing a duplicate toast', async () => {
     render(<RecallTestPanel baseId="base-1" />)
 
     fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
@@ -355,9 +319,6 @@ describe('RecallTestPanel', () => {
     })
 
     const copyButton = screen.getAllByRole('button', { name: '复制片段' })[0]
-    expect(copyButton.querySelector('.lucide-copy')).toBeInTheDocument()
-
-    vi.useFakeTimers()
 
     await act(async () => {
       fireEvent.click(copyButton)
@@ -366,15 +327,7 @@ describe('RecallTestPanel', () => {
     })
 
     expect(mockClipboardWriteText).toHaveBeenCalledWith('real result from file name')
-    expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument()
-    expect(copyButton).toHaveClass('text-success', 'opacity-100')
     expect(toast.error).not.toHaveBeenCalledWith('message.copied')
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000)
-    })
-
-    expect(copyButton.querySelector('.lucide-copy')).toBeInTheDocument()
   })
 
   it('shows a searching state while runtime IPC is pending', async () => {

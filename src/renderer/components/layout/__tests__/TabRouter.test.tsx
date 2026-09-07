@@ -8,7 +8,7 @@ import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +18,11 @@ const knobs = vi.hoisted(() => ({
 
 const routerMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  subscribe: vi.fn(() => vi.fn())
+  onResolved: undefined as undefined | ((event: { toLocation: { href: string } }) => void),
+  subscribe: vi.fn((event: string, listener: (event: { toLocation: { href: string } }) => void) => {
+    if (event === 'onResolved') routerMocks.onResolved = listener
+    return vi.fn()
+  })
 }))
 
 // PageSidePanel scopes to its owning tab by reading the SAME PortalContainerContext that
@@ -41,12 +45,16 @@ vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
 // resolved portal container for the scoping assertions.
 vi.mock('@tanstack/react-router', async () => {
   const { usePortalContainer } = await import('@cherrystudio/ui')
+  const DestinationPending = () => <div aria-busy="true">Loading destination</div>
 
   return {
     createMemoryHistory: vi.fn((options: { initialEntries: string[] }) => options),
     createRouter: vi.fn(({ history }: { history: { initialEntries: string[] } }) => ({
       navigate: routerMocks.navigate,
       subscribe: routerMocks.subscribe,
+      routesByPath: {
+        '/app/agents': { options: { pendingComponent: DestinationPending } }
+      },
       state: {
         location: {
           href: history.initialEntries[0]
@@ -72,7 +80,13 @@ vi.mock('@tanstack/react-router', async () => {
 import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
-const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
+const tab = (id: string, url: string, overrides: Partial<Tab> = {}): Tab => ({
+  id,
+  url,
+  title: url,
+  type: 'route',
+  ...overrides
+})
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -86,6 +100,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   knobs.renderPage = () => null
+  routerMocks.onResolved = undefined
   vi.clearAllMocks()
 })
 
@@ -234,21 +249,14 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
-  it('uses the tab entry URL even when instance metadata points to another key', () => {
+  it('uses the tab entry URL as the initial history entry', () => {
     render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -258,40 +266,14 @@ describe('TabRouter', () => {
     expect(routerMocks.navigate).not.toHaveBeenCalled()
   })
 
-  it('uses the tab entry URL when metadata belongs to a different app route', () => {
-    render(
-      <TabRouter
-        tab={{
-          id: 'settings-tab',
-          type: 'route',
-          url: '/settings/provider',
-          title: 'Settings',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'old-topic'
-          },
-          lastAccessTime: 1,
-          isDormant: false
-        }}
-        isActive
-        onUrlChange={vi.fn()}
-      />
-    )
-
-    expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/settings/provider'] })
-  })
-
   it('navigates when the tab entry URL changes externally', () => {
     const { rerender } = render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -300,24 +282,34 @@ describe('TabRouter', () => {
 
     rerender(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=current-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=current-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
     )
 
     expect(createMemoryHistory).toHaveBeenCalledTimes(1)
-    expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat?topicId=current-topic' })
+    // External URL changes split path and query: a query-bearing href string
+    // in `to` loses the search through validateSearch round-trips
+    expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { topicId: 'current-topic' } })
+  })
+
+  it('quietly covers the outgoing page while an external retarget is unresolved', () => {
+    const { rerender } = render(
+      <TabRouter tab={tab('route-tab', '/app/mini-app/claude')} isActive onUrlChange={() => {}} />
+    )
+
+    rerender(<TabRouter tab={tab('route-tab', '/app/agents')} isActive onUrlChange={() => {}} />)
+
+    expect(screen.getByTestId('tab-route-transition-cover')).toHaveClass('bg-card')
+    expect(screen.queryByText('Loading destination')).not.toBeInTheDocument()
+
+    act(() => routerMocks.onResolved?.({ toLocation: { href: '/app/agents' } }))
+
+    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
   })
 })

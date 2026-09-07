@@ -112,6 +112,22 @@ describe('computeCatchUpAction — cron trigger', () => {
 })
 
 describe('computeCatchUpAction — interval trigger', () => {
+  it('uses the persisted automatic due time instead of shifting the phase from lastRun', () => {
+    const schedule = makeSchedule({
+      trigger: { kind: 'interval', ms: 120_000 },
+      catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+      // A recent manual run updated lastRun, but the automatic fire was
+      // already due. Catch-up must preserve the automatic calendar.
+      lastRun: new Date(NOW - 30_000).toISOString(),
+      nextRun: new Date(NOW - 1000).toISOString()
+    })
+
+    const result = computeCatchUpAction(schedule, handlerWithMissed(), NOW)
+
+    expect(result.shouldEnqueue).toBe(true)
+    expect(result.missEvent).not.toBeNull()
+  })
+
   it('uses lastRun + ms as the overdue anchor when lastRun present', () => {
     const schedule = makeSchedule({
       trigger: { kind: 'interval', ms: 60_000 },

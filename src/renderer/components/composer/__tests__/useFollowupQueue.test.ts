@@ -147,4 +147,23 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
     expect(result.current.items).toHaveLength(1)
   })
+
+  it('keeps each conversation paused until the user resumes it', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    store.set('followup-queue.s1', [item('h', 'head')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    act(() => result.current.setPaused(true))
+    act(() => rerender({ scopeKey: 's2', isFulfilled: false }))
+    expect(result.current.paused).toBe(false)
+    await act(async () => rerender({ scopeKey: 's1', isFulfilled: true }))
+
+    expect(result.current.paused).toBe(true)
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(result.current.items).toHaveLength(1)
+  })
 })

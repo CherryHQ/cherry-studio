@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import type { PaintingData } from '../model/types/paintingData'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
+
+const paintingModelFilter: ModelSelectorFilter = supportsImageGenerationEndpoint
 
 interface PaintingModelSelectorProps {
   className?: string
@@ -81,18 +83,17 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
           onSelect({ providerId, modelId })
         }}
-        filter={supportsImageGenerationEndpoint}
+        filter={paintingModelFilter}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
-        prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle bg-secondary px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-secondary-hover hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:text-foreground',
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -105,20 +106,18 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                   </Avatar>
                 )
               ) : null}
-              <span className="min-w-0 truncate text-foreground/90">
+              <span className="min-w-0 truncate text-foreground">
                 {selectedName ? (
                   <>
                     {selectedName}
-                    {selectedProviderName && (
-                      <span className="text-muted-foreground/80"> | {selectedProviderName}</span>
-                    )}
+                    {selectedProviderName && <span className="text-muted-foreground"> | {selectedProviderName}</span>}
                   </>
                 ) : (
                   t('paintings.select_model')
                 )}
               </span>
             </div>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
           </Button>
         }
       />

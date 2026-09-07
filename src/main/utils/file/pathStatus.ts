@@ -13,7 +13,10 @@ import { stat } from './fs'
  */
 export type PathStatusKind = 'file' | 'directory'
 
-export type PathStatus = { ok: true; kind: PathStatusKind } | { ok: false; reason: 'missing' | 'inaccessible' }
+export type PathStatus =
+  | { ok: true; kind: PathStatusKind }
+  | { ok: false; reason: 'missing' }
+  | { ok: false; reason: 'inaccessible'; code?: string }
 
 function errorCode(error: unknown): string | undefined {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -46,6 +49,6 @@ export async function getPathStatus(path: string): Promise<PathStatus> {
     const code = errorCode(error)
     return code === 'ENOENT' || code === 'ENOTDIR'
       ? { ok: false, reason: 'missing' }
-      : { ok: false, reason: 'inaccessible' }
+      : { ok: false, reason: 'inaccessible', ...(code ? { code } : {}) }
   }
 }

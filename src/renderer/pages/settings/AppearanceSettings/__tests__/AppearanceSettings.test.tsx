@@ -1,9 +1,9 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
@@ -20,6 +20,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -38,7 +39,6 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Badge: passthrough('span'),
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
@@ -90,23 +90,33 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children, asChild }: any) =>
       asChild && React.isValidElement(children) ? children : React.createElement('div', null, children),
     RowFlex: passthrough('div'),
-    SegmentedControl: ({ options = [], value, onValueChange }: any) =>
+    // Mirrors the real control's radiogroup/radio semantics so tests address it the way
+    // assistive technology does, rather than through whatever DOM the mock happens to emit.
+    SegmentedControl: ({ options = [], value, onValueChange, ...props }: any) =>
       React.createElement(
         'div',
-        null,
+        { 'aria-label': props['aria-label'], role: 'radiogroup' },
         options.map((option: any) =>
           React.createElement(
             'button',
             {
-              'aria-pressed': value === option.value,
+              'aria-checked': value === option.value,
               key: option.value,
               onClick: () => onValueChange?.(option.value),
+              role: 'radio',
               type: 'button'
             },
             option.label
           )
         )
       ),
+    Select: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    SelectContent: passthrough('div'),
+    SelectItem: ({ children, value, ...props }: any) =>
+      React.createElement('div', { ...props, 'data-value': value }, children),
+    SelectTrigger: ({ children, size, ...props }: any) =>
+      React.createElement('button', { ...props, 'data-size': size, role: 'combobox', type: 'button' }, children),
+    SelectValue: () => null,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
@@ -135,7 +145,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     settedTheme: 'light',
-    setTheme: vi.fn(),
+    setTheme: themeMocks.setTheme,
     theme: 'light'
   })
 }))
@@ -143,7 +153,8 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     activeCmTheme: 'light'
-  })
+  }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useUserTheme', () => ({
@@ -277,6 +288,7 @@ describe('AppearanceSettings selectors', () => {
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
     mocks.request.mockReset()
+    themeMocks.setTheme.mockReset()
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.get_fonts') return Promise.resolve([])
       if (route === 'app.adjust_zoom') return Promise.resolve(1)
@@ -310,22 +322,64 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
   })
 
-  it('matches both font popover widths to their triggers', async () => {
-    const { container } = render(<AppearanceSettings />)
+  it('shows every theme as a visual choice and switches from the preview', async () => {
+    render(<AppearanceSettings />)
 
     await waitFor(() => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
-      element.getAttribute('data-popover-class-name')
-    )
+    const lightThemeButton = screen.getByRole('button', { name: 'settings.theme.light' })
+    const lightThemePreview = lightThemeButton.firstElementChild
+    const lightThemeLabel = lightThemePreview?.nextElementSibling
 
-    expect(fontPopoverClassNames).toHaveLength(2)
-    expect(fontPopoverClassNames).toEqual([
-      expect.stringContaining('w-(--radix-popover-trigger-width)'),
-      expect.stringContaining('w-(--radix-popover-trigger-width)')
+    expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lightThemePreview).toHaveClass(
+      'border-primary',
+      'ring-2',
+      'group-focus-visible:border-ring',
+      'group-focus-visible:bg-accent'
+    )
+    expect(lightThemePreview).not.toHaveClass('group-focus-visible:ring-3', 'group-focus-visible:ring-ring/50')
+    expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
+    expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.theme.dark' }))
+
+    expect(themeMocks.setTheme).toHaveBeenCalledWith(ThemeMode.dark)
+  })
+
+  it('places the theme group before the display and language group', () => {
+    const { container } = render(<AppearanceSettings />)
+    const groupTitles = Array.from(container.querySelectorAll('section > h2')).map((heading) => heading.textContent)
+
+    expect(groupTitles.slice(0, 2)).toEqual([
+      'settings.theme.title',
+      'settings.general.common.sections.display_language'
     ])
+  })
+
+  it('routes each list position row to its own module preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.position', 'left')
+    MockUsePreferenceUtils.setPreferenceValue('agent.session.position', 'left')
+
+    render(<AppearanceSettings />)
+
+    const chatGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.chat' })
+    fireEvent.click(within(chatGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position')).toBe('right')
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('left')
+
+    const workGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.work' })
+    fireEvent.click(within(workGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('right')
+    })
   })
 
   it('shows migration guidance for marked v1 custom CSS', () => {

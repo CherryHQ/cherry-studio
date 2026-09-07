@@ -1,10 +1,17 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
 import { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft, readCliConfigDraft } from '../index'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 /** Per-path DataApi.get mock (longest-prefix wins so `/api-keys` is not shadowed). */
 function mockGet(handlers: Record<string, () => unknown>) {
@@ -47,13 +54,14 @@ const openaiNamedProvider = {
 } as unknown as Provider
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-    }
-  })
+  // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+  mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+    files: input.targets.map((target) => ({
+      target,
+      path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+      content: ''
+    }))
+  }))
 })
 
 /** Build a managed draft via readCliConfigDraft (same builders the write path uses). */
@@ -80,7 +88,8 @@ describe('extractConnectionFromCliConfigDraft', () => {
     ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', 'https://api.deepseek.com/v1'],
     ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', 'https://generativelanguage.googleapis.com'],
     ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', 'https://api.deepseek.com/v1'],
-    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1']
+    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1'],
+    ['hermes', CodeCli.HERMES, chatProvider, 'hermes-3', 'https://api.deepseek.com/v1']
   ]
 
   it.each(cases)('round-trips baseUrl/apiKey/model for %s', async (_name, cliTool, provider, model, baseUrl) => {
@@ -133,7 +142,15 @@ describe('extractConnectionFromCliConfigDraft', () => {
       ]
     ],
     ['qwen', CodeCli.QWEN_CODE, [{ target: 'qwen-settings', label: '', path: '', language: 'json', content: '{}' }]],
-    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]]
+    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]],
+    [
+      'hermes',
+      CodeCli.HERMES,
+      [
+        { target: 'hermes-config', label: '', path: '', language: 'yaml', content: '' },
+        { target: 'hermes-env', label: '', path: '', language: 'dotenv', content: '' }
+      ]
+    ]
   ]
 
   it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
@@ -214,12 +231,20 @@ describe('extractConfigFromCliConfigDraft', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
   })
 
-  // OpenCode's extractConfig is bespoke (re-derives autoCompact/permissionMode from the nested
-  // provider/model shape) rather than delegating to a sanitize* helper — pin its round-trip.
+  // OpenCode's extractConfig is bespoke (re-derives managed settings from the generated config)
+  // rather than delegating to a sanitize* helper — pin its round-trip.
   it('round-trips opencode managed settings from the config blob', async () => {
     const blob = { autoCompact: true, permissionMode: 'ask' }
     const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual(blob)
+  })
+
+  it('writes opencode auto compact to the schema-supported compaction section', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', { autoCompact: true })
+    const config = JSON.parse(files[0].content)
+
+    expect(config.compaction).toEqual({ auto: true })
+    expect(config).not.toHaveProperty('autoCompact')
   })
 
   it('round-trips qwen managed settings from the config blob', async () => {

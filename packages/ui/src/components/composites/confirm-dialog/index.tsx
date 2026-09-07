@@ -58,7 +58,11 @@ function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className={contentClassName} overlayClassName={overlayClassName}>
+      <DialogContent
+        motion="fade-scale"
+        showCloseButton={false}
+        className={contentClassName}
+        overlayClassName={overlayClassName}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

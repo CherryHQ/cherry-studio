@@ -1,3 +1,10 @@
+---
+description: Entry point for lifecycle docs — pattern decision table, doc navigation, and lifecycle vs direct-import singleton rules
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application
+---
+
 # Lifecycle & Application Reference
 
 This is the main entry point for Cherry Studio's service lifecycle and application orchestration documentation. The lifecycle system provides IoC container management, phased bootstrap, and service lifecycle control.
@@ -27,7 +34,7 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 
 |                         | Lifecycle                                    | Direct-import singleton                        |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Examples                | `DbService`, `CacheService`, `MainWindowService` | `ExportService`, `BackupManager`, `OcrService` |
+| Examples                | `DbService`, `CacheService`, `MainWindowService` | `regionService`, `legacyBackupManager`          |
 | Long-lived resources    | Yes                                          | No (or request-scoped)                         |
 | Persistent side effects | Yes                                          | No                                             |
 | `onInit` / `onStop`     | Meaningful                                   | Would be empty                                 |

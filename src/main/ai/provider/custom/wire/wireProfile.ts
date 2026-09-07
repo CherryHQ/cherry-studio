@@ -163,6 +163,15 @@ export const OLLAMA_WIRE_PROFILE: WireProfile = {
   }
 }
 
+/** MiniMax image API fields that differ from the canonical catalog names. */
+export const MINIMAX_WIRE_PROFILE: WireProfile = {
+  fields: {
+    addWatermark: { to: 'aigc_watermark' },
+    outputFormat: { to: 'response_format' },
+    promptEnhancement: { to: 'prompt_optimizer' }
+  }
+}
+
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
@@ -241,6 +250,7 @@ export const WIRE_REGISTRY = {
   // unreachable from both sides. Reconnecting the gateway's native image adapters is a
   // routing change in `config.ts`, not a row here. See `wireRegistryReachability`.
   ollama: { profile: OLLAMA_WIRE_PROFILE },
+  minimax: { profile: MINIMAX_WIRE_PROFILE },
   // The generic adapter every provider without an `adapterFamily` collapses onto.
   // Its body IS the HTTP body (`OpenAICompatibleImageModel` spreads
   // `providerOptions[name]` verbatim), so its passthrough is wire-named — see

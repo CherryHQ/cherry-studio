@@ -7,8 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
-import { asConcreteProviderId } from '../../../../types'
-import { resolveImageTransport } from '../../imageTransportRegistry'
+import { hasImageTransport } from '../../imageTransportRegistry'
 import { WIRE_REGISTRY } from '../wireProfile'
 
 /**
@@ -49,16 +48,13 @@ vi.mock('@main/data/services/ProviderService', () => ({
 
 const { providerToAiSdkConfig } = await import('../../../config')
 
-/** Settings shaped like a resolved provider config — enough for every `build*Transport`. */
-const PROBE_SETTINGS = { baseURL: 'https://example.invalid', apiKey: 'sk-probe' }
-
 /** A model id no conditional resolver claims, so a transport here means "unconditional". */
 const PROBE_MODEL_ID = '__reachability-probe-model__'
 
 describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () => {
   it('every registered provider can still reach the SDK delivery branch', () => {
     const shadowed = Object.keys(WIRE_REGISTRY).filter((providerId) =>
-      Boolean(resolveImageTransport(providerId, PROBE_MODEL_ID, PROBE_SETTINGS, asConcreteProviderId(providerId)))
+      hasImageTransport(providerId, PROBE_MODEL_ID)
     )
 
     expect(shadowed, 'these rows can never be read — the provider always takes a transport').toEqual([])
@@ -67,7 +63,7 @@ describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () 
   it('the probe is meaningful — an unconditional transport provider is detectable', () => {
     // Guards the guard: if this stops resolving, the test above silently passes for
     // every provider and the invariant is no longer enforced.
-    expect(resolveImageTransport('ppio', PROBE_MODEL_ID, PROBE_SETTINGS, asConcreteProviderId('ppio'))).not.toBeNull()
+    expect(hasImageTransport('ppio', PROBE_MODEL_ID)).toBe(true)
   })
 })
 
@@ -118,14 +114,7 @@ describe('WIRE_REGISTRY rows are reachable from a real declared model', () => {
           endpointTypes: override.endpointTypes
         })
       )
-      const hasTransport = Boolean(
-        resolveImageTransport(
-          sdkConfig.providerId,
-          override.modelId,
-          sdkConfig.providerSettings,
-          sdkConfig.concreteProviderId
-        )
-      )
+      const hasTransport = hasImageTransport(sdkConfig.providerId, override.modelId)
       // Only the SDK branch consults WIRE_REGISTRY.
       if (!hasTransport) reachedOnSdkBranch.add(sdkConfig.providerId)
     }

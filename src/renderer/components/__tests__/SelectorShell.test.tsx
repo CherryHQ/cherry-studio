@@ -1,5 +1,6 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,11 +23,10 @@ const originalResizeObserver = globalThis.ResizeObserver
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
     const { variant, size, type = 'button', ...buttonProps } = props
-    void variant
     void size
 
     return (
-      <button type={type} {...buttonProps}>
+      <button type={type} data-variant={variant} {...buttonProps}>
         {children}
       </button>
     )
@@ -76,7 +76,11 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Switch: () => <button type="button" role="switch" />,
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Tooltip: ({ children, content, delay }: { children: ReactNode; content: ReactNode; delay?: number }) => (
+    <div data-testid="tooltip" data-content={String(content)} data-delay={delay}>
+      {children}
+    </div>
+  ),
   usePortalContainer: () => portalContainerMock.current
 }))
 
@@ -346,6 +350,35 @@ describe('SelectorShell', () => {
     await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('112'))
   })
 
+  it('renders selectable bottom actions with selected state and native keyboard behavior', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        bottomAction={[
+          { label: 'Configure', onClick: vi.fn() },
+          { type: 'selectable', label: 'No model', selected: true, onClick: onSelect }
+        ]}>
+        <div />
+      </SelectorShell>
+    )
+
+    const configureAction = screen.getByRole('button', { name: 'Configure' })
+    const noneOption = screen.getByRole('button', { name: 'No model' })
+    expect(noneOption).toHaveAttribute('aria-pressed', 'true')
+
+    configureAction.focus()
+    await user.tab()
+    expect(noneOption).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(onSelect).toHaveBeenCalledOnce()
+  })
+
   it('can render multi-select as a search badge', () => {
     const onCheckedChange = vi.fn()
 
@@ -358,6 +391,7 @@ describe('SelectorShell', () => {
         multiSelect={{
           label: 'Multi',
           ariaLabel: 'Multi model',
+          tooltip: 'Multi-model simultaneous responses',
           checked: false,
           placement: 'search-badge',
           dataTestId: 'multi-badge',
@@ -371,8 +405,12 @@ describe('SelectorShell', () => {
     expect(screen.queryByTestId('multi-row')).not.toBeInTheDocument()
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-label', 'Multi model')
-    expect(screen.getByTestId('multi-badge')).not.toHaveTextContent('Multi')
-    expect(screen.getByTestId('multi-badge').querySelector('svg')).not.toBeNull()
+    expect(screen.getByTestId('multi-badge')).toHaveTextContent('Multi')
+    expect(screen.getByTestId('multi-badge').querySelector('svg')).toBeNull()
+    expect(screen.getByTestId('multi-badge')).toHaveAttribute('data-variant', 'secondary')
+    expect(screen.getByTestId('multi-badge')).toHaveClass('bg-secondary/60')
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'Multi-model simultaneous responses')
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-delay', '1500')
 
     screen.getByTestId('multi-badge').click()
 

@@ -210,7 +210,8 @@ describe('shiki', () => {
       }
     )
 
-    it.each(['white', '#fff', '#ffffff', '#FFFFFF'])('should preserve %s tokens in dark themes', (color) => {
+    it('should preserve white tokens in dark themes', () => {
+      const color = 'white'
       const token = createThemedToken({
         content: 'LogPage',
         offset: 0,

@@ -8,7 +8,7 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
-import { aiErrorDetail } from '@shared/ipc/errors/ai'
+import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
@@ -38,6 +38,8 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 export function getErrorMessage(error: unknown): string {
+  const admissionMessage = getAiStreamAdmissionMessage(error)
+  if (admissionMessage) return admissionMessage
   if (error instanceof Error && error.message) {
     return error.message
   } else {
@@ -46,8 +48,29 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
+  const admissionMessage = getAiStreamAdmissionMessage(error)
+  if (admissionMessage) return admissionMessage
   const msg = getErrorMessage(error)
   return `${prefix}: ${msg}`
+}
+
+function getAiStreamAdmissionMessage(error: unknown): string | undefined {
+  switch (aiStreamAdmissionReason(error)) {
+    case 'SINGLE_MODEL_REQUIRED':
+      return t('message.error.stream_admission.single_model_required')
+    case 'TARGET_NOT_IN_LIVE_GROUP':
+      return t('message.error.stream_admission.target_not_in_live_group')
+    case 'MODEL_ALREADY_IN_LIVE_GROUP':
+      return t('message.error.stream_admission.model_already_in_live_group')
+    case 'EXECUTION_NOT_READY':
+      return t('message.error.stream_admission.execution_not_ready')
+    case 'EXECUTION_CHANGED':
+      return t('message.error.stream_admission.execution_changed')
+    case 'TOPIC_BUSY':
+      return t('message.error.stream_admission.topic_busy')
+    default:
+      return undefined
+  }
 }
 
 export const isTimeoutError = (error: any): boolean => {
@@ -299,6 +322,33 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
 
   return text.trim()
 }
+
+const PROVIDER_ERROR_TEXT_MAX = 500
+
+/** The provider's own error text. `message` degrades to the HTTP statusText ("Forbidden")
+ *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
+export function providerErrorText(error: SerializedError | undefined): string {
+  const fallback = error?.message ?? ''
+  const body = typeof error?.responseBody === 'string' ? error.responseBody.trim() : ''
+  if (!body) return fallback
+
+  const parsed = parseJSON(body)
+  // Probe the common shapes one level deep; an unknown shape falls through to the raw body.
+  // Some providers (e.g. AMD) nest the message under `detail.error.message`; probe one
+  // more level there so users see the message, not the raw JSON body.
+  const picked =
+    parsed &&
+    (parsed.error?.message ??
+      parsed.message ??
+      parsed.detail?.error?.message ??
+      parsed.detail?.message ??
+      parsed.detail ??
+      parsed.msg ??
+      parsed.error)
+  const text = typeof picked === 'string' && picked.trim() ? picked.trim() : body
+  return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
+}
+
 export const formatAgentServerError = (error: AgentServerError) =>
   `${t('common.error')}: ${error.error.code} ${error.error.message}`
 export const formatAxiosError = (error: AxiosError) => {

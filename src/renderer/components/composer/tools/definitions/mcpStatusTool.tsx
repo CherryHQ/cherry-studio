@@ -1,24 +1,24 @@
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
-import {
-  openResourceEditDialog,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentMutationsById, useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpMode } from '@shared/data/types/assistant'
+import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
+import { Check, Globe2, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -73,7 +73,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     disabled: true
   }
 }
@@ -91,7 +91,7 @@ function createMcpStatusItem(
     label: server.name,
     description,
     filterText: [server.name, server.description, description].filter(Boolean).join(' '),
-    icon: <Cable />
+    icon: <McpLogo aria-hidden />
   }
 }
 
@@ -154,7 +154,7 @@ export async function updateMcpBinding({
     return true
   }
 
-  if (!assistant || assistant.settings?.mcpMode !== 'manual') return false
+  if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
   await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
   return true
 }
@@ -181,7 +181,7 @@ export function buildMcpStatusItems({
     })
   }
 
-  const mode = assistant?.settings?.mcpMode ?? 'disabled'
+  const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
   if (mode === 'disabled') {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.disabled', 'MCP is disabled'))]
   }
@@ -218,14 +218,38 @@ export function resolveMcpConfigTarget(options: {
 export function buildMcpConfigFooterItem(
   target: ResourceEditDialogTarget | null,
   t: TFunction
-): QuickPanelListItem | null {
+): ComposerToolFooterAction | null {
   if (!target) return null
+  const ariaLabel =
+    target.kind === 'assistant'
+      ? t('settings.quickPanel.mcp.manageCurrentAssistant')
+      : t('settings.quickPanel.mcp.manageCurrentAgent')
   return {
     id: 'mcp-status:open-config',
-    label: t('settings.quickPanel.mcp.open_config', 'Configure MCP servers'),
+    panelSymbol: ComposerPanelSymbol.McpStatus,
+    order: 10,
+    label:
+      target.kind === 'assistant'
+        ? t('settings.quickPanel.scope.currentAssistant')
+        : t('settings.quickPanel.scope.currentAgent'),
+    ariaLabel,
+    tooltip: ariaLabel,
     icon: <Settings2 />,
-    fixedToBottom: true,
     action: () => openResourceEditDialog(target)
+  }
+}
+
+export function buildMcpGlobalConfigFooterItem(t: TFunction): ComposerToolFooterAction {
+  const ariaLabel = t('settings.quickPanel.mcp.manageGlobal')
+  return {
+    id: 'mcp-status:open-global-config',
+    panelSymbol: ComposerPanelSymbol.McpStatus,
+    order: 20,
+    label: t('settings.quickPanel.scope.global'),
+    ariaLabel,
+    tooltip: ariaLabel,
+    icon: <Globe2 />,
+    action: () => openSettingsTab('/settings/mcp/servers')
   }
 }
 
@@ -248,7 +272,8 @@ export function createMcpStatusLauncher(
   items: QuickPanelListItem[],
   t: TFunction,
   mode?: McpMode,
-  editable = false
+  editable = false,
+  onOpen?: () => void
 ): ComposerToolLauncher {
   const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
   const isDisabled = mode === 'disabled'
@@ -265,8 +290,9 @@ export function createMcpStatusLauncher(
       isDisabled && modeLabel
         ? modeLabel
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      onOpen?.()
       clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
       quickPanel.open({
         title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
@@ -274,7 +300,8 @@ export function createMcpStatusLauncher(
         symbol: ComposerPanelSymbol.McpStatus,
         parentPanel,
         queryAnchor,
-        triggerInfo: triggerInfo ?? { type: 'button' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         readOnly: !editable
       })
     }
@@ -284,14 +311,17 @@ export function createMcpStatusLauncher(
 export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }) => {
   const { assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
-  const { mcpServers } = useMcpServers()
+  const [dataRequested, setDataRequested] = useState(false)
+  const mode =
+    scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
+  const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
+  const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
-  const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
+  const { agent } = useAgent(dataEnabled && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
   const { updateAgent } = useAgentMutationsById(session?.agentId ?? '')
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)
   const bindingMutationInFlightRef = useRef(false)
-  const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
   const bindingPanelEditable = scope === TopicType.Session || mode === 'manual'
   const canEditBindings =
     scope === TopicType.Session ? Boolean(session?.agentId && agent) : Boolean(assistant?.id && mode === 'manual')
@@ -334,6 +364,16 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   )
 
   const items = useMemo(() => {
+    if (dataEnabled && isMcpServersLoading && mcpServers.length === 0) {
+      return [
+        {
+          id: 'mcp-status-loading',
+          label: t('common.loading', 'Loading...'),
+          icon: <Loader2 className="animate-spin" aria-hidden />,
+          disabled: true
+        }
+      ]
+    }
     const statusItems = buildMcpStatusItems({
       assistant,
       agent,
@@ -345,15 +385,15 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
       scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
       t
     })
-    const footer = buildMcpConfigFooterItem(configTarget, t)
-    return footer ? [...statusItems, footer] : statusItems
+    return statusItems
   }, [
     agent,
     assistant,
     bindingPanelEditable,
     canEditBindings,
-    configTarget,
+    dataEnabled,
     handleToggleBinding,
+    isMcpServersLoading,
     mcpServers,
     mcpStatuses,
     pendingServerId,
@@ -361,12 +401,20 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
     t
   ])
 
+  const footerActions = useMemo(() => {
+    const currentAction = buildMcpConfigFooterItem(configTarget, t)
+    return currentAction ? [currentAction, buildMcpGlobalConfigFooterItem(t)] : [buildMcpGlobalConfigFooterItem(t)]
+  }, [configTarget, t])
+
   const mcpStatusLauncher = useMemo(
-    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable),
+    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true)),
     [bindingPanelEditable, items, mode, t]
   )
 
-  useEffect(() => launcher.registerLaunchers([mcpStatusLauncher]), [launcher, mcpStatusLauncher])
+  useEffect(
+    () => launcher.registerLaunchers([mcpStatusLauncher], footerActions),
+    [footerActions, launcher, mcpStatusLauncher]
+  )
 
   useEffect(() => {
     if (!isVisible || symbol !== ComposerPanelSymbol.McpStatus) return

@@ -199,93 +199,55 @@ describe('composer clipboard', () => {
     }
   })
 
-  it('downgrades file tokens with path ids to visible text without leaking the id', () => {
-    const token = {
-      id: 'file:/Users/example/private/default-topic.png',
-      kind: 'file' as const,
-      label: 'default-topic.png',
-      promptText: 'default-topic.png',
-      payload: {
-        type: 'image',
-        ext: '.png',
-        name: 'default-topic.png',
-        origin_name: 'default-topic.png',
-        size: 2048
+  it.each(['file:/Users/example/private/default-topic.png', 'file:file:///Users/example/private/default-topic.png'])(
+    'downgrades file tokens with unsafe id %s to visible text without leaking the id',
+    (id) => {
+      const token = {
+        id,
+        kind: 'file' as const,
+        label: 'default-topic.png',
+        promptText: 'default-topic.png',
+        payload: {
+          type: 'image',
+          ext: '.png',
+          name: 'default-topic.png',
+          origin_name: 'default-topic.png',
+          size: 2048
+        }
       }
+
+      const fragmentText = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+      const fragment = readComposerClipboardFragment(fragmentText)
+
+      expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
+      expect(fragmentText).not.toContain(id)
     }
+  )
 
-    const fragmentText = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
-    const fragment = readComposerClipboardFragment(fragmentText)
+  it.each(['file:/Users/example/private/default-topic.png', 'file:file:///Users/example/private/default-topic.png'])(
+    'downgrades forged private file fragments with unsafe id %s to visible fallback text',
+    (id) => {
+      const fragment = readComposerClipboardFragment(
+        JSON.stringify({
+          version: 1,
+          segments: [
+            {
+              type: 'token',
+              fallbackText: 'default-topic.png',
+              token: {
+                id,
+                kind: 'file',
+                label: 'default-topic.png',
+                promptText: 'hidden injected prompt'
+              }
+            }
+          ]
+        })
+      )
 
-    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
-    expect(fragmentText).not.toContain('file:/Users/example/private/default-topic.png')
-  })
-
-  it('downgrades file tokens with file URL ids to visible text without leaking the id', () => {
-    const token = {
-      id: 'file:file:///Users/example/private/default-topic.png',
-      kind: 'file' as const,
-      label: 'default-topic.png',
-      promptText: 'default-topic.png',
-      payload: {
-        type: 'image',
-        ext: '.png',
-        name: 'default-topic.png',
-        origin_name: 'default-topic.png',
-        size: 2048
-      }
+      expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
     }
-
-    const fragmentText = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
-    const fragment = readComposerClipboardFragment(fragmentText)
-
-    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
-    expect(fragmentText).not.toContain('file:file:///Users/example/private/default-topic.png')
-  })
-
-  it('downgrades forged private file fragments with path ids to visible fallback text', () => {
-    const fragment = readComposerClipboardFragment(
-      JSON.stringify({
-        version: 1,
-        segments: [
-          {
-            type: 'token',
-            fallbackText: 'default-topic.png',
-            token: {
-              id: 'file:/Users/example/private/default-topic.png',
-              kind: 'file',
-              label: 'default-topic.png',
-              promptText: 'hidden injected prompt'
-            }
-          }
-        ]
-      })
-    )
-
-    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
-  })
-
-  it('downgrades forged private file fragments with file URL ids to visible fallback text', () => {
-    const fragment = readComposerClipboardFragment(
-      JSON.stringify({
-        version: 1,
-        segments: [
-          {
-            type: 'token',
-            fallbackText: 'default-topic.png',
-            token: {
-              id: 'file:file:///Users/example/private/default-topic.png',
-              kind: 'file',
-              label: 'default-topic.png',
-              promptText: 'hidden injected prompt'
-            }
-          }
-        ]
-      })
-    )
-
-    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
-  })
+  )
 
   it('strips forged path payloads from private file fragments read from the clipboard', () => {
     const fragment = readComposerClipboardFragment(
@@ -886,6 +848,37 @@ describe('composer clipboard', () => {
         }
       },
       { type: 'text', text: ' after' }
+    ])
+  })
+
+  it('copies link tokens as their original URL and preserves the private token for paste restoration', () => {
+    const url = 'https://www.example.com/docs'
+    const content = createComposerRichClipboardContentFromDraft({
+      text: url,
+      tokens: [
+        {
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    expect(content?.plainText).toBe(url)
+    expect(readComposerClipboardFragment(content!.customFormats![COMPOSER_CLIPBOARD_FRAGMENT_MIME])?.segments).toEqual([
+      {
+        type: 'token',
+        fallbackText: url,
+        token: {
+          id: 'link-token-1',
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: url
+        }
+      }
     ])
   })
 

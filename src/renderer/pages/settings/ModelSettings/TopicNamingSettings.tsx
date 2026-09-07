@@ -30,9 +30,9 @@ export const TopicNamingSettings = () => {
     <section>
       <SettingSubtitle className="mt-0 mb-3">{t('settings.models.topic_naming.label')}</SettingSubtitle>
 
-      <ColFlex className="items-stretch rounded-md border border-border-muted">
+      <ColFlex className="items-stretch rounded-md border border-border-subtle">
         <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
-          <div className="font-medium text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
+          <div className="text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
         </RowFlex>
 
@@ -41,19 +41,15 @@ export const TopicNamingSettings = () => {
         <div className="space-y-2 px-3 pt-3 pb-3.5">
           <Flex className="min-h-7 items-center justify-between gap-2">
             <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
-              <div className="truncate font-medium text-foreground text-sm">
-                {t('settings.models.topic_naming.prompt')}
-              </div>
+              <div className="truncate text-foreground text-sm">{t('settings.models.topic_naming.prompt')}</div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-foreground-muted">
+                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-muted-foreground">
                     <CircleHelp size={14} />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-80">
-                  <div className="mb-2 font-medium text-sm">
-                    {t('assistants.presets.add.prompt.variables.tip.title')}
-                  </div>
+                  <div className="mb-2 text-sm">{t('assistants.presets.add.prompt.variables.tip.title')}</div>
                   <pre className="whitespace-pre-wrap text-muted-foreground text-xs leading-5">
                     {t('assistants.presets.add.prompt.variables.tip.content')}
                   </pre>

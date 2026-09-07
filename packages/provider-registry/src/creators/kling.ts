@@ -78,6 +78,7 @@ export default defineCreator({
                 default: 4.5,
                 max: 20,
                 min: 1,
+                step: 0.1,
                 type: 'range'
               },
               negativePrompt: {

@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-07-17T16:53:41.129Z
- * Total icons: 157
+ * Generated at: 2026-08-26T09:13:47.814Z
+ * Total icons: 159
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -117,6 +117,7 @@ export { OpenclawIcon as Openclaw } from './openclaw'
 export { OpenCodeGoIcon as OpenCodeGo } from './opencode'
 export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PaddleocrIcon as Paddleocr } from './paddleocr'
+export { ParallelIcon as Parallel } from './parallel'
 export { PerplexityIcon as Perplexity } from './perplexity'
 export { Ph8Icon as Ph8 } from './ph8'
 export { PoeIcon as Poe } from './poe'
@@ -125,6 +126,7 @@ export { PulseIcon as Pulse } from './pulse'
 export { QiniuIcon as Qiniu } from './qiniu'
 export { QueritIcon as Querit } from './querit'
 export { QwenIcon as Qwen } from './qwen'
+export { RadeonCloudIcon as RadeonCloud } from './radeon-cloud'
 export { RecraftIcon as Recraft } from './recraft'
 export { RelaceIcon as Relace } from './relace'
 export { RiverflowIcon as Riverflow } from './riverflow'

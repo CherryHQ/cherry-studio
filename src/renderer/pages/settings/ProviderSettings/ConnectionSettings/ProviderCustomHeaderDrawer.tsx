@@ -1,7 +1,9 @@
 import {
+  Badge,
   Button,
   InputGroup,
   InputGroupInput,
+  Label,
   MenuItem,
   MenuList,
   Popover,
@@ -64,6 +66,16 @@ const IMAGE_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
 ])
 
+const DEFAULT_CHAT_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+])
+
 function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow {
   return { id: uuidv4(), key: partial?.key ?? '', value: partial?.value ?? '' }
 }
@@ -86,6 +98,21 @@ function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
     out[k] = row.value
   }
   return out
+}
+
+/**
+ * Build an `extraHeaders` merge patch that fully replaces the stored headers.
+ *
+ * PATCH /providers/:providerId applies `providerSettings` with JSON Merge Patch
+ * semantics: keys absent from the patch are kept, so deletions must be expressed
+ * as explicit `null` values (see ProviderService.applyJsonMergePatch).
+ */
+function buildExtraHeadersReplacementPatch(
+  previous: Record<string, string>,
+  next: Record<string, string>
+): Record<string, string | null> {
+  const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+  return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
 }
 
 /** Parse JSON object for custom headers; primitive values coerced to strings. */
@@ -192,6 +219,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
   const [rows, setRows] = useState<HeaderRow[]>([])
   const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
+  const [defaultChatEndpoint, setDefaultChatEndpoint] = useState<EndpointType>(primaryEndpoint)
   const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
     readProviderImageEndpointDraft(undefined)
   )
@@ -219,6 +247,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       }
     }
     setEndpointDrafts(drafts)
+    setDefaultChatEndpoint(primaryEndpoint)
     setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
     setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
@@ -226,7 +255,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     setRows(headersObjectToRows(sourceHeaders))
     setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
     setHeadersUiMode('list')
-  }, [open, sourceHeaders, endpointTypes, provider?.endpointConfigs])
+  }, [open, sourceHeaders, endpointTypes, primaryEndpoint, provider?.endpointConfigs])
 
   const syncListToJson = useCallback(() => {
     setJsonDraft(JSON.stringify(rowsToHeadersObject(rows), null, 2))
@@ -257,18 +286,18 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const handleSave = useCallback(async () => {
     if (!provider) return
 
-    // Validate the primary baseUrl — non-empty + URL-shape, unless this is
-    // Vertex (whose primary endpoint is account-managed, no URL needed).
-    const primaryDraft = trim(endpointDrafts[primaryEndpoint]?.baseUrl ?? '')
-    const isVertex = provider.authType === 'iam-gcp'
-    if (!isVertex && (!primaryDraft || !validateApiHost(primaryDraft))) {
+    // Validate the selected default baseUrl — non-empty + URL-shape, unless
+    // this is Vertex (whose text endpoints are account-managed).
+    const defaultEndpointDraft = trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
+    const isAccountManagedProvider = provider.authType === 'iam-gcp'
+    if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
     // Secondary endpoints are optional, but a non-empty one must still be a
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
-    if (findInvalidSecondaryEndpointUrl(endpointDrafts, primaryEndpoint)) {
+    if (findInvalidSecondaryEndpointUrl(endpointDrafts, defaultChatEndpoint)) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
@@ -282,7 +311,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
-    const previousPrimaryBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
@@ -299,7 +329,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     try {
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
-        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+        defaultChatEndpoint,
+        providerSettings: {
+          ...provider.settings,
+          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+        }
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
@@ -309,15 +343,20 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    if (primaryDraft !== previousPrimaryBaseUrl) {
-      syncProviderModels().catch((error) => {
-        logger.error('Background model sync after baseUrl change failed', error as Error, { providerId })
+    if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
+      syncProviderModels({
+        ...provider,
+        endpointConfigs: nextEndpointConfigs,
+        defaultChatEndpoint
+      }).catch((error) => {
+        logger.error('Background model sync after endpoint change failed', error as Error, { providerId })
       })
     }
 
     toast.success(t('message.save.success.title'))
     onClose()
   }, [
+    defaultChatEndpoint,
     endpointDrafts,
     headersUiMode,
     imageEndpointDraft,
@@ -327,6 +366,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     provider,
     providerId,
     rows,
+    sourceHeaders,
     syncProviderModels,
     t,
     updateProvider
@@ -367,15 +407,38 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       footer={footer}>
       <div className={customHeaderDrawerClasses.bodyScroll}>
         {visibleEndpointTypes.map((type, index) => {
-          const isPrimary = index === 0
+          const isInitialPrimary = index === 0
+          const isDefault = type === defaultChatEndpoint
           const labelKey = ENDPOINT_TYPE_LABEL_KEYS[type]
-          const label = isPrimary ? t('settings.provider.api_host') : labelKey ? t(labelKey) : type
+          const label = labelKey ? t(labelKey) : isInitialPrimary ? t('settings.provider.api_host') : type
           const inputId = `provider-request-config-endpoint-${type}`
+          const isConfiguredDefaultCandidate =
+            type === primaryEndpoint ||
+            Object.prototype.hasOwnProperty.call(provider?.endpointConfigs ?? {}, type) ||
+            Boolean(trim(endpointDrafts[type]?.baseUrl ?? ''))
           return (
             <div key={type} className="space-y-1.5">
-              <label className="font-medium text-muted-foreground/60 text-xs" htmlFor={inputId}>
-                {label}
-              </label>
+              <div className="flex min-h-5 items-center gap-2">
+                <Label className="text-[13px] text-foreground" htmlFor={inputId}>
+                  {label}
+                </Label>
+                {isDefault ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-tertiary text-xs">
+                    {t('settings.provider.create_custom.endpoint_fields.default_chat')}
+                  </Badge>
+                ) : DEFAULT_CHAT_ENDPOINT_TYPES.has(type) && isConfiguredDefaultCandidate ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="before:-top-5 relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:bottom-0 before:content-[''] active:scale-[0.96]"
+                    onClick={() => setDefaultChatEndpoint(type)}>
+                    {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
+                  </Button>
+                ) : null}
+              </div>
               <InputGroup className={fieldClasses.inputGroup}>
                 <InputGroupInput
                   id={inputId}
@@ -391,8 +454,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   autoComplete="off"
                 />
               </InputGroup>
-              {isPrimary && (
-                <p className="wrap-break-word text-muted-foreground/40 text-xs leading-relaxed">
+              {isDefault && (
+                <p className="wrap-break-word text-muted-foreground text-xs leading-relaxed">
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
               )}
@@ -433,9 +496,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-medium text-muted-foreground/60 text-xs">
-              {t('settings.provider.copilot.custom_headers')}
-            </span>
+            <span className="text-muted-foreground text-xs">{t('settings.provider.copilot.custom_headers')}</span>
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -491,7 +552,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         size="icon"
                         className={customHeaderDrawerClasses.removeIconButton}
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                        aria-label={t('common.delete')}>
+                        aria-label={
+                          row.key.trim()
+                            ? t('settings.provider.delete.header', { key: row.key.trim() })
+                            : t('common.delete')
+                        }>
                         <Trash2 aria-hidden />
                       </Button>
                     </div>
@@ -521,7 +586,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-muted-foreground/40 text-xs leading-relaxed">
+              <p className="text-muted-foreground text-xs leading-relaxed">
                 {t('settings.provider.copilot.headers_description')}
               </p>
             </div>

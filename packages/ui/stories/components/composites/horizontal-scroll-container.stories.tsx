@@ -3,6 +3,11 @@ import { useState } from 'react'
 
 import { HorizontalScrollContainer } from '../../../src/components'
 
+const scrollButtonLabels = {
+  scrollLeftLabel: 'Scroll left',
+  scrollRightLabel: 'Scroll right'
+}
+
 const meta: Meta<typeof HorizontalScrollContainer> = {
   title: 'Components/Composites/horizontal-scroll-container',
   component: HorizontalScrollContainer,
@@ -10,6 +15,7 @@ const meta: Meta<typeof HorizontalScrollContainer> = {
     layout: 'centered'
   },
   tags: ['autodocs'],
+  args: scrollButtonLabels,
   argTypes: {
     scrollDistance: { control: { type: 'range', min: 50, max: 500, step: 50 } },
     gap: { control: 'text' },
@@ -153,7 +159,7 @@ export const Interactive: Story = {
 
     return (
       <div className="w-96">
-        <HorizontalScrollContainer gap="8px" scrollDistance={150}>
+        <HorizontalScrollContainer {...scrollButtonLabels} gap="8px" scrollDistance={150}>
           {items.map((item) => (
             <div
               key={item}
@@ -180,7 +186,7 @@ export const DifferentGaps: Story = {
     <div className="flex w-96 flex-col gap-6">
       <div>
         <h4 className="mb-2 font-semibold">Small Gap (4px)</h4>
-        <HorizontalScrollContainer gap="4px">
+        <HorizontalScrollContainer {...scrollButtonLabels} gap="4px">
           {Array.from({ length: 15 }, (_, i) => (
             <span key={i} className="rounded bg-purple-600 px-3 py-1.5 text-white">
               Item {i + 1}
@@ -191,7 +197,7 @@ export const DifferentGaps: Story = {
 
       <div>
         <h4 className="mb-2 font-semibold">Medium Gap (12px)</h4>
-        <HorizontalScrollContainer gap="12px">
+        <HorizontalScrollContainer {...scrollButtonLabels} gap="12px">
           {Array.from({ length: 15 }, (_, i) => (
             <span key={i} className="rounded bg-cyan-500 px-3 py-1.5 text-white">
               Item {i + 1}
@@ -202,7 +208,7 @@ export const DifferentGaps: Story = {
 
       <div>
         <h4 className="mb-2 font-semibold">Large Gap (20px)</h4>
-        <HorizontalScrollContainer gap="20px">
+        <HorizontalScrollContainer {...scrollButtonLabels} gap="20px">
           {Array.from({ length: 15 }, (_, i) => (
             <span key={i} className="rounded bg-pink-500 px-3 py-1.5 text-white">
               Item {i + 1}

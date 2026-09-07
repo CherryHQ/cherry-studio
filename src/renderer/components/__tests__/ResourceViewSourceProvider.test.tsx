@@ -1,7 +1,4 @@
-import {
-  ResourceViewSourceProvider,
-  shouldLoadResourceViewSource
-} from '@renderer/components/ResourceViewSourceProvider'
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import type * as ResourceViewSourcesModule from '@renderer/hooks/resourceViewSources'
 import {
   type AgentSessionsSource,
@@ -84,6 +81,8 @@ function createAssistantSource(
     isRefreshing: refreshing,
     error,
     refetch: vi.fn(),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    reuseOrCreateTopic: vi.fn(),
     mutate: vi.fn()
   } as unknown as AssistantTopicsSource
 }
@@ -123,7 +122,9 @@ function createAgentSource(
     togglePin: vi.fn(),
     isFullyLoaded: complete,
     isLoadingAll: !complete,
-    isPinsLoading: false
+    isPinsLoading: false,
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    reuseOrCreateSession: vi.fn()
   } as unknown as AgentSessionsSource
 }
 
@@ -135,6 +136,7 @@ function SourceProbe() {
   return (
     <>
       <span data-testid="topic-ids">{topicsSource.topics.map((topic) => topic.id).join(',')}</span>
+      <span data-testid="renderer-topic-ids">{topicsSource.rendererTopics.map((topic) => topic.id).join(',')}</span>
       <span data-testid="topics-loading">{String(topicsSource.isLoadingAll)}</span>
       <span data-testid="topics-refreshing">{String(topicsSource.isRefreshing)}</span>
       <span data-testid="topics-error">{String(Boolean(topicsSource.error))}</span>
@@ -267,6 +269,23 @@ describe('ResourceViewSourceProvider', () => {
     expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
   })
 
+  it('releases the mapped topic view when no awake assistant list consumes it', async () => {
+    sourceMocks.tabs = [createTab('chat', '/app/chat')]
+    sourceMocks.activeTabId = 'chat'
+    sourceMocks.assistantSource = createAssistantSource(['topic-1'], { complete: true })
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => expect(screen.getByTestId('renderer-topic-ids')).toHaveTextContent('topic-1'))
+
+    sourceMocks.tabs = [createTab('chat', '/app/chat', true), createTab('settings', '/settings/about')]
+    sourceMocks.activeTabId = 'settings'
+    rerender(createProviderTree())
+
+    expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
+    expect(screen.getByTestId('renderer-topic-ids')).toBeEmptyDOMElement()
+  })
+
   it('reports a failed background refresh without tearing down the stale snapshot', async () => {
     sourceMocks.tabs = [createTab('chat', '/app/chat')]
     sourceMocks.activeTabId = 'chat'
@@ -315,9 +334,8 @@ describe('ResourceViewSourceProvider', () => {
     expect(screen.getByTestId('session-pins')).toHaveTextContent('session-1')
   })
 
-  it('loads only the source owned by the active non-dormant, non-message-only route tab', () => {
+  it('loads only the source owned by the active non-dormant route tab', () => {
     sourceMocks.tabs = [
-      createTab('chat-message', '/app/chat?topicId=topic-1&view=message'),
       createTab('agent-dormant', '/app/agents?sessionId=session-1', true),
       createTab('chat', '/app/chat?topicId=topic-2')
     ]
@@ -327,8 +345,5 @@ describe('ResourceViewSourceProvider', () => {
 
     expect(sourceMocks.assistantEnabled.at(-1)).toBe(true)
     expect(sourceMocks.agentEnabled.at(-1)).toBe(false)
-    expect(
-      shouldLoadResourceViewSource([createTab('message', '/app/chat?view=message')], 'message', 'assistants')
-    ).toBe(false)
   })
 })

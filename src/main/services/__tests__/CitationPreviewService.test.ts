@@ -5,8 +5,18 @@ import type { CitationPreviewService as CitationPreviewServiceType } from '../Ci
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const extractPreviewTextMock = vi.hoisted(() => vi.fn())
+// vi.resetModules() below re-instantiates the shared preference mock, so hold the
+// value here where the re-run factory can still reach it.
+const preferences = vi.hoisted(() => ({ allowPrivateNetwork: true }))
 let mockMainLoggerService: MockMainLoggerService
 let service: CitationPreviewServiceType
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: () => preferences.allowPrivateNetwork }
+  })
+})
 
 vi.mock('@main/services/readableContent', () => ({
   readableContentService: { extractPreviewText: extractPreviewTextMock }
@@ -39,6 +49,7 @@ describe('CitationPreviewService', () => {
     fetchRemoteTextMock.mockReset()
     extractPreviewTextMock.mockReset()
     extractPreviewTextMock.mockImplementation(async (source: string) => source)
+    preferences.allowPrivateNetwork = true
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
     mockMainLoggerService.error.mockClear()
@@ -116,8 +127,28 @@ describe('CitationPreviewService', () => {
   })
 
   it('rejects private and invalid URLs before calling the remote fetch helper', async () => {
+    preferences.allowPrivateNetwork = false
+
     await expect(service.fetchPreview('http://127.0.0.1/private', requestContext('request-1'))).resolves.toBe('')
     await expect(service.fetchPreview('not a URL', requestContext('request-2'))).resolves.toBe('')
+
+    expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+  })
+
+  it('previews a literal private URL when app.fetch.allow_private_network is on', async () => {
+    preferences.allowPrivateNetwork = true
+    fetchRemoteTextMock.mockResolvedValue('<title>NAS</title>')
+    extractPreviewTextMock.mockResolvedValue('NAS')
+
+    await expect(service.fetchPreview('http://192.168.1.10/wiki', requestContext('request-1'))).resolves.toBe('NAS')
+
+    expect(fetchRemoteTextMock.mock.calls[0][0]).toBe('http://192.168.1.10/wiki')
+  })
+
+  it('still rejects non-http schemes when app.fetch.allow_private_network is on', async () => {
+    preferences.allowPrivateNetwork = true
+
+    await expect(service.fetchPreview('file:///etc/passwd', requestContext('request-1'))).resolves.toBe('')
 
     expect(fetchRemoteTextMock).not.toHaveBeenCalled()
   })

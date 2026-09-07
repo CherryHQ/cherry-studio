@@ -72,7 +72,7 @@ export const WithSuffix: Story = {
   args: {
     icon: <Package size={16} />,
     label: 'Plugins',
-    suffix: <span className="rounded-md bg-accent px-1.5 py-0.5 text-[10px] text-foreground-muted">12</span>
+    suffix: <span className="rounded-md bg-accent px-1.5 py-0.5 text-[10px] text-foreground-tertiary">12</span>
   }
 }
 
@@ -239,7 +239,7 @@ function SmallMenuWithGroupsExample() {
       <MenuList className="gap-1">
         {groups.map((group, gi) => (
           <div key={gi}>
-            <p className="px-3 pt-2 pb-1 text-[9px] leading-3 text-foreground-muted">{group.label}</p>
+            <p className="px-3 pt-2 pb-1 text-[9px] leading-3 text-foreground-tertiary">{group.label}</p>
             <div className="space-y-px">
               {group.items.map((item) => (
                 <MenuItem
@@ -276,7 +276,7 @@ function SettingsSubmenuActiveBoldExample() {
   const itemClassName =
     'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
   const itemLabelClassName = 'group-data-[active=true]:font-medium'
-  const sectionTitleClassName = 'px-2.5 pt-1.5 pb-1 font-normal text-foreground-muted text-xs first:pt-0'
+  const sectionTitleClassName = 'px-2.5 pt-1.5 pb-1 font-normal text-foreground-tertiary text-xs first:pt-0'
   const dividerClassName = 'my-1 bg-transparent'
 
   const groups = [

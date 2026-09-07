@@ -7,7 +7,7 @@ interface HyperLinkProps {
   href: string
 }
 
-const HYPERLINK_CARD_OPEN_DELAY = 1500
+const HYPERLINK_CARD_OPEN_DELAY = 500
 const HYPERLINK_CARD_CLOSE_DELAY = 100
 
 const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {

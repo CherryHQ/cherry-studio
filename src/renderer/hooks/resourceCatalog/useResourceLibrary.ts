@@ -83,7 +83,7 @@ export function useResourceLibrary({
         name: a.name,
         description: a.description || '',
         avatar: a.emoji || '💬',
-        // Embedded by AssistantService.list via JOIN on user_model; null when the
+        // Embedded by AssistantService.list through ModelService; null when the
         // bound model row was removed.
         model: a.modelName ?? undefined,
         groupId: a.groupId ?? undefined,

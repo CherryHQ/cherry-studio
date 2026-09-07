@@ -5,9 +5,9 @@
  *
  * 1. **runDbSweep** (association/report level): persistent refs are
  *    FK-constrained by their owning source tables, so there is no generic
- *    source-orphan cleanup path. The DB pass prunes CacheService-backed
- *    temp-session refs that point at missing `file_entry` rows, then reports
- *    active entries with zero refs.
+ *    source-orphan cleanup path. The DB pass reports active **manual-policy**
+ *    entries with zero refs (`delete_when_unreferenced` zero-ref entries belong
+ *    to the cleanup pass, not this report).
  *
  * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
@@ -35,7 +35,7 @@
  * compile error (`assertNever`).
  */
 
-import { readdir, stat, unlink } from 'node:fs/promises'
+import { lstat, readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -59,19 +59,21 @@ export interface OrphanEntryReport {
 }
 
 export interface ScanOrphanEntriesDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced'>
+  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced'>
   readonly fileRefService: Pick<FileRefService, 'countByEntryIds'>
 }
 
 /**
- * Identify active entries with zero persistent refs and zero temp-session refs
- * pointing at them. The default policy in architecture §7.1 is "preserve" —
- * this scan only **reports**. FileEntry row cleanup belongs to explicit
- * user/caller-driven flows; dangling external entries are not auto-deleted by
- * sweep.
+ * Identify active **manual-policy** entries with zero persistent refs pointing
+ * at them. `delete_when_unreferenced` entries are
+ * excluded here (owned by the cleanup pass) so the report never double-counts
+ * auto entries pending reclamation as manual orphans. The default policy for
+ * manual orphans in architecture §7.1 is "preserve" — this scan only
+ * **reports**; FileEntry row cleanup belongs to explicit user/caller-driven
+ * flows, and dangling external entries are not auto-deleted by sweep.
  */
 export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryReport {
-  const candidates = deps.fileEntryService.findUnreferenced()
+  const candidates = deps.fileEntryService.findManualUnreferenced()
   const counts = deps.fileRefService.countByEntryIds(candidates.map((row) => row.id))
   const rows = candidates.filter((row) => (counts.get(row.id) ?? 0) === 0)
   const byOrigin: Partial<Record<FileEntryOrigin, number>> = {}
@@ -84,13 +86,11 @@ export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryRepor
 // ─── DB-sweep umbrella + observability ───
 
 export interface RunDbSweepDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced' | 'listAllIds'>
-  readonly fileRefService: Pick<FileRefService, 'countByEntryIds' | 'pruneMissingTempSessionRefs'>
+  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced'>
+  readonly fileRefService: Pick<FileRefService, 'countByEntryIds'>
 }
 
 interface DbSweepStats {
-  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
-  readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
   readonly scanDurationMs: number
@@ -107,14 +107,14 @@ type DbSweepOutcome =
 
 export type DbSweepReport = DbSweepStats & DbSweepOutcome
 
-// `OrphanReport` (the wire shape returned by `FileManager.runSweep` and
-// consumed by the cleanup UI) is defined in shared so the FileIpcApi
-// interface can reference it; re-exported here for main-side callers.
+// `OrphanReport` (the wire shape returned by `FileManager.runSweep`) is
+// defined in shared so the FileIpcApi interface can reference it;
+// re-exported here for main-side callers.
 export type { OrphanReport } from '@shared/types/file'
 
 /**
- * Run both DB-level passes (temp-session ref prune + orphan-entry report) and
- * emit a single structured `orphan-sweep` log record. Persistent source deletion
+ * Run the DB-level orphan-entry report and emit a single structured
+ * `orphan-sweep` log record. Persistent source deletion
  * cleanup is intentionally absent: FK cascades own that path. An outer-level
  * throw collapses to `outcome: 'failed'`. Caller decides when to invoke the
  * sweep; FileManager exposes it on demand and does not run it at startup.
@@ -125,8 +125,6 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   // mid-restore would reclaim rows/files the promotion is about to reference.
   if (hasPendingRestore()) {
     const report: DbSweepReport = {
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,
@@ -137,16 +135,11 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
     return report
   }
   try {
-    const prunedTempSessionRefs = deps.fileRefService.pruneMissingTempSessionRefs(deps.fileEntryService.listAllIds())
-    const refsByType: Partial<Record<FileRefSourceType, number>> =
-      prunedTempSessionRefs > 0 ? { temp_session: prunedTempSessionRefs } : {}
     const entries = scanOrphanEntries({
       fileEntryService: deps.fileEntryService,
       fileRefService: deps.fileRefService
     })
     const stats: DbSweepStats = {
-      orphanRefsByType: refsByType,
-      orphanRefsTotal: prunedTempSessionRefs,
       orphanEntriesByOrigin: entries.byOrigin,
       orphanEntriesTotal: entries.total,
       scanDurationMs: Date.now() - startedAt
@@ -156,8 +149,6 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
     return report
   } catch (err) {
     const failed: DbSweepReport = {
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,
@@ -261,6 +252,26 @@ type FileSweepOutcome =
 
 export type FileSweepReport = FileSweepStats & FileSweepOutcome
 
+function pendingRestoreFileSweepReport(): FileSweepReport {
+  return {
+    ...zeroStats(0, Date.now()),
+    outcome: 'aborted',
+    abortReason: 'pending-restore'
+  }
+}
+
+/** Build and log the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
+export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+  if (hasPendingRestore()) {
+    const report = pendingRestoreFileSweepReport()
+    logFileSweep(report)
+    return report
+  }
+  const report = await runFileSweepInner(deps, false)
+  logFileSweep(report)
+  return report
+}
+
 /**
  * Enumerate `{userData}/Data/Files/` and unlink:
  *   - UUID-named files whose id is not in the FileEntry snapshot
@@ -276,15 +287,11 @@ export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepRep
   // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
   // not yet referenced by the live DB — exactly what this sweep would unlink.
   if (hasPendingRestore()) {
-    const report: FileSweepReport = {
-      ...zeroStats(0, Date.now()),
-      outcome: 'aborted',
-      abortReason: 'pending-restore'
-    }
+    const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps)
+  const report = await runFileSweepInner(deps, true)
   logFileSweep(report)
   return report
 }
@@ -320,7 +327,7 @@ interface CandidatePlan {
   readonly mtimeMs: number
 }
 
-async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
@@ -353,9 +360,9 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
     let statFailedCount = 0
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
-      let st: Awaited<ReturnType<typeof stat>>
+      let st: Awaited<ReturnType<typeof lstat>>
       try {
-        st = await stat(fullPath)
+        st = await lstat(fullPath)
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code
         if (code !== 'ENOENT') {
@@ -399,7 +406,7 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
     // intentionally allowed through. Surface it at warn-level so on-call has
     // a forensic breadcrumb when a user reports "Cherry deleted my files":
     // the fraction would otherwise have tripped the safety threshold.
-    if (!abortReason && planned.length > 0) {
+    if (deleteFiles && !abortReason && planned.length > 0) {
       const countFraction = planned.length / Math.max(1, candidatesCount)
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
@@ -433,6 +440,22 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
         scanDurationMs: Date.now() - startedAt,
         outcome: 'aborted',
         abortReason
+      }
+    }
+
+    if (!deleteFiles) {
+      return {
+        entriesInDb: idSnapshot.size,
+        direntsScanned: dirents.length,
+        filesOnDisk: candidatesCount,
+        bytesOnDisk: candidatesBytes,
+        plannedDeleteCount: planned.length,
+        plannedDeleteBytes: plannedBytes,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        statFailedCount,
+        scanDurationMs: Date.now() - startedAt,
+        outcome: 'completed'
       }
     }
 

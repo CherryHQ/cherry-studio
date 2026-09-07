@@ -1,11 +1,21 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
-import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
+const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+/**
+ * Marker applied to the capture root while html-to-image clones it. Capture-only
+ * CSS (see markdown.css) keys off this attribute, e.g. to unclip inner scroll
+ * containers such as table viewports that would otherwise cut off overflowing
+ * content in the rasterized image.
+ */
+export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -15,6 +25,68 @@ const loadHtmlToImage = () => {
     throw error
   })
   return htmlToImagePromise
+}
+
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Failed to encode image blob'))
+      }
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
+  const images = [
+    ...(root instanceof HTMLImageElement ? [root] : []),
+    ...root.querySelectorAll<HTMLImageElement>('img')
+  ].filter((image) => image.src.startsWith('file://'))
+
+  const originalSources = images.map((image) => ({
+    image,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset')
+  }))
+  const dataUrlBySource = new Map<string, Promise<string>>()
+
+  await Promise.all(
+    originalSources.map(async ({ image }) => {
+      const source = image.src
+      let dataUrlPromise = dataUrlBySource.get(source)
+      if (!dataUrlPromise) {
+        dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
+        dataUrlBySource.set(source, dataUrlPromise)
+      }
+
+      try {
+        image.removeAttribute('srcset')
+        image.src = await dataUrlPromise
+      } catch (error) {
+        logger.warn('Failed to inline local image for capture', error as Error, { source })
+      }
+    })
+  )
+
+  return () => {
+    for (const { image, src, srcset } of originalSources) {
+      if (src === null) {
+        image.removeAttribute('src')
+      } else {
+        image.setAttribute('src', src)
+      }
+      if (srcset === null) {
+        image.removeAttribute('srcset')
+      } else {
+        image.setAttribute('srcset', srcset)
+      }
+    }
+  }
 }
 
 /**
@@ -107,26 +179,22 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
   if (el) {
     const htmlToImage = await loadHtmlToImage()
-
-    // Save original styles
-    const originalStyle = {
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
-      overflow: el.style.overflow,
-      position: el.style.position
-    }
-
-    const originalScrollTop = el.scrollTop
+    let restoreLocalImageSources: (() => void) | undefined
 
     try {
-      // Hide scrollbars during capture
-      el.classList.add('hide-scrollbar')
+      // Mark the subtree before measuring: capture-only CSS keyed off this
+      // attribute (e.g. unclipped table viewports) can change the scroll size,
+      // and html-to-image freezes computed styles at clone time.
+      el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
 
-      // Modify styles to show full content
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflow = 'visible'
-      el.style.position = 'static'
+      // Wait for webfonts before cloning. The clone pins every element's
+      // computed width/height, so text re-laid-out with fallback font metrics
+      // would overflow those frozen boxes and get clipped by overflow
+      // containers (table cells are the common victim).
+      await Promise.race([
+        document.fonts?.ready ?? Promise.resolve(),
+        new Promise((resolve) => setTimeout(resolve, 1000))
+      ])
 
       // calculate the size of the element
       const totalWidth = el.scrollWidth
@@ -142,6 +210,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
@@ -152,17 +224,27 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return true
       }
 
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+
       const captureOptions = {
         filter: filterHiddenElements,
         backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
         cacheBust: true,
+        imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
-        canvasWidth: el.scrollWidth,
-        canvasHeight: el.scrollHeight,
+        width: totalWidth,
+        height: totalHeight,
+        canvasWidth: totalWidth,
+        canvasHeight: totalHeight,
         style: {
           backgroundColor: getComputedStyle(el).backgroundColor,
-          color: getComputedStyle(el).color
+          color: getComputedStyle(el).color,
+          height: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
+          position: 'static',
+          scrollbarWidth: 'none'
         }
       }
 
@@ -175,19 +257,8 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
-      // Restore original styles
-      el.style.height = originalStyle.height
-      el.style.maxHeight = originalStyle.maxHeight
-      el.style.overflow = originalStyle.overflow
-      el.style.position = originalStyle.position
-
-      // Restore original scroll position
-      setTimeout(() => {
-        el.scrollTop = originalScrollTop
-      }, 0)
-
-      // Remove scrollbar hiding class
-      el.classList.remove('hide-scrollbar')
+      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+      restoreLocalImageSources?.()
     }
   }
 
@@ -446,10 +517,13 @@ export const captureScrollableIframeAsBlob = async (
  */
 export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
+  // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+  const attrWidth = parseFloat(svgElement.getAttribute('width') || '')
+  const attrHeight = parseFloat(svgElement.getAttribute('height') || '')
   const rect = svgElement.getBoundingClientRect()
-  const width = viewBox[2] || svgElement.clientWidth || rect.width
-  const height = viewBox[3] || svgElement.clientHeight || rect.height
+  const width = viewBox[2] || svgElement.clientWidth || rect.width || attrWidth
+  const height = viewBox[3] || svgElement.clientHeight || rect.height || attrHeight
 
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
@@ -531,6 +605,43 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
 
+const INTRINSIC_SVG_LENGTH = /^\s*\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|pt|pc|mm|cm|in|q|em|ex)?\s*$/i
+
+const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
+  if (value === null || !INTRINSIC_SVG_LENGTH.test(value)) return false
+  const length = Number.parseFloat(value)
+  return Number.isFinite(length) && length > 0
+}
+
+/**
+ * An SVG embedded in the conversation is responsive (`width="100%"`, usually no
+ * height), but the same node becomes a replaced image in the full-screen preview.
+ * Percentage/missing dimensions give that standalone image the browser's small
+ * default intrinsic size, so the viewer's fit and zoom geometry starts from the
+ * wrong box. Give only the preview clone an intrinsic vector size.
+ */
+const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
+  const clone = svgElement.cloneNode(true) as SVGElement
+  if (
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
+  ) {
+    return clone
+  }
+
+  const viewBox = clone
+    .getAttribute('viewBox')
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number)
+  if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+    clone.setAttribute('width', String(viewBox[2]))
+    clone.setAttribute('height', String(viewBox[3]))
+  }
+
+  return clone
+}
+
 export type ImageInput = SVGElement | HTMLImageElement | string | Blob
 
 export interface ImagePreviewOptions {
@@ -545,7 +656,10 @@ export interface ImagePreviewOptions {
  */
 export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
   if (input instanceof SVGElement) {
-    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    const blob =
+      options.format === 'svg'
+        ? svgToSvgBlob(createStandaloneSvgPreview(input))
+        : await svgToPngBlob(input, options.scale || 3)
     return URL.createObjectURL(blob)
   }
 
@@ -695,6 +809,51 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
   })
 }
 
+export const transformImageToPng = async (
+  blob: Blob,
+  transform: { flipX: boolean; flipY: boolean; rotation: number }
+): Promise<Blob> => {
+  const bitmap = await createImageBitmap(blob)
+
+  try {
+    const rotation = ((transform.rotation % 360) + 360) % 360
+    const radians = (rotation * Math.PI) / 180
+    const canvas = document.createElement('canvas')
+    if (rotation % 90 === 0) {
+      const swapsDimensions = rotation === 90 || rotation === 270
+      canvas.width = swapsDimensions ? bitmap.height : bitmap.width
+      canvas.height = swapsDimensions ? bitmap.width : bitmap.height
+    } else {
+      const sine = Math.abs(Math.sin(radians))
+      const cosine = Math.abs(Math.cos(radians))
+      canvas.width = Math.ceil(bitmap.width * cosine + bitmap.height * sine)
+      canvas.height = Math.ceil(bitmap.width * sine + bitmap.height * cosine)
+    }
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      throw new Error('Failed to get canvas context')
+    }
+
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate(radians)
+    ctx.scale(transform.flipX ? -1 : 1, transform.flipY ? -1 : 1)
+    ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          resolve(pngBlob)
+        } else {
+          reject(new Error('Failed to transform image to png'))
+        }
+      }, 'image/png')
+    })
+  } finally {
+    bitmap.close()
+  }
+}
+
 /**
  * Decode the percent-encoded body of a non-base64 `data:` URL into raw bytes,
  * expanding each `%XX` escape and UTF-8 encoding any literal characters.
@@ -738,15 +897,46 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+    return assertImageBlob(new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
-    const bytes = await window.api.fs.read(src)
-    const mimeType = mime.getType(src) || 'application/octet-stream'
-    return new Blob([bytes], { type: mimeType })
+    const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
+    const { content, mime } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(path),
+      options: { mode: 'full', encoding: 'binary' }
+    })
+    return assertImageBlob(new Blob([content.slice() as unknown as BlobPart], { type: mime }), src)
   }
 
   const response = await fetch(src)
-  return response.blob()
+  // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${src}`)
+  }
+  const blob = await response.blob()
+  return assertImageBlob(blob, src)
+}
+
+/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
+function assertImageBlob(blob: Blob, src: string): Blob {
+  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
+  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
+  // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
+  const type = blob.type.trim()
+  const unknown = type === 'application/octet-stream'
+  if (type && !unknown && !type.startsWith('image/')) {
+    throw new Error(`Source is not an image (content type ${type}): ${src}`)
+  }
+  return blob
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
 }

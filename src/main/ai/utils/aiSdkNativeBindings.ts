@@ -1,6 +1,17 @@
 /**
- * Canonical param key → the AI SDK call option it becomes. `splitParamValues` uses this
- * to partition `paramValues` into {@link NativeImageParams} vs the vendor bag.
+ * Canonical param key → its structured request field (+ optional wire
+ * normalization). After the `ai.image.generate` payload collapse, the renderer
+ * sends one canonical `paramValues` bag; `splitParamValues` (in `imageOptions.ts`)
+ * uses this table to partition it into the structured fields the AI SDK
+ * `imageParams` consume vs the leftover vendor bag the WireProfile engine
+ * forwards, applying each binding's `map` once.
+ *
+ * `numImages → n` is the only rename; `aspectRatio` carries a `map`
+ * (`ASPECT_X_Y → X:Y`, the AI SDK `ImageModelV3CallOptions` shape) so the
+ * normalization happens once here instead of scattered across `AiService` + the
+ * emitters. The rest are identity. The first four are genuine AI SDK options;
+ * the others are diffusion / OpenAI-image knobs that migrate into per-provider
+ * WireProfiles in PR4+.
  */
 import type { CanonicalParamKey, ParamValue } from '@cherrystudio/provider-registry'
 

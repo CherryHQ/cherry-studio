@@ -5,7 +5,7 @@
 
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
+import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { normalizeModelId } from './utils/normalize'
 
@@ -52,6 +52,15 @@ export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
+  dialect?: EndpointDialect
+}
+
+function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
+  const wire = config.reasoningFormat?.wire
+  if (!wire || wire.disabled) return false
+  return [wire.default, wire.auto, wire.effort].some((mode) =>
+    mode?.operations.some((operation) => operation.value.source === 'assistant-summary')
+  )
 }
 
 /**
@@ -72,6 +81,13 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
+    const dialect = { ...regConfig.dialect }
+    // Renderer-safe projection of the main-only wire, so a preset's effective
+    // switch state can be displayed and overridden without exposing the wire.
+    if (dialect.reasoningSummary === undefined && wireCarriesReasoningSummary(regConfig)) {
+      dialect.reasoningSummary = true
+    }
+    if (Object.keys(dialect).length > 0) config.dialect = dialect
 
     if (Object.keys(config).length > 0) configs[k] = config
   }
@@ -117,19 +133,21 @@ export function inferAdapterFamily(
 /**
  * Capability-exclusive endpoints imply a model capability: a model whose primary
  * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,
- * an image endpoint can only generate images. Single source of truth for deriving
- * a capability from a model's endpoint when the catalog has no entry for it (e.g.
- * opaque gateway/NewAPI model ids). Chat/completions endpoints are general-purpose
- * and imply nothing, so they're absent from the map.
- *
- * ponytail: covers the non-chat leak class (rerank/embedding/image); add the
- * tts/stt/video endpoints here if those ever surface through a gateway.
+ * and dedicated image/audio/video endpoints can only serve their named media task.
+ * Single source of truth for deriving a capability from a model's endpoint when
+ * the catalog has no entry for it (e.g. opaque gateway/NewAPI model ids).
+ * Chat/completions endpoints are general-purpose and imply nothing, so they're
+ * absent from the map.
  */
 const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>> = {
   [ENDPOINT_TYPE.JINA_RERANK]: MODEL_CAPABILITY.RERANK,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
   [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: MODEL_CAPABILITY.EMBEDDING,
   [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: MODEL_CAPABILITY.IMAGE_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: MODEL_CAPABILITY.AUDIO_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]: MODEL_CAPABILITY.VIDEO_GENERATION
 }
 
 /** Capability implied by a capability-exclusive endpoint, or `undefined` for general-purpose endpoints. */

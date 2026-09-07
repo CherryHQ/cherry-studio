@@ -1,212 +1,92 @@
 // @vitest-environment jsdom
-import type { TabsContextValue } from '@renderer/hooks/tab'
-import { TabsContext } from '@renderer/hooks/tab/useTabsContext'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { useCloseConversationTabs } from '../useCloseConversationTabs'
+import {
+  CloseConversationTabsContext,
+  findClosableConversationTabIds,
+  useCloseConversationTabs
+} from '../useCloseConversationTabs'
 
-function createTabsContext(tabs: Tab[], closeTabs = vi.fn(), activeTabId = tabs[0]?.id ?? ''): TabsContextValue {
-  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+const activeConversationCases = [
+  ['conversation', 'assistants', 'topic-a', '/app/chat', 'topicId'],
+  ['agent session', 'agents', 'session-a', '/app/agents', 'sessionId']
+] as const
 
-  return {
-    tabs,
-    activeTabId,
-    activeTab,
-    isLoading: false,
-    addTab: vi.fn(),
-    closeTab: vi.fn(),
-    closeTabs,
-    setActiveTab: vi.fn(),
-    updateTab: vi.fn(),
-    openTab: vi.fn(),
-    pinTab: vi.fn(),
-    unpinTab: vi.fn(),
-    reorderTabs: vi.fn(),
-    detachTab: vi.fn(),
-    attachTab: vi.fn()
-  }
-}
+describe('findClosableConversationTabIds', () => {
+  it('matches assistant tabs by topic id without crossing app routes', () => {
+    const tabs: Tab[] = [
+      { id: 'topic-a-tab', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Topic A' },
+      { id: 'topic-b-tab', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' },
+      { id: 'session', type: 'route', url: '/app/agents?sessionId=topic-a', title: 'Session' }
+    ]
 
-function wrapperFor(value: TabsContextValue) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return <TabsContext value={value}>{children}</TabsContext>
-  }
-}
+    expect(findClosableConversationTabIds(tabs, 'session', 'assistants', ['topic-a', 'topic-b'])).toEqual([
+      'topic-a-tab',
+      'topic-b-tab'
+    ])
+  })
+
+  it('matches agent tabs by session id without crossing app routes', () => {
+    const tabs: Tab[] = [
+      { id: 'session-a-tab', type: 'route', url: '/app/agents?sessionId=session-a', title: 'Session A' },
+      { id: 'session-b-tab', type: 'route', url: '/app/agents?sessionId=session-b', title: 'Session B' },
+      { id: 'topic', type: 'route', url: '/app/chat?topicId=session-a', title: 'Topic' }
+    ]
+
+    expect(findClosableConversationTabIds(tabs, 'topic', 'agents', ['session-a', 'session-b'])).toEqual([
+      'session-a-tab',
+      'session-b-tab'
+    ])
+  })
+
+  it('matches a tab restored with the legacy message-only view param by its conversation key', () => {
+    const tabs: Tab[] = [
+      { id: 'legacy', type: 'route', url: '/app/chat?topicId=topic-a&view=message', title: 'Topic A' },
+      { id: 'active', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' }
+    ]
+
+    expect(findClosableConversationTabIds(tabs, 'active', 'assistants', ['topic-a'])).toEqual(['legacy'])
+  })
+
+  it.each(activeConversationCases)('keeps the active matching %s tab open', (_label, appId, key, baseUrl, queryKey) => {
+    const tabs: Tab[] = [
+      { id: 'active', type: 'route', url: `${baseUrl}?${queryKey}=${key}`, title: 'Active' },
+      { id: 'background', type: 'route', url: `${baseUrl}?${queryKey}=${key}`, title: 'Background' }
+    ]
+
+    expect(findClosableConversationTabIds(tabs, 'active', appId, [key])).toEqual(['background'])
+  })
+
+  it('returns an empty list when only the active tab matches', () => {
+    const tabs: Tab[] = [{ id: 'active', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Active Topic' }]
+
+    expect(findClosableConversationTabIds(tabs, 'active', 'assistants', ['topic-a'])).toEqual([])
+  })
+})
 
 describe('useCloseConversationTabs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('returns the action supplied by its narrow context', () => {
+    const closeConversationTabs = vi.fn()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <CloseConversationTabsContext value={closeConversationTabs}>{children}</CloseConversationTabsContext>
+    )
+    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper })
+
+    act(() => result.current('assistants', ['topic-a']))
+
+    expect(closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
-  it('closes assistant tabs matching deleted topic ids', () => {
-    const closeTabs = vi.fn()
-    const context = createTabsContext(
-      [
-        {
-          id: 'topic-a-tab',
-          type: 'route',
-          url: '/app/chat',
-          title: 'Topic A',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
-        },
-        {
-          id: 'topic-b-url-tab',
-          type: 'route',
-          url: '/app/chat?topicId=topic-b',
-          title: 'Topic B'
-        },
-        {
-          id: 'message-only-tab',
-          type: 'route',
-          url: '/app/chat?view=message&topicId=topic-a',
-          title: 'Message'
-        },
-        {
-          id: 'session-tab',
-          type: 'route',
-          url: '/app/agents',
-          title: 'Session',
-          metadata: { instanceAppId: 'agents', instanceKey: 'topic-a' }
-        }
-      ],
-      closeTabs,
-      'session-tab'
-    )
+  it('is a stable no-op outside TabsProvider', () => {
+    const { result, rerender } = renderHook(() => useCloseConversationTabs())
+    const first = result.current
 
-    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
+    rerender()
 
-    act(() => {
-      result.current('assistants', ['topic-a', 'topic-b'])
-    })
-
-    expect(closeTabs).toHaveBeenCalledWith(['topic-a-tab', 'topic-b-url-tab'])
-  })
-
-  it('closes agent tabs matching deleted session ids', () => {
-    const closeTabs = vi.fn()
-    const context = createTabsContext(
-      [
-        {
-          id: 'session-a-tab',
-          type: 'route',
-          url: '/app/agents',
-          title: 'Session A',
-          metadata: { instanceAppId: 'agents', instanceKey: 'session-a' }
-        },
-        {
-          id: 'session-b-url-tab',
-          type: 'route',
-          url: '/app/agents?sessionId=session-b',
-          title: 'Session B'
-        },
-        {
-          id: 'topic-tab',
-          type: 'route',
-          url: '/app/chat',
-          title: 'Topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'session-a' }
-        }
-      ],
-      closeTabs,
-      'topic-tab'
-    )
-
-    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
-
-    act(() => {
-      result.current('agents', ['session-a', 'session-b'])
-    })
-
-    expect(closeTabs).toHaveBeenCalledWith(['session-a-tab', 'session-b-url-tab'])
-  })
-
-  it('keeps the active matching conversation tab open', () => {
-    const closeTabs = vi.fn()
-    const context = createTabsContext(
-      [
-        {
-          id: 'active-topic-tab',
-          type: 'route',
-          url: '/app/chat',
-          title: 'Active Topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
-        },
-        {
-          id: 'background-topic-tab',
-          type: 'route',
-          url: '/app/chat?topicId=topic-a',
-          title: 'Background Topic'
-        }
-      ],
-      closeTabs,
-      'active-topic-tab'
-    )
-
-    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
-
-    act(() => {
-      result.current('assistants', ['topic-a'])
-    })
-
-    expect(closeTabs).toHaveBeenCalledWith(['background-topic-tab'])
-  })
-
-  it('delegates an empty close list when only the active tab matches', () => {
-    const closeTabs = vi.fn()
-    const context = createTabsContext(
-      [
-        {
-          id: 'active-topic-tab',
-          type: 'route',
-          url: '/app/chat',
-          title: 'Active Topic',
-          metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
-        }
-      ],
-      closeTabs,
-      'active-topic-tab'
-    )
-
-    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
-
-    act(() => {
-      result.current('assistants', ['topic-a'])
-    })
-
-    expect(closeTabs).toHaveBeenCalledWith([])
-  })
-
-  it('keeps the active matching agent session tab open', () => {
-    const closeTabs = vi.fn()
-    const context = createTabsContext(
-      [
-        {
-          id: 'active-session-tab',
-          type: 'route',
-          url: '/app/agents',
-          title: 'Active Session',
-          metadata: { instanceAppId: 'agents', instanceKey: 'session-a' }
-        },
-        {
-          id: 'background-session-tab',
-          type: 'route',
-          url: '/app/agents?sessionId=session-a',
-          title: 'Background Session'
-        }
-      ],
-      closeTabs,
-      'active-session-tab'
-    )
-
-    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
-
-    act(() => {
-      result.current('agents', ['session-a'])
-    })
-
-    expect(closeTabs).toHaveBeenCalledWith(['background-session-tab'])
+    expect(result.current).toBe(first)
+    expect(() => result.current('agents', ['session-a'])).not.toThrow()
   })
 })

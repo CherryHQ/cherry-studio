@@ -6,6 +6,7 @@ import type Stream from 'stream'
 import type {
   BufferLike,
   CreateDirectoryOptions,
+  CreateReadStreamOptions,
   GetFileContentsOptions,
   PutFileContentsOptions,
   WebDAVClient
@@ -21,18 +22,21 @@ export default class WebDav {
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath || '/'
 
+    // Fail-closed: TLS certificates are verified unless the user explicitly opts in.
+    // The agent only serves https:// requests — plain-http hosts are unaffected.
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-      })
+      // Opt-in skips ALL certificate checks (expired/hostname too) — Node agents
+      // cannot selectively allow self-signed certs; copy must state the full scope.
+      ...(params.allowSelfSignedTls === true ? { httpsAgent: new https.Agent({ rejectUnauthorized: false }) } : {})
     })
 
     this.putFileContents = this.putFileContents.bind(this)
     this.getFileContents = this.getFileContents.bind(this)
+    this.createReadStream = this.createReadStream.bind(this)
     this.createDirectory = this.createDirectory.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
   }
@@ -43,13 +47,14 @@ export default class WebDav {
     options?: PutFileContentsOptions
   ) => {
     if (!this.instance) {
-      return new Error('WebDAV client not initialized')
+      throw new Error('WebDAV client not initialized')
     }
 
     try {
-      if (!(await this.instance.exists(this.webdavPath))) {
+      if (!(await this.instance.exists(this.webdavPath, { signal: options?.signal }))) {
         await this.instance.createDirectory(this.webdavPath, {
-          recursive: true
+          recursive: true,
+          signal: options?.signal
         })
       }
     } catch (error) {
@@ -58,9 +63,17 @@ export default class WebDav {
     }
 
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
+    // webdav 5.x ignores contentLength for streams, but still honors per-request headers.
+    const requestOptions =
+      typeof options?.contentLength === 'number'
+        ? {
+            ...options,
+            headers: { ...options.headers, 'Content-Length': String(options.contentLength) }
+          }
+        : options
 
     try {
-      return await this.instance.putFileContents(remoteFilePath, data, options)
+      return await this.instance.putFileContents(remoteFilePath, data, requestOptions)
     } catch (error) {
       logger.error('Error putting file contents on WebDAV:', error as Error)
       throw error
@@ -82,13 +95,21 @@ export default class WebDav {
     }
   }
 
-  public getDirectoryContents = async () => {
+  public createReadStream = (filename: string, options?: CreateReadStreamOptions) => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+
+    return this.instance.createReadStream(path.posix.join(this.webdavPath, filename), options)
+  }
+
+  public getDirectoryContents = async (signal?: AbortSignal) => {
     if (!this.instance) {
       throw new Error('WebDAV client not initialized')
     }
 
     try {
-      return await this.instance.getDirectoryContents(this.webdavPath)
+      return await this.instance.getDirectoryContents(this.webdavPath, { signal })
     } catch (error) {
       logger.error('Error getting directory contents on WebDAV:', error as Error)
       throw error
@@ -121,7 +142,7 @@ export default class WebDav {
     }
   }
 
-  public deleteFile = async (filename: string) => {
+  public deleteFile = async (filename: string, signal?: AbortSignal) => {
     if (!this.instance) {
       throw new Error('WebDAV client not initialized')
     }
@@ -129,7 +150,7 @@ export default class WebDav {
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
-      return await this.instance.deleteFile(remoteFilePath)
+      return await this.instance.deleteFile(remoteFilePath, { signal })
     } catch (error) {
       logger.error('Error deleting file on WebDAV:', error as Error)
       throw error

@@ -1,4 +1,4 @@
-import 'pdfjs-dist/web/pdf_viewer.css'
+import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -25,23 +25,23 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
+import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
+import { type PdfDestination, PdfOutline, type PdfOutlineItem, type PdfOutlineStatus } from './PdfOutline'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 const logger = loggerService.withContext('PdfFilePreview')
 const DEFAULT_PDF_SCALE = 'page-width'
 const DEFAULT_ZOOM = 1
-const PDF_PREVIEW_MAX_SIZE_MIB = 50
-const PDF_PREVIEW_MAX_SIZE_BYTES = PDF_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const ZOOM_DRAWING_DELAY = 400
 const PINCH_WHEEL_MIN_DELTA = 0.08
 const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
-const PDF_PAGE_FOREGROUND = 'CanvasText'
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
+type PdfJsLinkService = InstanceType<typeof PDFLinkService>
 type PdfViewerOptionsWithAbortSignal = ConstructorParameters<typeof PDFViewer>[0] & { abortSignal: AbortSignal }
 
 interface PdfPageChangingEvent {
@@ -50,12 +50,6 @@ interface PdfPageChangingEvent {
 
 interface PdfScaleChangingEvent {
   scale?: number
-}
-
-function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
 }
 
 function isEffectiveBackground(value: string): boolean {
@@ -117,7 +111,7 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.pdf.too_large.title')}
-        description={t('file_preview.pdf.too_large.description', { limit: PDF_PREVIEW_MAX_SIZE_MIB })}
+        description={t('file_preview.pdf.too_large.description')}
         actionLabel={t('file_preview.pdf.too_large.action')}
         onAction={handleOpenWithDefaultApp}
         className="h-full"
@@ -126,12 +120,13 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
-export default function PdfFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
+export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
+  const linkServiceRef = useRef<PdfJsLinkService | null>(null)
   const [background, setBackground] = useState(() => resolveThemeBackground(null))
   const backgroundRef = useRef(background)
   backgroundRef.current = background
@@ -140,6 +135,9 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false)
+  const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([])
+  const [outlineStatus, setOutlineStatus] = useState<PdfOutlineStatus>('loading')
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -217,13 +215,24 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
     focusContainer()
   }, [focusContainer])
 
+  const navigateToOutlineDestination = useCallback(
+    (destination: PdfDestination) => {
+      const linkService = linkServiceRef.current
+      if (!linkService) return
+
+      void linkService.goToDestination(destination).catch((error: unknown) => {
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error(`Failed to navigate PDF outline: ${filePath}`, normalized)
+        toast.error(t('file_preview.pdf.navigation_error'))
+      })
+    },
+    [filePath, t]
+  )
+
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
     if (pdfViewer) {
-      pdfViewer.pageColors = {
-        ...(background ? { background } : {}),
-        foreground: PDF_PAGE_FOREGROUND
-      }
+      pdfViewer.pageColors = background ? { background } : null
     }
     applyViewerBackground(background)
   }, [applyViewerBackground, background])
@@ -240,53 +249,102 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
   useEffect(() => {
     let cancelled = false
+    let failed = false
     let loadingTask: PDFDocumentLoadingTask | null = null
+    let rangeTransport: PdfFileRangeTransport | null = null
+
+    const failLoad = (error: unknown) => {
+      if (cancelled || failed) return
+      failed = true
+      rangeTransport?.abort()
+      if (loadingTask) {
+        destroyLoadingTask(loadingTask, filePath)
+        loadingTask = null
+      }
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      if (normalized instanceof PdfRangeTooLargeError) {
+        logger.warn('PDF preview exceeded the safe assembled range limit', {
+          begin: normalized.begin,
+          end: normalized.end,
+          filePath,
+          maxRangeLength: normalized.maxRangeLength,
+          rangeLength: normalized.rangeLength
+        })
+        setDocumentProxy(null)
+        setStatus('too_large')
+        return
+      }
+      logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
+      setDocumentProxy(null)
+      setStatus('error')
+    }
 
     setDocumentProxy(null)
     setStatus('loading')
     setCurrentPage(0)
     setPageCount(0)
     setZoom(DEFAULT_ZOOM)
+    setIsOutlineOpen(false)
+    setOutlineItems([])
+    setOutlineStatus('loading')
 
     void (async () => {
       try {
-        // Preflight the size via metadata (a stat, not a read) so oversized PDFs are
-        // rejected before we read + IPC-transfer the whole file into pdf.js.
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
-        if (cancelled) return
-        if (metadata.size > PDF_PREVIEW_MAX_SIZE_BYTES) {
-          setStatus('too_large')
-          return
-        }
-
-        const pdfData = toUint8Array(await window.api.fs.read(filePath))
+        const handle = createFilePathHandle(filePath)
         if (cancelled) return
 
-        loadingTask = getDocument({ data: pdfData })
+        rangeTransport = new PdfFileRangeTransport(handle, metadata.size, failLoad)
+        loadingTask = getDocument({
+          range: rangeTransport,
+          rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
+          disableAutoFetch: true,
+          disableStream: true
+        })
         const nextDocument = await loadingTask.promise
-        if (cancelled) return
+        if (cancelled || failed) return
 
         setDocumentProxy(nextDocument)
       } catch (error) {
-        if (cancelled) return
-        if (loadingTask) {
-          destroyLoadingTask(loadingTask, filePath)
-          loadingTask = null
-        }
-        const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error(`Failed to load PDF preview: ${filePath}`, normalized)
-        setStatus('error')
+        failLoad(error)
       }
     })()
 
     return () => {
       cancelled = true
+      rangeTransport?.abort()
+      rangeTransport = null
       if (loadingTask) {
         destroyLoadingTask(loadingTask, filePath)
         loadingTask = null
       }
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadata.size, refreshKey])
+
+  useEffect(() => {
+    if (!documentProxy) return
+
+    let cancelled = false
+    setOutlineItems([])
+    setOutlineStatus('loading')
+
+    void documentProxy
+      .getOutline()
+      .then((items) => {
+        if (cancelled) return
+        setOutlineItems((items ?? []) as PdfOutlineItem[])
+        setOutlineStatus('ready')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error(`Failed to load PDF outline: ${filePath}`, normalized)
+        setOutlineStatus('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [documentProxy, filePath])
 
   useEffect(() => {
     const container = containerRef.current
@@ -306,10 +364,7 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
         linkService,
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE,
-        pageColors: {
-          ...(backgroundRef.current ? { background: backgroundRef.current } : {}),
-          foreground: PDF_PAGE_FOREGROUND
-        },
+        ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
         supportsPinchToZoom: true
       }
       pdfViewer = new PDFViewer(viewerOptions)
@@ -419,6 +474,7 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
     try {
       pdfViewerRef.current = pdfViewer
+      linkServiceRef.current = linkService
       linkService.setViewer(pdfViewer)
       pdfViewer.setDocument(documentProxy)
       linkService.setDocument(documentProxy)
@@ -468,6 +524,9 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
       if (pdfViewerRef.current === pdfViewer) {
         pdfViewerRef.current = null
       }
+      if (linkServiceRef.current === linkService) {
+        linkServiceRef.current = null
+      }
     }
   }, [applyViewerBackground, documentProxy, filePath, focusContainer])
 
@@ -477,13 +536,16 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
     <FilePreviewLayout.Frame>
       <PdfFilePreviewToolbar
         currentPage={hasPages ? currentPage : 0}
+        isOutlineOpen={isOutlineOpen}
         pageCount={hasPages ? pageCount : 0}
         zoomLabel={formatZoom(zoom)}
+        onJumpToPage={jumpToPage}
         onPreviousPage={() => jumpToPage(currentPage - 1)}
         onNextPage={() => jumpToPage(currentPage + 1)}
         onZoomOut={() => zoomBy('out')}
         onZoomIn={() => zoomBy('in')}
         onResetZoom={resetZoom}
+        onToggleOutline={() => setIsOutlineOpen((open) => !open)}
       />
       <FilePreviewLayout.Content>
         <div
@@ -503,14 +565,21 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
             <PdfPreviewTooLarge filePath={filePath} />
           ) : (
             <>
-              <div
-                ref={containerRef}
-                data-testid="pdfjs-viewer-container"
-                role="region"
-                aria-label={fileName}
-                className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                tabIndex={0}>
-                <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer" />
+              <div className="flex h-full min-h-0 w-full">
+                {isOutlineOpen ? (
+                  <PdfOutline items={outlineItems} status={outlineStatus} onNavigate={navigateToOutlineDestination} />
+                ) : null}
+                <div className="relative min-w-0 flex-1">
+                  <div
+                    ref={containerRef}
+                    data-testid="pdfjs-viewer-container"
+                    role="region"
+                    aria-label={fileName}
+                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                    tabIndex={0}>
+                    <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer selectable" />
+                  </div>
+                </div>
               </div>
               {status === 'loading' ? (
                 <div

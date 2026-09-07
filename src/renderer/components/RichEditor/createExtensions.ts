@@ -11,7 +11,7 @@ import Typography from '@tiptap/extension-typography'
 import { Markdown } from '@tiptap/markdown'
 import { StarterKit } from '@tiptap/starter-kit'
 
-import { commandSuggestion } from './command'
+import { createCommandSuggestion } from './command'
 import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
@@ -51,6 +51,10 @@ export interface CreateRichEditorExtensionsOptions {
   onRowActionClick?: TableActionHandler<'rowIndex'>
   /** Table column action-menu trigger. */
   onColumnActionClick?: TableActionHandler<'colIndex'>
+  /** Whether image input rules and insertion commands are enabled. */
+  enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance. */
+  disabledCommands?: readonly string[]
 }
 
 /**
@@ -74,7 +78,9 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     mathBlockOptions,
     mathInlineOptions,
     onRowActionClick,
-    onColumnActionClick
+    onColumnActionClick,
+    enableImageInsertion = true,
+    disabledCommands
   } = options
 
   return [
@@ -110,7 +116,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       blockOptions: mathBlockOptions,
       inlineOptions: mathInlineOptions
     }),
-    EnhancedImage,
+    EnhancedImage.configure({ enableInputRules: enableImageInsertion }),
     Placeholder.configure({
       placeholder,
       showOnlyWhenEditable: true,
@@ -122,7 +128,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       HTMLAttributes: {
         class: 'mention'
       },
-      suggestion: commandSuggestion
+      suggestion: createCommandSuggestion({ enableImageInsertion, disabledCommands })
     }),
     Typography,
     MarkdownTable.configure({

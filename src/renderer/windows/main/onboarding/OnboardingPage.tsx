@@ -1,6 +1,13 @@
 import {
   Button,
   Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Scrollbar,
   Select,
   SelectContent,
   SelectItem,
@@ -12,19 +19,25 @@ import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
+import { isNonChatModel } from '@shared/utils/model'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -34,12 +47,12 @@ import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
-type PrivacyProtectedAction = () => void | Promise<void>
+type PrivacyChoiceAction = () => void | Promise<void>
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
-const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID
+const isOnboardingModel = (model: Model) => !isManagedCherryProviderId(model.providerId) && !isNonChatModel(model)
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
   dataCollectionEnabled: 'app.privacy.data_collection.enabled',
@@ -48,7 +61,7 @@ const ONBOARDING_PREFERENCE_KEYS = {
 
 function OnboardingProviderSettings() {
   const router = useMemo(() => {
-    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage isOnboarding /> })
+    const routeTree = createRootRoute({ component: () => <ProviderSettingsPage /> })
     const history = createMemoryHistory({ initialEntries: ['/'] })
     return createRouter({ routeTree, history })
   }, [])
@@ -58,8 +71,9 @@ function OnboardingProviderSettings() {
 
 export default function OnboardingPage() {
   const { t } = useTranslation()
+  const appEdition = getAppEdition()
   const [language, setLanguage] = usePreference('app.language')
-  const [{ dataCollectionEnabled, policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
+  const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -74,17 +88,30 @@ export default function OnboardingPage() {
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(true)
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
+  const [showNoCloudModelsDialog, setShowNoCloudModelsDialog] = useState(false)
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
-  const pendingPrivacyActionRef = useRef<PrivacyProtectedAction | null>(null)
-  const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
-    (model) => model && isOnboardingModel(model)
-  )
+  const cloudStatusRef = useRef<CherryCloudStatus | null>(null)
+  const hasRoutedCloudLoginRef = useRef(false)
+  const isCnEdition = appEdition === 'cn'
+  const {
+    status: cloudStatus,
+    login: handleCherryCloudLogin,
+    cancelLogin: handleCherryCloudLoginCancel,
+    isCancellingLogin: isCancellingCloudLogin,
+    isAuthorizing: isCloudAuthorizing
+  } = useCherryAccountSession(isCnEdition)
+  cloudStatusRef.current = cloudStatus
   const eligibleProviderIds = new Set(
-    enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
+    enabledProviders.filter((provider) => !isManagedCherryProviderId(provider.id)).map((provider) => provider.id)
+  )
+  const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
+    (model) => model && eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
   )
   const hasEligibleProvider = eligibleProviderIds.size > 0
-  const hasEligibleModel = enabledModels.some((model) => eligibleProviderIds.has(model.providerId))
+  const hasEligibleModel = enabledModels.some(
+    (model) => eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
+  )
   const isProviderSetupLoading = isProvidersLoading || isModelsLoading
   const canContinueProviderSetup = !isProviderSetupLoading && hasEligibleProvider && hasEligibleModel
   const providerSetupHint = !isProviderSetupLoading
@@ -102,24 +129,41 @@ export default function OnboardingPage() {
       : defaultLanguage
   const displayLanguageLabel = appLanguageOptions.find((option) => option.value === displayLanguage)?.label
 
-  const updateSeededResourceModels = useCallback(async (model: Model) => {
-    const assistantUpdate = dataApiService
-      .get('/assistants', { query: { limit: 2 } })
-      .then(async ({ items, total }) => {
-        const assistant = total === 1 ? items[0] : undefined
-        if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
-          await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
-        }
-      })
-    const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
-      const agent = total === 1 ? items[0] : undefined
-      if (agent?.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
-        await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
-      }
-    })
+  const updateSeededAgentModels = useCallback(async (modelId: UniqueModelId) => {
+    const limit = 500
+    let page = 1
+    let total = 0
 
-    await Promise.all([assistantUpdate, agentUpdate])
+    do {
+      const response = await dataApiService.get('/agents', { query: { limit, page } })
+      const officialAgents = response.items.filter(
+        (agent) =>
+          isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
+          (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      )
+      await Promise.all(
+        officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: modelId } }))
+      )
+      total = response.total
+      page += 1
+    } while ((page - 1) * limit < total)
   }, [])
+
+  const updateSeededResourceModels = useCallback(
+    async (model: Model) => {
+      const assistantUpdate = dataApiService
+        .get('/assistants', { query: { limit: 2 } })
+        .then(async ({ items, total }) => {
+          const assistant = total === 1 ? items[0] : undefined
+          if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+            await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
+          }
+        })
+
+      await Promise.all([assistantUpdate, updateSeededAgentModels(model.id)])
+    },
+    [updateSeededAgentModels]
+  )
 
   const handleLanguageChange = (value: string) => {
     if (!isAppLanguage(value)) return
@@ -128,10 +172,18 @@ export default function OnboardingPage() {
     void setLanguage(value)
   }
 
-  const persistPrivacyAcceptance = useCallback(async (): Promise<boolean> => {
+  const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
     try {
-      await updateOnboardingPreferences({ policyVersion: LATEST_PRIVACY_POLICY_VERSION })
+      if (privacyAccepted && policyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+        return true
+      }
+
+      await updateOnboardingPreferences(
+        privacyAccepted
+          ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
+          : { dataCollectionEnabled: false, policyVersion: '' }
+      )
       return true
     } catch {
       toast.error(t('onboarding.privacy.update_failed'))
@@ -139,18 +191,18 @@ export default function OnboardingPage() {
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [t, updateOnboardingPreferences])
+  }, [policyVersion, privacyAccepted, t, updateOnboardingPreferences])
 
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {
       setPrivacyAccepted(accepted)
-      if (accepted || policyVersion !== LATEST_PRIVACY_POLICY_VERSION) {
+      if (accepted) {
         return true
       }
 
       setIsUpdatingPrivacy(true)
       try {
-        await updateOnboardingPreferences({ policyVersion: '' })
+        await updateOnboardingPreferences({ dataCollectionEnabled: false, policyVersion: '' })
         return true
       } catch {
         setPrivacyAccepted(true)
@@ -160,66 +212,99 @@ export default function OnboardingPage() {
         setIsUpdatingPrivacy(false)
       }
     },
-    [policyVersion, t, updateOnboardingPreferences]
+    [t, updateOnboardingPreferences]
   )
 
   const handlePrivacyPolicyChoice = useCallback(
     async (accepted: boolean) => {
-      if (!accepted) {
-        pendingPrivacyActionRef.current = null
-        if (await updatePrivacyAcceptance(false)) {
-          setShowPrivacyPolicy(false)
-        }
-        return
-      }
-
-      setPrivacyAccepted(true)
-      const pendingAction = pendingPrivacyActionRef.current
-      if (!pendingAction) {
+      if (await updatePrivacyAcceptance(accepted)) {
         setShowPrivacyPolicy(false)
-        return
-      }
-
-      if (await persistPrivacyAcceptance()) {
-        pendingPrivacyActionRef.current = null
-        setShowPrivacyPolicy(false)
-        await pendingAction()
       }
     },
-    [persistPrivacyAcceptance, updatePrivacyAcceptance]
+    [updatePrivacyAcceptance]
   )
 
   const complete = useCallback(
     async (status: OnboardingCompletionStatus) => {
       setIsCompleting(true)
       try {
-        await updateOnboardingPreferences({
-          providerSetupStatus: status,
-          dataCollectionEnabled,
-          policyVersion: LATEST_PRIVACY_POLICY_VERSION
-        })
+        if (!(await persistPrivacyChoice())) {
+          return
+        }
+        if (status === 'completed' && defaultModel) {
+          await updateSeededResourceModels(defaultModel)
+        }
+        await updateOnboardingPreferences({ providerSetupStatus: status })
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
       } finally {
         setIsCompleting(false)
       }
     },
-    [dataCollectionEnabled, t, updateOnboardingPreferences]
+    [defaultModel, persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededResourceModels]
   )
 
-  const runAfterPrivacyAcceptance = useCallback(
-    async (action: PrivacyProtectedAction) => {
-      if (!privacyAccepted) {
-        pendingPrivacyActionRef.current = action
-        setShowPrivacyPolicy(true)
-        return
+  const completeWithCloudAgentModel = useCallback(
+    async (modelId: UniqueModelId, expectedStatus: CherryCloudStatus) => {
+      setIsCompleting(true)
+      try {
+        if (!(await persistPrivacyChoice()) || expectedStatus !== cloudStatusRef.current) return
+        await updateSeededAgentModels(modelId)
+        if (expectedStatus !== cloudStatusRef.current) return
+        await updateOnboardingPreferences({ providerSetupStatus: 'skipped' })
+      } catch {
+        if (expectedStatus === cloudStatusRef.current) {
+          toast.error(t('onboarding.toast.complete_failed'))
+        }
+      } finally {
+        setIsCompleting(false)
       }
+    },
+    [persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededAgentModels]
+  )
 
-      if (await persistPrivacyAcceptance()) {
+  const openProviderSetupAfterCloudModelUnavailable = () => {
+    setShowNoCloudModelsDialog(false)
+    setStep('provider')
+  }
+
+  useEffect(() => {
+    if (!isCnEdition || cloudStatus?.phase !== 'signed-in') {
+      hasRoutedCloudLoginRef.current = false
+      setShowNoCloudModelsDialog(false)
+      return
+    }
+    if (isProviderSetupLoading || hasRoutedCloudLoginRef.current) return
+
+    hasRoutedCloudLoginRef.current = true
+    const expectedStatus = cloudStatus
+    void ipcApi
+      .request('cherry_cloud.models.sync')
+      .then(({ entitledModelIds, quotaExhaustedModelIds }) => {
+        if (expectedStatus !== cloudStatusRef.current) return
+
+        const exhaustedModelIds = new Set(quotaExhaustedModelIds)
+        const agentModelId = entitledModelIds.find((modelId) => !exhaustedModelIds.has(modelId))
+        if (agentModelId) {
+          void completeWithCloudAgentModel(agentModelId, expectedStatus)
+        } else {
+          setShowNoCloudModelsDialog(true)
+        }
+      })
+      .catch(() => {
+        if (expectedStatus === cloudStatusRef.current) {
+          setStep(canContinueProviderSetup ? 'select-model' : 'provider')
+        }
+      })
+  }, [canContinueProviderSetup, cloudStatus, completeWithCloudAgentModel, isCnEdition, isProviderSetupLoading])
+
+  const runAfterPrivacyChoice = useCallback(
+    async (action: PrivacyChoiceAction) => {
+      if (await persistPrivacyChoice()) {
         await action()
       }
     },
-    [persistPrivacyAcceptance, privacyAccepted]
+    [persistPrivacyChoice]
   )
 
   useEffect(
@@ -288,6 +373,15 @@ export default function OnboardingPage() {
     }
   }, [addApiKey, syncProviderModels, t, updateProvider])
 
+  const isPrimaryLoginPending = isCnEdition ? isCloudAuthorizing : isLoggingIn
+  const primaryLoginLabel = isCnEdition
+    ? cloudStatus?.phase === 'signed-in'
+      ? t('settings.provider.cherry_cloud.logged_in')
+      : isCloudAuthorizing
+        ? t('settings.provider.cherry_cloud.signing_in')
+        : t('onboarding.welcome.login_cherry_cloud')
+    : t('onboarding.welcome.login_cherryin')
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
       <div className="drag flex h-[var(--app-top-chrome-height)] shrink-0 items-stretch justify-end">
@@ -297,7 +391,7 @@ export default function OnboardingPage() {
               <SelectTrigger
                 aria-label={t('common.language')}
                 size="sm"
-                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-foreground-secondary text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <Languages className="size-3.5" />
                 <SelectValue>{displayLanguageLabel}</SelectValue>
               </SelectTrigger>
@@ -315,8 +409,8 @@ export default function OnboardingPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag text-foreground-secondary hover:text-foreground"
-            onClick={() => void runAfterPrivacyAcceptance(() => complete('skipped'))}
+            className="nodrag text-muted-foreground hover:text-foreground"
+            onClick={() => void complete('skipped')}
             disabled={isCompleting || isUpdatingPrivacy}>
             {t('onboarding.skip')}
           </Button>
@@ -333,31 +427,44 @@ export default function OnboardingPage() {
                   <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
                   <div className="mt-5 flex flex-col gap-2 text-center">
                     <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                    <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
+                    <p className="m-0 text-muted-foreground text-sm">{t('onboarding.welcome.subtitle')}</p>
                   </div>
                   <div className="mt-8 flex w-full flex-col gap-3">
                     <Button
                       type="button"
                       size="lg"
                       className="h-11 w-full rounded-xl"
-                      loading={isLoggingIn}
-                      disabled={isUpdatingPrivacy}
-                      onClick={() => void runAfterPrivacyAcceptance(handleCherryInLogin)}>
-                      {!isLoggingIn && <LogIn size={16} />}
-                      {t('onboarding.welcome.login_cherryin')}
+                      loading={isPrimaryLoginPending}
+                      disabled={isUpdatingPrivacy || (isCnEdition && cloudStatus?.phase === 'signed-in')}
+                      onClick={() =>
+                        void runAfterPrivacyChoice(isCnEdition ? handleCherryCloudLogin : handleCherryInLogin)
+                      }>
+                      {!isPrimaryLoginPending && <LogIn size={16} />}
+                      {primaryLoginLabel}
                     </Button>
+                    {isCnEdition && cloudStatus?.phase === 'authorizing' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        className="h-11 w-full rounded-xl"
+                        loading={isCancellingCloudLogin}
+                        onClick={() => void handleCherryCloudLoginCancel()}>
+                        {t('common.cancel')}
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="outline"
                       size="lg"
                       className="h-11 w-full rounded-xl"
                       disabled={isUpdatingPrivacy}
-                      onClick={() => void runAfterPrivacyAcceptance(() => setStep('provider'))}>
+                      onClick={() => void runAfterPrivacyChoice(() => setStep('provider'))}>
                       <KeyRound size={16} />
                       {t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
-                  <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
+                  <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">
                     {t('onboarding.welcome.setup_hint')}
                   </p>
                 </div>
@@ -404,8 +511,8 @@ export default function OnboardingPage() {
                   onBack={() => setStep('provider')}
                   padded
                 />
-                <div className="flex min-h-0 flex-1 justify-center overflow-y-auto border-border border-t px-6 py-8">
-                  <div className="flex w-full max-w-[440px] items-center">
+                <Scrollbar className="flex min-h-0 flex-1 justify-center border-border border-t px-6 py-8">
+                  <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">
                       <ModelSettings
                         autoFillEmptyModels
@@ -425,24 +532,24 @@ export default function OnboardingPage() {
                           className="w-full"
                           loading={isCompleting}
                           disabled={!canCompleteModelSetup || isUpdatingPrivacy}
-                          onClick={() => void runAfterPrivacyAcceptance(() => complete('completed'))}>
+                          onClick={() => void complete('completed')}>
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
-                        <p className="m-0 text-center text-foreground-muted text-xs">
+                        <p className="m-0 text-center text-muted-foreground text-xs">
                           {t('onboarding.select_model.change_later')}
                         </p>
                       </div>
                     </div>
                   </div>
-                </div>
+                </Scrollbar>
               </div>
             )}
           </div>
 
           {step === 'welcome' && (
             <div className="nodrag flex shrink-0 justify-center px-6 py-3">
-              <div className="flex max-w-full items-center gap-2 text-center text-foreground-muted text-xs leading-relaxed">
+              <div className="flex max-w-full items-center gap-2 text-center text-muted-foreground text-xs leading-relaxed">
                 <Checkbox
                   id="onboarding-privacy-policy"
                   size="sm"
@@ -455,11 +562,8 @@ export default function OnboardingPage() {
                   <span>{t('onboarding.privacy.notice')}</span>
                   <button
                     type="button"
-                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-primary text-xs hover:underline"
-                    onClick={() => {
-                      pendingPrivacyActionRef.current = null
-                      setShowPrivacyPolicy(true)
-                    }}>
+                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-link text-xs hover:underline"
+                    onClick={() => setShowPrivacyPolicy(true)}>
                     {t('onboarding.privacy.policy')}
                   </button>
                   <span>{t('onboarding.privacy.period')}</span>
@@ -477,6 +581,19 @@ export default function OnboardingPage() {
         acceptButtonText={t('onboarding.privacy.accept_and_continue')}
         isPending={isUpdatingPrivacy}
       />
+      <Dialog
+        open={showNoCloudModelsDialog}
+        onOpenChange={(open) => !open && openProviderSetupAfterCloudModelUnavailable()}>
+        <DialogContent size="sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t('models.no_matches')}</DialogTitle>
+            <DialogDescription>{t('onboarding.cloud.no_available_models')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={openProviderSetupAfterCloudModelUnavailable}>{t('common.confirm')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

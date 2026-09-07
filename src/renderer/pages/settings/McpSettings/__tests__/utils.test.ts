@@ -1,8 +1,9 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { describe, expect, it } from 'vitest'
+import type { McpServerLogEntry } from '@shared/types/mcp'
+import { describe, expect, it, vi } from 'vitest'
 
 import { resolveMcpPackageIconUrl } from '../mcpPackage'
-import { isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
+import { formatMcpLogs, isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
   it('matches provider candidates without using their transient id', () => {
@@ -89,5 +90,26 @@ describe('McpSettings utils', () => {
     expect(resolveMcpPackageIconUrl('../secret.png', '/tmp/server')).toBeUndefined()
     expect(resolveMcpPackageIconUrl('assets/../../secret.png', '/tmp/server')).toBeUndefined()
     expect(resolveMcpPackageIconUrl('%2e%2e/secret.png', '/tmp/server')).toBeUndefined()
+  })
+
+  it('formats MCP logs into the copy-payload contract', () => {
+    // `toLocaleTimeString()` output depends on the runner locale/timezone, so pin the
+    // time segment and assert the fixed contract: `[HH:MM:SS] [LEVEL] message` plus
+    // pretty-printed `data` (raw strings pass through) on the following lines.
+    vi.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('22:13:20')
+
+    const logs: McpServerLogEntry[] = [
+      { timestamp: 1700000000000, level: 'info', message: 'Server started' },
+      { timestamp: 1700000001000, level: 'error', message: 'Connection failed', data: { detail: 'timeout' } },
+      { timestamp: 1700000002000, level: 'warn', message: 'raw line', data: 'plain output' }
+    ]
+
+    expect(formatMcpLogs(logs)).toBe(
+      '[22:13:20] [INFO] Server started\n' +
+        '[22:13:20] [ERROR] Connection failed\n{\n  "detail": "timeout"\n}\n' +
+        '[22:13:20] [WARN] raw line\nplain output'
+    )
+
+    vi.restoreAllMocks()
   })
 })

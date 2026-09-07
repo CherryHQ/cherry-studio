@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="body" x1="14" y1="14" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A997FF"/>
+      <stop offset=".52" stop-color="#8675F1"/>
+      <stop offset="1" stop-color="#6E5BDD"/>
+    </linearGradient>
+    <linearGradient id="header" x1="14" y1="14" x2="50" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C8C2FF"/>
+      <stop offset="1" stop-color="#9086F4"/>
+    </linearGradient>
+  </defs>
+  <rect x="13" y="13" width="38" height="41" rx="8" fill="url(#body)"/>
+  <path d="M21 13h22a8 8 0 0 1 8 8v6H13v-6a8 8 0 0 1 8-8Z" fill="url(#header)" fill-opacity=".72"/>
+  <g stroke="#7669E4" stroke-width="3.5" stroke-linecap="round">
+    <path d="M22 9v10M32 9v10M42 9v10"/>
+  </g>
+  <g fill="#fff" fill-opacity=".9">
+    <rect x="20" y="31" width="24" height="3.2" rx="1.6"/>
+    <rect x="20" y="38.5" width="18" height="3.2" rx="1.6"/>
+    <rect x="20" y="46" width="13" height="3.2" rx="1.6"/>
+  </g>
+  <path d="M15 47c8.5 3.2 20.1 2.8 34.8-1.2v.2a8 8 0 0 1-8 8H21a8 8 0 0 1-6-7Z" fill="#5948C6" fill-opacity=".14"/>
+</svg>

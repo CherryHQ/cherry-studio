@@ -10,21 +10,17 @@
  */
 
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import type { ResolvedReasoningProfile } from '@data/services/ProviderRegistryService'
+import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
+import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
+import type { CompactionSink } from '@shared/ai/compaction'
+import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type {
-  AiBaseRequest,
-  AppProviderId,
-  AppProviderSettingsMap,
-  ConcreteProviderId,
-  PresetProviderId,
-  ProviderOptionsKey
-} from '../../../types'
+import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap, ProviderOptionsKey } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -34,15 +30,9 @@ export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerId: T
+  readonly providerOptionsKey: ProviderOptionsKey
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
-  /** The app-level provider id (`Provider.id`), carried from `providerToAiSdkConfig`. */
-  readonly concreteProviderId: ConcreteProviderId
-  /** The preset this provider derives from, else its own id — the "which vendor is
-   *  this" key, stable across a user duplicating or renaming a built-in. */
-  readonly presetProviderId: PresetProviderId
-  /** The `providerOptions` namespace the AI SDK model reads (`resolveProviderOptionsKey`). */
-  readonly optionsKey: ProviderOptionsKey
 }
 
 export interface RequestScope extends ToolApplyScope {
@@ -57,5 +47,14 @@ export interface RequestScope extends ToolApplyScope {
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile
   readonly reasoning: ResolvedReasoningInvocation
+  readonly serviceTierControl?: ResolvedServiceTierControl
   readonly requestContext: RequestContext
+  /** Resolved context-build settings (global prefs; assistant/topic
+   *  overrides wired in P2-D). */
+  readonly contextSettings: EffectiveContextSettings
+  /** Pre-resolved compression model (explicit pick, else current request
+   *  model). null when compression is disabled or resolution failed. */
+  readonly compressionModel: CompressionModelDescriptor | null
+  /** Reports compaction progress to the UI (see CompactionSink). */
+  readonly compactionSink?: CompactionSink
 }

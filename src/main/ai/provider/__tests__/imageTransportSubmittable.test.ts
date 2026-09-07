@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { captureImageRequest } from '../custom/__tests__/boundary/captureRequest'
 import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../custom/imageGenerationModel'
-import { resolveImageTransport } from '../custom/imageTransportRegistry'
+import { hasImageTransport, resolveImageTransport } from '../custom/imageTransportRegistry'
 
 /**
  * The direction `imageParamDeliverability` cannot cover: it treats "this model has a
@@ -58,16 +58,8 @@ const declarations = overrides.flatMap((override) => {
   // DashScope declares `wanx2-1-t2i-turbo` and dispatches on `wanx2.1-t2i-turbo`.
   const modelId = override.apiModelId ?? override.modelId
   return Object.entries(support.modes).flatMap(([mode, def]) => {
-    // `resolveImageTransport` is keyed on the concrete provider id, which for a registry
-    // row IS `override.providerId` (a user's renamed copy resolves via its preset id).
-    const transport = resolveImageTransport(
-      override.providerId as never,
-      modelId,
-      PROBE_SETTINGS,
-      override.providerId as never
-    )
-    if (!transport) return []
-    return [{ providerId: override.providerId, modelId, mode, def, transport }]
+    if (!hasImageTransport(override.providerId, modelId)) return []
+    return [{ providerId: override.providerId, modelId, mode, def }]
   })
 })
 
@@ -99,7 +91,9 @@ describe('every transport-routed registry image model is submittable', () => {
     expect(new Set(declarations.map((d) => d.providerId)).size).toBeGreaterThan(2)
   })
 
-  it.each(declarations)('$providerId / $modelId ($mode)', async ({ modelId, mode, def, transport }) => {
+  it.each(declarations)('$providerId / $modelId ($mode)', async ({ providerId, modelId, mode, def }) => {
+    const transport = await resolveImageTransport(providerId, modelId, PROBE_SETTINGS)
+    if (!transport) throw new Error(`expected transport for ${providerId}/${modelId}`)
     const input = submitInput({ modelId, modelDescriptor: descriptorFor(modelId, mode, def) })
 
     // `captureImageRequest` rethrows only when the transport failed BEFORE fetching —

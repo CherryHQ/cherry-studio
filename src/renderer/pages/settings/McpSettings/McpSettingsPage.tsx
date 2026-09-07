@@ -50,6 +50,7 @@ const McpSettings: FC = () => {
           <Scrollbar className="min-h-0 flex-1">
             <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
+                id="setting-mcp-servers-tab-servers"
                 label={t('settings.mcp.title')}
                 active={activeView === 'servers'}
                 onClick={() => navigate({ to: '/settings/mcp/servers' })}
@@ -60,6 +61,7 @@ const McpSettings: FC = () => {
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.discover', 'Discover')}</div>
               <MenuItem
+                id="setting-mcp-builtin-tab-builtin"
                 label={t('settings.mcp.builtinServers', 'Built-in Servers')}
                 active={activeView === 'builtin'}
                 onClick={() => navigate({ to: '/settings/mcp/builtin' })}
@@ -68,6 +70,7 @@ const McpSettings: FC = () => {
                 labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuItem
+                id="setting-mcp-marketplaces-tab-marketplaces"
                 label={t('settings.mcp.marketplaces', 'Marketplaces')}
                 active={activeView === 'marketplaces'}
                 onClick={() => navigate({ to: '/settings/mcp/marketplaces' })}
@@ -85,7 +88,7 @@ const McpSettings: FC = () => {
                   onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
                   icon={(() => {
                     const logo = getMcpProviderLogo(provider.key)
-                    return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
+                    return logo ? <logo.Avatar size={16} shape="circle" /> : <FolderCog size={16} />
                   })()}
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}

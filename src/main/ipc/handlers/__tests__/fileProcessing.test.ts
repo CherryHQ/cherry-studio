@@ -7,7 +7,8 @@ import { fileProcessingHandlers } from '../fileProcessing'
 
 const fileProcessingService = {
   startJob: vi.fn(),
-  listAvailableProcessors: vi.fn()
+  listAvailableProcessors: vi.fn(),
+  checkOpenMineruConnectivity: vi.fn()
 }
 
 beforeEach(() => {
@@ -48,5 +49,14 @@ describe('fileProcessingHandlers', () => {
 
     expect(fileProcessingService.listAvailableProcessors).toHaveBeenCalledWith()
     expect(result).toBe(list)
+  })
+
+  it('Open MinerU check_connectivity takes no input and returns the verdict', async () => {
+    fileProcessingService.checkOpenMineruConnectivity.mockResolvedValue(false)
+
+    const result = await fileProcessingHandlers['file_processing.open_mineru.check_connectivity'](undefined, ctx)
+
+    expect(fileProcessingService.checkOpenMineruConnectivity).toHaveBeenCalledWith()
+    expect(result).toBe(false)
   })
 })

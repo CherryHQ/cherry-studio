@@ -2,20 +2,22 @@ import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 import { CodeXml, Eye, SquarePen } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface UseViewSourceToolProps {
-  enabled: boolean
-  editable: boolean
+  canEdit: boolean
+  hasSpecialView: boolean
+  isStreaming: boolean
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   setTools: React.Dispatch<React.SetStateAction<ActionTool[]>>
 }
 
 export const useViewSourceTool = ({
-  enabled,
-  editable,
+  canEdit,
+  hasSpecialView,
+  isStreaming,
   viewMode,
   onViewModeChange,
   setTools
@@ -23,32 +25,29 @@ export const useViewSourceTool = ({
   const { t } = useTranslation()
   const { registerTool, removeTool } = useToolManager(setTools)
 
-  const handleToggleViewMode = useCallback(() => {
-    const newMode = viewMode === 'source' ? 'special' : 'source'
-    onViewModeChange?.(newMode)
-  }, [viewMode, onViewModeChange])
-
   useEffect(() => {
-    if (!enabled || viewMode === 'split') return
+    if (viewMode === 'split') return
 
-    const toolSpec = editable ? TOOL_SPECS.edit : TOOL_SPECS['view-source']
-
-    if (editable) {
+    const canEnterEdit = canEdit && !isStreaming
+    if (canEnterEdit && (hasSpecialView || viewMode === 'source')) {
       registerTool({
-        ...toolSpec,
-        icon: viewMode === 'source' ? <Eye className="tool-icon" /> : <SquarePen className="tool-icon" />,
-        tooltip: viewMode === 'source' ? t('preview.label') : t('code_block.edit.label'),
-        onClick: handleToggleViewMode
+        ...TOOL_SPECS.edit,
+        icon: viewMode === 'edit' ? <Eye className="tool-icon" /> : <SquarePen className="tool-icon" />,
+        tooltip: viewMode === 'edit' ? t('preview.label') : t('code_block.edit.label'),
+        onClick: () => onViewModeChange(viewMode === 'edit' ? 'special' : 'edit')
       })
-    } else {
-      registerTool({
-        ...toolSpec,
-        icon: viewMode === 'source' ? <Eye className="tool-icon" /> : <CodeXml className="tool-icon" />,
-        tooltip: viewMode === 'source' ? t('preview.label') : t('preview.source'),
-        onClick: handleToggleViewMode
-      })
+      return () => removeTool(TOOL_SPECS.edit.id)
     }
 
-    return () => removeTool(toolSpec.id)
-  }, [enabled, editable, viewMode, registerTool, removeTool, t, handleToggleViewMode])
+    if (!hasSpecialView) return
+
+    const showingSource = viewMode === 'source'
+    registerTool({
+      ...TOOL_SPECS['view-source'],
+      icon: showingSource ? <Eye className="tool-icon" /> : <CodeXml className="tool-icon" />,
+      tooltip: showingSource ? t('preview.label') : t('preview.source'),
+      onClick: () => onViewModeChange(showingSource ? 'special' : 'source')
+    })
+    return () => removeTool(TOOL_SPECS['view-source'].id)
+  }, [canEdit, hasSpecialView, isStreaming, onViewModeChange, registerTool, removeTool, t, viewMode])
 }
