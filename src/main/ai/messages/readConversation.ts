@@ -42,7 +42,7 @@ export interface ReadConversationInput {
   toolCallId?: string
 }
 
-type ConversationReadResult =
+export type ReadConversationResult =
   | {
       source: 'topic'
       sessionId: string
@@ -196,7 +196,7 @@ function readExactMessage(
   }
 }
 
-export function readConversation(input: ReadConversationInput): ConversationReadResult {
+export function readConversation(input: ReadConversationInput): ReadConversationResult {
   assertValidQuery(input)
   const candidate = identifyConversation(input.sessionId)
   assertSourceQuery(candidate.source, input)

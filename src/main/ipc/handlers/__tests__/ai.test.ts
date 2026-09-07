@@ -6,25 +6,39 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
+  agentService,
   agentSessionMessageService,
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinSupportSession
+  createBuiltinSupportSession,
+  streamHandoffDraft,
+  HandoffDraftErrorMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  agentService: { getAgent: vi.fn() },
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinSupportSession: vi.fn()
+  createBuiltinSupportSession: vi.fn(),
+  streamHandoffDraft: vi.fn(),
+  HandoffDraftErrorMock: class HandoffDraftErrorMock extends Error {
+    readonly code = 'PROMPT_OVER_CAPACITY'
+    readonly details = { inputTokenRoom: 10 }
+  }
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@data/services/AgentService', () => ({ agentService }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
+vi.mock('@main/ai/agentSession/handoff', () => ({
+  HandoffDraftError: HandoffDraftErrorMock,
+  streamHandoffDraft
+}))
 
 import { aiHandlers } from '../ai'
 
@@ -86,6 +100,29 @@ beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
   createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
+  agentService.getAgent.mockReturnValue({ id: 'agent-1', name: 'Builder', description: 'Builds things' })
+  streamHandoffDraft.mockReturnValue({
+    streamId: 'handoff:draft:00000000-0000-4000-8000-000000000001',
+    ready: Promise.resolve({
+      draft: {
+        modelId: 'openai::summary',
+        material: {
+          coverage: {
+            source: 'topic',
+            sessionId: 'source-1',
+            capturedAt: '2026-09-07T00:00:00.000Z',
+            messageCount: 2,
+            messageIds: ['m1', 'm2'],
+            attachmentCount: 1,
+            toolPartCount: 0
+          },
+          attachments: [{ type: 'file', mediaType: 'text/plain', url: 'file:///tmp/a.txt', filename: 'a.txt' }]
+        }
+      },
+      sendResult: { mode: 'started', activeExecutions: [] },
+      cancelled: false
+    })
+  })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -272,6 +309,65 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
+  it('opens a handoff draft and returns preparation metadata', async () => {
+    const streamId = 'handoff:draft:00000000-0000-4000-8000-000000000001'
+    const request = {
+      sourceSessionId: 'source-1',
+      task: 'continue',
+      target: { agentId: 'agent-1', name: 'stale renderer name' },
+      streamId
+    } as never
+
+    await expect(aiHandlers['ai.agent.handoff.draft.open'](request, { senderId: 'w1' })).resolves.toEqual({
+      streamId,
+      modelId: 'openai::summary',
+      coverage: expect.objectContaining({ sessionId: 'source-1', messageCount: 2 }),
+      attachments: [expect.objectContaining({ type: 'file', filename: 'a.txt' })]
+    })
+    expect(agentService.getAgent).toHaveBeenCalledWith('agent-1')
+    expect(streamHandoffDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { agentId: 'agent-1', name: 'Builder', description: 'Builds things' } })
+    )
+  })
+
+  it('maps handoff preparation errors to a branchable AI IPC error', async () => {
+    streamHandoffDraft.mockReturnValueOnce({
+      streamId: 'handoff:draft:00000000-0000-4000-8000-000000000001',
+      ready: Promise.reject(new HandoffDraftErrorMock('capacity exceeded'))
+    })
+
+    const error = await aiHandlers['ai.agent.handoff.draft.open'](
+      {
+        sourceSessionId: 'source-1',
+        task: 'continue',
+        target: { agentId: 'agent-1', name: 'Builder' },
+        streamId: 'handoff:draft:00000000-0000-4000-8000-000000000001'
+      } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_HANDOFF_DRAFT_FAILED,
+      data: { code: 'PROMPT_OVER_CAPACITY', details: { inputTokenRoom: 10 } }
+    })
+  })
+
+  it('does not start a handoff when the sender window is gone', async () => {
+    windowManager.getWindow.mockReturnValue(undefined)
+    await expect(
+      aiHandlers['ai.agent.handoff.draft.open'](
+        {
+          sourceSessionId: 'source-1',
+          task: 'continue',
+          target: { agentId: 'agent-1', name: 'Builder' }
+        } as never,
+        { senderId: 'w1' }
+      )
+    ).rejects.toThrow('requires a managed window')
+    expect(streamHandoffDraft).not.toHaveBeenCalled()
+  })
+
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
     const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })

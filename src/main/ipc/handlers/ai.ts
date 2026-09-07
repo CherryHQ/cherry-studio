@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { HandoffDraftError, streamHandoffDraft } from '@main/ai/agentSession/handoff'
 import { findPersistedToolOutput } from '@main/ai/messages/readConversation'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -81,6 +85,20 @@ async function exposeAgentTaskError<T>(op: () => T | Promise<T>): Promise<T> {
   }
 }
 
+async function exposeHandoffDraftError<T>(op: () => T | Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof HandoffDraftError) {
+      throw new IpcError(aiErrorCodes.AI_HANDOFF_DRAFT_FAILED, error.message, {
+        code: error.code,
+        details: error.details
+      })
+    }
+    throw error
+  }
+}
+
 function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
 }
@@ -124,6 +142,34 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.stream.abort': async ({ topicId }) => {
     await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  },
+  'ai.agent.handoff.draft.open': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.agent.handoff.draft.open requires a managed window')
+    const streamId = request.streamId ?? `handoff:draft:${randomUUID()}`
+    const targetAgent = agentService.getAgent(request.target.agentId)
+    if (!targetAgent) throw new Error(`Target Agent not found: ${request.target.agentId}`)
+    const draft = streamHandoffDraft({
+      ...request,
+      target: {
+        ...request.target,
+        name: targetAgent.name,
+        description: targetAgent.description
+      },
+      streamId,
+      listener: new WebContentsListener(wc, streamId)
+    })
+    const result = await exposeHandoffDraftError(() => draft.ready)
+    const prepared = result.draft
+    return {
+      streamId: draft.streamId,
+      modelId: prepared.modelId,
+      coverage: {
+        ...prepared.material.coverage,
+        messageIds: [...prepared.material.coverage.messageIds]
+      },
+      attachments: [...prepared.material.attachments]
+    }
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
