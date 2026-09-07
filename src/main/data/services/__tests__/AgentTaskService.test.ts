@@ -133,6 +133,19 @@ describe('AgentTaskService (read side)', () => {
     ])
   })
 
+  it('publishes a run-log change scoped to its task and carrying the job id', () => {
+    agentTaskService.notifyRunLogChange(TASK_ID, 'job-1', 'projection')
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agents/:agentId/tasks/:taskId/logs',
+        kind: 'projection',
+        routeParams: { taskId: TASK_ID },
+        entityIds: ['job-1']
+      }
+    ])
+  })
+
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())

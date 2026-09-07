@@ -56,12 +56,18 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     // The row is already `running` here; publish so open task lists leave the
     // previous run's state. JobContext carries no scheduleId — resolve the row.
     const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
-    if (scheduleId) agentTaskService.notifyReadModelChange([scheduleId])
+    if (scheduleId) {
+      agentTaskService.notifyReadModelChange([scheduleId])
+      agentTaskService.notifyRunLogChange(scheduleId, ctx.jobId, 'membership')
+    }
     return await runAgentTask(ctx)
   },
 
   async onSettled(event) {
-    if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
+    if (event.scheduleId) {
+      agentTaskService.notifyReadModelChange([event.scheduleId])
+      agentTaskService.notifyRunLogChange(event.scheduleId, event.jobId, 'projection')
+    }
     if (event.status !== 'failed' || !event.scheduleId) return
 
     const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)

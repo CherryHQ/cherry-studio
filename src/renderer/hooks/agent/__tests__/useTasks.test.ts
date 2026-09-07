@@ -14,6 +14,7 @@ import {
   useRunTask,
   useSetTaskEnabled,
   useTask,
+  useTaskLogs,
   useTasks,
   useUpdateTask
 } from '../useTasks'
@@ -130,6 +131,28 @@ describe('useTask', () => {
     renderHook(() => useTask('t-1'))
 
     MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks/:taskId', entityIds: ['t-1'] }])
+
+    expect(refetch).toHaveBeenCalled()
+  })
+})
+
+describe('useTaskLogs', () => {
+  it('refetches the run history when a run of the viewed task changes state', () => {
+    const refetch = vi.fn()
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId/tasks/:taskId/logs', {
+      data: { items: [], total: 0, page: 1 } as any,
+      refetch
+    })
+    renderHook(() => useTaskLogs('agent-1', 't-1'))
+
+    MockUseDataApiUtils.emitDataChange([
+      {
+        endpoint: '/agents/:agentId/tasks/:taskId/logs',
+        kind: 'projection',
+        routeParams: { taskId: 't-1' },
+        entityIds: ['job-1']
+      }
+    ])
 
     expect(refetch).toHaveBeenCalled()
   })

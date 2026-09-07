@@ -16,7 +16,8 @@ vi.mock('@data/services/JobService', () => ({
 
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
-    notifyReadModelChange: vi.fn()
+    notifyReadModelChange: vi.fn(),
+    notifyRunLogChange: vi.fn()
   }
 }))
 
@@ -95,6 +96,7 @@ describe('AgentTaskJobHandler', () => {
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(agentTaskService.notifyReadModelChange).mockReset()
+    vi.mocked(agentTaskService.notifyRunLogChange).mockReset()
     vi.mocked(runAgentTask).mockReset()
   })
 
@@ -142,12 +144,13 @@ describe('AgentTaskJobHandler', () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
         expect(agentTaskService.notifyReadModelChange).toHaveBeenCalledWith(['s1'])
+        expect(agentTaskService.notifyRunLogChange).toHaveBeenCalledWith('s1', 'j1', 'membership')
         return { result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
-      expect.assertions(1)
+      expect.assertions(2)
     })
 
     it('does not publish for an ad-hoc job with no schedule', async () => {
@@ -156,6 +159,7 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
       expect(agentTaskService.notifyReadModelChange).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunLogChange).not.toHaveBeenCalled()
     })
   })
 
@@ -209,6 +213,10 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))
 
       expect(vi.mocked(agentTaskService.notifyReadModelChange).mock.calls).toEqual([[['s1']], [['s1']]])
+      expect(vi.mocked(agentTaskService.notifyRunLogChange).mock.calls).toEqual([
+        ['s1', 'job-1', 'projection'],
+        ['s1', 'job-1', 'projection']
+      ])
     })
 
     it('does not act when the failed job has no scheduleId (ad-hoc enqueue)', async () => {
@@ -216,6 +224,7 @@ describe('AgentTaskJobHandler', () => {
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
       expect(pauseSpy).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunLogChange).not.toHaveBeenCalled()
     })
 
     it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {

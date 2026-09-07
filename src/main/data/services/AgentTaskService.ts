@@ -144,6 +144,13 @@ export class AgentTaskService {
     ])
   }
 
+  /** Publish one run-log row change: `membership` when the row first becomes visible, `projection` when it settles. */
+  notifyRunLogChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind, routeParams: { taskId }, entityIds: [jobId] }
+    ])
+  }
+
   listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
     return findWorkspaceScheduleReferences(
       jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
