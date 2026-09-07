@@ -43,7 +43,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
 │        structured = { n, size, seed, aspectRatio, … }   (typed ParamValues & {n})│
 │        vendorBag  = { the non-native canonical params, camelCase }              │
 │                                                                                 │
-│   resolveImageTransport(provider, model)?                                       │
+│   resolveImageTransport(config, modelId)?                                       │
 │     ├─ NO  → SDK delivery                  ├─ YES → transport delivery           │
 │     ▼                                       ▼                                    │
 │   buildVendorProviderOptions               getImageGenerationSupport(provider,   │
@@ -273,7 +273,7 @@ The SDK image model is one of: a custom `ImageModelV3` (e.g.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / DMXAPI-custom / TokenHub families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`). The shared transport runtime owns submit, task-id persistence before the first query, polling and remote cancellation; the handler owns queueing, durable input references, progress bridging and output persistence.
+When `resolveImageTransport(config, modelId)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / DMXAPI-custom / TokenHub families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`). The shared transport runtime owns submit, task-id persistence before the first query, polling and remote cancellation; the handler owns queueing, durable input references, progress bridging and output persistence.
 
 The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
