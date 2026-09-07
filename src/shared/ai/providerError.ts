@@ -40,7 +40,7 @@ function containsEncodedContainer(text: string): boolean {
   while (candidate.startsWith('"') || candidate.startsWith("'") || candidate.startsWith('\\')) {
     candidate = candidate.slice(1).trimStart()
   }
-  return candidate.includes('{') || candidate.includes('[')
+  return /\{\s*(?:["'{[]|\})|\[\s*(?:["'{[]|\])/.test(candidate)
 }
 
 function providerPayloadText(value: unknown): string {

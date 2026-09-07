@@ -122,6 +122,15 @@ describe('getSafeProviderErrorMessage', () => {
     ).toBe('Service temporarily unavailable')
   })
 
+  it.each(['Template variable {name} is required', 'Input [0] must be a string'])(
+    'keeps ordinary provider text containing braces or brackets: %s',
+    (providerMessage) => {
+      expect(
+        getSafeProviderErrorMessage({ responseBody: JSON.stringify({ error: { message: providerMessage } }) })
+      ).toBe(providerMessage)
+    }
+  )
+
   it.each(PROVIDER_TEXT_FIELDS)('keeps JSON primitive payload text in %s', (_field, payloadFor) => {
     for (const value of ['"quoted provider message"', '400', 'true']) {
       expect(getSafeProviderErrorMessage({ responseBody: JSON.stringify(payloadFor(value)) })).toBe(value)

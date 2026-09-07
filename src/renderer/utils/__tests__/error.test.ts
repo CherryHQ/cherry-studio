@@ -186,6 +186,25 @@ describe('error', () => {
       expect(result).toMatchObject({ statusCode: 500, responseBody: 'upstream exploded' })
     })
 
+    it('uses the safe terminal detail from an IPC RetryError in health checks', () => {
+      const detail = {
+        name: 'AI_RetryError',
+        message: '',
+        stack: null,
+        cause: null,
+        reason: 'maxRetriesExceeded',
+        lastError: { name: 'Error', message: 'Rate limit reached', stack: null, cause: null },
+        errors: [{ name: 'Error', message: 'Rate limit reached', stack: null, cause: null }]
+      }
+      const error = IpcError.fromJSON({ code: aiErrorCodes.AI_REQUEST_FAILED, message: '', data: detail })
+
+      const result = serializeHealthCheckError(error)
+
+      expect(result).toBe(detail)
+      expect(providerErrorText(result)).toBe('Rate limit reached')
+      expect(JSON.stringify(result)).not.toMatch(/private user prompt|internal trace/)
+    })
+
     it('falls through to message for an IpcError with a different code (does not leak its data)', () => {
       const err = new IpcError('VALIDATION_FAILED', 'bad input', { issues: ['x'] })
 

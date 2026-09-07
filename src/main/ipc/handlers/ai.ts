@@ -45,10 +45,11 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
     // reject keeps only `message`, and a downstream normalize (e.g. the paintings
     // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
     // the real cause is this log. User-initiated aborts are control flow, not failures.
+    const serializedError = serializeError(e)
     if (!(e instanceof Error && e.name === 'AbortError')) {
-      logger.error(`${route} failed`, serializeError(e))
+      logger.error(`${route} failed`, serializedError)
     }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
   }
 }
 

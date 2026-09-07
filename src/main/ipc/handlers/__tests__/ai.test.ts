@@ -2,6 +2,7 @@ import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -268,6 +269,28 @@ describe('aiHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
+  })
+
+  it('does not expose a RetryError wrapper payload through the AI IPC error', async () => {
+    const terminalError = new Error('Rate limit reached')
+    const privatePayload = '{"prompt":"private user prompt","trace":"internal trace"'
+    const retryError = new RetryError({
+      message: `Failed after 3 attempts. Last error: Provider failed: ${privatePayload}`,
+      reason: 'maxRetriesExceeded',
+      errors: [terminalError]
+    })
+    aiService.checkModel.mockRejectedValue(retryError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('')
+    expect(error.stack).not.toMatch(/private user prompt|internal trace/)
+    expect(error.data).toMatchObject({
+      message: '',
+      stack: null,
+      lastError: { message: 'Rate limit reached', stack: null }
+    })
   })
 })
 
