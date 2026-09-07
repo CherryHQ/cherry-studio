@@ -115,6 +115,7 @@ export type {
 export { ProviderModelReasoningContractSchema } from './schemas/provider-models'
 export type {
   ReasoningFormatWireProfile,
+  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireOperation,
   ReasoningWireProfile,
