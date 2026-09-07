@@ -274,12 +274,12 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as
-      | ((event: { preventDefault: () => void }, url: string) => void)
-      | undefined
-    const willFrameNavigate = onMock.mock.calls.find(([event]) => event === 'will-frame-navigate')?.[1] as
-      | ((event: { preventDefault: () => void; url: string }) => void)
-      | undefined
+    const willNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-navigate'
+    )?.[1] as ((event: { preventDefault: () => void }, url: string) => void) | undefined
+    const willFrameNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-frame-navigate'
+    )?.[1] as ((event: { preventDefault: () => void; url: string }) => void) | undefined
     expect(willNavigate).toBeDefined()
     expect(willFrameNavigate).toBeDefined()
 
@@ -300,9 +300,9 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willRedirect = onMock.mock.calls.find(([event]) => event === 'will-redirect')?.[1] as
-      | ((event: { preventDefault: () => void }, url: string) => void)
-      | undefined
+    const willRedirect = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-redirect'
+    )?.[1] as ((event: { preventDefault: () => void }, url: string) => void) | undefined
     expect(willRedirect).toBeDefined()
 
     for (const url of ['file:///D:/secret.html', 'http://169.254.169.254/latest/meta-data']) {
@@ -320,10 +320,9 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
-      event: { preventDefault: () => void; url?: unknown },
-      url?: unknown
-    ) => void
+    const willNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-navigate'
+    )?.[1] as (event: { preventDefault: () => void; url?: unknown }, url?: unknown) => void
 
     const blocked = { preventDefault: vi.fn(), url: 'file:///D:/secret.html' }
     willNavigate(blocked, undefined)
@@ -338,10 +337,9 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
-      event: { preventDefault: () => void },
-      url: string
-    ) => void
+    const willNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-navigate'
+    )?.[1] as (event: { preventDefault: () => void }, url: string) => void
 
     const blank = { preventDefault: vi.fn() }
     willNavigate(blank, 'about:blank')
@@ -363,10 +361,9 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
-      event: { preventDefault: () => void },
-      url: string
-    ) => void
+    const willNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-navigate'
+    )?.[1] as (event: { preventDefault: () => void }, url: string) => void
 
     for (const url of [
       'http://169.254.169.254/latest/meta-data/',
@@ -393,10 +390,9 @@ describe('CdpBrowserController', () => {
     const controller = new CdpBrowserController()
     const { view } = await controller.createTab(false)
     const onMock = vi.mocked(view.webContents.on)
-    const willNavigate = onMock.mock.calls.find(([event]) => event === 'will-navigate')?.[1] as (
-      event: { preventDefault: () => void },
-      url: string
-    ) => void
+    const willNavigate = (onMock.mock.calls as unknown as Array<[string, any]>).find(
+      ([event]) => event === 'will-navigate'
+    )?.[1] as (event: { preventDefault: () => void }, url: string) => void
 
     const event = { preventDefault: vi.fn() }
     willNavigate(event, 'file:///D:/report/out.html')
