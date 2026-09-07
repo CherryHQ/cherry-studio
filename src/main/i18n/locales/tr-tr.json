@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, sık sorulan soruları toplar, hata/özellik istekleri gönderir ve Skills arayıp oluşturur",
   "agent.builtin.cherry_support.description": "Kurulum rehberliği, sorun giderme, sık sorulan sorular ve geri bildirim için resmi Cherry Studio destek ajanı",
-  "agent.runtime_mode.label": "Agent çalışma zamanı modu: {{mode}}",
   "agent.session.new": "Yeni görev",
   "agent.session.run_status.busy": "Ajan Oturumu meşgul. Lütfen kısa süre sonra tekrar deneyin.",
   "agent.session.run_status.unavailable": "Ajan Oturumu artık kullanılamıyor.",
